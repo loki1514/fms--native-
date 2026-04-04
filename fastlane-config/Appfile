@@ -1,0 +1,76 @@
+# Appfile
+# Configuration for fastlane
+# For Contact AutoPilot React Native SaaS App
+# https://docs.fastlane.tools/advanced/#appfile
+
+# ============================================
+# IOS CONFIGURATION
+# ============================================
+
+# Your Apple Developer Team ID
+# Find this at: https://developer.apple.com/account/#/membership
+# team_id "YOUR_TEAM_ID"
+
+# Your App Store Connect Team ID (may be different from Team ID)
+# Find this in App Store Connect under Users and Access > Details
+# itc_team_id "YOUR_ITC_TEAM_ID"
+
+# Your app's bundle identifier
+# This must match the bundle ID in your Xcode project
+app_identifier("com.yourcompany.contactautopilot")
+
+# Your Apple ID (email address used for Apple Developer account)
+# apple_id("your-email@example.com")
+
+# ============================================
+# ANDROID CONFIGURATION
+# ============================================
+
+# Path to your app's JSON key file for Play Store API access
+# Generate this in Google Play Console > API Access
+# json_key_file("./fastlane/play-store-key.json")
+
+# Your app's package name (must match AndroidManifest.xml)
+package_name("com.yourcompany.contactautopilot")
+
+# ============================================
+# GENERAL CONFIGURATION
+# ============================================
+
+# Uncomment and set these as needed:
+
+# For automatic version management:
+# version_number("1.0.0")
+
+# For specifying build configuration:
+# configuration("Release")
+
+# For specifying export method:
+# export_method("app-store") # or "ad-hoc", "development", "enterprise"
+
+# ============================================
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# ============================================
+
+# You can create separate Appfiles for different environments:
+# - Appfile.production
+# - Appfile.staging
+# - Appfile.development
+
+# Then use: fastlane [lane] --env production
+
+# ============================================
+# NOTES
+# ============================================
+
+# For security, sensitive values should be set via environment variables:
+# export FASTLANE_TEAM_ID="your-team-id"
+# export FASTLANE_APPLE_ID="your-email@example.com"
+# export FASTLANE_ITC_TEAM_ID="your-itc-team-id"
+# export MATCH_PASSWORD="your-match-password"
+# export MATCH_GIT_URL="https://github.com/yourorg/certificates"
+
+# For CI/CD environments, use:
+# export FASTLANE_PASSWORD="your-apple-id-password"
+# Or better, use App Store Connect API key:
+# export APP_STORE_CONNECT_API_KEY_PATH="./path-to-key.p8"

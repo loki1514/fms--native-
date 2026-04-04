@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 
+    Add these entries to your ios/YourApp/Info.plist file
+    These are required permission descriptions for various app features
+    -->
+    
+    <!-- Camera Access - Required for document scanning, profile photos -->
+    <key>NSCameraUsageDescription</key>
+    <string>Contact AutoPilot needs camera access to scan business cards, capture profile photos, and scan documents for your contacts.</string>
+    
+    <!-- Photo Library Access - Required for uploading photos -->
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Contact AutoPilot needs photo library access to let you upload profile pictures and attach photos to contacts.</string>
+    
+    <!-- Photo Library Additions - Required for saving photos -->
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Contact AutoPilot needs permission to save photos to your library.</string>
+    
+    <!-- Contacts Access - CRITICAL for contact management SaaS -->
+    <key>NSContactsUsageDescription</key>
+    <string>Contact AutoPilot needs contacts access to sync, manage, and organize your business contacts. Your contacts are securely stored and never shared without your permission.</string>
+    
+    <!-- Location When In Use - Required for location-based features -->
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Contact AutoPilot uses your location to tag contact meetings and provide location-based contact suggestions.</string>
+    
+    <!-- Location Always - Required for background location features -->
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Contact AutoPilot uses your location to automatically log meeting locations with contacts.</string>
+    
+    <!-- Microphone Access - Required for voice notes -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Contact AutoPilot needs microphone access to record voice notes and attach them to contacts.</string>
+    
+    <!-- Face ID / Touch ID - For secure authentication -->
+    <key>NSFaceIDUsageDescription</key>
+    <string>Contact AutoPilot uses Face ID for secure and convenient authentication.</string>
+    
+    <!-- Bluetooth - Required for nearby contact sharing (if applicable) -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Contact AutoPilot uses Bluetooth for nearby contact sharing features.</string>
+    
+    <!-- Calendars - Required for meeting scheduling integration -->
+    <key>NSCalendarsUsageDescription</key>
+    <string>Contact AutoPilot needs calendar access to schedule meetings and sync with your contacts.</string>
+    
+    <!-- Reminders - Required for follow-up reminders -->
+    <key>NSRemindersUsageDescription</key>
+    <string>Contact AutoPilot needs reminders access to set follow-up reminders for your contacts.</string>
+    
+    <!-- Siri - Required for voice commands (if applicable) -->
+    <key>NSSiriUsageDescription</key>
+    <string>Contact AutoPilot uses Siri to help you quickly find and call contacts using voice commands.</string>
+    
+    <!-- Speech Recognition - Required for voice-to-text features -->
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Contact AutoPilot uses speech recognition for voice-to-text contact notes.</string>
+    
+    <!-- Local Network - Required for local sync features -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Contact AutoPilot uses local network for device-to-device contact sharing.</string>
+    
+    <!-- User Tracking - Required for analytics (if applicable) -->
+    <key>NSUserTrackingUsageDescription</key>
+    <string>Contact AutoPilot uses tracking to improve app performance and provide personalized features.</string>
+    
+    <!-- ============================================ -->
+    <!-- REQUIRED APP CONFIGURATION -->
+    <!-- ============================================ -->
+    
+    <!-- Background Modes -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>           <!-- Background fetch for sync -->
+        <string>remote-notification</string>  <!-- Push notifications -->
+        <string>processing</string>      <!-- Background processing -->
+    </array>
+    
+    <!-- App Transport Security -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <false/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <!-- Add any exception domains if needed -->
+        </dict>
+    </dict>
+    
+    <!-- URL Types for Deep Linking -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.yourcompany.contactautopilot</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>contactautopilot</string>
+            </array>
+        </dict>
+    </array>
+    
+    <!-- Associated Domains for Universal Links -->
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <string>applinks:contactautopilot.com</string>
+        <string>webcredentials:contactautopilot.com</string>
+    </array>
+    
+    <!-- Required device capabilities -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>armv7</string>
+        <string>arm64</string>
+    </array>
+    
+    <!-- Supported interface orientations -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    
+    <!-- iPad orientations -->
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    
+    <!-- Launch screen -->
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+    
+    <!-- Main storyboard -->
+    <key>UIMainStoryboardFile</key>
+    <string>Main</string>
+    
+    <!-- Appearance -->
+    <key>UIUserInterfaceStyle</key>
+    <string>Automatic</string>
+    
+    <!-- Status bar style -->
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
+    
+    <!-- Hide status bar on launch -->
+    <key>UIStatusBarHidden</key>
+    <false/>
+    
+    <!-- Font settings -->
+    <key>UIAppFonts</key>
+    <array>
+        <!-- Add custom fonts here if needed -->
+    </array>
+    
+    <!-- Document types (for file import) -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>CSV Document</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.comma-separated-values-text</string>
+                <string>public.text</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>vCard</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.vcard</string>
+            </array>
+        </dict>
+    </array>
+    
+    <!-- Exported UTIs -->
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <!-- Define custom file types if needed -->
+    </array>
+    
+    <!-- Imported UTIs -->
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>public.comma-separated-values-text</string>
+            <key>UTTypeDescription</key>
+            <string>CSV Document</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.text</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

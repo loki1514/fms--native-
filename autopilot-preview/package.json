@@ -1,0 +1,17 @@
+{
+  "name": "autopilot-preview",
+  "version": "1.0.0",
+  "dependencies": {
+    "expo": "~50.0.0",
+    "react": "18.2.0",
+    "react-native": "0.73.0",
+    "@expo/webpack-config": "~19.0.1",
+    "react-dom": "18.2.0",
+    "@tamagui/config": "^1.84.0",
+    "tamagui": "^1.84.0"
+  },
+  "scripts": {
+    "start": "expo start --web",
+    "tunnel": "expo start --web --tunnel"
+  }
+}

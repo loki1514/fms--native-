@@ -1,0 +1,608 @@
+# Fastfile
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/plugins.md
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+# ============================================
+# FASTLANE CONFIGURATION
+# For Contact AutoPilot React Native SaaS App
+# ============================================
+
+default_platform(:ios)
+
+# ============================================
+# SHARED VARIABLES
+# ============================================
+
+# App identifiers
+APP_IDENTIFIER = "com.yourcompany.contactautopilot"
+APP_NAME = "Contact AutoPilot"
+
+# Team information
+TEAM_ID = "YOUR_TEAM_ID" # Replace with your Apple Team ID
+ITC_TEAM_ID = "YOUR_ITC_TEAM_ID" # Replace with your App Store Connect Team ID
+
+# ============================================
+# IOS PLATFORM
+# ============================================
+
+platform :ios do
+  
+  # ==========================================
+  # BEFORE ALL HOOK
+  # ==========================================
+  before_all do
+    # Ensure clean git status (optional)
+    # ensure_git_status_clean
+    
+    # Setup environment
+    setup_ci if ENV['CI']
+  end
+
+  # ==========================================
+  # CERTIFICATES & PROVISIONING
+  # ==========================================
+  
+  desc "Sync certificates and provisioning profiles"
+  lane :certificates do
+    # Use match for secure certificate management
+    match(
+      type: "appstore",
+      app_identifier: APP_IDENTIFIER,
+      team_id: TEAM_ID,
+      git_url: ENV['MATCH_GIT_URL'], # Set in environment
+      readonly: is_ci
+    )
+  end
+
+  desc "Sync development certificates"
+  lane :certificates_dev do
+    match(
+      type: "development",
+      app_identifier: APP_IDENTIFIER,
+      team_id: TEAM_ID,
+      git_url: ENV['MATCH_GIT_URL'],
+      readonly: is_ci
+    )
+  end
+
+  # ==========================================
+  # BUILD LANES
+  # ==========================================
+  
+  desc "Build iOS app for testing"
+  lane :build_test do
+    # Sync certificates
+    certificates_dev
+    
+    # Build the app
+    gym(
+      scheme: "ContactAutoPilot",
+      configuration: "Debug",
+      export_method: "development",
+      output_directory: "./build/ios",
+      output_name: "ContactAutoPilot-Test.ipa"
+    )
+  end
+
+  desc "Build iOS app for App Store"
+  lane :build_release do
+    # Sync certificates
+    certificates
+    
+    # Increment build number
+    increment_build_number(
+      xcodeproj: "./ios/ContactAutoPilot.xcodeproj"
+    )
+    
+    # Build the app
+    gym(
+      scheme: "ContactAutoPilot",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "./build/ios",
+      output_name: "ContactAutoPilot-Release.ipa",
+      include_symbols: true,
+      include_bitcode: false
+    )
+  end
+
+  # ==========================================
+  # TEST LANES
+  # ==========================================
+  
+  desc "Run iOS tests"
+  lane :test do
+    scan(
+      scheme: "ContactAutoPilot",
+      device: "iPhone 15 Pro",
+      clean: true,
+      code_coverage: true,
+      output_directory: "./test_output/ios"
+    )
+  end
+
+  # ==========================================
+  # BETA DEPLOYMENT
+  # ==========================================
+  
+  desc "Deploy to TestFlight"
+  lane :beta do
+    # Build release version
+    build_release
+    
+    # Upload to TestFlight
+    pilot(
+      app_identifier: APP_IDENTIFIER,
+      team_id: ITC_TEAM_ID,
+      skip_waiting_for_build_processing: false,
+      notify_external_testers: false,
+      changelog: generate_changelog,
+      beta_app_feedback_email: "beta@contactautopilot.com"
+    )
+    
+    # Notify team
+    slack(
+      message: "🚀 Contact AutoPilot iOS Beta #{get_build_number} uploaded to TestFlight!",
+      channel: "#mobile-releases"
+    ) if ENV['SLACK_URL']
+  end
+
+  desc "Deploy to TestFlight for external testing"
+  lane :beta_external do
+    # Build release version
+    build_release
+    
+    # Upload to TestFlight
+    pilot(
+      app_identifier: APP_IDENTIFIER,
+      team_id: ITC_TEAM_ID,
+      distribute_external: true,
+      groups: ["External Testers"],
+      skip_waiting_for_build_processing: false,
+      changelog: generate_changelog,
+      beta_app_feedback_email: "beta@contactautopilot.com"
+    )
+  end
+
+  # ==========================================
+  # APP STORE DEPLOYMENT
+  # ==========================================
+  
+  desc "Deploy to App Store"
+  lane :release do
+    # Ensure main branch (optional safety check)
+    # ensure_git_branch(branch: 'main')
+    
+    # Run tests
+    test
+    
+    # Build release version
+    build_release
+    
+    # Upload to App Store
+    deliver(
+      app_identifier: APP_IDENTIFIER,
+      team_id: ITC_TEAM_ID,
+      skip_metadata: false,
+      skip_screenshots: false,
+      skip_binary_upload: false,
+      submit_for_review: false, # Set to true to auto-submit
+      automatic_release: false, # Set to true for automatic release
+      force: true,
+      precheck_include_in_app_purchases: false
+    )
+    
+    # Tag release
+    add_git_tag(tag: "ios-#{get_version_number}-#{get_build_number}")
+    push_git_tags
+    
+    # Notify team
+    slack(
+      message: "🎉 Contact AutoPilot iOS v#{get_version_number} (#{get_build_number}) submitted to App Store!",
+      channel: "#mobile-releases"
+    ) if ENV['SLACK_URL']
+  end
+
+  desc "Deploy to App Store and submit for review"
+  lane :release_with_review do
+    deliver(
+      app_identifier: APP_IDENTIFIER,
+      team_id: ITC_TEAM_ID,
+      skip_metadata: false,
+      skip_screenshots: false,
+      skip_binary_upload: false,
+      submit_for_review: true,
+      automatic_release: false,
+      force: true,
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        export_compliance_uses_encryption: false,
+        export_compliance_encryption_updated: false
+      }
+    )
+  end
+
+  # ==========================================
+  # SNAPSHOTS / SCREENSHOTS
+  # ==========================================
+  
+  desc "Generate screenshots"
+  lane :screenshots do
+    capture_ios_screenshots(
+      scheme: "ContactAutoPilotUITests",
+      devices: [
+        "iPhone 15 Pro Max",
+        "iPhone 15 Pro",
+        "iPhone 14 Plus",
+        "iPhone SE (3rd generation)"
+      ],
+      languages: ["en-US"],
+      output_directory: "./fastlane/screenshots/ios",
+      clear_previous_screenshots: true
+    )
+  end
+
+  desc "Upload screenshots only"
+  lane :upload_screenshots do
+    deliver(
+      app_identifier: APP_IDENTIFIER,
+      team_id: ITC_TEAM_ID,
+      skip_metadata: true,
+      skip_screenshots: false,
+      skip_binary_upload: true,
+      screenshots_path: "./fastlane/screenshots/ios"
+    )
+  end
+
+  # ==========================================
+  # METADATA MANAGEMENT
+  # ==========================================
+  
+  desc "Download metadata from App Store"
+  lane :download_metadata do
+    deliver(
+      app_identifier: APP_IDENTIFIER,
+      team_id: ITC_TEAM_ID,
+      skip_metadata: false,
+      skip_screenshots: true,
+      skip_binary_upload: true,
+      download_metadata: true,
+      download_screenshots: false
+    )
+  end
+
+  desc "Update app metadata"
+  lane :update_metadata do
+    deliver(
+      app_identifier: APP_IDENTIFIER,
+      team_id: ITC_TEAM_ID,
+      skip_metadata: false,
+      skip_screenshots: true,
+      skip_binary_upload: true,
+      force: true
+    )
+  end
+
+  # ==========================================
+  # UTILITY LANES
+  # ==========================================
+  
+  desc "Increment version number"
+  lane :bump_version do |options|
+    bump_type = options[:type] || "patch" # major, minor, patch
+    
+    increment_version_number(
+      xcodeproj: "./ios/ContactAutoPilot.xcodeproj",
+      bump_type: bump_type
+    )
+    
+    # Also update Android version
+    increment_version_name(
+      gradle_file_path: "./android/app/build.gradle",
+      bump_type: bump_type
+    )
+  end
+
+  desc "Register new device"
+  lane :register_device do
+    device_name = prompt(text: "Device name: ")
+    device_udid = prompt(text: "Device UDID: ")
+    
+    register_device(
+      name: device_name,
+      udid: device_udid,
+      team_id: TEAM_ID
+    )
+    
+    # Regenerate provisioning profiles
+    match(
+      type: "development",
+      app_identifier: APP_IDENTIFIER,
+      team_id: TEAM_ID,
+      git_url: ENV['MATCH_GIT_URL'],
+      force_for_new_devices: true
+    )
+  end
+
+  # ==========================================
+  # AFTER ALL HOOK
+  # ==========================================
+  after_all do |lane|
+    # This block is called, only if the executed lane was successful
+    # slack(message: "Successfully deployed new Contact AutoPilot update.")
+  end
+
+  error do |lane, exception|
+    # Handle errors
+    slack(
+      message: "❌ Error in lane '#{lane}': #{exception.message}",
+      success: false
+    ) if ENV['SLACK_URL']
+  end
+end
+
+# ============================================
+# ANDROID PLATFORM
+# ============================================
+
+platform :android do
+  
+  # ==========================================
+  # BEFORE ALL HOOK
+  # ==========================================
+  before_all do
+    setup_ci if ENV['CI']
+  end
+
+  # ==========================================
+  # BUILD LANES
+  # ==========================================
+  
+  desc "Build Android APK for testing"
+  lane :build_apk do
+    gradle(
+      task: "assemble",
+      build_type: "Debug",
+      project_dir: "./android"
+    )
+  end
+
+  desc "Build Android AAB for Play Store"
+  lane :build_bundle do
+    # Increment version code
+    increment_version_code(
+      gradle_file_path: "./android/app/build.gradle"
+    )
+    
+    # Build release bundle
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      project_dir: "./android",
+      properties: {
+        "android.injected.signing.store.file" => ENV['ANDROID_KEYSTORE_PATH'],
+        "android.injected.signing.store.password" => ENV['ANDROID_KEYSTORE_PASSWORD'],
+        "android.injected.signing.key.alias" => ENV['ANDROID_KEY_ALIAS'],
+        "android.injected.signing.key.password" => ENV['ANDROID_KEY_PASSWORD']
+      }
+    )
+  end
+
+  desc "Build Android APK for release"
+  lane :build_release_apk do
+    increment_version_code(
+      gradle_file_path: "./android/app/build.gradle"
+    )
+    
+    gradle(
+      task: "assemble",
+      build_type: "Release",
+      project_dir: "./android",
+      properties: {
+        "android.injected.signing.store.file" => ENV['ANDROID_KEYSTORE_PATH'],
+        "android.injected.signing.store.password" => ENV['ANDROID_KEYSTORE_PASSWORD'],
+        "android.injected.signing.key.alias" => ENV['ANDROID_KEY_ALIAS'],
+        "android.injected.signing.key.password" => ENV['ANDROID_KEY_PASSWORD']
+      }
+    )
+  end
+
+  # ==========================================
+  # TEST LANES
+  # ==========================================
+  
+  desc "Run Android tests"
+  lane :test do
+    gradle(
+      task: "test",
+      project_dir: "./android"
+    )
+  end
+
+  # ==========================================
+  # BETA DEPLOYMENT
+  # ==========================================
+  
+  desc "Deploy to Play Console Internal Testing"
+  lane :beta_internal do
+    # Build release bundle
+    build_bundle
+    
+    # Upload to Play Console
+    upload_to_play_store(
+      track: "internal",
+      aab: "./android/app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false,
+      release_status: "completed"
+    )
+    
+    # Notify team
+    slack(
+      message: "🚀 Contact AutoPilot Android Beta uploaded to Internal Testing!",
+      channel: "#mobile-releases"
+    ) if ENV['SLACK_URL']
+  end
+
+  desc "Deploy to Play Console Closed Testing"
+  lane :beta_closed do
+    build_bundle
+    
+    upload_to_play_store(
+      track: "alpha", # or "beta" for open testing
+      aab: "./android/app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false
+    )
+  end
+
+  desc "Deploy to Play Console Open Testing"
+  lane :beta_open do
+    build_bundle
+    
+    upload_to_play_store(
+      track: "beta",
+      aab: "./android/app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false
+    )
+  end
+
+  # ==========================================
+  # PRODUCTION DEPLOYMENT
+  # ==========================================
+  
+  desc "Deploy to Play Store Production"
+  lane :release do
+    # Run tests
+    test
+    
+    # Build release bundle
+    build_bundle
+    
+    # Upload to Play Console
+    upload_to_play_store(
+      track: "production",
+      aab: "./android/app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false,
+      release_status: "draft" # Change to "completed" for immediate release
+    )
+    
+    # Tag release
+    version_code = get_version_code(
+      gradle_file_path: "./android/app/build.gradle"
+    )
+    add_git_tag(tag: "android-#{version_code}")
+    push_git_tags
+    
+    # Notify team
+    slack(
+      message: "🎉 Contact AutoPilot Android v#{version_code} submitted to Play Store!",
+      channel: "#mobile-releases"
+    ) if ENV['SLACK_URL']
+  end
+
+  desc "Promote from beta to production"
+  lane :promote_to_production do
+    upload_to_play_store(
+      track: "beta",
+      track_promote_to: "production",
+      skip_upload_changelogs: false
+    )
+  end
+
+  # ==========================================
+  # SNAPSHOTS / SCREENSHOTS
+  # ==========================================
+  
+  desc "Generate Android screenshots"
+  lane :screenshots do
+    # Use screengrab for Android screenshots
+    screengrab(
+      android_project_dir: "./android",
+      app_package_name: APP_IDENTIFIER,
+      output_directory: "./fastlane/screenshots/android",
+      clear_previous_screenshots: true,
+      locales: ["en-US"],
+      device_type: "phone"
+    )
+  end
+
+  # ==========================================
+  # METADATA MANAGEMENT
+  # ==========================================
+  
+  desc "Download metadata from Play Store"
+  lane :download_metadata do
+    upload_to_play_store(
+      track: "production",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_aab: true,
+      skip_upload_apk: true
+    )
+  end
+
+  # ==========================================
+  # UTILITY LANES
+  # ==========================================
+  
+  desc "Increment version code"
+  lane :bump_version do
+    increment_version_code(
+      gradle_file_path: "./android/app/build.gradle"
+    )
+  end
+
+  desc "Validate Play Store listing"
+  lane :validate do
+    # Validate metadata
+    validate_play_store_json_key(
+      json_key: ENV['PLAY_STORE_JSON_KEY_PATH']
+    )
+  end
+end
+
+# ============================================
+# SHARED METHODS
+# ============================================
+
+# Generate changelog from git commits
+def generate_changelog
+  changelog_from_git_commits(
+    commits_count: 10,
+    merge_commit_filtering: "exclude_merges"
+  )
+end
+
+# Get current version number
+def get_version_number
+  get_version_number(
+    xcodeproj: "./ios/ContactAutoPilot.xcodeproj"
+  )
+end
+
+# Get current build number
+def get_build_number
+  get_build_number(
+    xcodeproj: "./ios/ContactAutoPilot.xcodeproj"
+  )
+end

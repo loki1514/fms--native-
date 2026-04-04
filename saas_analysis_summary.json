@@ -1,0 +1,209 @@
+{
+  "project_name": "Autopilot - Facility Management SaaS Platform",
+  "repository": "contactautopilotoffices-oss/saas_development",
+  "analysis_date": "2025-01-20",
+  "migration_target": "React Native",
+  "complexity": "HIGH",
+  "estimated_effort_months": "4-6",
+  
+  "tech_stack": {
+    "frontend": {
+      "framework": "Next.js 16.1.1",
+      "language": "TypeScript 5",
+      "react_version": "19.2.3",
+      "styling": "Tailwind CSS v4",
+      "bundler": "Webpack (prod) / Turbopack (dev)"
+    },
+    "backend": {
+      "type": "Next.js API Routes (Serverless)",
+      "database": "Supabase (PostgreSQL)",
+      "auth": "Supabase Auth + Auth0",
+      "realtime": "Supabase Realtime (WebSocket)",
+      "storage": "Supabase Storage"
+    }
+  },
+  
+  "core_features": [
+    {
+      "module": "Ticketing System",
+      "priority": "CRITICAL",
+      "mobile_complexity": "MEDIUM",
+      "key_components": ["TicketList", "TicketDetail", "TicketCreate", "KanbanBoard", "FlowMap"]
+    },
+    {
+      "module": "User Management",
+      "priority": "CRITICAL",
+      "mobile_complexity": "LOW",
+      "key_components": ["UserList", "UserForm", "RoleSelector", "InviteSystem"]
+    },
+    {
+      "module": "Visitor Management (VMS)",
+      "priority": "HIGH",
+      "mobile_complexity": "MEDIUM",
+      "key_components": ["VisitorList", "CheckInForm", "CheckOutForm", "KioskMode"]
+    },
+    {
+      "module": "Stock & Inventory",
+      "priority": "HIGH",
+      "mobile_complexity": "MEDIUM",
+      "key_components": ["InventoryList", "QRScanner", "QRGenerator", "MovementLog"]
+    },
+    {
+      "module": "Utilities (Diesel/Electricity)",
+      "priority": "HIGH",
+      "mobile_complexity": "LOW",
+      "key_components": ["ReadingForm", "AnalyticsChart", "ExportReport"]
+    },
+    {
+      "module": "Cafeteria & Vendors",
+      "priority": "MEDIUM",
+      "mobile_complexity": "LOW",
+      "key_components": ["VendorList", "RevenueForm", "CommissionReport"]
+    },
+    {
+      "module": "SOP (Standard Operating Procedures)",
+      "priority": "MEDIUM",
+      "mobile_complexity": "MEDIUM",
+      "key_components": ["TemplateList", "ChecklistRunner", "SOPHistory"]
+    },
+    {
+      "module": "Meeting Rooms",
+      "priority": "MEDIUM",
+      "mobile_complexity": "LOW",
+      "key_components": ["RoomList", "BookingCalendar", "BookingForm"]
+    },
+    {
+      "module": "PPM & AMC",
+      "priority": "MEDIUM",
+      "mobile_complexity": "MEDIUM",
+      "key_components": ["ContractList", "ScheduleView", "MaintenanceLog"]
+    },
+    {
+      "module": "Notifications",
+      "priority": "CRITICAL",
+      "mobile_complexity": "HIGH",
+      "key_components": ["NotificationCenter", "PushSettings", "InAppNotifications"]
+    },
+    {
+      "module": "Analytics & Reports",
+      "priority": "LOW",
+      "mobile_complexity": "MEDIUM",
+      "key_components": ["Dashboard", "KPIs", "Charts", "Export"]
+    }
+  ],
+  
+  "user_roles": [
+    {"role": "Master Admin", "description": "Platform-wide oversight"},
+    {"role": "Organization Admin", "description": "Organization-level management"},
+    {"role": "Property Admin", "description": "Property-level management"},
+    {"role": "Property Manager", "description": "Day-to-day operations"},
+    {"role": "Maintenance Staff (MST)", "description": "Field technicians"},
+    {"role": "Client/Tenant", "description": "End users"},
+    {"role": "Super Tenant", "description": "Multi-property tenant view"},
+    {"role": "Vendor", "description": "Cafeteria/revenue partners"}
+  ],
+  
+  "third_party_integrations": [
+    {"service": "Supabase", "purpose": "Database, Auth, Storage, Realtime", "mobile_compatible": true},
+    {"service": "Firebase", "purpose": "Push Notifications, Analytics", "mobile_compatible": true},
+    {"service": "Auth0", "purpose": "Alternative Auth", "mobile_compatible": true},
+    {"service": "WhatsApp API", "purpose": "WhatsApp Polls & Notifications", "mobile_compatible": false},
+    {"service": "Web Push (VAPID)", "purpose": "Browser Push", "mobile_compatible": false},
+    {"service": "Serwist", "purpose": "PWA Service Worker", "mobile_compatible": false},
+    {"service": "Recharts/Chart.js", "purpose": "Data Visualization", "mobile_compatible": false},
+    {"service": "Framer Motion", "purpose": "Animations", "mobile_compatible": false},
+    {"service": "DND Kit", "purpose": "Drag & Drop", "mobile_compatible": false},
+    {"service": "HTML5 QRCode", "purpose": "QR Scanning", "mobile_compatible": false},
+    {"service": "jsPDF/html2canvas", "purpose": "PDF Generation", "mobile_compatible": false}
+  ],
+  
+  "state_management": {
+    "web": {
+      "auth": "AuthContext.tsx",
+      "theme": "ThemeContext.tsx",
+      "global": "GlobalContext.tsx",
+      "cache": "DataCacheContext.tsx"
+    },
+    "mobile_recommendation": {
+      "global_state": "Zustand or Redux Toolkit",
+      "server_state": "TanStack Query (React Query)",
+      "persistence": "MMKV or AsyncStorage"
+    }
+  },
+  
+  "api_endpoints": {
+    "categories": [
+      "admin",
+      "amc/contracts",
+      "analytics",
+      "attendance",
+      "auth",
+      "cron",
+      "escalation",
+      "invite-links",
+      "meeting-rooms",
+      "mst",
+      "organizations",
+      "ppm",
+      "properties",
+      "reports",
+      "tickets",
+      "users",
+      "vendors",
+      "vms",
+      "web-push",
+      "webhooks"
+    ],
+    "total_estimated_endpoints": 80
+  },
+  
+  "mobile_migration_priorities": {
+    "phase_1_critical": [
+      "Authentication & Session Management",
+      "Ticket Management (MST workflow)",
+      "Push Notifications",
+      "Basic Dashboard"
+    ],
+    "phase_2_high": [
+      "Visitor Management",
+      "Stock & Inventory with QR",
+      "Utilities Logging",
+      "Offline Support"
+    ],
+    "phase_3_medium": [
+      "SOP Checklists",
+      "Meeting Room Bookings",
+      "Vendor Management",
+      "Analytics"
+    ],
+    "phase_4_low": [
+      "Advanced Reports",
+      "Admin Features",
+      "PPM/AMC",
+      "AI Chatbot"
+    ]
+  },
+  
+  "key_mobile_dependencies": {
+    "navigation": "@react-navigation/native",
+    "camera": "react-native-vision-camera",
+    "image_picker": "react-native-image-picker",
+    "push_notifications": "@react-native-firebase/messaging",
+    "local_storage": "react-native-mmkv",
+    "charts": "react-native-chart-kit",
+    "qr_scanner": "react-native-camera-kit",
+    "qr_generator": "react-native-qrcode-svg",
+    "maps": "react-native-maps",
+    "biometrics": "@react-native-biometrics/biometrics",
+    "deep_linking": "@react-navigation/native (built-in)"
+  },
+  
+  "estimated_timeline": {
+    "phase_1": "6-8 weeks",
+    "phase_2": "4-6 weeks",
+    "phase_3": "4-6 weeks",
+    "phase_4": "4-6 weeks",
+    "testing_deployment": "2-4 weeks",
+    "total": "20-30 weeks (5-7 months)"
+  }
+}

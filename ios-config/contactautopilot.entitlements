@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- 
+    Place this file at: ios/ContactAutoPilot/ContactAutoPilot.entitlements
+    Update your bundle identifier in Xcode project settings
+    -->
+    
+    <!-- Push Notifications - Required for APNs -->
+    <key>aps-environment</key>
+    <string>production</string>
+    <!-- Note: Use "development" for debug builds, "production" for release -->
+    
+    <!-- Associated Domains - For Universal Links and Web Credentials -->
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <!-- Universal Links - Deep linking from web to app -->
+        <string>applinks:contactautopilot.com</string>
+        <string>applinks:www.contactautopilot.com</string>
+        
+        <!-- Web Credentials - Password autofill -->
+        <string>webcredentials:contactautopilot.com</string>
+        <string>webcredentials:www.contactautopilot.com</string>
+        
+        <!-- App Clips (if applicable) -->
+        <!-- <string>appclips:contactautopilot.com</string> -->
+    </array>
+    
+    <!-- Keychain Access Groups - For secure data sharing -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)com.yourcompany.contactautopilot</string>
+    </array>
+    
+    <!-- App Groups - For data sharing between app and extensions -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.yourcompany.contactautopilot</string>
+    </array>
+    
+    <!-- iCloud Containers (if using iCloud sync) -->
+    <!--
+    <key>com.apple.developer.ubiquity-container-identifiers</key>
+    <array>
+        <string>iCloud.com.yourcompany.contactautopilot</string>
+    </array>
+    <key>com.apple.developer.ubiquity-kvstore-identifier</key>
+    <string>$(TeamIdentifierPrefix)com.yourcompany.contactautopilot</string>
+    -->
+    
+    <!-- Sign In with Apple (if offering third-party sign-in) -->
+    <!-- This is REQUIRED if you offer any third-party sign-in options -->
+    <key>com.apple.developer.applesignin</key>
+    <array>
+        <string>Default</string>
+    </array>
+    
+    <!-- HealthKit (if applicable) -->
+    <!--
+    <key>com.apple.developer.healthkit</key>
+    <true/>
+    <key>com.apple.developer.healthkit.access</key>
+    <array/>
+    -->
+    
+    <!-- HomeKit (if applicable) -->
+    <!--
+    <key>com.apple.developer.homekit</key>
+    <true/>
+    -->
+    
+    <!-- Siri (if applicable) -->
+    <!--
+    <key>com.apple.developer.siri</key>
+    <true/>
+    -->
+    
+    <!-- Wallet/PassKit (if applicable) -->
+    <!--
+    <key>com.apple.developer.pass-type-identifiers</key>
+    <array>
+        <string>$(TeamIdentifierPrefix)*</string>
+    </array>
+    -->
+    
+    <!-- In-App Purchase (automatically enabled with App ID) -->
+    <!-- No explicit entitlement needed - configured in App Store Connect -->
+    
+    <!-- Push Notifications with Critical Alerts (if applicable) -->
+    <!--
+    <key>com.apple.developer.usernotifications.critical-alerts</key>
+    <true/>
+    -->
+    
+    <!-- Time Sensitive Notifications (if applicable) -->
+    <!--
+    <key>com.apple.developer.usernotifications.time-sensitive</key>
+    <true/>
+    -->
+    
+    <!-- Communication Notifications (if applicable) -->
+    <!--
+    <key>com.apple.developer.usernotifications.communication</key>
+    <true/>
+    -->
+    
+    <!-- Network Extensions (if applicable) -->
+    <!--
+    <key>com.apple.developer.networking.networkextension</key>
+    <array>
+        <string>app-proxy-provider</string>
+        <string>content-filter-provider</string>
+        <string>packet-tunnel-provider</string>
+    </array>
+    -->
+    
+    <!-- Hotspot Configuration (if applicable) -->
+    <!--
+    <key>com.apple.developer.networking.HotspotConfiguration</key>
+    <true/>
+    -->
+    
+    <!-- Multipath (if applicable) -->
+    <!--
+    <key>com.apple.developer.networking.multipath</key>
+    <true/>
+    -->
+    
+    <!-- NFC Tag Reading (if applicable) -->
+    <!--
+    <key>com.apple.developer.nfc.readersession.formats</key>
+    <array>
+        <string>NDEF</string>
+        <string>TAG</string>
+    </array>
+    -->
+    
+    <!-- Background Modes (also configured in Info.plist) -->
+    <!-- These work together with Info.plist UIBackgroundModes -->
+    
+</dict>
+</plist>

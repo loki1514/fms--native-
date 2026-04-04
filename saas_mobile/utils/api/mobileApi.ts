@@ -1,0 +1,398 @@
+/**
+ * Mobile API utility — calls web API routes with Bearer token auth.
+ * Copy of the exact pattern from saas_development/frontend/utils/supabase/mobile-auth.ts
+ *
+ * Web API base: https://fms-dev-saas-one.vercel.app
+ */
+import { createClient } from '@/utils/supabase/client';
+
+// ---------------------------------------------------------------------
+// Supabase client-with-token (used for server-side API calls)
+// ---------------------------------------------------------------------
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+
+export function createClientFromToken(accessToken: string) {
+  return createSupabaseClient(
+    process.env.EXPO_PUBLIC_SUPABASE_URL!,
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    }
+  );
+}
+
+export function extractBearerToken(authHeader: string | null): string | null {
+  if (!authHeader) return null;
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Get the current Supabase access token for Bearer auth.
+ * Returns null if not authenticated.
+ */
+export async function getSupabaseToken(): Promise<string | null> {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Web API base URL
+// ---------------------------------------------------------------------
+export const WEB_API_BASE = process.env.EXPO_PUBLIC_WEB_API_URL ?? 'https://fms-dev-saas-one.vercel.app';
+
+// ---------------------------------------------------------------------
+// Typed API Response shapes
+// ---------------------------------------------------------------------
+export interface TicketApiResponse {
+  success?: boolean;
+  ticket?: {
+    id: string;
+    ticket_number: string;
+    title: string;
+    description: string;
+    status: string;
+    priority: string;
+    created_at: string;
+    raised_by: string;
+    assigned_to?: string;
+  };
+  error?: string;
+  classification?: {
+    issue_code: string;
+    skill_group: string;
+    confidence: string;
+    isAutoClassified: boolean;
+    status: string;
+    assigned_to?: string;
+  };
+}
+
+export interface TicketListResponse {
+  tickets?: Ticket[];
+  total?: number;
+  error?: string;
+}
+
+export interface Ticket {
+  id: string;
+  ticket_number: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  created_at: string;
+  raised_by: string;
+  assigned_to?: string;
+  category?: { id: string; code: string; name: string };
+  assignee?: { id: string; full_name: string; email: string; user_photo_url?: string };
+  property?: { id: string; name: string; code: string };
+  organization?: { id: string; name: string; code: string };
+}
+
+export interface SuperTenantProperty {
+  id: string;
+  property_id: string;
+  organization_id: string;
+  assigned_by: string;
+  created_at: string;
+  properties: {
+    id: string;
+    name: string;
+    code: string;
+    status: string;
+  };
+}
+
+export interface SuperTenantResponse {
+  properties?: SuperTenantProperty[];
+  error?: string;
+}
+
+// ---------------------------------------------------------------------
+// Internal fetch helper with Bearer token
+// ---------------------------------------------------------------------
+async function apiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = await getSupabaseToken();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${WEB_API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`API ${response.status}: ${body || response.statusText}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+// ---------------------------------------------------------------------
+// Ticket API — mirrors POST /api/tickets from web app
+// ---------------------------------------------------------------------
+export interface CreateTicketInput {
+  title?: string;
+  description: string;
+  propertyId: string;
+  organizationId: string;
+  priority?: 'low' | 'medium' | 'high' | 'critical' | 'urgent';
+  isInternal?: boolean;
+  assignedTo?: string;
+}
+
+export async function createTicket(input: CreateTicketInput): Promise<TicketApiResponse> {
+  const body: Record<string, unknown> = {
+    description: input.description,
+    title: input.title,
+    property_id: input.propertyId,
+    organization_id: input.organizationId,
+    is_internal: input.isInternal ?? false,
+    priority: input.priority,
+    assignedTo: input.assignedTo,
+  };
+
+  return apiFetch<TicketApiResponse>('/api/tickets', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+// ---------------------------------------------------------------------
+// Ticket list API — mirrors GET /api/tickets from web app
+// ---------------------------------------------------------------------
+export interface ListTicketsInput {
+  propertyId?: string;
+  organizationId?: string;
+  status?: string;
+  isInternal?: boolean;
+  raisedBy?: string;
+  raisedByRole?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export async function listTickets(input: ListTicketsInput): Promise<TicketListResponse> {
+  const params = new URLSearchParams();
+  if (input.propertyId) params.set('property_id', input.propertyId);
+  if (input.organizationId) params.set('organization_id', input.organizationId);
+  if (input.status) params.set('status', input.status);
+  if (input.isInternal !== undefined) params.set('isInternal', String(input.isInternal));
+  if (input.raisedBy) params.set('raised_by', input.raisedBy);
+  if (input.raisedByRole) params.set('raisedByRole', input.raisedByRole);
+  if (input.limit !== undefined) params.set('limit', String(input.limit));
+  if (input.offset !== undefined) params.set('offset', String(input.offset));
+
+  const qs = params.toString();
+  return apiFetch<TicketListResponse>(`/api/tickets${qs ? `?${qs}` : ''}`);
+}
+
+// ---------------------------------------------------------------------
+// Super Tenant Properties API — mirrors GET /api/super-tenant from web app
+// ---------------------------------------------------------------------
+export async function getSuperTenantProperties(userId?: string): Promise<SuperTenantResponse> {
+  const params = userId ? `?user_id=${userId}` : '';
+  return apiFetch<SuperTenantResponse>(`/api/super-tenant${params}`);
+}
+
+// ---------------------------------------------------------------------
+// Property Access Check — mirrors GET /api/auth/property-access from web app
+// ---------------------------------------------------------------------
+export interface PropertyAccessResponse {
+  authorized: boolean;
+  role?: string;
+}
+
+/**
+ * Check property access directly via Supabase (mobile-native).
+ * Mirrors the exact logic from saas_development/app/api/auth/property-access/route.ts
+ * but executes via the mobile Supabase client instead of an HTTP call.
+ *
+ * Logic (exact match to web):
+ * 1. Master admin bypass
+ * 2. Org-level access (org_admin / org_super_admin / owner)
+ * 3. Property-level membership (staff, tenant, etc.)
+ */
+export async function checkPropertyAccess(propertyId: string): Promise<PropertyAccessResponse> {
+  try {
+    const supabase = createClient();
+
+    // Get current user
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData?.session?.user;
+    console.log('[checkPropertyAccess] Session user:', user?.email, 'id:', user?.id);
+    if (!user) {
+      console.log('[checkPropertyAccess] No session user — returning unauthorized');
+      return { authorized: false };
+    }
+
+    // 1. Check if master admin
+    console.log('[checkPropertyAccess] Checking users table for:', user.id);
+    const { data: userProfile, error: userError } = await supabase
+      .from('users')
+      .select('is_master_admin')
+      .eq('id', user.id)
+      .maybeSingle() as { data: { is_master_admin: boolean } | null; error: unknown };
+    if (userError) console.error('[checkPropertyAccess] users table error:', userError);
+    if (userProfile?.is_master_admin) {
+      console.log('[checkPropertyAccess] Master admin confirmed');
+      return { authorized: true, role: 'master_admin' };
+    }
+
+    // 2. Get property's organization
+    console.log('[checkPropertyAccess] Checking properties table for:', propertyId);
+    const { data: property, error: propError } = await supabase
+      .from('properties')
+      .select('organization_id')
+      .eq('id', propertyId)
+      .maybeSingle() as { data: { organization_id: string } | null; error: unknown };
+    if (propError) console.error('[checkPropertyAccess] properties table error:', propError);
+    console.log('[checkPropertyAccess] Property org_id:', property?.organization_id);
+
+    // 3. Org-level access check
+    if (property?.organization_id) {
+      console.log('[checkPropertyAccess] Checking org memberships for org:', property.organization_id, 'user:', user.id);
+      const { data: orgMembership, error: orgError } = await supabase
+        .from('organization_memberships')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('organization_id', property.organization_id)
+        .eq('is_active', true)
+        .maybeSingle() as { data: { role: string } | null; error: unknown };
+      if (orgError) console.error('[checkPropertyAccess] org_memberships error:', orgError);
+      console.log('[checkPropertyAccess] Org membership:', orgMembership);
+
+      if (orgMembership && ['org_admin', 'org_super_admin', 'owner'].includes(orgMembership.role)) {
+        console.log('[checkPropertyAccess] Org-level access granted:', orgMembership.role);
+        return { authorized: true, role: orgMembership.role };
+      }
+    }
+
+    // 4. Property-level membership check
+    console.log('[checkPropertyAccess] Checking property_memberships for:', user.id, 'property:', propertyId);
+    const { data: propMembership, error: propMemError } = await supabase
+      .from('property_memberships')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('property_id', propertyId)
+      .eq('is_active', true)
+      .maybeSingle() as { data: { role: string } | null; error: unknown };
+    if (propMemError) console.error('[checkPropertyAccess] property_memberships error:', propMemError);
+    console.log('[checkPropertyAccess] Property membership:', propMembership);
+
+    if (propMembership) {
+      console.log('[checkPropertyAccess] Property-level access granted:', propMembership.role);
+      return { authorized: true, role: propMembership.role };
+    }
+
+    console.log('[checkPropertyAccess] No matching membership — returning unauthorized');
+    return { authorized: false };
+  } catch (err) {
+    console.error('[checkPropertyAccess] Unexpected error:', err);
+    return { authorized: false, role: 'unknown' };
+  }
+}
+
+// ---------------------------------------------------------------------
+// Role path helpers — mirrors getRoleAllowedPaths / getRoleDefaultPath from web
+// ---------------------------------------------------------------------
+const PROPERTY_ADMIN_ROLES = [
+  'property_admin',
+  'org_admin',
+  'org_super_admin',
+  'master_admin',
+  'owner',
+];
+
+/**
+ * Get allowed Expo Router paths based on user role.
+ * Mirrors getRoleAllowedPaths() from saas_development/app/property/[propertyId]/layout.tsx
+ */
+export function getRoleAllowedPaths(role: string, propertyId: string): string[] {
+  const basePath = `/property/${propertyId}`;
+
+  switch (role) {
+    case 'property_admin':
+    case 'org_admin':
+    case 'org_super_admin':
+    case 'master_admin':
+    case 'owner':
+      return [`${basePath}`]; // Full access
+    case 'tenant':
+      return [`${basePath}/tenant`];
+    case 'security':
+      return [`${basePath}/security`, `${basePath}/dashboard`];
+    case 'staff':
+      return [`${basePath}/staff`, `${basePath}/dashboard`];
+    case 'mst':
+      return [`${basePath}/mst`, `${basePath}/dashboard`];
+    case 'vendor':
+      return [`${basePath}/vendor`, `${basePath}/dashboard`];
+    case 'super_tenant':
+      return [`${basePath}/tenant`];
+    default:
+      return [`${basePath}/dashboard`];
+  }
+}
+
+/**
+ * Get the default redirect path for a given role.
+ * Mirrors getRoleDefaultPath() from saas_development/app/property/[propertyId]/layout.tsx
+ */
+export function getRoleDefaultPath(role: string, propertyId: string): string {
+  const basePath = `/property/${propertyId}`;
+
+  switch (role) {
+    case 'property_admin':
+    case 'org_admin':
+    case 'org_super_admin':
+    case 'master_admin':
+    case 'owner':
+      return `${basePath}/dashboard`;
+    case 'tenant':
+    case 'super_tenant':
+      return `${basePath}/tenant`;
+    case 'security':
+      return `${basePath}/security`;
+    case 'staff':
+      return `${basePath}/staff`;
+    case 'mst':
+      return `${basePath}/mst`;
+    case 'vendor':
+      return `${basePath}/vendor`;
+    default:
+      return `${basePath}/dashboard`;
+  }
+}
+
+/**
+ * Check if a role is an admin-level role (gets full sidebar dashboard access).
+ */
+export function isAdminRole(role: string): boolean {
+  return PROPERTY_ADMIN_ROLES.includes(role);
+}
