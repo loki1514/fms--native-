@@ -221,6 +221,96 @@ export async function getSuperTenantProperties(userId?: string): Promise<SuperTe
 }
 
 // ---------------------------------------------------------------------
+// Gamification / Leaderboard API — mirrors /api/mst/gamification/* from web app
+// ---------------------------------------------------------------------
+export interface LeaderboardEntry {
+  rank: number;
+  user_id: string;
+  name: string;
+  photo_url: string | null;
+  score: number;
+  tickets_resolved: number;
+  sla_met_count: number;
+  first_time_fixes: number;
+  streak_days: number;
+  badges: Array<{
+    code: string;
+    name: string;
+    icon: string;
+    color: string;
+    tier: string;
+    earned_at: string;
+  }>;
+}
+
+export interface LeaderboardResponse {
+  period: 'daily' | 'weekly';
+  score_date: string;
+  leaderboard: LeaderboardEntry[];
+  total: number;
+  error?: string;
+}
+
+export interface GamificationBadge {
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  tier: string;
+  points_bonus: number;
+  earned_at: string;
+}
+
+export interface MyStatsResponse {
+  property_id: string;
+  user_id: string;
+  today: {
+    total_points: number;
+    tickets_resolved: number;
+    sla_met_count: number;
+    first_time_fixes: number;
+    avg_resolution_minutes: number | null;
+    rank: number | null;
+    total_in_rank: number;
+  };
+  all_time: {
+    total_points: number;
+    tickets_resolved: number;
+    sla_met_count: number;
+  };
+  streak: {
+    current: number;
+    longest: number;
+  };
+  badges: GamificationBadge[];
+  next_achievements: Array<{
+    id: string;
+    code: string;
+    name: string;
+    description: string;
+    icon: string;
+    color: string;
+    tier: string;
+    criteria: Record<string, unknown>;
+    points_bonus: number;
+  }>;
+  error?: string;
+}
+
+export async function getLeaderboard(propertyId: string, period = 'daily'): Promise<LeaderboardResponse> {
+  return apiFetch<LeaderboardResponse>(
+    `/api/mst/gamification/leaderboard?property_id=${propertyId}&period=${period}`
+  );
+}
+
+export async function getMyGamificationStats(propertyId: string): Promise<MyStatsResponse> {
+  return apiFetch<MyStatsResponse>(
+    `/api/mst/gamification/my-stats?property_id=${propertyId}`
+  );
+}
+
+// ---------------------------------------------------------------------
 // Property Access Check — mirrors GET /api/auth/property-access from web app
 // ---------------------------------------------------------------------
 export interface PropertyAccessResponse {

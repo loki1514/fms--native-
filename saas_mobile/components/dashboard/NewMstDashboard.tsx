@@ -28,6 +28,7 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
+import { useGamification, LeaderboardEntry as GamificationEntry } from '@/hooks/mst/useGamification';
 import { createClient } from '@/utils/supabase/client';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/context';
@@ -71,6 +72,19 @@ interface LeaderboardEntry {
   score: number;
   avatar?: string;
   user_id: string;
+  // Gamification extras
+  tickets_resolved?: number;
+  sla_met_count?: number;
+  first_time_fixes?: number;
+  streak_days?: number;
+  badges?: Array<{
+    code: string;
+    name: string;
+    icon: string;
+    color: string;
+    tier: string;
+    earned_at: string;
+  }>;
 }
 
 interface MstDashboardProps {
@@ -347,10 +361,21 @@ function LeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; index: nu
         <Text style={styles.leaderboardAvatarText}>{entry.name[0]}</Text>
       </View>
       <View style={styles.leaderboardInfo}>
-        <Text style={styles.leaderboardName}>{entry.name}</Text>
-        <Text style={styles.leaderboardProperty}>{entry.property}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={styles.leaderboardName}>{entry.name}</Text>
+          {entry.badges && entry.badges.length > 0 && (
+            <Ionicons name="medal" size={12} color={entry.badges[0].color} />
+          )}
+        </View>
+        <Text style={styles.leaderboardProperty}>
+          {entry.tickets_resolved ?? 0} resolved
+          {(entry.streak_days ?? 0) > 0 && ` · ${entry.streak_days}d streak`}
+        </Text>
       </View>
-      <Text style={styles.leaderboardScore}>{entry.score.toLocaleString()}</Text>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={styles.leaderboardScore}>{entry.score.toLocaleString()}</Text>
+        <Text style={{ fontSize: 10, color: '#94A3B8' }}>pts</Text>
+      </View>
     </Animated.View>
   );
 }
@@ -378,8 +403,11 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   });
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [property, setProperty] = useState<{ name: string } | null>(null);
-  const [countdown, setCountdown] = useState('12:45:01');
+  const [countdown, setCountdown] = useState('00:00:00');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Gamification hook
+  const { leaderboard: gamifyLb, myStats, loading: gamifyLoading, error: gamifyError, refetch: gamifyRefetch } = useGamification(propertyId);
 
   // Fetch data
   useEffect(() => {
@@ -389,7 +417,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       fetchStats();
       fetchLeaderboard();
     }
-  }, [propertyId, user?.id]);
+  }, [propertyId, user?.id, gamifyLb.length]);
 
   const fetchProperty = async () => {
     const { data } = await supabase
@@ -476,14 +504,40 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       .in('role', ['mst', 'maintenance_staff', 'staff']);
 
     if (!error && staffData && staffData.length > 0) {
-      const realLeaderboard = staffData.map((staff: any, index: number) => ({
-        rank: index + 1,
-        name: staff.users?.full_name || 'Staff Member',
-        property: 'Property',
-        score: 0,
-        user_id: staff.user_id,
-      }));
-      setLeaderboard(realLeaderboard);
+      // Build score lookup from gamification hook data
+      const scoreMap = new Map<string, GamificationEntry>();
+      for (const entry of gamifyLb) {
+        scoreMap.set(entry.user_id, entry);
+      }
+
+      const mergedLeaderboard: LeaderboardEntry[] = staffData.map((staff: any) => {
+        const gamify = scoreMap.get(staff.user_id);
+        return {
+          rank: 0,
+          name: staff.users?.full_name || 'Staff Member',
+          property: 'Property',
+          score: gamify?.score ?? 0,
+          avatar: staff.users?.user_photo_url ?? undefined,
+          user_id: staff.user_id,
+          tickets_resolved: gamify?.tickets_resolved,
+          sla_met_count: gamify?.sla_met_count,
+          first_time_fixes: gamify?.first_time_fixes,
+          streak_days: gamify?.streak_days,
+          badges: gamify?.badges ?? [],
+        };
+      });
+
+      // Sort by score descending, then assign ranks (handle ties)
+      mergedLeaderboard.sort((a, b) => b.score - a.score);
+      let rank = 1;
+      for (let i = 0; i < mergedLeaderboard.length; i++) {
+        if (i > 0 && mergedLeaderboard[i].score < mergedLeaderboard[i - 1].score) {
+          rank = i + 1;
+        }
+        mergedLeaderboard[i].rank = rank;
+      }
+
+      setLeaderboard(mergedLeaderboard);
     } else {
       setLeaderboard([]);
     }
@@ -491,7 +545,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchProperty(), fetchTickets(), fetchStats(), fetchLeaderboard()]);
+    await Promise.all([fetchProperty(), fetchTickets(), fetchStats(), fetchLeaderboard(), gamifyRefetch()]);
     setIsRefreshing(false);
   }, [propertyId]);
 
@@ -684,12 +738,18 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
         </View>
         <View style={styles.championContent}>
           <View style={styles.championAvatar}>
-            <Text style={styles.championAvatarText}>M</Text>
+            <Text style={styles.championAvatarText}>
+              {leaderboard[0]?.name?.[0]?.toUpperCase() ?? '?'}
+            </Text>
           </View>
           <View>
             <Text style={styles.championName}>{leaderboard[0]?.name || 'No champion yet'}</Text>
-            <Text style={styles.championScore}>15,300</Text>
-            <Text style={styles.championSub}>Properties served</Text>
+            <Text style={styles.championScore}>
+              {leaderboard[0]?.score.toLocaleString() ?? '0'} pts
+            </Text>
+            <Text style={styles.championSub}>
+              {leaderboard[0]?.tickets_resolved ?? 0} tickets resolved
+            </Text>
           </View>
         </View>
       </View>
