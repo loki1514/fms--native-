@@ -37,6 +37,11 @@ export default function PropertyIndex() {
     return <Redirect href={`/property/${propertyId}/tenant`} />;
   }
 
+  // Route MST (Maintenance Staff) to the premium MST dashboard
+  if (propRole === 'mst' || propRole === 'maintenance_staff' || propRole === 'staff') {
+    return <Redirect href={`/property/${propertyId}/mst`} />;
+  }
+
   if (['org_admin', 'org_super_admin', 'owner'].includes(orgRole)) {
     return <Redirect href={`/property/${propertyId}/tenant`} />;
   }
