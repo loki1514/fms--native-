@@ -19,6 +19,7 @@ export interface VoiceContext {
   userRole: string;
   userName: string;
   propertyName: string;
+  sessionId?: string;  // optional — generated on connect if not provided
 }
 
 export interface ToolResult {
