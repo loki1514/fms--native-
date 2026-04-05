@@ -3,7 +3,6 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import TenantDashboard from '@/components/tenant/TenantDashboard';
-import { createClient } from '@/utils/supabase/client';
 
 export default function TenantPage() {
   console.log('[TenantPage] Rendering...');
@@ -33,9 +32,10 @@ export default function TenantPage() {
     const propMembership = membership.properties?.find((p: { id: string }) => p.id === propertyId);
     if (propMembership) {
       console.log('[TenantPage] Found property membership, role:', propMembership.role);
+      const isST = propMembership.role === 'super_tenant';
       return {
         role: propMembership.role,
-        isSuperTenant: false,
+        isSuperTenant: isST,
       };
     }
 
@@ -45,16 +45,15 @@ export default function TenantPage() {
       return { role: membership.org_role, isSuperTenant: true };
     }
 
+    // Org-level super_tenant (not assigned to a specific property)
+    if (membership.org_role === 'super_tenant') {
+      console.log('[TenantPage] Org-level super_tenant, isSuperTenant: true');
+      return { role: membership.org_role, isSuperTenant: true };
+    }
+
     console.log('[TenantPage] No role match — redirecting');
     return null;
-  }, [membership, user, propertyId]);
-
-  // Super tenant property fetch
-  const superTenantProperties = useMemo(() => {
-    if (!roleInfo?.isSuperTenant || !user?.id) return [];
-    // Will be fetched via Supabase in the dashboard component
-    return [];
-  }, [roleInfo?.isSuperTenant, user?.id]);
+  }, [membership, propertyId]);
 
   if (isLoading) {
     return (
@@ -74,7 +73,6 @@ export default function TenantPage() {
     <TenantDashboard
       propertyId={propertyId}
       isSuperTenant={roleInfo.isSuperTenant}
-      superTenantProperties={superTenantProperties}
     />
   );
 }

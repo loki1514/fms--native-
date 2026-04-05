@@ -118,15 +118,17 @@ async function storeToContainer(
   if (!API_KEY) return;
 
   try {
-    await smFetch('/memories/update', {
+    await smFetch('/v4/memories', {
+      memories: [{
+        content,
+        metadata: {
+          memoryType,
+          source,
+          confidence: 0.8,
+          ...extraMeta,
+        },
+      }],
       containerTag,
-      newContent: content,
-      metadata: {
-        memoryType,
-        source,
-        confidence: 0.8,
-        ...extraMeta,
-      },
     });
   } catch (err) {
     console.warn('[supermemory] Store failed for', containerTag, err);

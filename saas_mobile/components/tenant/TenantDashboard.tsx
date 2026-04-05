@@ -21,15 +21,13 @@ type TabKey = 'home' | 'tickets' | 'rooms' | 'profile';
 interface TenantDashboardProps {
   propertyId: string;
   isSuperTenant?: boolean;
-  superTenantProperties?: Array<{ id: string; name: string }>;
-  // Optional override — if not provided and isSuperTenant, fetches internally
+  // Optional override for initial selected property
   forcePropertyId?: string;
 }
 
 export default function TenantDashboard({
   propertyId,
   isSuperTenant = false,
-  superTenantProperties: propSuperTenantProperties,
   forcePropertyId,
 }: TenantDashboardProps) {
   console.log('[TenantDashboard] Mounting — propertyId:', propertyId, 'isSuperTenant:', isSuperTenant, 'forcePropertyId:', forcePropertyId);
@@ -58,17 +56,16 @@ export default function TenantDashboard({
 
   // Fetch super tenant properties via web API (mirrors GET /api/super-tenant)
   const { properties: fetchedSuperTenantProperties } = useSuperTenantProperties(
-    isSuperTenant && !propSuperTenantProperties?.length ? user?.id : undefined
+    isSuperTenant ? user?.id : undefined
   );
 
-  // Use prop override if provided, otherwise use fetched properties
+  // Map fetched properties to { id, name }
   const superTenantProperties: Array<{ id: string; name: string }> = useMemo(() => {
-    if (propSuperTenantProperties?.length) return propSuperTenantProperties;
     return fetchedSuperTenantProperties.map((p: SuperTenantProperty) => ({
       id: p.id,
       name: p.name,
     }));
-  }, [propSuperTenantProperties, fetchedSuperTenantProperties]);
+  }, [fetchedSuperTenantProperties]);
 
   const { tickets, loading, error, stats, refetch } = useTenantTickets(
     selectedPropertyId,
