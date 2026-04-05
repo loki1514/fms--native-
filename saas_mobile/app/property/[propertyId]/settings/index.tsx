@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  SafeAreaView,
   StatusBar,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
@@ -50,7 +50,7 @@ interface UserProfile {
 export default function SettingsScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const { user, membership, signOut } = useAuth();
   const colors = Colors[theme];
 
@@ -131,7 +131,7 @@ export default function SettingsScreen() {
       icon: <Palette size={20} color={colors.primary} />,
       title: 'Appearance',
       subtitle: theme === 'dark' ? 'Dark mode' : 'Light mode',
-      onPress: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+      onPress: () => toggleTheme(),
       toggle: true,
       toggleValue: theme === 'dark',
     },

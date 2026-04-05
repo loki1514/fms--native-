@@ -157,6 +157,49 @@ function buildTools() {
         },
       },
     },
+    {
+      type: 'function',
+      name: 'list_tickets',
+      description: 'List maintenance tickets for this property',
+      parameters: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['open', 'in_progress', 'assigned', 'resolved', 'closed'],
+            description: 'Filter by status',
+          },
+          limit: { type: 'number', default: 10 },
+        },
+      },
+    },
+    {
+      type: 'function',
+      name: 'list_visitors',
+      description: 'List recent visitor logs for this property',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', default: 5 },
+        },
+      },
+    },
+    {
+      type: 'function',
+      name: 'book_meeting_room',
+      description: 'Book a meeting room for a specific date and time',
+      parameters: {
+        type: 'object',
+        properties: {
+          room_id: { type: 'string', description: 'The meeting room ID' },
+          date: { type: 'string', description: 'Date in YYYY-MM-DD format' },
+          start_time: { type: 'string', description: 'Start time in HH:MM format' },
+          end_time: { type: 'string', description: 'End time in HH:MM format' },
+          purpose: { type: 'string', description: 'Purpose of the meeting' },
+        },
+        required: ['room_id', 'date', 'start_time', 'end_time'],
+      },
+    },
   ];
 }
 
@@ -322,7 +365,7 @@ export class OpenAIRealtimeService {
     }
   }
 
-  stopRecording(): void {
+  async stopRecording(): Promise<void> {
     this.stopCapture();
     if (this.state === 'recording') {
       this.setState('connected');
@@ -440,10 +483,15 @@ export class OpenAIRealtimeService {
         case 'get_ticket_status':
         case 'get_property_info':
         case 'list_meeting_rooms':
+        case 'list_tickets':
+        case 'list_visitors':
           result = await this.executeReadTool(name, args);
           break;
         case 'create_ticket':
           result = await this.executeCreateTicket(args);
+          break;
+        case 'book_meeting_room':
+          result = await this.executeBookMeetingRoom(args);
           break;
         default:
           result = { success: false, error: `Unknown tool: ${name}` };
@@ -490,6 +538,31 @@ export class OpenAIRealtimeService {
         return { success: true, data };
       }
 
+      case 'list_tickets': {
+        let q = supabase
+          .from('tickets')
+          .select('id, ticket_number, title, status, priority, created_at, assignee:users!assigned_to(full_name)')
+          .eq('property_id', this.ctx.propertyId)
+          .eq('internal', false)
+          .order('created_at', { ascending: false });
+        if (params.status) q = q.eq('status', params.status);
+        q = q.limit(params.limit ?? 10);
+        const { data, error } = await q;
+        if (error) throw new Error(error.message);
+        return { success: true, data };
+      }
+
+      case 'list_visitors': {
+        const { data, error } = await supabase
+          .from('visitor_logs')
+          .select('id, visitor_name, host_name, check_in_time, check_out_time, purpose')
+          .eq('property_id', this.ctx.propertyId)
+          .order('check_in_time', { ascending: false })
+          .limit(params.limit ?? 5);
+        if (error) throw new Error(error.message);
+        return { success: true, data };
+      }
+
       case 'get_property_info': {
         const { data, error } = await supabase
           .from('properties')
@@ -520,6 +593,49 @@ export class OpenAIRealtimeService {
     }
 
     return { success: false, error: 'Unknown tool' };
+  }
+
+  private async executeBookMeetingRoom(args: string): Promise<{
+    success: boolean;
+    data?: unknown;
+    error?: string;
+  }> {
+    const params = JSON.parse(args) as {
+      room_id?: string;
+      date?: string;
+      start_time?: string;
+      end_time?: string;
+      purpose?: string;
+    };
+
+    if (!params.room_id || !params.date || !params.start_time || !params.end_time) {
+      return { success: false, error: 'Missing required fields: room_id, date, start_time, end_time' };
+    }
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { data, error } = await (supabase.from('meeting_room_bookings') as any)
+        .insert({
+          room_id: params.room_id,
+          booked_by: user?.id,
+          property_id: this.ctx.propertyId,
+          booking_date: params.date,
+          start_time: params.start_time,
+          end_time: params.end_time,
+          purpose: params.purpose ?? 'Meeting',
+          status: 'confirmed',
+        })
+        .select('id, room_id, booking_date, start_time, end_time')
+        .single();
+
+      if (error) throw new Error(error.message);
+      return { success: true, data };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to book meeting room';
+      return { success: false, error: msg };
+    }
   }
 
   private async executeCreateTicket(args: string): Promise<{

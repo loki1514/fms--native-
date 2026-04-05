@@ -2,70 +2,140 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Platform, Alert } from 'react-native';
 import { useVoiceAgentStore } from '@/store/voiceAgentStore';
+import { useVoiceRecording } from './useVoiceRecording';
 import { OpenAIRealtimeService, VoiceContext, RealtimeConnectionState } from '@/services/ai/openaiRealtimeService';
+import { OpenAINativeRealtimeService, NativeRealtimeState } from '@/services/ai/openaiNativeRealtimeService';
+
+// Unified service interface — both web and native services share the same method surface
+type VoiceService = {
+  connect: () => Promise<void>;
+  startRecording: () => Promise<void>;
+  stopRecording: () => Promise<void>;
+  disconnect: () => void;
+};
 
 export function useVoiceAgent(config: VoiceContext) {
   const store = useVoiceAgentStore();
-  const serviceRef = useRef<OpenAIRealtimeService | null>(null);
+  const serviceRef = useRef<VoiceService | null>(null);
+  const isFirstTranscriptRef = useRef(true);
+
+  // Recording hook — only used on native (called unconditionally so hooks are always at top level)
+  const { startRecording: startNativeRecording, stopRecording: stopNativeRecording } = useVoiceRecording();
 
   // ---------------------------------------------------------------------------
-  // Initialize Realtime service
+  // Initialize service — web uses WebSocket Realtime, native uses REST proxy
   // ---------------------------------------------------------------------------
   const initService = useCallback(() => {
     if (serviceRef.current) return; // already initialized
 
-    const service = new OpenAIRealtimeService(config, {
-      onTranscript: (text, isFinal) => {
-        if (text) {
-          store.setTranscript(text);
-        }
-      },
-      onAudioPlaybackStart: () => {
-        store.setSpeaking(true);
-        store.setProcessing(false);
-      },
-      onAudioPlaybackEnd: () => {
-        store.setSpeaking(false);
-        store.setProcessing(false);
-        store.clearSession();
-      },
-      onError: (errorMsg) => {
-        console.error('[useVoiceAgent] Realtime error:', errorMsg);
-        store.setError(errorMsg);
-        store.setProcessing(false);
-        store.setListening(false);
-        store.setSpeaking(false);
-
-        // Only show alert on native (on web, the error is shown in the session sheet)
-        if (Platform.OS !== 'web') {
-          Alert.alert('Voice Assistant', errorMsg);
-        }
-      },
-      onStateChange: (state: RealtimeConnectionState) => {
-        console.log('[useVoiceAgent] State:', state);
-        store.setSessionActive(state === 'connected' || state === 'recording');
-        if (state === 'error' || state === 'idle') {
-          store.setListening(false);
+    if (Platform.OS === 'web') {
+      // Web: OpenAI Realtime API over WebSocket
+      const service = new OpenAIRealtimeService(config, {
+        onTranscript: (text, isFinal) => {
+          if (text) {
+            if (isFirstTranscriptRef.current) {
+              store.setTranscript(text);
+              store.addToHistory({ role: 'user', content: text });
+              isFirstTranscriptRef.current = false;
+            } else {
+              store.setAiResponse(text);
+              store.addToHistory({ role: 'assistant', content: text });
+            }
+          }
+        },
+        onAudioPlaybackStart: () => {
+          store.setSpeaking(true);
+        },
+        onAudioPlaybackEnd: () => {
+          store.setSpeaking(false);
           store.setProcessing(false);
-        }
-      },
-    });
-
-    serviceRef.current = service;
+          store.clearSession();
+          isFirstTranscriptRef.current = true;
+        },
+        onError: (errorMsg) => {
+          console.error('[useVoiceAgent] Realtime error:', errorMsg);
+          store.setError(errorMsg);
+          store.setProcessing(false);
+          store.setListening(false);
+          store.setSpeaking(false);
+          store.setAgentState('ERROR');
+        },
+        onStateChange: (state: RealtimeConnectionState) => {
+          console.log('[useVoiceAgent] Web state:', state);
+          store.setSessionActive(state === 'connected' || state === 'recording');
+          if (state === 'recording') store.setAgentState('LISTENING');
+          if (state === 'connected') store.setAgentState('THINKING');
+          if (state === 'error') store.setAgentState('ERROR');
+          if (state === 'idle') store.setAgentState('IDLE');
+          if (state === 'error' || state === 'idle') {
+            store.setListening(false);
+            store.setProcessing(false);
+          }
+        },
+      });
+      serviceRef.current = service;
+    } else {
+      // Native: REST proxy pipeline → expo-speech
+      const service = new OpenAINativeRealtimeService(config, {
+        onTranscript: (text, isFinal) => {
+          if (text) {
+            if (isFirstTranscriptRef.current) {
+              store.setTranscript(text);
+              store.addToHistory({ role: 'user', content: text });
+              isFirstTranscriptRef.current = false;
+            } else {
+              store.setAiResponse(text);
+              store.addToHistory({ role: 'assistant', content: text });
+            }
+          }
+        },
+        onAudioPlaybackStart: () => {
+          store.setSpeaking(true);
+          store.setProcessing(true);
+        },
+        onAudioPlaybackEnd: () => {
+          store.setSpeaking(false);
+          store.setProcessing(false);
+          store.clearSession();
+          isFirstTranscriptRef.current = true;
+        },
+        onError: (errorMsg) => {
+          console.error('[useVoiceAgent] Native error:', errorMsg);
+          store.setError(errorMsg);
+          store.setProcessing(false);
+          store.setListening(false);
+          store.setSpeaking(false);
+          store.setAgentState('ERROR');
+          Alert.alert('Voice Assistant', errorMsg);
+        },
+        onThinking: () => {
+          store.setAgentState('THINKING');
+        },
+        onSpeaking: () => {
+          store.setAgentState('SPEAKING');
+        },
+        onStateChange: (state: NativeRealtimeState) => {
+          console.log('[useVoiceAgent] Native state:', state);
+          store.setSessionActive(state === 'recording');
+          if (state === 'recording') store.setAgentState('LISTENING');
+          if (state === 'processing') store.setAgentState('THINKING');
+          if (state === 'speaking') store.setAgentState('SPEAKING');
+          if (state === 'idle') store.setAgentState('IDLE');
+          if (state === 'error') store.setAgentState('ERROR');
+          if (state === 'idle' || state === 'error') {
+            store.setListening(false);
+            store.setProcessing(false);
+          }
+        },
+      });
+      serviceRef.current = service;
+    }
   }, [config, store]);
 
   // ---------------------------------------------------------------------------
   // Connect — call once when user first taps the orb
   // ---------------------------------------------------------------------------
   const startSession = useCallback(async () => {
-    if (Platform.OS !== 'web') {
-      Alert.alert(
-        'Coming Soon',
-        'Voice assistant is currently available on web. Native support is in development.'
-      );
-      return;
-    }
-
     initService();
 
     const service = serviceRef.current;
@@ -82,11 +152,9 @@ export function useVoiceAgent(config: VoiceContext) {
   }, [initService, store]);
 
   // ---------------------------------------------------------------------------
-  // Toggle recording
+  // Toggle recording — platform-aware
   // ---------------------------------------------------------------------------
   const toggleSession = useCallback(async () => {
-    if (Platform.OS !== 'web') return;
-
     const service = serviceRef.current;
     if (!service) {
       await startSession();
@@ -94,19 +162,31 @@ export function useVoiceAgent(config: VoiceContext) {
     }
 
     try {
-      // Get current state via store
       const currentState = store.isListening;
 
       if (currentState) {
-        // Stop recording and process
-        service.stopRecording();
-        store.setListening(false);
-        store.setProcessing(true);
-        // The service handles sending the audio via WebSocket — no manual processing needed.
-        // The transcript + audio will come back via the event handlers.
-        store.setProcessing(false);
+        // Stop recording
+        if (Platform.OS === 'web') {
+          service.stopRecording();
+          store.setListening(false);
+          store.setProcessing(true);
+        } else {
+          // Native: stop expo-av recording and pass URI to service
+          store.setListening(false);
+          store.setProcessing(true);
+          const uri = await stopNativeRecording();
+          if (uri && service instanceof OpenAINativeRealtimeService) {
+            await service.setRecordingUri(uri);
+          } else if (!uri) {
+            store.setProcessing(false);
+            store.setError('Recording failed. Please try again.');
+          }
+        }
       } else {
         // Start recording
+        if (Platform.OS !== 'web') {
+          await startNativeRecording();
+        }
         await service.startRecording();
         store.setListening(true);
         store.setError(null);
@@ -116,7 +196,7 @@ export function useVoiceAgent(config: VoiceContext) {
       store.setError(msg);
       store.setListening(false);
     }
-  }, [startSession, store]);
+  }, [startSession, store, startNativeRecording, stopNativeRecording]);
 
   // ---------------------------------------------------------------------------
   // End session

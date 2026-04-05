@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -132,6 +133,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         ticket_escalation_logs(from_level, to_level, escalated_at, from_employee:users!from_employee_id(full_name, user_photo_url), to_employee:users!to_employee_id(full_name, user_photo_url))
       `)
       .eq('property_id', propertyId)
+      .eq('internal', false)
       .order('created_at', { ascending: false }) as any);
 
     if (error) {
@@ -174,24 +176,16 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
     if (!editingTicket || !editTitle.trim()) return;
     setIsUpdating(true);
     try {
-      const res = await fetch(`/api/tickets/${editingTicket.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: editTitle,
-          description: editDescription
-        })
-      });
+      const { error } = await (supabase.from('tickets') as any)
+        .update({ title: editTitle, description: editDescription })
+        .eq('id', editingTicket.id);
 
-      if (res.ok) {
-        setEditingTicket(null);
-        fetchTickets();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to update ticket');
-      }
+      if (error) throw error;
+      setEditingTicket(null);
+      fetchTickets();
     } catch (error) {
       console.error('Update ticket error:', error);
+      Alert.alert('Error', 'Failed to update ticket');
     } finally {
       setIsUpdating(false);
     }
@@ -314,7 +308,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
                   }
                   ticketNumber={ticket.ticket_number}
                   createdAt={ticket.created_at}
-                  assignedTo={ticket.assignee?.full_name}
+                  assignedTo={ticket.assignee?.full_name || 'Unassigned'}
                   assigneePhotoUrl={ticket.assignee?.user_photo_url}
                   photoUrl={ticket.photo_before_url}
                   escalationChain={(() => {
@@ -382,7 +376,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             }
             ticketNumber={ticket.ticket_number}
             createdAt={ticket.created_at}
-            assignedTo={ticket.assignee?.full_name}
+            assignedTo={ticket.assignee?.full_name || 'Unassigned'}
             assigneePhotoUrl={ticket.assignee?.user_photo_url}
             photoUrl={ticket.photo_before_url}
             onClick={() => router.push(`/tickets/${ticket.id}` as any)}
@@ -402,7 +396,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             status="COMPLETED"
             ticketNumber={ticket.ticket_number}
             createdAt={ticket.created_at}
-            assignedTo={ticket.assignee?.full_name}
+            assignedTo={ticket.assignee?.full_name || 'Unassigned'}
             assigneePhotoUrl={ticket.assignee?.user_photo_url}
             photoUrl={ticket.photo_before_url}
             onClick={() => router.push(`/tickets/${ticket.id}` as any)}

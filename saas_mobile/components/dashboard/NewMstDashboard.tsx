@@ -36,7 +36,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 // Types
-export type TabKey = 'dashboard' | 'requests' | 'flow-map' | 'visitors' | 'diesel' | 'electricity' | 'checklist' | 'settings' | 'profile';
+export type TabKey = 'dashboard' | 'requests' | 'daily-board' | 'flow-map' | 'visitors' | 'diesel' | 'electricity' | 'checklist' | 'settings' | 'profile';
 
 interface Ticket {
   id: string;
@@ -106,6 +106,7 @@ function CollapsibleSidebar({
       items: [
         { key: 'dashboard', label: 'Overview', icon: 'grid-outline' },
         { key: 'requests', label: 'Requests', icon: 'ticket-outline' },
+        { key: 'daily-board', label: 'Leaderboard', icon: 'trophy-outline' },
         { key: 'flow-map', label: 'Live Flow Map', icon: 'pulse-outline' },
       ],
     },
@@ -171,7 +172,7 @@ function CollapsibleSidebar({
                     isCollapsed && styles.navItemCollapsed,
                   ]}
                   onPress={() => {
-                    if (item.key === 'dashboard' || item.key === 'requests' || item.key === 'flow-map') {
+                    if (['dashboard', 'requests', 'daily-board', 'flow-map'].includes(item.key)) {
                       onTabChange(item.key as TabKey);
                     } else {
                       router.push(`/property/${propertyId}/${item.key}` as any);
@@ -294,7 +295,7 @@ function TicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress: () =>
               {ticket.assignee?.full_name?.[0] || 'M'}
             </Text>
           </View>
-          <Text style={styles.assigneeName}>{ticket.assignee?.full_name || 'Manjunatha AS'}</Text>
+          <Text style={styles.assigneeName}>{ticket.assignee?.full_name || 'Unassigned'}</Text>
         </View>
 
         {/* SLA */}
@@ -369,24 +370,35 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [stats, setStats] = useState<MSTStats>({
-    total: 772,
-    active: 62,
-    completed: 638,
-    myActive: 3,
-    myCompleted: 12,
+    total: 0,
+    active: 0,
+    completed: 0,
+    myActive: 0,
+    myCompleted: 0,
   });
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [property, setProperty] = useState<{ name: string } | null>(null);
   const [countdown, setCountdown] = useState('12:45:01');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch data
   useEffect(() => {
     if (propertyId) {
+      fetchProperty();
       fetchTickets();
       fetchStats();
       fetchLeaderboard();
     }
-  }, [propertyId]);
+  }, [propertyId, user?.id]);
+
+  const fetchProperty = async () => {
+    const { data } = await supabase
+      .from('properties')
+      .select('name')
+      .eq('id', propertyId)
+      .maybeSingle();
+    if (data) setProperty(data);
+  };
 
   // Countdown timer
   useEffect(() => {
@@ -411,6 +423,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
         assignee:users!assigned_to(id, full_name, email, user_photo_url)
       `)
       .eq('property_id', propertyId)
+      .eq('internal', false)
       .order('created_at', { ascending: false })
       .limit(20) as any);
 
@@ -421,68 +434,64 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   };
 
   const fetchStats = async () => {
-    // Use real stats from Supabase
-    const { data: totalData } = await (supabase
-      .from('tickets')
-      .select('id', { count: 'exact' })
-      .eq('property_id', propertyId) as any);
-    
-    const { data: activeData } = await (supabase
-      .from('tickets')
-      .select('id', { count: 'exact' })
-      .eq('property_id', propertyId)
-      .not('status', 'in', '(resolved,closed)') as any);
+    const [{ data: allData }, { data: activeData }, { data: completedData }] = await Promise.all([
+      supabase
+        .from('tickets')
+        .select('id, status, assigned_to')
+        .eq('property_id', propertyId),
+      supabase
+        .from('tickets')
+        .select('id, assigned_to')
+        .eq('property_id', propertyId)
+        .not('status', 'in', '(resolved,closed)'),
+      supabase
+        .from('tickets')
+        .select('id, assigned_to')
+        .eq('property_id', propertyId)
+        .in('status', ['resolved', 'closed']),
+    ]);
 
-    const { data: completedData } = await (supabase
-      .from('tickets')
-      .select('id', { count: 'exact' })
-      .eq('property_id', propertyId)
-      .in('status', ['resolved', 'closed']) as any);
+    const all = allData || [];
+    const active = activeData || [];
+    const completed = completedData || [];
+    const uid = user?.id;
 
     setStats({
-      total: totalData?.length || 772,
-      active: activeData?.length || 62,
-      completed: completedData?.length || 638,
-      myActive: 3,
-      myCompleted: 12,
+      total: all.length,
+      active: active.length,
+      completed: completed.length,
+      myActive: uid ? active.filter((t: any) => t.assigned_to === uid).length : 0,
+      myCompleted: uid ? completed.filter((t: any) => t.assigned_to === uid).length : 0,
     });
   };
 
   const fetchLeaderboard = async () => {
-    // Fetch real MST staff from the property
-    const { data: staffData, error } = await (supabase
-      .from('property_user_roles')
+    const { data: staffData, error } = await supabase
+      .from('property_memberships')
       .select(`
         user_id,
         users:user_id(full_name, user_photo_url)
       `)
       .eq('property_id', propertyId)
-      .in('role', ['mst', 'maintenance_staff', 'staff']) as any);
+      .in('role', ['mst', 'maintenance_staff', 'staff']);
 
-    if (!error && staffData) {
+    if (!error && staffData && staffData.length > 0) {
       const realLeaderboard = staffData.map((staff: any, index: number) => ({
         rank: index + 1,
         name: staff.users?.full_name || 'Staff Member',
-        property: 'SS Plaza',
-        score: Math.floor(Math.random() * 500) + 800, // Temporary until real scoring
+        property: 'Property',
+        score: 0,
         user_id: staff.user_id,
       }));
       setLeaderboard(realLeaderboard);
     } else {
-      // Fallback to mock data with proper names
-      setLeaderboard([
-        { rank: 1, name: 'Manjunatha AS', property: 'SS Plaza', score: 980, user_id: '1' },
-        { rank: 2, name: 'Rajesh Kumar', property: 'SS Plaza', score: 955, user_id: '2' },
-        { rank: 3, name: 'Suresh Babu', property: 'SS Plaza', score: 930, user_id: '3' },
-        { rank: 4, name: 'Pradeep Gowda', property: 'SS Plaza', score: 890, user_id: '4' },
-        { rank: 5, name: 'Venkatesh H', property: 'SS Plaza', score: 875, user_id: '5' },
-      ]);
+      setLeaderboard([]);
     }
   };
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchTickets(), fetchStats(), fetchLeaderboard()]);
+    await Promise.all([fetchProperty(), fetchTickets(), fetchStats(), fetchLeaderboard()]);
     setIsRefreshing(false);
   }, [propertyId]);
 
@@ -502,6 +511,53 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
     return 3;
   };
 
+  const renderRequestsContent = () => (
+    <ScrollView
+      style={styles.contentScroll}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+    >
+      <View style={styles.pageHeader}>
+        <View>
+          <Text style={styles.pageTitle}>Property Requests</Text>
+          <Text style={styles.pageSubtitle}>
+            {filteredTickets.length} request{filteredTickets.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="#94A3B8" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search requests..."
+          placeholderTextColor="#94A3B8"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
+      {filteredTickets.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="checkmark-circle-outline" size={48} color="#CBD5E1" />
+          <Text style={styles.emptyStateText}>No requests found</Text>
+        </View>
+      ) : (
+        filteredTickets.map((ticket, index) => (
+          <View key={ticket.id} style={{ paddingVertical: 8 }}>
+            <TicketCard
+              ticket={ticket}
+              index={index}
+              onPress={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+            />
+          </View>
+        ))
+      )}
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+
   const renderDashboardContent = () => (
     <ScrollView
       style={styles.contentScroll}
@@ -512,7 +568,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.pageTitle}>Maintenance Dashboard</Text>
-          <Text style={styles.pageSubtitle}>SS Plaza • MST: {user?.user_metadata?.full_name || 'Manjunatha AS'}</Text>
+          <Text style={styles.pageSubtitle}>{property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || 'MST Staff'}</Text>
         </View>
         <TouchableOpacity style={styles.customizeBtn}>
           <Ionicons name="options-outline" size={16} color="#64748B" />
@@ -597,7 +653,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       <View style={styles.topPropertyCard}>
         <View>
           <Text style={styles.topPropertyLabel}>TOP PROPERTY TODAY</Text>
-          <Text style={styles.topPropertyName}>SS Plaza (Score 10,200)</Text>
+          <Text style={styles.topPropertyName}>{property?.name || 'Property'}</Text>
         </View>
         <Ionicons name="trophy" size={32} color="#FFD700" />
       </View>
@@ -631,7 +687,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
             <Text style={styles.championAvatarText}>M</Text>
           </View>
           <View>
-            <Text style={styles.championName}>Manjunatha AS</Text>
+            <Text style={styles.championName}>{leaderboard[0]?.name || 'No champion yet'}</Text>
             <Text style={styles.championScore}>15,300</Text>
             <Text style={styles.championSub}>Properties served</Text>
           </View>
@@ -705,13 +761,14 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
                 <Text style={styles.onDutyText}>ON DUTY</Text>
                 <Ionicons name="chevron-down" size={14} color="#64748B" />
               </View>
-              <Text style={styles.userName}>{user?.user_metadata?.full_name || 'Manjunatha AS'}</Text>
+              <Text style={styles.userName}>{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST Staff'}</Text>
             </View>
           </View>
 
           {/* Content */}
           {activeTab === 'dashboard' && renderDashboardContent()}
-          {activeTab === 'requests' && renderDailyBoardContent()}
+          {activeTab === 'requests' && renderRequestsContent()}
+          {activeTab === 'daily-board' && renderDailyBoardContent()}
           {activeTab === 'flow-map' && renderFlowMapContent()}
         </View>
       </View>
@@ -972,11 +1029,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#16A34A',
   },
-  userName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1A2332',
-  },
   contentScroll: {
     flex: 1,
     padding: 24,
@@ -1088,6 +1140,18 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 15,
     color: '#1A2332',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  emptyStateText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
 
   // Tickets Grid

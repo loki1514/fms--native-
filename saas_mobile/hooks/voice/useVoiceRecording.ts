@@ -1,10 +1,12 @@
 'use client';
 import { useCallback, useRef, useState } from 'react';
 import { Platform, Alert } from 'react-native';
+import { Audio } from 'expo-av';
 
 // ---------------------------------------------------------------------------
 // Voice Recording Hook
-// Uses Web MediaRecorder API on web, expo-av on native
+// Web: MediaRecorder API
+// Native: expo-av Audio.Recording
 // ---------------------------------------------------------------------------
 
 interface UseVoiceRecordingReturn {
@@ -17,16 +19,39 @@ interface UseVoiceRecordingReturn {
   error: string | null;
 }
 
+// expo-av recording options — record to .m4a (AAC) which Whisper accepts
+const RECORDING_OPTIONS: Record<string, unknown> = {
+  android: {
+    extension: '.m4a',
+    outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+    audioEncoder: Audio.AndroidAudioEncoder.AAC,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 128000,
+  },
+  ios: {
+    extension: '.m4a',
+    outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+    audioQuality: Audio.IOSAudioQuality.HIGH,
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 128000,
+  },
+} as any; // platform-specific, cast to any to satisfy RecordingOptions
+
 export function useVoiceRecording(): UseVoiceRecordingReturn {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // refs to hold imperative handles
+  // Web refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Native ref
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === 'web') {
@@ -40,9 +65,15 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
         return false;
       }
     }
-    // On native, expo-av handles permissions automatically
-    setPermissionGranted(true);
-    return true;
+
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      setPermissionGranted(status === 'granted');
+      return status === 'granted';
+    } catch {
+      setPermissionGranted(false);
+      return false;
+    }
   }, []);
 
   const startRecording = useCallback(async (): Promise<void> => {
@@ -83,15 +114,31 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
         Alert.alert('Microphone Error', message);
         throw err;
       }
-    } else {
-      // Native: would use expo-av here
+      return;
+    }
+
+    // Native: expo-av
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(RECORDING_OPTIONS as any);
+      recordingRef.current = recording;
       setIsRecording(true);
+      setPermissionGranted(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start recording';
+      setError(message);
+      Alert.alert('Microphone Error', message);
+      throw err;
     }
   }, []);
 
   const stopRecording = useCallback(async (): Promise<string | null> => {
-    return new Promise((resolve) => {
-      if (Platform.OS === 'web') {
+    if (Platform.OS === 'web') {
+      return new Promise((resolve) => {
         const recorder = mediaRecorderRef.current;
         const stream = streamRef.current;
 
@@ -102,7 +149,6 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
         }
 
         recorder.onstop = () => {
-          // Stop all tracks
           stream?.getTracks().forEach((t) => t.stop());
           streamRef.current = null;
 
@@ -114,16 +160,34 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
           resolve(uri);
         };
 
-        if ((recorder as MediaRecorder).state !== 'inactive') {
-          recorder.stop();
-        } else {
-          resolve(null);
-        }
-      } else {
+        recorder.stop();
+      });
+    }
+
+    // Native: expo-av
+    try {
+      const recording = recordingRef.current;
+      if (!recording) {
         setIsRecording(false);
-        resolve(null);
+        return null;
       }
-    });
+
+      recordingRef.current = null;
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+      });
+
+      const uri = recording.getURI();
+      setIsRecording(false);
+      setRecordingUri(uri);
+      return uri;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to stop recording';
+      setError(message);
+      setIsRecording(false);
+      return null;
+    }
   }, []);
 
   return {

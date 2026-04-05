@@ -1,19 +1,21 @@
 /**
  * OpenAI Native Realtime Service
  *
- * REST-based proxy for React Native (iOS/Android).
- * Routes all OpenAI calls through the backend proxy at /api/voice
- * to keep the API key server-side.
+ * Fully local pipeline on mobile — no backend hop needed.
+ * Everything runs on the device: Whisper STT → GPT-4o pipeline → expo-speech TTS.
  *
- * Pipeline: expo-av recording → proxy (Whisper → GPT-4o + tools → response)
- * TTS: expo-speech
+ * Pipeline: expo-av recording → Whisper (direct) → voice pipeline (local) → expo-speech
  */
 
 import * as FileSystem from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { supabase } from '@/utils/supabase/client';
 import { VoiceContext } from './openaiService';
-import { retrieveMemories, storeMemories, MemoryRetrieveInput, MemoryContext } from './supermemoryService';
+import { runVoicePipeline } from './pipeline/voicePipeline';
+import { HistoryEntry } from './pipeline/types';
+
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+const OPENAI_BASE = 'https://api.openai.com/v1';
 
 export type NativeRealtimeState =
   | 'idle'
@@ -28,20 +30,16 @@ export interface NativeRealtimeEventHandlers {
   onAudioPlaybackEnd?: () => void;
   onError?: (error: string) => void;
   onStateChange?: (state: NativeRealtimeState) => void;
-  // Pipeline state events
   onThinking?: () => void;
   onSpeaking?: () => void;
 }
-
-const WEB_API_URL = process.env.EXPO_PUBLIC_WEB_API_URL ?? '';
 
 export class OpenAINativeRealtimeService {
   private ctx: VoiceContext;
   private handlers: Required<NativeRealtimeEventHandlers>;
   private state: NativeRealtimeState = 'idle';
-  private conversationHistory: { role: string; content: string }[] = [];
+  private conversationHistory: HistoryEntry[] = [];
   private readonly maxHistory = 20;
-  private pendingUri: string | null = null;
   private sessionId: string;
 
   constructor(ctx: VoiceContext, handlers: NativeRealtimeEventHandlers) {
@@ -64,13 +62,18 @@ export class OpenAINativeRealtimeService {
   }
 
   // -------------------------------------------------------------------------
-  // Connect — validate auth token
+  // Connect — validate auth
   // -------------------------------------------------------------------------
   async connect(): Promise<void> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         this.handlers.onError('Not authenticated. Please log in again.');
+        this.setState('error');
+        return;
+      }
+      if (!OPENAI_API_KEY) {
+        this.handlers.onError('OpenAI API key not configured.');
         this.setState('error');
         return;
       }
@@ -86,12 +89,11 @@ export class OpenAINativeRealtimeService {
   // Start recording (handled externally by useVoiceRecording hook)
   // -------------------------------------------------------------------------
   async startRecording(): Promise<void> {
-    this.pendingUri = null;
     this.setState('recording');
   }
 
   // -------------------------------------------------------------------------
-  // Stop recording — will process after URI is provided
+  // Stop recording
   // -------------------------------------------------------------------------
   async stopRecording(): Promise<void> {
     this.setState('idle');
@@ -101,94 +103,20 @@ export class OpenAINativeRealtimeService {
   // Provide the recorded audio URI for processing
   // -------------------------------------------------------------------------
   async setRecordingUri(uri: string): Promise<void> {
-    this.pendingUri = uri;
     await this.processAudio(uri);
   }
 
-  /**
-   * Process a recorded audio file through the voice proxy.
-   * Called by useVoiceAgent after stopRecording() gets the URI.
-   */
+  // -------------------------------------------------------------------------
+  // Process audio — fully local pipeline
+  // -------------------------------------------------------------------------
   async processAudio(uri: string): Promise<void> {
     this.setState('processing');
-    this.handlers.onThinking(); // → THINKING state
+    this.handlers.onThinking();
 
     try {
-      // 1. Read audio file and base64-encode it
-      const audioBase64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: 'base64',
-      });
-
-      // 2. Get Supabase auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        this.handlers.onError('Not authenticated. Please log in again.');
-        this.setState('idle');
-        return;
-      }
-
-      // 3. Determine mime type from file extension
-      const ext = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
-      const mimeType = ext === 'wav' ? 'audio/wav'
-        : ext === 'mp3' ? 'audio/mp3'
-        : ext === 'webm' ? 'audio/webm'
-        : 'audio/mp4'; // m4a defaults to mp4
-
-      // 4. Fetch memories from Supermemory directly (lowest latency — no backend hop)
-      let prefetchedMemories: MemoryContext | undefined;
-      const memoryInput: MemoryRetrieveInput = {
-        userId: this.ctx.userId,
-        organizationId: this.ctx.organizationId,
-        propertyId: this.ctx.propertyId,
-        sessionId: this.sessionId,
-        query: '', // query will be updated with transcript if available
-      };
-      try {
-        prefetchedMemories = await retrieveMemories(memoryInput);
-      } catch (memErr) {
-        // Non-fatal — backend will fall back to its own Supermemory call
-        console.warn('[voice] Memory fetch failed, using backend fallback:', memErr);
-      }
-
-      // 5. Call the voice proxy with pre-fetched memories
-      const response = await fetch(`${WEB_API_URL}/api/voice`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          audio: audioBase64,
-          format: mimeType,
-          context: { ...this.ctx, sessionId: this.sessionId },
-          history: this.conversationHistory,
-          prefetchedMemories,
-        }),
-      });
-
-      if (!response.ok) {
-        let errorMsg = `Voice proxy error: ${response.status}`;
-        try {
-          const errBody = await response.json();
-          if (errBody.error) errorMsg = errBody.error;
-        } catch {}
-        this.handlers.onError(errorMsg);
-        this.setState('idle');
-        return;
-      }
-
-      const result = await response.json();
-
-      // Handle error from proxy
-      if (result.error) {
-        this.handlers.onError(result.error);
-        this.setState('idle');
-        return;
-      }
-
-      const { transcript, response: aiResponse } = result;
-
-      if (!transcript?.trim()) {
+      // 1. Transcribe with Whisper (direct API call)
+      const transcript = await this.transcribe(uri);
+      if (!transcript.trim()) {
         this.handlers.onError('Could not understand audio. Please try again.');
         this.setState('idle');
         return;
@@ -198,25 +126,33 @@ export class OpenAINativeRealtimeService {
       this.conversationHistory.push({ role: 'user', content: transcript });
       this.trimHistory();
 
-      // Notify UI of transcript
+      // Notify UI
       this.handlers.onTranscript(transcript, true);
 
-      if (!aiResponse?.trim()) {
+      // 2. Run the local voice pipeline
+      const result = await runVoicePipeline(
+        transcript,
+        { ...this.ctx, sessionId: this.sessionId },
+        this.conversationHistory,
+        this.sessionId
+      );
+
+      if (!result.response.trim()) {
         this.setState('idle');
         return;
       }
 
       // Add assistant response to history
-      this.conversationHistory.push({ role: 'assistant', content: aiResponse });
+      this.conversationHistory.push({ role: 'assistant', content: result.response });
       this.trimHistory();
 
-      // 5. Speak the response
+      // 3. Speak the response
       this.setState('speaking');
-      this.handlers.onSpeaking(); // → SPEAKING state
+      this.handlers.onSpeaking();
       this.handlers.onAudioPlaybackStart();
 
       try {
-        await Speech.speak(aiResponse, {
+        await Speech.speak(result.response, {
           language: 'en-US',
           pitch: 1.0,
           rate: 1.0,
@@ -239,6 +175,55 @@ export class OpenAINativeRealtimeService {
       this.handlers.onError(msg);
       this.setState('error');
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Transcribe audio with Whisper (direct OpenAI API, no backend)
+  // -------------------------------------------------------------------------
+  private async transcribe(uri: string): Promise<string> {
+    const audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+    const audioBuffer = this.base64ToArrayBuffer(audioBase64);
+
+    const ext = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
+    const mimeType = ext === 'wav' ? 'audio/wav'
+      : ext === 'mp3' ? 'audio/mpeg'
+      : ext === 'webm' ? 'audio/webm'
+      : 'audio/mp4';
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri,
+      name: `recording.${ext}`,
+      type: mimeType,
+    } as any);
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'en');
+
+    const response = await fetch(`${OPENAI_BASE}/audio/transcriptions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Whisper error ${response.status}: ${text}`);
+    }
+
+    const data = await response.json() as { text?: string };
+    return data.text ?? '';
+  }
+
+  private base64ToArrayBuffer(base64: string): ArrayBuffer {
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
   }
 
   // -------------------------------------------------------------------------

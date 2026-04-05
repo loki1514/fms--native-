@@ -1,12 +1,13 @@
 'use client';
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
+import * as Speech from 'expo-speech';
 import { generateSpeech } from '@/services/ai/openaiService';
 
 // ---------------------------------------------------------------------------
 // Text-to-Speech Hook
-// Primary: OpenAI tts-1 via fetch + Audio playback
-// Fallback: Web SpeechSynthesis API
+// Web: OpenAI tts-1 via fetch + Audio playback, with SpeechSynthesis fallback
+// Native: expo-speech
 // ---------------------------------------------------------------------------
 
 interface UseTextToSpeechReturn {
@@ -25,9 +26,8 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
+      if (Platform.OS !== 'web') {
+        Speech.stop();
       }
     };
   }, []);
@@ -36,12 +36,12 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
     if (Platform.OS === 'web') {
       if (audioRef.current) {
         audioRef.current.pause();
-        audioRef.current.currentTime = 0;
       }
-      // Also stop SpeechSynthesis
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
+    } else {
+      Speech.stop();
     }
     setIsSpeaking(false);
   }, []);
@@ -60,6 +60,7 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
         // Try OpenAI TTS first
         const audioUrl = await generateSpeech(text);
 
+        // @ts-ignore — Audio is available in browser
         const audio = new Audio(audioUrl);
         audioRef.current = audio;
 
@@ -67,7 +68,6 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
 
         audio.onended = () => {
           setIsSpeaking(false);
-          // Revoke the blob URL to free memory
           if (audioUrl.startsWith('blob:')) {
             URL.revokeObjectURL(audioUrl);
           }
@@ -76,22 +76,37 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
         audio.onerror = () => {
           setIsSpeaking(false);
           // Fallback to Web SpeechSynthesis
-          fallbackSpeak(text);
+          webFallbackSpeak(text);
         };
 
         await audio.play();
       } catch (err) {
         // Fallback to Web SpeechSynthesis API
-        fallbackSpeak(text);
+        webFallbackSpeak(text);
       }
     } else {
-      // On native, just use Web SpeechSynthesis for now
-      fallbackSpeak(text);
+      // Native: use expo-speech
+      try {
+        setIsSpeaking(true);
+        await Speech.speak(text, {
+          language: 'en-US',
+          pitch: 1.0,
+          rate: 1.0,
+          onDone: () => setIsSpeaking(false),
+          onError: (e) => {
+            setIsSpeaking(false);
+            setError(e ? String(e) : 'Speech synthesis failed');
+          },
+        });
+      } catch (err) {
+        setIsSpeaking(false);
+        setError(err instanceof Error ? err.message : 'Speech synthesis failed');
+      }
     }
   }, [stop]);
 
-  // Fallback using Web SpeechSynthesis API
-  const fallbackSpeak = useCallback((text: string) => {
+  // Web-only fallback using SpeechSynthesis API
+  const webFallbackSpeak = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) {
       setError('Speech synthesis not available');
       return;
@@ -103,10 +118,14 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
     utterance.volume = 1.0;
     utterance.lang = 'en-IN';
 
-    // Try to find a good voice
     const voices = window.speechSynthesis.getVoices();
     const preferred = voices.find(
-      (v) => v.lang.startsWith('en') && (v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Google') || v.name.includes('Microsoft'))
+      (v) => v.lang.startsWith('en') && (
+        v.name.includes('Female') ||
+        v.name.includes('Samantha') ||
+        v.name.includes('Google') ||
+        v.name.includes('Microsoft')
+      )
     );
     if (preferred) utterance.voice = preferred;
 
@@ -114,7 +133,7 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = (e) => {
       setIsSpeaking(false);
-      setError(e.error);
+      setError(e.error ?? 'Speech synthesis failed');
     };
 
     window.speechSynthesis.speak(utterance);
@@ -122,9 +141,3 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
 
   return { isSpeaking, speak, stop, error };
 }
-
-// ---------------------------------------------------------------------------
-// Type declarations for Web Speech API
-// ---------------------------------------------------------------------------
-// Web Speech API types are available globally in browsers
-// No additional global declarations needed

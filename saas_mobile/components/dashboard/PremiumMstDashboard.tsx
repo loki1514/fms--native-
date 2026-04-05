@@ -33,26 +33,8 @@ import Animated, {
   FadeInUp,
   FadeIn,
   ZoomIn,
-  SlideInRight,
   runOnJS,
 } from 'react-native-reanimated';
-import {
-  Canvas,
-  Path,
-  Skia,
-  Shader,
-  Fill,
-  Circle,
-  Group,
-  rect,
-  RoundedRect,
-  Paint,
-  BlurMask,
-  LinearGradient as SkiaGradient,
-  vec,
-  Text as SkiaText,
-  useFont,
-} from '@shopify/react-native-skia';
 import Svg, {
   Circle as SvgCircle,
   Path as SvgPath,
@@ -69,7 +51,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 // Types
-export type TabKey = 'dashboard' | 'requests' | 'flow-map' | 'visitors' | 'diesel' | 'electricity' | 'checklist' | 'settings' | 'profile';
+export type TabKey = 'dashboard' | 'requests' | 'daily-board' | 'flow-map' | 'visitors' | 'diesel' | 'electricity' | 'checklist' | 'settings' | 'profile';
 
 interface Ticket {
   id: string;
@@ -110,18 +92,18 @@ interface MstDashboardProps {
   propertyId: string;
 }
 
-// ============ SKIA GRAPHICS COMPONENTS ============
+// ============ SVG GRAPHICS COMPONENTS ============
 
-// Animated Circular Progress with Skia
-function SkiaCircularProgress({ 
-  progress, 
-  size = 120, 
-  strokeWidth = 12, 
+// Animated Circular Progress with SVG + Reanimated
+function SkiaCircularProgress({
+  progress,
+  size = 50,
+  strokeWidth = 4,
   color = '#708F96',
   bgColor = '#E2E8F0'
-}: { 
-  progress: number; 
-  size?: number; 
+}: {
+  progress: number;
+  size?: number;
   strokeWidth?: number;
   color?: string;
   bgColor?: string;
@@ -129,97 +111,48 @@ function SkiaCircularProgress({
   const radius = (size - strokeWidth) / 2;
   const center = size / 2;
   const circumference = 2 * Math.PI * radius;
-  const animatedProgress = useSharedValue(0);
-
-  useEffect(() => {
-    animatedProgress.value = withSpring(progress, { damping: 20, stiffness: 90 });
-  }, [progress]);
-
-  const path = useMemo(() => {
-    const skiaPath = Skia.Path.Make();
-    skiaPath.addCircle(center, center, radius);
-    return skiaPath;
-  }, [center, radius]);
+  const dash = circumference * Math.min(progress, 1);
 
   return (
     <View style={{ width: size, height: size }}>
-      <Canvas style={{ width: size, height: size }}>
-        {/* Background Circle */}
-        <Path
-          path={path}
-          style="stroke"
+      <Svg width={size} height={size}>
+        {/* Background circle */}
+        <SvgCircle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke={bgColor}
           strokeWidth={strokeWidth}
-          color={bgColor}
-          strokeCap="round"
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={0}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
         />
-        {/* Progress Circle */}
-        <Group transform={[{ rotate: -Math.PI / 2 }, { translateX: 0 }, { translateY: 0 }]}>
-          <Path
-            path={path}
-            style="stroke"
-            strokeWidth={strokeWidth}
-            color={color}
-            strokeCap="round"
-            start={0}
-            end={animatedProgress}
-          />
-        </Group>
-        {/* Glow Effect */}
-        <Path
-          path={path}
-          style="stroke"
-          strokeWidth={strokeWidth + 4}
-          color={color}
-          opacity={0.3}
-          strokeCap="round"
-          start={0}
-          end={animatedProgress}
-        >
-          <BlurMask blur={4} style="normal" />
-        </Path>
-      </Canvas>
+        {/* Progress circle */}
+        <SvgCircle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={`${dash} ${circumference}`}
+          strokeDashoffset={0}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+        />
+      </Svg>
     </View>
   );
 }
 
-// Skia Wave Animation Background
-function SkiaWaveBackground() {
-  const time = useSharedValue(0);
-
-  useEffect(() => {
-    time.value = withRepeat(
-      withTiming(1, { duration: 4000 }),
-      -1,
-      true
-    );
-  }, []);
-
-  const wavePath = useMemo(() => {
-    return Skia.Path.MakeFromSVGString(
-      `M 0 100 Q 150 50 300 100 T 600 100 V 200 H 0 Z`
-    )!;
-  }, []);
-
-  return (
-    <Canvas style={StyleSheet.absoluteFill}>
-      <Fill color="#FAFBFC" />
-      <Group>
-        <Path path={wavePath} color="#708F96" opacity={0.05}>
-          <BlurMask blur={20} style="normal" />
-        </Path>
-      </Group>
-    </Canvas>
-  );
-}
-
-// ============ SVG CHART COMPONENTS ============
-
 // Donut Chart for Stats
-function DonutChart({ 
-  data, 
-  size = 100, 
-  strokeWidth = 14 
-}: { 
+function DonutChart({
+  data,
+  size = 100,
+  strokeWidth = 14
+}: {
   data: { value: number; color: string; label: string }[];
   size?: number;
   strokeWidth?: number;
@@ -228,7 +161,7 @@ function DonutChart({
   const center = size / 2;
   const circumference = 2 * Math.PI * radius;
   const total = data.reduce((sum, item) => sum + item.value, 0);
-  
+
   let currentOffset = 0;
 
   return (
@@ -476,11 +409,10 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
           <View style={styles.ticketBadges}>
             <View style={[styles.priorityBadge, { backgroundColor: priorityColors.bg }]}>
               <LinearGradient
-                colors={priorityColors.gradient as [string, string]}
+                colors={[(priorityColors.gradient as [string, string])[0] + '20', (priorityColors.gradient as [string, string])[0] + '20']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFill}
-                opacity={0.1}
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
               />
               <Text style={[styles.priorityBadgeText, { color: priorityColors.text }]}>
                 {ticket.priority?.toUpperCase()}
@@ -497,7 +429,7 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
             <View style={styles.assigneeAvatar}>
               <LinearGradient
                 colors={['#708F96', '#8AA5AC']}
-                style={StyleSheet.absoluteFill}
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               />
@@ -506,16 +438,16 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
               </Text>
             </View>
             <View style={styles.assigneeInfo}>
-              <Text style={styles.assigneeName}>{ticket.assignee?.full_name || 'Manjunatha AS'}</Text>
+              <Text style={styles.assigneeName}>{ticket.assignee?.full_name || 'Unassigned'}</Text>
               <Text style={styles.assigneeEmail}>{ticket.assignee?.email || 'mst@ssplaza.com'}</Text>
             </View>
           </View>
 
           {/* SLA with animated warning */}
           {slaTime && (
-            <View style={[styles.slaRow, isSlaWarning && styles.slaWarning]}>
+            <View style={[styles.slaRow, isSlaWarning ? styles.slaWarning : undefined]}>
               <Ionicons name="time-outline" size={14} color={isSlaWarning ? '#EF4444' : '#64748B'} />
-              <Text style={[styles.slaText, isSlaWarning && styles.slaWarningText]}>
+              <Text style={[styles.slaText, isSlaWarning ? styles.slaWarningText : undefined]}>
                 {slaHours}h {slaMinutes}m remaining
               </Text>
             </View>
@@ -683,7 +615,7 @@ function PremiumCountdown({ countdown }: { countdown: string }) {
                 colors={['#708F96', '#8AA5AC']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
               />
             </Animated.View>
           </View>
@@ -729,6 +661,7 @@ function PremiumSidebar({
       items: [
         { key: 'dashboard', label: 'Overview', icon: 'grid-outline' },
         { key: 'requests', label: 'Requests', icon: 'ticket-outline' },
+        { key: 'daily-board', label: 'Leaderboard', icon: 'trophy-outline' },
         { key: 'flow-map', label: 'Live Flow', icon: 'pulse-outline' },
       ],
     },
@@ -756,7 +689,7 @@ function PremiumSidebar({
         colors={['#FFFFFF', '#FAFBFC']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
+        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
       />
       
       {/* Header */}
@@ -766,7 +699,7 @@ function PremiumSidebar({
             <View style={styles.logoIcon}>
               <LinearGradient
                 colors={['#708F96', '#5A737A']}
-                style={StyleSheet.absoluteFill}
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               />
@@ -800,7 +733,7 @@ function PremiumSidebar({
                   entering={FadeInDown.delay(sectionIndex * 100 + itemIndex * 50)}
                   style={[styles.navItem, isActive && styles.navItemActive, isCollapsed && styles.navItemCollapsed]}
                   onPress={() => {
-                    if (['dashboard', 'requests', 'flow-map'].includes(item.key)) {
+                    if (['dashboard', 'requests', 'daily-board', 'flow-map', 'profile'].includes(item.key)) {
                       onTabChange(item.key as TabKey);
                     } else {
                       router.push(`/property/${propertyId}/${item.key}` as any);
@@ -810,7 +743,7 @@ function PremiumSidebar({
                   {isActive && (
                     <LinearGradient
                       colors={['rgba(112, 143, 150, 0.15)', 'rgba(112, 143, 150, 0.05)']}
-                      style={StyleSheet.absoluteFill}
+                      style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                     />
@@ -832,7 +765,7 @@ function PremiumSidebar({
           <View style={[styles.userAvatar, isCollapsed && styles.userAvatarCollapsed]}>
             <LinearGradient
               colors={['#708F96', '#8AA5AC']}
-              style={StyleSheet.absoluteFill}
+              style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
@@ -869,24 +802,35 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [stats, setStats] = useState<MSTStats>({
-    total: 772,
-    active: 62,
-    completed: 638,
-    myActive: 3,
-    myCompleted: 12,
+    total: 0,
+    active: 0,
+    completed: 0,
+    myActive: 0,
+    myCompleted: 0,
   });
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [property, setProperty] = useState<{ name: string } | null>(null);
   const [countdown, setCountdown] = useState('12:45:01');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch data
   useEffect(() => {
     if (propertyId) {
+      fetchProperty();
       fetchTickets();
       fetchStats();
       fetchLeaderboard();
     }
-  }, [propertyId]);
+  }, [propertyId, user?.id]);
+
+  const fetchProperty = async () => {
+    const { data } = await supabase
+      .from('properties')
+      .select('name')
+      .eq('id', propertyId)
+      .maybeSingle();
+    if (data) setProperty(data);
+  };
 
   // Countdown timer
   useEffect(() => {
@@ -911,6 +855,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
         assignee:users!assigned_to(id, full_name, email, user_photo_url)
       `)
       .eq('property_id', propertyId)
+      .eq('internal', false)
       .order('created_at', { ascending: false })
       .limit(20) as any);
 
@@ -921,65 +866,90 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   };
 
   const fetchStats = async () => {
-    const { data: totalData } = await (supabase
-      .from('tickets')
-      .select('id', { count: 'exact' })
-      .eq('property_id', propertyId) as any);
-    
-    const { data: activeData } = await (supabase
-      .from('tickets')
-      .select('id', { count: 'exact' })
-      .eq('property_id', propertyId)
-      .not('status', 'in', '(resolved,closed)') as any);
+    // Fetch all tickets for the property once, then compute counts client-side
+    // Supabase count() returns { count: number } in the response
+    const [{ data: allData }, { data: activeData }, { data: completedData }] = await Promise.all([
+      supabase
+        .from('tickets')
+        .select('id, status, assigned_to')
+        .eq('property_id', propertyId),
+      supabase
+        .from('tickets')
+        .select('id, assigned_to')
+        .eq('property_id', propertyId)
+        .not('status', 'in', '(resolved,closed)'),
+      supabase
+        .from('tickets')
+        .select('id, assigned_to')
+        .eq('property_id', propertyId)
+        .in('status', ['resolved', 'closed']),
+    ]);
 
-    const { data: completedData } = await (supabase
-      .from('tickets')
-      .select('id', { count: 'exact' })
-      .eq('property_id', propertyId)
-      .in('status', ['resolved', 'closed']) as any);
+    const all = allData || [];
+    const active = activeData || [];
+    const completed = completedData || [];
+    const uid = user?.id;
 
     setStats({
-      total: totalData?.length || 772,
-      active: activeData?.length || 62,
-      completed: completedData?.length || 638,
-      myActive: 3,
-      myCompleted: 12,
+      total: all.length,
+      active: active.length,
+      completed: completed.length,
+      myActive: uid ? active.filter((t: any) => t.assigned_to === uid).length : 0,
+      myCompleted: uid ? completed.filter((t: any) => t.assigned_to === uid).length : 0,
     });
   };
 
   const fetchLeaderboard = async () => {
-    const { data: staffData, error } = await (supabase
-      .from('property_user_roles')
+    // Get staff members for this property
+    const { data: staffData, error } = await supabase
+      .from('property_memberships')
       .select(`
         user_id,
         users:user_id(full_name, user_photo_url)
       `)
       .eq('property_id', propertyId)
-      .in('role', ['mst', 'maintenance_staff', 'staff']) as any);
+      .in('role', ['mst', 'maintenance_staff', 'staff']);
 
-    if (!error && staffData) {
-      const realLeaderboard = staffData.map((staff: any, index: number) => ({
-        rank: index + 1,
-        name: staff.users?.full_name || 'Staff Member',
-        property: 'SS Plaza',
-        score: Math.floor(Math.random() * 500) + 800,
-        user_id: staff.user_id,
-      }));
-      setLeaderboard(realLeaderboard);
-    } else {
-      setLeaderboard([
-        { rank: 1, name: 'Manjunatha AS', property: 'SS Plaza', score: 980, user_id: '1' },
-        { rank: 2, name: 'Rajesh Kumar', property: 'SS Plaza', score: 955, user_id: '2' },
-        { rank: 3, name: 'Suresh Babu', property: 'SS Plaza', score: 930, user_id: '3' },
-        { rank: 4, name: 'Pradeep Gowda', property: 'SS Plaza', score: 890, user_id: '4' },
-        { rank: 5, name: 'Venkatesh H', property: 'SS Plaza', score: 875, user_id: '5' },
-      ]);
+    if (error || !staffData || staffData.length === 0) {
+      setLeaderboard([]);
+      return;
     }
+
+    // Compute score = count of resolved+closed tickets per staff member
+    const userIds = staffData.map((s: any) => s.user_id);
+    const { data: resolvedTickets } = await supabase
+      .from('tickets')
+      .select('assigned_to')
+      .eq('property_id', propertyId)
+      .in('status', ['resolved', 'closed'])
+      .in('assigned_to', userIds);
+
+    const scoreMap: Record<string, number> = {};
+    if (resolvedTickets) {
+      resolvedTickets.forEach((t: any) => {
+        if (t.assigned_to) {
+          scoreMap[t.assigned_to] = (scoreMap[t.assigned_to] || 0) + 1;
+        }
+      });
+    }
+
+    const ranked = staffData
+      .map((staff: any) => ({
+        rank: 0,
+        name: staff.users?.full_name || 'Staff Member',
+        property: property?.name || 'Property',
+        score: scoreMap[staff.user_id] || 0,
+        user_id: staff.user_id,
+      }))
+      .sort((a: LeaderboardEntry, b: LeaderboardEntry) => b.score - a.score)
+      .map((entry: LeaderboardEntry, index: number) => ({ ...entry, rank: index + 1 }));
+
+    setLeaderboard(ranked);
   };
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchTickets(), fetchStats(), fetchLeaderboard()]);
+    await Promise.all([fetchProperty(), fetchTickets(), fetchStats(), fetchLeaderboard()]);
     setIsRefreshing(false);
   }, [propertyId]);
 
@@ -998,8 +968,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
     return 3;
   };
 
-  // Mock chart data
-  const sparklineData = [30, 45, 35, 50, 40, 60, 55, 70, 65, 80];
+  // Chart data computed from real stats
 
   const renderDashboardContent = () => (
     <ScrollView
@@ -1011,7 +980,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
       <Animated.View entering={FadeInDown} style={styles.pageHeader}>
         <View>
           <Text style={styles.pageTitle}>Maintenance Dashboard</Text>
-          <Text style={styles.pageSubtitle}>SS Plaza • MST: {user?.user_metadata?.full_name || 'Manjunatha AS'}</Text>
+          <Text style={styles.pageSubtitle}>{property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || 'MST Staff'}</Text>
         </View>
         <TouchableOpacity style={styles.customizeBtn}>
           <Ionicons name="options-outline" size={16} color="#64748B" />
@@ -1021,32 +990,26 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* KPI Cards with Premium Effects */}
       <View style={styles.kpiContainer}>
-        <PremiumKPICard 
-          value={stats.total} 
-          label="TOTAL TICKETS" 
-          color="#1A2332" 
+        <PremiumKPICard
+          value={stats.total}
+          label="TOTAL TICKETS"
+          color="#1A2332"
           delay={0}
           icon="layers-outline"
-          trend={12}
-          chartData={sparklineData}
         />
-        <PremiumKPICard 
-          value={stats.active} 
-          label="ACTIVE" 
-          color="#708F96" 
+        <PremiumKPICard
+          value={stats.active}
+          label="ACTIVE"
+          color="#708F96"
           delay={100}
           icon="flash-outline"
-          trend={-5}
-          chartData={sparklineData.slice().reverse()}
         />
-        <PremiumKPICard 
-          value={stats.completed} 
-          label="COMPLETED" 
-          color="#10B981" 
+        <PremiumKPICard
+          value={stats.completed}
+          label="COMPLETED"
+          color="#10B981"
           delay={200}
           icon="checkmark-done-outline"
-          trend={8}
-          chartData={sparklineData}
         />
       </View>
 
@@ -1085,6 +1048,72 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
           ))}
         </View>
       </View>
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+
+  const renderRequestsContent = () => (
+    <ScrollView
+      style={styles.contentScroll}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+    >
+      <Animated.View entering={FadeInDown} style={styles.pageHeader}>
+        <View>
+          <Text style={styles.pageTitle}>Property Requests</Text>
+          <Text style={styles.pageSubtitle}>
+            {filteredTickets.length} request{filteredTickets.length !== 1 ? 's' : ''} for {property?.name || 'Property'}
+          </Text>
+        </View>
+      </Animated.View>
+
+      {/* Search */}
+      <Animated.View entering={FadeInDown.delay(100)} style={styles.searchContainer}>
+        <BlurView intensity={30} tint="light" style={styles.searchBlur}>
+          <Ionicons name="search" size={20} color="#94A3B8" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search requests..."
+            placeholderTextColor="#94A3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </BlurView>
+      </Animated.View>
+
+      {/* Filter Chips */}
+      <Animated.View entering={FadeInDown.delay(150)} style={styles.filterChips}>
+        {(['all', 'open', 'in_progress'] as const).map((filter) => (
+          <TouchableOpacity
+            key={filter}
+            style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}
+            onPress={() => {}}
+          >
+            <Text style={[styles.filterChipText, filter === 'all' && styles.filterChipTextActive]}>
+              {filter === 'all' ? 'All' : filter === 'in_progress' ? 'In Progress' : 'Open'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </Animated.View>
+
+      {/* Tickets */}
+      {filteredTickets.length === 0 ? (
+        <Animated.View entering={FadeInDown.delay(200)} style={styles.emptyState}>
+          <Ionicons name="checkmark-circle-outline" size={48} color="#CBD5E1" />
+          <Text style={styles.emptyStateText}>No requests found</Text>
+        </Animated.View>
+      ) : (
+        filteredTickets.map((ticket, index) => (
+          <View key={ticket.id} style={{ paddingHorizontal: 0, paddingVertical: 8 }}>
+            <PremiumTicketCard
+              ticket={ticket}
+              index={index}
+              onPress={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+            />
+          </View>
+        ))
+      )}
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -1144,15 +1173,19 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
               <View style={styles.championAvatar}>
                 <LinearGradient
                   colors={['#FFD700', '#FFA500']}
-                  style={StyleSheet.absoluteFill}
+                  style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 />
-                <Text style={styles.championAvatarText}>M</Text>
+                <Text style={styles.championAvatarText}>
+                  {leaderboard[0]?.name?.[0]?.toUpperCase() || '?'}
+                </Text>
               </View>
               <View>
-                <Text style={styles.championName}>Manjunatha AS</Text>
-                <Text style={styles.championScore}>15,300 pts</Text>
+                <Text style={styles.championName}>{leaderboard[0]?.name || 'No champion yet'}</Text>
+                <Text style={styles.championScore}>
+                  {leaderboard[0]?.score > 0 ? `${leaderboard[0].score.toLocaleString()} pts` : '—'}
+                </Text>
               </View>
             </View>
           </LinearGradient>
@@ -1175,6 +1208,88 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
     );
   }
 
+  const renderProfileContent = () => (
+    <ScrollView
+      style={styles.contentScroll}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+    >
+      <Animated.View entering={FadeInDown} style={styles.pageHeader}>
+        <Text style={styles.pageTitle}>My Profile</Text>
+        <Text style={styles.pageSubtitle}>{property?.name || 'Property'}</Text>
+      </Animated.View>
+
+      {/* Profile Card */}
+      <Animated.View entering={FadeInDown.delay(100)}>
+        <BlurView intensity={30} tint="light" style={styles.profileCardBlur}>
+          <LinearGradient
+            colors={['#FFFFFF', '#FAFBFC']}
+            style={styles.profileCardGradient}
+          >
+            <View style={styles.profileHeader}>
+              <View style={styles.profileAvatar}>
+                <LinearGradient
+                  colors={['#708F96', '#8AA5AC']}
+                  style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
+                <Text style={styles.profileAvatarText}>
+                  {user?.user_metadata?.full_name?.[0]?.toUpperCase() || 'U'}
+                </Text>
+              </View>
+              <View style={styles.profileBadge}>
+                <Text style={styles.profileBadgeText}>MST Staff</Text>
+              </View>
+            </View>
+
+            <View style={styles.profileInfo}>
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>FULL NAME</Text>
+                <Text style={styles.profileValue}>{user?.user_metadata?.full_name || 'Not Set'}</Text>
+              </View>
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>EMAIL</Text>
+                <Text style={styles.profileValue}>{user?.email || 'Not Set'}</Text>
+              </View>
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>PHONE</Text>
+                <Text style={styles.profileValue}>{user?.user_metadata?.phone || 'Not Set'}</Text>
+              </View>
+              <View style={styles.profileRow}>
+                <Text style={styles.profileLabel}>PROPERTY</Text>
+                <Text style={styles.profileValue}>{property?.name || 'Not Assigned'}</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </BlurView>
+      </Animated.View>
+
+      {/* Personal Stats */}
+      <Animated.View entering={FadeInDown.delay(200)}>
+        <Text style={[styles.sectionTitle, { marginTop: 8, marginBottom: 12 }]}>My Performance</Text>
+        <View style={styles.kpiContainer}>
+          <PremiumKPICard
+            value={stats.myActive}
+            label="MY ACTIVE"
+            color="#708F96"
+            delay={0}
+            icon="construct-outline"
+          />
+          <PremiumKPICard
+            value={stats.myCompleted}
+            label="MY COMPLETED"
+            color="#10B981"
+            delay={100}
+            icon="checkmark-done-outline"
+          />
+        </View>
+      </Animated.View>
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -1194,7 +1309,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
           <BlurView intensity={60} tint="light" style={styles.topBar}>
             <LinearGradient
               colors={['rgba(255,255,255,0.9)', 'rgba(250,251,252,0.9)']}
-              style={StyleSheet.absoluteFill}
+              style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
             />
             <View style={styles.topBarLeft}>
               {isMobile && (
@@ -1212,13 +1327,15 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
                 <View style={styles.onDutyDot} />
                 <Text style={styles.onDutyText}>ON DUTY</Text>
               </View>
-              <Text style={styles.userName}>{user?.user_metadata?.full_name || 'Manjunatha AS'}</Text>
+              <Text style={styles.userName}>{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST Staff'}</Text>
             </View>
           </BlurView>
 
           {activeTab === 'dashboard' && renderDashboardContent()}
-          {activeTab === 'requests' && renderDailyBoardContent()}
+          {activeTab === 'requests' && renderRequestsContent()}
+          {activeTab === 'daily-board' && renderDailyBoardContent()}
           {activeTab === 'flow-map' && renderFlowMapContent()}
+          {activeTab === 'profile' && renderProfileContent()}
         </View>
       </View>
     </SafeAreaView>
@@ -1521,8 +1638,7 @@ const styles = StyleSheet.create({
     right: 10,
     bottom: 0,
     borderRadius: 20,
-    opacity: 0.3,
-    filter: 'blur(20px)',
+    opacity: 0.15,
   },
   kpiBlurCard: {
     borderRadius: 20,
@@ -1617,6 +1733,45 @@ const styles = StyleSheet.create({
     color: '#1A2332',
   },
 
+  // Filter Chips
+  filterChips: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  filterChipActive: {
+    backgroundColor: '#708F96',
+    borderColor: '#708F96',
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 48,
+  },
+  emptyStateText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+
   // Tickets Grid
   ticketsGrid: {
     flexDirection: 'row',
@@ -1632,9 +1787,13 @@ const styles = StyleSheet.create({
     left: 8,
     right: 8,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: 'rgba(112, 143, 150, 0.15)',
     borderRadius: 20,
-    filter: 'blur(20px)',
+    shadowColor: '#708F96',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
   },
   ticketBlurCard: {
     borderRadius: 20,
@@ -1968,5 +2127,68 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFD700',
     marginTop: 4,
+  },
+
+  // Profile
+  profileCardBlur: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  profileCardGradient: {
+    padding: 24,
+  },
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  profileAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  profileAvatarText: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  profileBadge: {
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  profileBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284C7',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  profileInfo: {
+    gap: 16,
+  },
+  profileRow: {
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  profileLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  profileValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1A2332',
   },
 });

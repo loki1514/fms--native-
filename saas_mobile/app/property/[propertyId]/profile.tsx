@@ -7,13 +7,13 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  SafeAreaView,
   StatusBar,
   Image,
   TextInput,
   Alert,
   Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
@@ -106,8 +106,8 @@ export default function ProfileScreen() {
     if (!profile) return;
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('users')
+      const { error } = await (supabase
+        .from('users') as any)
         .update({
           full_name: editForm.full_name,
           phone: editForm.phone,
@@ -121,7 +121,7 @@ export default function ProfileScreen() {
 
       if (error) throw error;
       
-      setProfile(prev => ({ ...prev!, ...editForm }));
+      setProfile(prev => (prev ? { ...prev, ...editForm } : prev));
       setIsEditing(false);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {
@@ -145,28 +145,33 @@ export default function ProfileScreen() {
       allowsEditing: true,
       aspect: [1, 1],
     });
-    
+
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
-      // Upload photo
       try {
-        const uriParts = uri.split('/');
-        const filename = uriParts[uriParts.length - 1];
-        const formData = new FormData();
-        formData.append('file', { uri, name: filename, type: 'image/jpeg' } as any);
-        
-        const uploadRes = await fetch(`/api/upload`, { method: 'POST', body: formData });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          await supabase
-            .from('users')
-            .update({ user_photo_url: uploadData.url })
-            .eq('id', profile?.id);
-          
-          setProfile(prev => ({ ...prev!, user_photo_url: uploadData.url }));
-        }
+        const uriParts = uri.split('.');
+        const ext = uriParts[uriParts.length - 1] || 'jpg';
+        const filename = `${profile?.id}/${Date.now()}.${ext}`;
+        const response = await fetch(uri);
+        const blob = await response.blob();
+
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filename, blob, { contentType: 'image/jpeg' });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filename);
+
+        const publicUrl = urlData.publicUrl;
+        await (supabase.from('users') as any).update({ user_photo_url: publicUrl }).eq('id', profile?.id);
+
+        setProfile(prev => (prev ? { ...prev, user_photo_url: publicUrl } : prev));
       } catch (error) {
         console.error('Error uploading photo:', error);
+        Alert.alert('Error', 'Failed to upload photo');
       }
     }
     setShowPhotoModal(false);
@@ -179,28 +184,33 @@ export default function ProfileScreen() {
       allowsEditing: true,
       aspect: [1, 1],
     });
-    
+
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
-      // Similar upload logic
       try {
-        const uriParts = uri.split('/');
-        const filename = uriParts[uriParts.length - 1];
-        const formData = new FormData();
-        formData.append('file', { uri, name: filename, type: 'image/jpeg' } as any);
-        
-        const uploadRes = await fetch(`/api/upload`, { method: 'POST', body: formData });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          await supabase
-            .from('users')
-            .update({ user_photo_url: uploadData.url })
-            .eq('id', profile?.id);
-          
-          setProfile(prev => ({ ...prev!, user_photo_url: uploadData.url }));
-        }
+        const uriParts = uri.split('.');
+        const ext = uriParts[uriParts.length - 1] || 'jpg';
+        const filename = `${profile?.id}/${Date.now()}.${ext}`;
+        const response = await fetch(uri);
+        const blob = await response.blob();
+
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filename, blob, { contentType: 'image/jpeg' });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filename);
+
+        const publicUrl = urlData.publicUrl;
+        await (supabase.from('users') as any).update({ user_photo_url: publicUrl }).eq('id', profile?.id);
+
+        setProfile(prev => (prev ? { ...prev, user_photo_url: publicUrl } : prev));
       } catch (error) {
         console.error('Error uploading photo:', error);
+        Alert.alert('Error', 'Failed to upload photo');
       }
     }
     setShowPhotoModal(false);

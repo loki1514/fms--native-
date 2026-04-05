@@ -2,7 +2,6 @@
 import React, { useCallback } from 'react';
 import { StyleSheet, Pressable, View, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { VoiceOrbAnimation } from './VoiceOrbAnimation.web';
 import { useVoiceAgentStore } from '@/store/voiceAgentStore';
 import { FibonacciSphereOrb } from './FibonacciSphereOrb';
 
@@ -12,15 +11,16 @@ interface VoiceOrbProps {
 }
 
 export function VoiceOrb({ onPress, disabled }: VoiceOrbProps) {
-  const { isListening, isProcessing, isSpeaking } = useVoiceAgentStore();
+  const { agentState, isListening, isProcessing, isSpeaking } = useVoiceAgentStore();
 
-  const state = isProcessing
-    ? 'processing'
-    : isListening
+  // Map agent state machine to orb visual states
+  const orbState = agentState === 'IDLE' || agentState === 'ERROR'
+    ? 'idle'
+    : agentState === 'LISTENING'
     ? 'listening'
-    : isSpeaking
+    : agentState === 'SPEAKING'
     ? 'speaking'
-    : 'idle';
+    : 'processing';
 
   const handlePress = useCallback(async () => {
     if (disabled) return;
@@ -43,14 +43,10 @@ export function VoiceOrb({ onPress, disabled }: VoiceOrbProps) {
       ]}
       accessibilityLabel="Voice assistant"
       accessibilityRole="button"
-      accessibilityHint={isListening ? 'Tap to stop recording' : 'Tap to start voice assistant'}
+      accessibilityHint={agentState === 'LISTENING' ? 'Tap to stop recording' : 'Tap to start voice assistant'}
     >
       <View style={styles.orbWrapper}>
-        {FibonacciSphereOrb ? (
-          <FibonacciSphereOrb state={state} size={110} />
-        ) : (
-          <VoiceOrbAnimation state={state} size={110} />
-        )}
+        <FibonacciSphereOrb state={orbState} size={110} />
       </View>
     </Pressable>
   );
