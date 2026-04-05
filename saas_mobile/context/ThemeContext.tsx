@@ -1,50 +1,71 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Colors } from '@/constants/Colors';
 
 type Theme = 'light' | 'dark';
+
+// ThemeContext colors extend the Colors.ts design system
+// FIX: was using #7C3AED (violet) instead of brand color #708F96 (teal)
+type ThemeColors = {
+  background: string;
+  surface: string;
+  surfaceElevated: string;
+  border: string;
+  primary: string;
+  primaryDark: string;
+  secondary: string;
+  textPrimary: string;
+  textSecondary: string;
+  textTertiary: string;
+  textInverse: string;
+  success: string;
+  warning: string;
+  error: string;
+  info: string;
+};
 
 interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
   isDark: boolean;
-  colors: typeof lightColors;
+  colors: ThemeColors;
 }
 
-const lightColors = {
-  background: '#FFFFFF',
-  surface: '#FFFFFF',
-  surfaceElevated: '#F8FAFC',
-  border: '#E2E8F0',
-  primary: '#7C3AED',
-  primaryDark: '#6D28D9',
-  secondary: '#F59E0B',
-  textPrimary: '#1A2332',
-  textSecondary: '#64748B',
-  textTertiary: '#94A3B8',
+const lightColors: ThemeColors = {
+  background: Colors.light.background,
+  surface: Colors.light.surface,
+  surfaceElevated: Colors.light.surfaceElevated ?? '#F8FAFC',
+  border: Colors.light.border,
+  primary: Colors.light.primary,      // was #7C3AED — fixed to brand #708F96
+  primaryDark: Colors.light.primaryDark,
+  secondary: Colors.light.secondary,
+  textPrimary: Colors.light.textPrimary,
+  textSecondary: Colors.light.textSecondary,
+  textTertiary: Colors.light.textTertiary ?? Colors.light.textSecondary,
   textInverse: '#FFFFFF',
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  info: '#3B82F6',
+  success: Colors.light.success,
+  warning: Colors.light.warning,
+  error: Colors.light.error,
+  info: Colors.light.info,
 };
 
-const darkColors: typeof lightColors = {
-  background: '#0D1117',
-  surface: '#161B22',
-  surfaceElevated: '#1C2128',
-  border: '#30363D',
-  primary: '#7C3AED',
-  primaryDark: '#9F67FF',
-  secondary: '#F59E0B',
-  textPrimary: '#F0F6FC',
-  textSecondary: '#8B949E',
-  textTertiary: '#6E7681',
+const darkColors: ThemeColors = {
+  background: Colors.dark.background,
+  surface: Colors.dark.surface,
+  surfaceElevated: Colors.dark.surfaceElevated ?? '#1C2128',
+  border: Colors.dark.border,
+  primary: Colors.dark.primary,        // was #7C3AED — fixed to brand #708F96
+  primaryDark: Colors.dark.primaryDark,
+  secondary: Colors.dark.secondary,
+  textPrimary: Colors.dark.textPrimary,
+  textSecondary: Colors.dark.textSecondary,
+  textTertiary: Colors.dark.textTertiary ?? Colors.dark.textSecondary,
   textInverse: '#0D1117',
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  info: '#3B82F6',
+  success: Colors.dark.success,
+  warning: Colors.dark.warning,
+  error: Colors.dark.error,
+  info: Colors.dark.info,
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);

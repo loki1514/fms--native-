@@ -7,7 +7,7 @@ import { ExtractedIntent } from './intent';
 import { Plan, StepResult } from './planner';
 import { VoiceContext } from './types';
 
-const openai = new OpenAI({ apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY, dangerouslyAllowBrowser: true });
 
 export interface ResponseResult {
   response: string;

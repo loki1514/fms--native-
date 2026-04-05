@@ -486,3 +486,178 @@ export function getRoleDefaultPath(role: string, propertyId: string): string {
 export function isAdminRole(role: string): boolean {
   return PROPERTY_ADMIN_ROLES.includes(role);
 }
+
+// =============================================================================
+// Reports API
+// =============================================================================
+
+export interface ReportKPIs {
+  totalSnags: number;
+  closedSnags: number;
+  openSnags: number;
+  pendingValidationCount: number;
+  closureRate: number;
+}
+
+export interface ChartDataSet {
+  labels: string[];
+  data: number[];
+  open?: number[];
+  closed?: number[];
+}
+
+export interface ExecutiveReportResponse {
+  property: { id: string; name: string; code: string };
+  allTimeTotal: number;
+  prevMonth: { label: string; total: number; closed: number; open: number; pendingValidation: number; closureRate: number };
+  currMonth: { label: string; total: number; closed: number; open: number; pendingValidation: number; closureRate: number };
+  topCategories: { name: string; count: number }[];
+  trends: {
+    prev: number[];
+    curr: number[];
+  };
+  error?: string;
+}
+
+export interface RequestsReportResponse {
+  success: boolean;
+  month: { value: string; label: string };
+  property: { id: string; name: string; code: string; address?: string };
+  kpis: ReportKPIs;
+  charts: {
+    floor: ChartDataSet;
+    department: ChartDataSet;
+  };
+  tickets: SnagTicket[];
+  error?: string;
+}
+
+export interface SnagTicket {
+  id: string;
+  ticketNumber: string;
+  ticketNumberDisplay: string;
+  title: string;
+  description: string;
+  category: string;
+  status: string;
+  priority: string;
+  floor: string | null;
+  floorLabel: string;
+  location: string | null;
+  reportedDate: string;
+  closedDate: string | null;
+  spocName: string;
+  spocEmail: string;
+  assigneeName: string;
+  beforePhoto: string | null;
+  afterPhoto: string | null;
+  internal: boolean;
+}
+
+export interface SnagReportResponse {
+  success: boolean;
+  import: { id: string; filename: string; createdAt: string; completedAt: string | null; totalRows: number; validRows: number };
+  property: { id: string; name: string; code: string; address?: string };
+  kpis: ReportKPIs;
+  charts: {
+    floor: ChartDataSet;
+    department: ChartDataSet;
+  };
+  tickets: SnagTicket[];
+  error?: string;
+}
+
+export async function getExecutiveReport(propertyId: string): Promise<ExecutiveReportResponse> {
+  // Fetch all tickets directly via Supabase (mirrors ExecutiveSummaryPanel logic)
+  const supabase = createClient();
+
+  const { data: tickets, error: ticketsError } = await supabase
+    .from('tickets')
+    .select('id, category, status, created_at, resolved_at, issue_category:category_id(name)')
+    .eq('property_id', propertyId)
+    .eq('internal', false)
+    .order('created_at', { ascending: false });
+
+  if (ticketsError) return { error: ticketsError.message } as ExecutiveReportResponse;
+
+  const { data: property } = await supabase
+    .from('properties').select('id, name, code').eq('id', propertyId).single();
+
+  const normalised = (tickets || []).map((t: any) => ({
+    id: t.id,
+    category: t.issue_category?.name || t.category || 'Other',
+    status: t.status,
+    created_at: t.created_at,
+    resolved_at: t.resolved_at ?? null,
+  }));
+
+  const now = new Date();
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const currMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const fmtMonth = (d: Date) => d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const getStats = (arr: typeof normalised) => {
+    const total = arr.length;
+    const closed = arr.filter(t => t.status === 'resolved' || t.status === 'closed').length;
+    const pendingValidation = arr.filter(t => t.status === 'pending_validation').length;
+    const open = total - closed - pendingValidation;
+    const rate = total > 0 ? Math.round((closed / total) * 100) : 0;
+    return { total, closed, open, pendingValidation, closureRate: rate };
+  };
+
+  const prevTickets = normalised.filter(t => {
+    const d = new Date(t.created_at);
+    return d.getMonth() === prevMonthStart.getMonth() && d.getFullYear() === prevMonthStart.getFullYear();
+  });
+  const currTickets = normalised.filter(t => {
+    const d = new Date(t.created_at);
+    return d.getMonth() === currMonthStart.getMonth() && d.getFullYear() === currMonthStart.getFullYear();
+  });
+
+  const prevStats = getStats(prevTickets);
+  const currStats = getStats(currTickets);
+
+  // Top categories
+  const cats: Record<string, number> = {};
+  normalised.forEach(t => { const c = t.category || 'Other'; cats[c] = (cats[c] || 0) + 1; });
+  const topCategories = Object.entries(cats).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 5);
+
+  // 30-day trends
+  const getDailyTrend = (arr: typeof normalised, start: Date, days: number) => {
+    const trend = new Array(days).fill(0);
+    arr.forEach(t => {
+      const d = new Date(t.created_at);
+      const diff = Math.floor((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff >= 0 && diff < days) trend[diff]++;
+    });
+    return trend;
+  };
+
+  return {
+    property: property || { id: propertyId, name: 'Property', code: 'N/A' },
+    allTimeTotal: normalised.length,
+    prevMonth: { label: fmtMonth(prevMonthStart), ...prevStats },
+    currMonth: { label: fmtMonth(currMonthStart), ...currStats },
+    topCategories,
+    trends: {
+      prev: getDailyTrend(prevTickets, prevMonthStart, 30),
+      curr: getDailyTrend(currTickets, currMonthStart, 30),
+    },
+  };
+}
+
+export async function getRequestsReport(propertyId: string, month?: string, startDate?: string, endDate?: string): Promise<RequestsReportResponse> {
+  const params = new URLSearchParams({ propertyId });
+  if (month) params.set('month', month);
+  if (startDate && endDate) {
+    params.set('startDate', startDate);
+    params.set('endDate', endDate);
+  }
+
+  return apiFetch<RequestsReportResponse>(`/api/reports/requests-report?${params.toString()}`);
+}
+
+export async function getSnagReport(importId: string): Promise<SnagReportResponse> {
+  return apiFetch<SnagReportResponse>(`/api/reports/snag-report/${importId}`);
+}

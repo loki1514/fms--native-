@@ -1,17 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { getStatusConfig } from '@/utils/StatusColors';
 
-export type TicketStatus = 'open' | 'waitlist' | 'assigned' | 'in_progress' | 'paused' | 'pending_validation' | 'resolved' | 'closed';
-
-const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
-  open:              { bg: 'rgba(100,116,139,0.12)', text: '#64748B', label: 'Open' },
-  waitlist:          { bg: 'rgba(168,85,247,0.12)', text: '#A855F7', label: 'Waitlist' },
-  assigned:          { bg: 'rgba(59,130,246,0.12)', text: '#3B82F6', label: 'Assigned' },
-  in_progress:       { bg: 'rgba(245,158,11,0.12)', text: '#F59E0B', label: 'In Progress' },
-  paused:            { bg: 'rgba(245,158,11,0.12)', text: '#D97706', label: 'Paused' },
-  pending_validation:{ bg: 'rgba(139,92,246,0.12)', text: '#8B5CF6', label: 'Pending Validation' },
-  resolved:          { bg: 'rgba(16,185,129,0.12)', text: '#10B981', label: 'Resolved' },
-  closed:            { bg: 'rgba(148,163,184,0.12)', text: '#94A3B8', label: 'Closed' },
+const STATUS_LABELS: Record<string, string> = {
+  open: 'Open',
+  waitlist: 'Waitlist',
+  assigned: 'Assigned',
+  in_progress: 'In Progress',
+  paused: 'Paused',
+  pending_validation: 'Pending Validation',
+  resolved: 'Resolved',
+  closed: 'Closed',
 };
 
 interface StatusBadgeProps {
@@ -20,11 +19,12 @@ interface StatusBadgeProps {
 }
 
 export default function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
-  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.open;
+  const config = getStatusConfig(status);
+  const label = STATUS_LABELS[status] ?? status;
   return (
     <View style={[styles.badge, { backgroundColor: config.bg }, size === 'sm' && styles.badgeSm]}>
       <Text style={[styles.text, { color: config.text }, size === 'sm' && styles.textSm]}>
-        {config.label}
+        {label}
       </Text>
     </View>
   );

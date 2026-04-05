@@ -76,7 +76,7 @@ export function ProfileTab({ onSignOut }: ProfileTabProps) {
           label="Full Name"
           value={userName}
           icon={
-            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="2" strokeLinecap="round">
+            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#708F96" strokeWidth="2" strokeLinecap="round">
               <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <Circle cx="12" cy="7" r="4" />
             </Svg>
@@ -88,7 +88,7 @@ export function ProfileTab({ onSignOut }: ProfileTabProps) {
           label="Email"
           value={email}
           icon={
-            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="2" strokeLinecap="round">
+            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#708F96" strokeWidth="2" strokeLinecap="round">
               <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
               <Path d="m22 6-10 7L2 6" />
             </Svg>
@@ -100,7 +100,7 @@ export function ProfileTab({ onSignOut }: ProfileTabProps) {
           label="Phone"
           value={phone || 'Not set'}
           icon={
-            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="2" strokeLinecap="round">
+            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#708F96" strokeWidth="2" strokeLinecap="round">
               <Path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.45 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
             </Svg>
           }
@@ -115,7 +115,7 @@ export function ProfileTab({ onSignOut }: ProfileTabProps) {
           label="Push Notifications"
           value="Enabled"
           icon={
-            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="2" strokeLinecap="round">
+            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#708F96" strokeWidth="2" strokeLinecap="round">
               <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
               <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </Svg>
@@ -127,7 +127,7 @@ export function ProfileTab({ onSignOut }: ProfileTabProps) {
           label="Camera Access"
           value="Enabled"
           icon={
-            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="2" strokeLinecap="round">
+            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#708F96" strokeWidth="2" strokeLinecap="round">
               <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
               <Circle cx="12" cy="13" r="4" />
             </Svg>
@@ -139,7 +139,7 @@ export function ProfileTab({ onSignOut }: ProfileTabProps) {
           label="Biometric Login"
           value="Off"
           icon={
-            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="2" strokeLinecap="round">
+            <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#708F96" strokeWidth="2" strokeLinecap="round">
               <Path d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 0 0 8 11a4 4 0 1 1 8 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0 0 15.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 0 0 8 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
             </Svg>
           }
@@ -166,7 +166,7 @@ export function ProfileTab({ onSignOut }: ProfileTabProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f4f8',
+    backgroundColor: '#060912',
   },
   content: {
     paddingBottom: 200,
@@ -179,18 +179,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
+    fontFamily: 'Poppins-SemiBold',
   },
   avatarCard: {
     alignItems: 'center',
     paddingVertical: 28,
     marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: 'rgba(255,255,255,0.12)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
@@ -204,17 +205,17 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'rgba(102,126,234,0.15)',
+    backgroundColor: 'rgba(112,143,150,0.15)',
   },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#667eea',
+    backgroundColor: 'rgba(112,143,150,0.30)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 14,
-    shadowColor: '#667eea',
+    shadowColor: '#708F96',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -229,18 +230,19 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     letterSpacing: -0.3,
   },
   userEmail: {
     fontSize: 13,
-    color: '#888',
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 3,
+    fontFamily: 'Urbanist-Regular',
   },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+    backgroundColor: 'rgba(112,143,150,0.15)',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 5,
@@ -256,16 +258,17 @@ const styles = StyleSheet.create({
   roleText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#667eea',
+    color: '#708F96',
+    fontFamily: 'Urbanist-SemiBold',
   },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 18,
     marginHorizontal: 16,
     marginBottom: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: 'rgba(255,255,255,0.12)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
@@ -275,10 +278,11 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#888',
+    color: 'rgba(255,255,255,0.55)',
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+    fontFamily: 'Urbanist-SemiBold',
   },
   infoRow: {
     flexDirection: 'row',
@@ -295,25 +299,27 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: 'rgba(102,126,234,0.1)',
+    backgroundColor: 'rgba(112,143,150,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   infoLabel: {
     fontSize: 14,
-    color: '#333',
+    color: 'rgba(255,255,255,0.85)',
     fontWeight: '500',
+    fontFamily: 'Urbanist-Regular',
   },
   infoValue: {
     fontSize: 14,
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     fontWeight: '600',
     maxWidth: '50%',
     textAlign: 'right',
+    fontFamily: 'Urbanist-SemiBold',
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(0,0,0,0.04)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     marginVertical: 2,
   },
   signOutBtn: {
@@ -327,7 +333,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.15)',
+    borderColor: 'rgba(239,68,68,0.25)',
   },
   signOutText: {
     fontSize: 15,
@@ -337,8 +343,9 @@ const styles = StyleSheet.create({
   version: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.35)',
     marginBottom: 24,
     fontWeight: '500',
+    fontFamily: 'Urbanist-Regular',
   },
 });

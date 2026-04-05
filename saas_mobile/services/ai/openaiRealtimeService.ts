@@ -1,14 +1,19 @@
 /**
  * OpenAI Realtime API Service
  *
- * Uses Web Audio API (AudioWorklet) for native PCM capture at 24kHz,
- * streams directly to the Realtime API WebSocket.
- * Single connection handles STT + LLM + TTS — no separate REST calls.
+ * Uses the REST voice pipeline on the backend (/api/voice) instead of
+ * the OpenAI Realtime WebSocket API. This keeps the OpenAI API key
+ * server-side, avoids CORS/auth issues, and uses the full voice agent
+ * pipeline (transcription → intent → planner → tool execution → response).
+ *
+ * The audio is captured via Web Audio API (AudioWorklet), sent as
+ * base64 to the REST endpoint, and played back via expo-speech.
  *
  * Docs: https://platform.openai.com/docs/guides/realtime
  */
 
 import { createClient } from '@/utils/supabase/client';
+import { WEB_API_BASE } from '@/utils/api/mobileApi';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,6 +23,7 @@ export type RealtimeConnectionState =
   | 'connecting'
   | 'connected'
   | 'recording'
+  | 'processing'
   | 'disconnected'
   | 'error';
 
@@ -204,19 +210,17 @@ function buildTools() {
 }
 
 // ---------------------------------------------------------------------------
-// Main Service
+// Main Service — REST-based voice pipeline
 // ---------------------------------------------------------------------------
 export class OpenAIRealtimeService {
-  private ws: WebSocket | null = null;
   private ctx: VoiceContext;
   private handlers: Required<RealtimeEventHandlers>;
   private state: RealtimeConnectionState = 'idle';
   private audioContext: AudioContext | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private streamRef: MediaStream | null = null;
-  private reconnectAttempts = 0;
-  private readonly maxReconnectAttempts = 2;
-  private apiKey: string = '';
+  // Accumulate PCM chunks during recording
+  private pcmChunks: Int16Array[] = [];
 
   constructor(ctx: VoiceContext, handlers: RealtimeEventHandlers) {
     this.ctx = ctx;
@@ -230,67 +234,23 @@ export class OpenAIRealtimeService {
   }
 
   // ---------------------------------------------------------------------------
-  // Connect
+  // Connect — REST pipeline is always "connected" once we have a session
   // ---------------------------------------------------------------------------
   async connect(): Promise<void> {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
-
     this.setState('connecting');
-
-    const apiKey = await this.getApiKey();
-    if (!apiKey) {
-      this.handlers.onError('OpenAI API key not available. Please sign in again.');
-      this.setState('error');
-      return;
-    }
-    this.apiKey = apiKey;
-    console.log('[Realtime] API key loaded:', apiKey.slice(0, 10) + '...');
-
-    const url = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2025-06-03&api_key=${encodeURIComponent(this.apiKey)}`;
-    console.log('[Realtime] Connecting to:', url.replace(apiKey, '***'));
-
     try {
-      this.ws = new WebSocket(url);
-      this.ws.binaryType = 'arraybuffer';
-
-      this.ws.onopen = () => {
-        console.log('[Realtime] WebSocket open');
-        this.reconnectAttempts = 0;
-        this.send(buildSessionConfig(this.ctx));
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data as string) as RealtimeMessage;
-          this.handleMessage(msg);
-        } catch (err) {
-          console.error('[Realtime] Parse error:', err);
-        }
-      };
-
-      this.ws.onerror = (event) => {
-        console.error('[Realtime] WebSocket error:', event.type ?? 'unknown');
-        if (this.ws?.readyState === WebSocket.CONNECTING) {
-          this.handlers.onError('Cannot reach OpenAI servers. Check your internet connection.');
-        } else {
-          this.handlers.onError('OpenAI Realtime connection error. Please try again.');
-        }
+      // Verify we have an active session by getting the Supabase token
+      const supabase = createClient();
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.access_token) {
+        this.handlers.onError('Please sign in again — session expired.');
         this.setState('error');
-      };
-
-      this.ws.onclose = (event) => {
-        console.log('[Realtime] WebSocket closed:', event.code);
-        this.stopCapture();
-        this.setState('disconnected');
-
-        if (this.reconnectAttempts < this.maxReconnectAttempts && event.code !== 1000) {
-          this.reconnectAttempts++;
-          console.log(`[Realtime] Reconnecting... attempt ${this.reconnectAttempts}`);
-          setTimeout(() => this.connect(), 1500 * this.reconnectAttempts);
-        }
-      };
+        return;
+      }
+      console.log('[VoiceREST] Session active, ready to record');
+      this.setState('connected');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Connection failed';
+      const msg = err instanceof Error ? err.message : 'Failed to connect to voice service.';
       this.handlers.onError(msg);
       this.setState('error');
     }
@@ -298,24 +258,13 @@ export class OpenAIRealtimeService {
 
   disconnect(): void {
     this.stopCapture();
-    this.cleanup();
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.close(1000, 'User disconnect');
-      this.ws = null;
-    }
     this.setState('idle');
   }
 
   // ---------------------------------------------------------------------------
-  // Start recording (AudioWorklet PCM capture → WebSocket)
+  // Start recording — AudioWorklet PCM capture → accumulate in buffer
   // ---------------------------------------------------------------------------
   async startRecording(): Promise<void> {
-    if (!this.ws?.readyState || this.ws.readyState !== WebSocket.OPEN) {
-      this.handlers.onError('Not connected. Tap the orb again to reconnect.');
-      return;
-    }
-
     if (this.state === 'recording') return;
 
     try {
@@ -340,15 +289,17 @@ export class OpenAIRealtimeService {
       await this.audioContext.audioWorklet.addModule(workletUrl);
       URL.revokeObjectURL(workletUrl);
 
-      // Create worklet node and connect mic stream
+      // Create worklet node
       this.workletNode = new AudioWorkletNode(this.audioContext, 'mic-capture');
 
-      // Receive PCM chunks and stream to WebSocket
+      // Reset and accumulate PCM chunks
+      this.pcmChunks = [];
+
+      // Receive PCM chunks and buffer them
       this.workletNode.port.onmessage = (event) => {
         const { pcm } = event.data as { pcm: ArrayBuffer };
-        if (this.ws?.readyState === WebSocket.OPEN && pcm.byteLength > 0) {
-          // Send as binary ArrayBuffer (not base64 — Realtime accepts raw PCM)
-          this.ws.send(pcm);
+        if (pcm.byteLength > 0) {
+          this.pcmChunks.push(new Int16Array(pcm));
         }
       };
 
@@ -357,7 +308,7 @@ export class OpenAIRealtimeService {
       this.workletNode.connect(this.audioContext.destination); // hear yourself
 
       this.setState('recording');
-      console.log('[Realtime] Recording started');
+      console.log('[VoiceREST] Recording started, chunks:', this.pcmChunks.length);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to access microphone';
       this.handlers.onError(msg);
@@ -365,9 +316,67 @@ export class OpenAIRealtimeService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Stop recording — send accumulated audio to REST pipeline
+  // ---------------------------------------------------------------------------
   async stopRecording(): Promise<void> {
     this.stopCapture();
-    if (this.state === 'recording') {
+    if (this.state !== 'recording') return;
+
+    // Concatenate all PCM chunks
+    const totalSamples = this.pcmChunks.reduce((sum, c) => sum + c.length, 0);
+    if (totalSamples === 0) {
+      this.setState('connected');
+      return;
+    }
+
+    const fullPcm = new Int16Array(totalSamples);
+    let offset = 0;
+    for (const chunk of this.pcmChunks) {
+      fullPcm.set(chunk, offset);
+      offset += chunk.length;
+    }
+    this.pcmChunks = [];
+
+    // Convert PCM to WAV base64
+    const wavBase64 = this.pcmToWavBase64(fullPcm, 24000, 1);
+
+    this.setState('processing');
+    this.handlers.onAudioPlaybackStart();
+
+    try {
+      const response = await this.sendToVoicePipeline(wavBase64);
+
+      // Handle the AI response
+      if (response.transcript) {
+        this.handlers.onTranscript(response.transcript, true);
+      }
+      if (response.response) {
+        this.handlers.onTranscript(response.response, false);
+      }
+      if (response.error) {
+        this.handlers.onError(response.error);
+      }
+
+      // Log steps for debugging
+      if (response.steps) {
+        console.log('[VoiceREST] Pipeline steps:', response.steps.map((s: { step: string; success: boolean }) => `${s.step}: ${s.success ? 'ok' : 'fail'}`).join(', '));
+      }
+
+      // Play back the AI response via MP3 audio from OpenAI TTS
+      if (response.audio && typeof window !== 'undefined') {
+        await this.playMp3(response.audio);
+      } else if (response.response && typeof window !== 'undefined' && window.speechSynthesis) {
+        // Fallback to Web Speech API if TTS audio is unavailable
+        await this.speak(response.response);
+      }
+
+      this.handlers.onAudioPlaybackEnd();
+      this.setState('connected');
+    } catch (err) {
+      this.handlers.onAudioPlaybackEnd();
+      const msg = err instanceof Error ? err.message : 'Voice processing failed. Please try again.';
+      this.handlers.onError(msg);
       this.setState('connected');
     }
   }
@@ -388,326 +397,177 @@ export class OpenAIRealtimeService {
   }
 
   // ---------------------------------------------------------------------------
-  // Text input (fallback)
+  // Send audio to the REST voice pipeline
   // ---------------------------------------------------------------------------
-  sendTextMessage(text: string): void {
-    if (!this.ws?.readyState || this.ws.readyState !== WebSocket.OPEN) {
-      this.handlers.onError('Not connected. Cannot send message.');
-      return;
-    }
-    this.send({
-      type: 'conversation.item.create',
-      item: {
-        type: 'message',
-        role: 'user',
-        content: [{ type: 'input_text', text }],
-      },
-    });
-    this.send({ type: 'response.create' });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Message handler
-  // ---------------------------------------------------------------------------
-  private handleMessage(msg: RealtimeMessage): void {
-    switch (msg.type) {
-      case 'session.created':
-        this.setState('connected');
-        break;
-
-      case 'session.updated':
-        this.setState('connected');
-        break;
-
-      case 'error': {
-        const errObj = msg.error as { message?: string; code?: string };
-        console.error('[Realtime] API error:', errObj);
-        const msgText = errObj?.code === 'invalid_api_key'
-          ? 'Invalid OpenAI API key. Please check your settings.'
-          : (errObj?.message ?? 'Realtime API error');
-        this.handlers.onError(msgText);
-        break;
-      }
-
-      case 'input_audio_buffer.speech_started':
-        break;
-
-      case 'input_audio_buffer.speech_stopped':
-        break;
-
-      case 'conversation.item.input_audio_transcription.completed': {
-        const text = msg.transcript as string;
-        if (text) this.handlers.onTranscript(text, true);
-        break;
-      }
-
-      case 'response.audio_transcript.done': {
-        const text = msg.transcript as string;
-        if (text) this.handlers.onTranscript(text, true);
-        break;
-      }
-
-      case 'response.audio.delta': {
-        // The Realtime API sends audio back via binary PCM in the websocket
-        // For now we rely on the built-in audio playback via the browser
-        break;
-      }
-
-      case 'response.done': {
-        const response = msg.response as {
-          output?: Array<{ type: string; name?: string; arguments?: string; call_id?: string }>;
-        };
-        const toolCalls = response?.output?.filter((o) => o.type === 'function_call');
-        if (toolCalls?.length) {
-          const tool = toolCalls[0];
-          if (tool.name && tool.arguments && tool.call_id) {
-            this.executeTool(tool.name, tool.arguments, tool.call_id);
-          }
-        }
-        break;
-      }
-
-      default:
-        break;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Tool execution
-  // ---------------------------------------------------------------------------
-  private async executeTool(name: string, args: string, callId: string): Promise<void> {
-    try {
-      let result: { success: boolean; data?: unknown; error?: string };
-
-      switch (name) {
-        case 'get_ticket_status':
-        case 'get_property_info':
-        case 'list_meeting_rooms':
-        case 'list_tickets':
-        case 'list_visitors':
-          result = await this.executeReadTool(name, args);
-          break;
-        case 'create_ticket':
-          result = await this.executeCreateTicket(args);
-          break;
-        case 'book_meeting_room':
-          result = await this.executeBookMeetingRoom(args);
-          break;
-        default:
-          result = { success: false, error: `Unknown tool: ${name}` };
-      }
-
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.send({
-          type: 'conversation.item.create',
-          item: {
-            type: 'function_call_output',
-            call_id: callId,
-            output: JSON.stringify(result),
-          },
-        });
-        this.send({ type: 'response.create' });
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Tool failed';
-      this.handlers.onError(msg);
-    }
-  }
-
-  private async executeReadTool(name: string, args: string): Promise<{
-    success: boolean;
-    data?: unknown;
+  private async sendToVoicePipeline(wavBase64: string): Promise<{
+    transcript?: string;
+    response?: string;
+    intent?: { intent: string };
+    steps?: Array<{ step: string; success: boolean; error?: string }>;
+    status?: string;
     error?: string;
+    audio?: string; // base64 MP3 from OpenAI TTS
   }> {
     const supabase = createClient();
-    const params = JSON.parse(args);
-
-    switch (name) {
-      case 'get_ticket_status': {
-        let q = supabase
-          .from('tickets')
-          .select('id, ticket_number, title, status, priority, created_at')
-          .eq('property_id', this.ctx.propertyId)
-          .eq('internal', false)
-          .order('created_at', { ascending: false });
-        if (params.ticket_id) q = q.eq('id', params.ticket_id).limit(1);
-        else if (params.status) q = q.eq('status', params.status);
-        q = q.limit(params.limit ?? 10);
-        const { data, error } = await q;
-        if (error) throw new Error(error.message);
-        return { success: true, data };
-      }
-
-      case 'list_tickets': {
-        let q = supabase
-          .from('tickets')
-          .select('id, ticket_number, title, status, priority, created_at, assignee:users!assigned_to(full_name)')
-          .eq('property_id', this.ctx.propertyId)
-          .eq('internal', false)
-          .order('created_at', { ascending: false });
-        if (params.status) q = q.eq('status', params.status);
-        q = q.limit(params.limit ?? 10);
-        const { data, error } = await q;
-        if (error) throw new Error(error.message);
-        return { success: true, data };
-      }
-
-      case 'list_visitors': {
-        const { data, error } = await supabase
-          .from('visitor_logs')
-          .select('id, visitor_name, host_name, check_in_time, check_out_time, purpose')
-          .eq('property_id', this.ctx.propertyId)
-          .order('check_in_time', { ascending: false })
-          .limit(params.limit ?? 5);
-        if (error) throw new Error(error.message);
-        return { success: true, data };
-      }
-
-      case 'get_property_info': {
-        const { data, error } = await supabase
-          .from('properties')
-          .select('name, address')
-          .eq('id', this.ctx.propertyId)
-          .single();
-        if (error) throw new Error(error.message);
-        const { count: open } = await supabase
-          .from('tickets').select('*', { count: 'exact', head: true })
-          .eq('property_id', this.ctx.propertyId).eq('internal', false)
-          .not('status', 'in', '(resolved,closed)');
-        const { count: total } = await supabase
-          .from('tickets').select('*', { count: 'exact', head: true })
-          .eq('property_id', this.ctx.propertyId).eq('internal', false);
-        return { success: true, data: { ...(data as Record<string, unknown>), open, total } };
-      }
-
-      case 'list_meeting_rooms': {
-        let q = supabase
-          .from('meeting_rooms')
-          .select('id, name, capacity, floor, credits_required')
-          .eq('property_id', this.ctx.propertyId).eq('is_available', true);
-        if (params.capacity) q = q.gte('capacity', params.capacity);
-        const { data, error } = await q;
-        if (error) throw new Error(error.message);
-        return { success: true, data };
-      }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('Session expired. Please sign in again.');
     }
 
-    return { success: false, error: 'Unknown tool' };
-  }
-
-  private async executeBookMeetingRoom(args: string): Promise<{
-    success: boolean;
-    data?: unknown;
-    error?: string;
-  }> {
-    const params = JSON.parse(args) as {
-      room_id?: string;
-      date?: string;
-      start_time?: string;
-      end_time?: string;
-      purpose?: string;
-    };
-
-    if (!params.room_id || !params.date || !params.start_time || !params.end_time) {
-      return { success: false, error: 'Missing required fields: room_id, date, start_time, end_time' };
-    }
-
-    try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const { data, error } = await (supabase.from('meeting_room_bookings') as any)
-        .insert({
-          room_id: params.room_id,
-          booked_by: user?.id,
-          property_id: this.ctx.propertyId,
-          booking_date: params.date,
-          start_time: params.start_time,
-          end_time: params.end_time,
-          purpose: params.purpose ?? 'Meeting',
-          status: 'confirmed',
-        })
-        .select('id, room_id, booking_date, start_time, end_time')
-        .single();
-
-      if (error) throw new Error(error.message);
-      return { success: true, data };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to book meeting room';
-      return { success: false, error: msg };
-    }
-  }
-
-  private async executeCreateTicket(args: string): Promise<{
-    success: boolean;
-    data?: unknown;
-    error?: string;
-  }> {
-    const params = JSON.parse(args) as {
-      title?: string;
-      description: string;
-      priority?: string;
-    };
-
-    try {
-      const { createTicket } = await import('@/utils/api/mobileApi');
-      const result = await createTicket({
-        title: params.title,
-        description: params.description,
+    const url = `${WEB_API_BASE}/api/voice`;
+    const body = {
+      audio: wavBase64,
+      format: 'audio/wav',
+      context: {
+        userId: this.ctx.userId,
         propertyId: this.ctx.propertyId,
         organizationId: this.ctx.organizationId,
-        priority: params.priority as 'low' | 'medium' | 'high' | 'critical' | undefined,
-        isInternal: false,
-      });
+        userRole: this.ctx.userRole,
+        userName: this.ctx.userName,
+        propertyName: this.ctx.propertyName,
+      },
+    };
 
-      if (result.error) return { success: false, error: result.error };
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(body),
+    });
 
-      return {
-        success: true,
-        data: {
-          ticket_id: result.ticket?.id,
-          ticket_number: result.ticket?.ticket_number,
-          status: result.ticket?.status,
-          classification: result.classification,
-        },
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to create ticket';
-      return { success: false, error: msg };
+    if (!res.ok) {
+      let errMsg = `Voice service error (${res.status})`;
+      try {
+        const errData = await res.json();
+        if (errData?.error) errMsg = errData.error;
+      } catch {}
+      throw new Error(errMsg);
     }
+
+    const data = await res.json();
+    return data as {
+      transcript?: string;
+      response?: string;
+      intent?: { intent: string };
+      steps?: Array<{ step: string; success: boolean; error?: string }>;
+      status?: string;
+      error?: string;
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Convert PCM Int16Array to WAV base64
+  // ---------------------------------------------------------------------------
+  private pcmToWavBase64(pcm: Int16Array, sampleRate: number, numChannels: number): string {
+    const numSamples = pcm.length;
+    const byteRate = sampleRate * numChannels * 2;
+    const blockAlign = numChannels * 2;
+    const dataSize = numSamples * 2;
+    const fileSize = 44 + dataSize;
+
+    const buffer = new ArrayBuffer(fileSize);
+    const view = new DataView(buffer);
+
+    // RIFF header
+    const writeStr = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    writeStr(0, 'RIFF');
+    view.setUint32(4, fileSize - 8, true);
+    writeStr(8, 'WAVE');
+    // fmt chunk
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);        // chunk size
+    view.setUint16(20, 1, true);         // PCM format
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);        // bits per sample
+    // data chunk
+    writeStr(36, 'data');
+    view.setUint32(40, dataSize, true);
+    // PCM data
+    const pcmOffset = 44;
+    for (let i = 0; i < numSamples; i++) {
+      view.setInt16(pcmOffset + i * 2, pcm[i], true);
+    }
+
+    // Convert to base64
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Play MP3 audio from OpenAI TTS
+  // ---------------------------------------------------------------------------
+  private async playMp3(base64: string): Promise<void> {
+    if (typeof window === 'undefined') return;
+    return new Promise((resolve) => {
+      try {
+        const audio = new Audio(`data:audio/mp3;base64,${base64}`);
+        audio.onended = () => resolve();
+        audio.onerror = () => resolve();
+        audio.play().catch(() => resolve());
+      } catch {
+        resolve();
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Text-to-speech via Web Speech API
+  // ---------------------------------------------------------------------------
+  private async speak(text: string): Promise<void> {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    // Wait for voices to load (Chrome/Edge load them asynchronously)
+    const loadVoices = (): Promise<SpeechSynthesisVoice[]> => {
+      return new Promise((resolve) => {
+        const voices = window.speechSynthesis!.getVoices();
+        if (voices.length > 0) return resolve(voices);
+        window.speechSynthesis!.addEventListener('voiceschanged', () => {
+          resolve(window.speechSynthesis!.getVoices());
+        }, { once: true });
+        // Timeout fallback: resolve with whatever is available
+        setTimeout(() => resolve(window.speechSynthesis!.getVoices()), 2000);
+      });
+    };
+
+    const voices = await loadVoices();
+    const preferred = voices.find(v =>
+      (v.lang.startsWith('en-') && v.name.toLowerCase().includes('female')) ||
+      (v.lang.startsWith('en-') && v.name.toLowerCase().includes('samantha')) ||
+      (v.lang.startsWith('en-GB') && v.name.toLowerCase().includes('daniel'))
+    ) ?? voices.find(v => v.lang.startsWith('en-'));
+
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.1;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      if (preferred) utterance.voice = preferred;
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      // Speak indefinitely — only resolves when speech ends or errors
+      window.speechSynthesis!.speak(utterance);
+    });
   }
 
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
-  private send(data: object): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
-    }
-  }
-
   private setState(state: RealtimeConnectionState): void {
     this.state = state;
     this.handlers.onStateChange(state);
-  }
-
-  private cleanup(): void {
-    this.stopCapture();
-    this.ws = null;
-  }
-
-  private async getApiKey(): Promise<string> {
-    // Try env var first
-    const envKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-    if (envKey) return envKey;
-
-    // Fall back to Supabase session (for web auth scenarios)
-    try {
-      const supabase = createClient();
-      const { data } = await supabase.auth.getSession();
-      return data.session?.access_token ?? '';
-    } catch {
-      return '';
-    }
   }
 }

@@ -9,121 +9,123 @@ import Animated, {
   withTiming,
   Easing,
   FadeIn,
-  withDelay,
 } from 'react-native-reanimated';
-import Svg, { Ellipse, Path, Circle } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { useWeather, WeatherIconType, AuroraColors } from '@/hooks/useWeather';
+import { useTheme } from '@/context';
+import { Colors } from '@/constants/Colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-interface TenantGlassHeaderProps {
-  propertyName?: string;
-  userName?: string;
-  isSuperTenant?: boolean;
-}
-
-// Animated cloud with parallax depth layers
-function AnimatedCloud({
-  top,
-  scale,
-  duration,
-  delay = 0,
-  opacity = 0.85,
-  speed = 1,
-}: {
-  top: number;
-  scale: number;
-  duration: number;
-  delay?: number;
-  opacity?: number;
-  speed?: number;
-}) {
-  const translateX = useSharedValue(-160);
-
-  useEffect(() => {
-    translateX.value = withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(SCREEN_WIDTH + 80, { duration, easing: Easing.linear }),
-          withTiming(-160, { duration: 0 })
-        ),
-        -1,
-        false
-      )
-    );
-  }, [delay]);
-
-  const style = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }, { scale }],
-  }));
-
+// ---------------------------------------------------------------------
+// Weather Icon SVG Components
+// ---------------------------------------------------------------------
+function SunIcon({ size = 32, color = '#FFD700' }: { size?: number; color?: string }) {
   return (
-    <Animated.View style={[{ position: 'absolute', top }, style]}>
-      <Svg width="140" height="55" viewBox="0 0 140 55">
-        <Ellipse cx="30" cy="40" rx="26" ry="14" fill={`rgba(255,255,255,${opacity})`} />
-        <Ellipse cx="58" cy="32" rx="32" ry="20" fill={`rgba(255,255,255,${opacity + 0.05})`} />
-        <Ellipse cx="92" cy="38" rx="28" ry="16" fill={`rgba(255,255,255,${opacity})`} />
-        <Ellipse cx="46" cy="22" rx="20" ry="14" fill={`rgba(255,255,255,${opacity + 0.05})`} />
-        <Ellipse cx="76" cy="20" rx="22" ry="15" fill={`rgba(255,255,255,${opacity + 0.05})`} />
-        <Ellipse cx="64" cy="12" rx="16" ry="11" fill={`rgba(255,255,255,${opacity})`} />
-      </Svg>
-    </Animated.View>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="12" r="5" fill={color} opacity="0.9" />
+      {/* Rays */}
+      <Path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </Svg>
   );
 }
 
-// Animated sun with rotating rays and pulsing glow
-function AnimatedSun() {
-  const pulseScale = useSharedValue(1);
-  const rayRotation = useSharedValue(0);
-  const glowOpacity = useSharedValue(0.4);
+function MoonIcon({ size = 28, color = '#C4D4FF' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+        fill={color}
+        opacity="0.85"
+        stroke={color}
+        strokeWidth="1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function PartlyCloudyIcon({ size = 28, color = '#E8D080' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="9" cy="10" r="4" fill={color} opacity="0.8" />
+      <Path d="M3 18a4 4 0 0 1 .5-8 5 5 0 0 1 10.3-1.5A3.5 3.5 0 0 1 20 16h1a3 3 0 0 1 0 6H3a3 3 0 0 1 0-6" fill="rgba(255,255,255,0.3)" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function CloudyIcon({ size = 28, color = '#A8B8D0' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M3 18a4 4 0 0 1 .5-8 5 5 0 0 1 10.3-1.5A3.5 3.5 0 0 1 20 16h1a3 3 0 0 1 0 6H3a3 3 0 0 1 0-6" fill={color} opacity="0.4" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function RainyIcon({ size = 28, color = '#80A8D8' }: { size?: number; color?: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M3 14a4 4 0 0 1 .5-8 5 5 0 0 1 10.3-1.5A3.5 3.5 0 0 1 20 12h1a3 3 0 0 1 0 6H3a3 3 0 0 1 0-6" fill={color} opacity="0.4" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+      <Path d="M8 19v2M12 19v2M16 19v2" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+function WeatherIconDisplay({ icon, size = 26 }: { icon: WeatherIconType; size?: number }) {
+  switch (icon) {
+    case 'sun': return <SunIcon size={size} />;
+    case 'moon': return <MoonIcon size={size} />;
+    case 'partly-cloudy': return <PartlyCloudyIcon size={size} />;
+    case 'cloudy': return <CloudyIcon size={size} />;
+    case 'rainy': return <RainyIcon size={size} />;
+    default: return <SunIcon size={size} />;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Animated pulsing dot
+// ---------------------------------------------------------------------
+function PulsingDot({ color }: { color: string }) {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(0.8);
 
   useEffect(() => {
-    pulseScale.value = withRepeat(
+    scale.value = withRepeat(
       withSequence(
-        withTiming(1.12, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+        withTiming(1.4, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       true
     );
-    rayRotation.value = withRepeat(
-      withTiming(360, { duration: 20000, easing: Easing.linear }),
-      -1,
-      false
-    );
-    glowOpacity.value = withRepeat(
+    opacity.value = withRepeat(
       withSequence(
-        withTiming(0.6, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.3, { duration: 2500, easing: Easing.inOut(Easing.ease) })
+        withTiming(0.3, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.8, { duration: 1200, easing: Easing.inOut(Easing.ease) })
       ),
       -1,
       true
     );
   }, []);
 
-  const sunStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-  }));
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
+  const dotStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
   }));
 
   return (
-    <View style={styles.sunWrapper}>
-      {/* Outer glow ring */}
-      <Animated.View style={[styles.sunGlow, glowStyle]} />
-      {/* Sun body */}
-      <Animated.View style={[styles.sun, sunStyle]}>
-        <Svg width="50" height="50" viewBox="0 0 50 50">
-          <Circle cx="25" cy="25" r="20" fill="#FFD700" />
-          {/* Sun face */}
-          <Circle cx="18" cy="22" r="2.5" fill="#FFA500" />
-          <Circle cx="32" cy="22" r="2.5" fill="#FFA500" />
-          <Circle cx="25" cy="30" r="1.5" fill="#FFA500" />
-        </Svg>
-      </Animated.View>
-    </View>
+    <Animated.View style={[styles.dot, { backgroundColor: color }, dotStyle]} />
   );
+}
+
+// ---------------------------------------------------------------------
+// Main Header Component
+// ---------------------------------------------------------------------
+interface TenantGlassHeaderProps {
+  propertyName?: string;
+  userName?: string;
+  isSuperTenant?: boolean;
 }
 
 export function TenantGlassHeader({
@@ -131,66 +133,132 @@ export function TenantGlassHeader({
   userName = 'Tenant',
   isSuperTenant,
 }: TenantGlassHeaderProps) {
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const { weather, loading } = useWeather();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const themeColors = Colors[theme];
+
+  // Build aurora colors: weather drives the look, theme ensures readability
+  const auroraColors: AuroraColors = weather?.auroraColors ?? (() => {
+    if (isDark) {
+      // Dark mode fallback: deep navy/teal atmosphere
+      return {
+        primaryTop: '#0a1628',
+        primaryMid: '#0f1f38',
+        primaryBottom: '#0a1628',
+        orb1: 'rgba(112,143,150,0.25)',
+        orb2: 'rgba(112,143,150,0.15)',
+        orb3: 'rgba(112,143,150,0.10)',
+        textPrimary: isDark ? themeColors.textPrimary : '#FFFFFF',
+        textSecondary: isDark ? themeColors.textSecondary : 'rgba(255,255,255,0.75)',
+        glassBg: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.12)',
+        glassBorder: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.18)',
+      };
+    }
+    // Light mode fallback
+    return {
+      primaryTop: '#1a1a3e',
+      primaryMid: '#2d1b4e',
+      primaryBottom: '#f4845f',
+      orb1: 'rgba(255,140,80,0.45)',
+      orb2: 'rgba(255,100,120,0.30)',
+      orb3: 'rgba(255,200,100,0.25)',
+      textPrimary: '#FFFFFF',
+      textSecondary: 'rgba(255,255,255,0.75)',
+      glassBg: 'rgba(255,255,255,0.12)',
+      glassBorder: 'rgba(255,255,255,0.18)',
+    };
+  })();
+
+  const colors = weather?.auroraColors ?? auroraColors;
+
+  const greeting = weather?.greeting ?? 'Hello';
+  const weatherIcon = weather?.weatherIcon ?? 'sun';
+  const temperature = weather?.temperature;
+
+  // Pixel font for property name — render each character in a grid cell
+  const renderPixelPropertyName = () => {
+    const name = propertyName.toUpperCase();
+    return (
+      <Text
+        style={[
+          styles.pixelPropertyName,
+          { color: isDark ? themeColors.textPrimary : colors.textPrimary },
+        ]}
+        numberOfLines={1}
+      >
+        {name}
+      </Text>
+    );
+  };
 
   return (
-    <Animated.View entering={FadeIn.duration(500)} style={styles.container}>
-      {/* Gradient sky background */}
-      <View style={styles.skyGradient}>
-        <View style={styles.skyTop} />
-        <View style={styles.skyMid} />
-        <View style={styles.skyBottom} />
-      </View>
-
-      {/* Deep background clouds (slower, smaller, more transparent) */}
-      <AnimatedCloud top={20} scale={0.5} duration={40000} delay={0} opacity={0.4} />
-      <AnimatedCloud top={80} scale={0.6} duration={50000} delay={20000} opacity={0.3} />
-
-      {/* Main clouds (normal speed) */}
-      <AnimatedCloud top={30} scale={0.85} duration={28000} delay={5000} opacity={0.8} />
-      <AnimatedCloud top={70} scale={1} duration={35000} delay={12000} opacity={0.7} />
-      <AnimatedCloud top={10} scale={0.65} duration={24000} delay={18000} opacity={0.75} />
-
-      {/* Foreground cloud (faster, larger) */}
-      <AnimatedCloud top={100} scale={1.2} duration={20000} delay={8000} opacity={0.9} />
-
-      {/* Animated sun with rays */}
-      <AnimatedSun />
-
-      {/* Super tenant property picker */}
-      {isSuperTenant && (
-        <View style={styles.propertyPicker}>
-          <View style={styles.propertyPickerDot} />
-          <Text style={styles.propertyPickerText}>{propertyName}</Text>
-          <Text style={styles.propertyPickerArrow}>▼</Text>
-        </View>
-      )}
-
-      {/* Greeting content */}
-      <View style={styles.greetingContainer}>
-        <Text style={styles.greetingText}>
-          {greeting}
-        </Text>
-        <Text style={styles.userName}>
-          {userName}
-        </Text>
-        {!isSuperTenant && (
-          <View style={styles.propertyBadge}>
-            <View style={styles.propertyBadgeDot} />
-            <Text style={styles.propertyBadgeText}>{propertyName}</Text>
+    <Animated.View
+      entering={FadeIn.duration(600)}
+      style={[styles.container, {
+        // In dark mode use theme surface; in light mode use weather aurora mid
+        backgroundColor: isDark ? themeColors.surface : colors.primaryMid,
+      }]}
+    >
+      {/* Subtle glass header card */}
+      <View style={[styles.glassCard, {
+        backgroundColor: isDark ? themeColors.glassBg : colors.glassBg,
+        borderColor: isDark ? themeColors.glassBorder : colors.glassBorder,
+      }]}>
+        {/* Top row: Greeting + Weather */}
+        <View style={styles.topRow}>
+          <View style={styles.greetingCol}>
+            <Text style={[styles.greetingLabel, { color: isDark ? themeColors.textSecondary : colors.textSecondary }]}>
+              {greeting}
+            </Text>
+            <Text style={[styles.userName, { color: isDark ? themeColors.textPrimary : colors.textPrimary }]}>
+              {userName}
+            </Text>
           </View>
-        )}
-      </View>
 
-      {/* Bottom wave divider */}
-      <View style={styles.waveContainer}>
-        <Svg width={SCREEN_WIDTH} height="30" viewBox={`0 0 ${SCREEN_WIDTH} 30`} preserveAspectRatio="none">
-          <Path
-            d={`M0,15 Q${SCREEN_WIDTH * 0.25},30 ${SCREEN_WIDTH * 0.5},15 Q${SCREEN_WIDTH * 0.75},0 ${SCREEN_WIDTH},15 L${SCREEN_WIDTH},30 L0,30 Z`}
-            fill="rgba(240,244,248,0.4)"
-          />
-        </Svg>
+          {/* Weather widget */}
+          <View style={[styles.weatherWidget, {
+            backgroundColor: isDark ? themeColors.glassBg : colors.glassBg,
+            borderColor: isDark ? themeColors.glassBorder : colors.glassBorder,
+          }]}>
+            <WeatherIconDisplay icon={weatherIcon} size={26} />
+            {temperature !== null && (
+              <Text style={[styles.temperature, { color: isDark ? themeColors.textPrimary : colors.textPrimary }]}>
+                {temperature}°
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Property name in pixel font */}
+        <View style={styles.propertyRow}>
+          <View style={[styles.propertyBadge, {
+            backgroundColor: isDark ? themeColors.glassBg : colors.glassBg,
+            borderColor: isDark ? themeColors.glassBorder : colors.glassBorder,
+          }]}>
+            <PulsingDot color={weather?.isDaylight ? '#FFD700' : '#C4D4FF'} />
+            {renderPixelPropertyName()}
+          </View>
+
+          {weather?.locationName && (
+            <Text style={[styles.locationName, { color: isDark ? themeColors.textSecondary : colors.textSecondary }]}>
+              {weather.locationName}
+            </Text>
+          )}
+        </View>
+
+        {/* Subtle wave divider */}
+        <View style={styles.waveDivider}>
+          <Svg width={SCREEN_WIDTH - 40} height="8" viewBox={`0 0 ${SCREEN_WIDTH - 40} 8`} preserveAspectRatio="none">
+            <Path
+              d={`M0,4 Q${(SCREEN_WIDTH - 40) * 0.25},0 ${(SCREEN_WIDTH - 40) * 0.5},4 Q${(SCREEN_WIDTH - 40) * 0.75},8 ${SCREEN_WIDTH - 40},4`}
+              fill="none"
+              stroke={isDark ? themeColors.glassBorder : colors.glassBorder}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </Svg>
+        </View>
       </View>
     </Animated.View>
   );
@@ -198,135 +266,91 @@ export function TenantGlassHeader({
 
 const styles = StyleSheet.create({
   container: {
-    height: 190,
-    position: 'relative',
-    overflow: 'hidden',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
-  skyGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  skyTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '40%',
-    backgroundColor: '#1a3a6e',
-  },
-  skyMid: {
-    position: 'absolute',
-    top: '30%',
-    left: 0,
-    right: 0,
-    height: '35%',
-    backgroundColor: '#3b7dd8',
-  },
-  skyBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '40%',
-    backgroundColor: '#87CEEB',
-  },
-  sunWrapper: {
-    position: 'absolute',
-    top: 15,
-    right: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sunGlow: {
-    position: 'absolute',
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#FFD700',
-  },
-  sun: {
-    width: 50,
-    height: 50,
-  },
-  propertyPicker: {
-    position: 'absolute',
-    top: 55,
-    left: 18,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  glassCard: {
+    borderRadius: 24,
+    padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    // Soft ambient shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 4,
   },
-  propertyPickerDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#4CAF50',
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
   },
-  propertyPickerText: {
-    fontSize: 13,
+  greetingCol: {
+    flex: 1,
+  },
+  greetingLabel: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#fff',
-  },
-  propertyPickerArrow: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.8)',
-  },
-  greetingContainer: {
-    position: 'absolute',
-    bottom: 38,
-    left: 20,
-    right: 20,
-  },
-  greetingText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.85)',
-    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginBottom: 2,
+    letterSpacing: 1.5,
+    marginBottom: 4,
+    fontFamily: 'Urbanist-Medium',
   },
   userName: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#fff',
     letterSpacing: -0.5,
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-    marginBottom: 4,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  weatherWidget: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  temperature: {
+    fontSize: 20,
+    fontWeight: '700',
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: -0.3,
+  },
+  propertyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
   },
   propertyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    alignSelf: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
-  propertyBadgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#4CAF50',
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
-  propertyBadgeText: {
+  pixelPropertyName: {
+    fontSize: 11,
+    fontFamily: 'PressStart2P',
+    letterSpacing: 1.5,
+    fontWeight: '400',
+  },
+  locationName: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '500',
+    fontFamily: 'Urbanist-Regular',
   },
-  waveContainer: {
-    position: 'absolute',
-    bottom: -2,
-    left: 0,
-    right: 0,
+  waveDivider: {
+    alignItems: 'center',
+    marginTop: 4,
   },
 });

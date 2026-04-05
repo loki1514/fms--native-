@@ -8,6 +8,8 @@ import {
   ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/context';
+import { getPriorityConfig, getStatusConfig } from '@/utils/StatusColors';
 
 export interface TicketCardProps {
   id: string;
@@ -29,22 +31,6 @@ export interface TicketCardProps {
   onReject?: () => void;
   style?: ViewStyle;
 }
-
-const PRIORITY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  LOW: { bg: 'rgba(59,130,246,0.06)', text: '#3B82F6', border: 'rgba(59,130,246,0.2)' },
-  MEDIUM: { bg: 'rgba(245,158,11,0.06)', text: '#F59E0B', border: 'rgba(245,158,11,0.2)' },
-  HIGH: { bg: 'rgba(249,115,22,0.06)', text: '#F97316', border: 'rgba(249,115,22,0.2)' },
-  CRITICAL: { bg: 'rgba(244,63,94,0.06)', text: '#F43F5E', border: 'rgba(244,63,94,0.2)' },
-};
-
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  OPEN: { bg: '#F1F5F9', text: '#475569' },
-  ASSIGNED: { bg: 'rgba(59,130,246,0.1)', text: '#3B82F6' },
-  IN_PROGRESS: { bg: 'rgba(245,158,11,0.1)', text: '#F59E0B' },
-  COMPLETED: { bg: 'rgba(16,185,129,0.1)', text: '#10B981' },
-  PENDING_VALIDATION: { bg: 'rgba(139,92,246,0.1)', text: '#8B5CF6' },
-  WAITLISTED: { bg: 'rgba(168,85,247,0.1)', text: '#A855F7' },
-};
 
 export default function TicketCard({
   id, title, priority, status, ticketNumber, createdAt,
@@ -86,15 +72,22 @@ export default function TicketCard({
     : elapsedSec < 86400 * 3 ? '#F97316'
     : '#F43F5E';
 
-  const pStyle = PRIORITY_COLORS[priority] || PRIORITY_COLORS.LOW;
-  const sStyle = STATUS_COLORS[status] || STATUS_COLORS.OPEN;
+  const { isDark, colors } = useTheme();
+  const pStyle = getPriorityConfig(priority);
+  // Map UPPER_CASE to lowercase for shared config
+  const statusKey = status?.toLowerCase().replace(/_/g, '_') ?? 'open';
+  const sStyle = getStatusConfig(statusKey);
 
   return (
     <TouchableOpacity
       style={[
         styles.card,
-        isCritical && styles.criticalCard,
-        raisedByTenant && !isCritical && styles.tenantCard,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+        },
+        isCritical && { borderWidth: 2, borderColor: '#EF4444' },
+        raisedByTenant && !isCritical && { borderWidth: 2, borderColor: '#F59E0B' },
         style,
       ]}
       onPress={onClick}
@@ -105,16 +98,16 @@ export default function TicketCard({
         {photoUrl && (
           <Image source={{ uri: photoUrl }} style={styles.thumbnail} />
         )}
-        <Text style={styles.title} numberOfLines={2}>{title}</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>{title}</Text>
       </View>
 
       {/* Badges */}
       <View style={styles.badgeRow}>
-        <View style={[styles.badge, { backgroundColor: pStyle.bg, borderColor: pStyle.border }]}>
+        <View style={[styles.badge, { backgroundColor: pStyle.bg, borderColor: pStyle.bg }]}>
           <Text style={[styles.badgeText, { color: pStyle.text }]}>{priority}</Text>
         </View>
         <View style={[styles.badge, { backgroundColor: sStyle.bg, borderColor: sStyle.bg }]}>
-          <Text style={[styles.badgeText, { color: sStyle.text }]}>{status.replace('_', ' ')}</Text>
+          <Text style={[styles.badgeText, { color: sStyle.text }]}>{status.replace(/_/g, ' ')}</Text>
         </View>
         {propertyName && (
           <View style={[styles.badge, { backgroundColor: 'rgba(99,102,241,0.06)', borderColor: 'rgba(99,102,241,0.2)' }]}>
@@ -127,17 +120,17 @@ export default function TicketCard({
       {/* Assignee */}
       {assignedTo && status !== 'OPEN' && (
         <View style={styles.assigneeRow}>
-          <Text style={styles.assigneeLabel}>Serving:</Text>
+          <Text style={[styles.assigneeLabel, { color: colors.textSecondary }]}>Serving:</Text>
           {assigneePhotoUrl ? (
             <Image source={{ uri: assigneePhotoUrl }} style={styles.assigneeAvatar} />
           ) : (
-            <View style={styles.assigneeInitials}>
-              <Text style={styles.initialsText}>
+            <View style={[styles.assigneeInitials, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Text style={[styles.initialsText, { color: colors.primary }]}>
                 {assignedTo.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </Text>
             </View>
           )}
-          <Text style={styles.assigneeName}>{assignedTo}</Text>
+          <Text style={[styles.assigneeName, { color: colors.textPrimary }]}>{assignedTo}</Text>
         </View>
       )}
 
@@ -150,7 +143,7 @@ export default function TicketCard({
             const isLast = i === escalationChain.length - 1;
             return (
               <React.Fragment key={i}>
-                <View style={[styles.escalationCircle, isLast && { borderColor: '#FCA5A5' }]}>
+                <View style={[styles.escalationCircle, isLast ? { borderColor: '#FCA5A5' } : { borderColor: colors.border, backgroundColor: colors.background }]}>
                   {person.avatar ? (
                     <Image source={{ uri: person.avatar }} style={{ width: 24, height: 24, borderRadius: 12 }} />
                   ) : (
@@ -165,9 +158,9 @@ export default function TicketCard({
       )}
 
       {/* Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <View>
-          <Text style={styles.metaText}>{ticketNumber} • {dateStr} • {timeStr}</Text>
+          <Text style={[styles.metaText, { color: colors.textSecondary }]}>{ticketNumber} • {dateStr} • {timeStr}</Text>
           <View style={styles.timerRow}>
             <Ionicons name="timer-outline" size={12} color={timerColor} />
             <Text style={[styles.timerText, { color: timerColor }]}>
@@ -182,7 +175,7 @@ export default function TicketCard({
 
       {/* Validation actions */}
       {status === 'PENDING_VALIDATION' && (onValidate || onReject) && (
-        <View style={styles.validationRow}>
+        <View style={[styles.validationRow, { borderTopColor: colors.border }]}>
           {onValidate && (
             <TouchableOpacity style={styles.validateBtn} onPress={onValidate}>
               <Ionicons name="checkmark-circle-outline" size={14} color="#FFF" />
@@ -203,35 +196,33 @@ export default function TicketCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFF', borderRadius: 16, padding: 16, gap: 12,
-    borderWidth: 1, borderColor: '#E5E7EB',
+    borderRadius: 16, padding: 16, gap: 12,
+    borderWidth: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
-  criticalCard: { borderWidth: 2, borderColor: '#F43F5E' },
-  tenantCard: { borderWidth: 2, borderColor: '#F59E0B' },
   headerRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   thumbnail: { width: 56, height: 56, borderRadius: 12 },
-  title: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1A2332', lineHeight: 20 },
+  title: { flex: 1, fontSize: 15, fontWeight: '600', lineHeight: 20 },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1 },
   badgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
   assigneeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  assigneeLabel: { fontSize: 12, color: '#6B7280' },
-  assigneeAvatar: { width: 20, height: 20, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
-  assigneeInitials: { width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(59,130,246,0.1)', justifyContent: 'center', alignItems: 'center' },
-  initialsText: { fontSize: 8, fontWeight: '700', color: '#3B82F6' },
-  assigneeName: { fontSize: 13, fontWeight: '600', color: '#1A2332' },
+  assigneeLabel: { fontSize: 12 },
+  assigneeAvatar: { width: 20, height: 20, borderRadius: 10, borderWidth: 1 },
+  assigneeInitials: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  initialsText: { fontSize: 8, fontWeight: '700' },
+  assigneeName: { fontSize: 13, fontWeight: '600' },
   escalationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
   escalatedLabel: { fontSize: 10, fontWeight: '600', color: '#EF4444', textTransform: 'uppercase', letterSpacing: 0.5, marginRight: 4 },
-  escalationCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', backgroundColor: '#F3F4F6' },
-  escalationInitials: { fontSize: 8, fontWeight: '700', color: '#6B7280' },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-  metaText: { fontSize: 10, color: '#9CA3AF', marginBottom: 4 },
+  escalationCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  escalationInitials: { fontSize: 8, fontWeight: '700' },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 12, borderTopWidth: 1 },
+  metaText: { fontSize: 10, marginBottom: 4 },
   timerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   timerText: { fontSize: 10, fontWeight: '900' },
-  viewBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#3B82F6', borderRadius: 10 },
+  viewBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#708F96', borderRadius: 10 },
   viewBtnText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
-  validationRow: { flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(139,92,246,0.1)' },
+  validationRow: { flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 1 },
   validateBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, backgroundColor: '#10B981', borderRadius: 12 },
   validateBtnText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
   rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, backgroundColor: 'rgba(239,68,68,0.06)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' },

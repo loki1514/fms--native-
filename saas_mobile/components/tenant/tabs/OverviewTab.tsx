@@ -11,6 +11,7 @@ import { TenantGlassHeader } from '../TenantGlassHeader';
 import { TenantStatsCard } from '../TenantStatsCard';
 import { TenantTicketCard } from '../TenantTicketCard';
 import { useAuth } from '@/hooks/useAuth';
+import { WeatherData } from '@/hooks/useWeather';
 import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -35,6 +36,7 @@ interface OverviewTabProps {
   onRefresh?: () => void;
   refreshing?: boolean;
   onTicketPress?: (ticket: Ticket) => void;
+  weather?: WeatherData | null;
 }
 
 // Shortcut definitions with real SVG icons
@@ -152,9 +154,18 @@ export function OverviewTab({
   onRefresh,
   refreshing,
   onTicketPress,
+  weather,
 }: OverviewTabProps) {
   const { user } = useAuth();
   const userName = user?.full_name ?? user?.user_metadata?.full_name ?? 'Tenant';
+
+  // Weather-aware glassmorphism colors
+  const glass = weather?.auroraColors ?? {
+    glassBg: 'rgba(255,255,255,0.12)',
+    glassBorder: 'rgba(255,255,255,0.18)',
+    textPrimary: '#FFFFFF',
+    textSecondary: 'rgba(255,255,255,0.75)',
+  };
 
   return (
     <ScrollView
@@ -165,8 +176,8 @@ export function OverviewTab({
           <RefreshControl
             refreshing={refreshing ?? false}
             onRefresh={onRefresh}
-            tintColor="#667eea"
-            colors={['#667eea']}
+            tintColor="#708F96"
+            colors={['#708F96']}
           />
         ) : undefined
       }
@@ -284,7 +295,6 @@ export function OverviewTab({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f4f8',
   },
   scrollContent: {
     paddingBottom: 200,
@@ -299,30 +309,29 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 11,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backdropFilter: 'blur(12px)',
   },
   searchPlaceholder: {
     flex: 1,
     fontSize: 13,
-    color: '#888',
+    color: 'rgba(255,255,255,0.55)',
     marginLeft: 8,
+    fontFamily: 'Urbanist-Regular',
   },
   filterBtn: {
-    backgroundColor: '#667eea',
+    backgroundColor: 'rgba(112,143,150,0.35)',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   filterBtnText: {
     fontSize: 11,
@@ -343,22 +352,26 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     letterSpacing: -0.3,
+    fontFamily: 'Poppins-SemiBold',
   },
   sectionSubtitle: {
     fontSize: 12,
-    color: '#888',
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 1,
+    fontFamily: 'Urbanist-Regular',
   },
   viewAllBtn: {
-    backgroundColor: '#667eea',
+    backgroundColor: 'rgba(112,143,150,0.30)',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   viewAllText: {
     fontSize: 12,
@@ -369,24 +382,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   emptyState: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 18,
     padding: 32,
     alignItems: 'center',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(102,126,234,0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backdropFilter: 'blur(16px)',
   },
   emptyIcon: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(102,126,234,0.1)',
+    backgroundColor: 'rgba(112,143,150,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -394,13 +403,15 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     marginBottom: 4,
+    fontFamily: 'Poppins-SemiBold',
   },
   emptySubtext: {
     fontSize: 13,
-    color: '#888',
+    color: 'rgba(255,255,255,0.55)',
     textAlign: 'center',
+    fontFamily: 'Urbanist-Regular',
   },
   shortcutsSection: {
     marginTop: 8,
@@ -408,9 +419,10 @@ const styles = StyleSheet.create({
   shortcutsTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     marginBottom: 12,
     letterSpacing: -0.2,
+    fontFamily: 'Poppins-SemiBold',
   },
   shortcutsRow: {
     flexDirection: 'row',
@@ -418,18 +430,14 @@ const styles = StyleSheet.create({
   },
   shortcutCard: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     paddingVertical: 16,
     paddingHorizontal: 6,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    borderColor: 'rgba(255,255,255,0.10)',
+    backdropFilter: 'blur(12px)',
   },
   shortcutIconBg: {
     width: 46,
@@ -441,9 +449,10 @@ const styles = StyleSheet.create({
   },
   shortcutLabel: {
     fontSize: 10,
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     textAlign: 'center',
     fontWeight: '600',
     letterSpacing: 0.1,
+    fontFamily: 'Urbanist-SemiBold',
   },
 });

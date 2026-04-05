@@ -71,6 +71,8 @@ export default function RootLayout() {
     'Urbanist-Medium': require('../assets/fonts/Urbanist.ttf'),
     'Urbanist-SemiBold': require('../assets/fonts/Urbanist.ttf'),
     'Urbanist-Bold': require('../assets/fonts/Urbanist.ttf'),
+    // Pixel/dot-matrix font for property brand names (Nothing OS style)
+    'PressStart2P': require('../assets/fonts/PressStart2P.ttf'),
   });
 
   useEffect(() => {

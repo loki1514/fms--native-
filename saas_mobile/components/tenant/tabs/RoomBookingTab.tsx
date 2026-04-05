@@ -105,7 +105,7 @@ export function RoomBookingTab({ propertyId, userId, refreshing, onRefresh }: Ro
         renderItem={({ item, index }) => (
           <Animated.View entering={FadeInDown.delay(index * 60).springify()} style={styles.roomCard}>
             <View style={styles.roomIconWrap}>
-              <RoomIcon color="#667eea" />
+              <RoomIcon color="#708F96" />
             </View>
             <View style={styles.roomInfo}>
               <Text style={styles.roomName}>{item.name}</Text>
@@ -139,14 +139,14 @@ export function RoomBookingTab({ propertyId, userId, refreshing, onRefresh }: Ro
           <RefreshControl
             refreshing={refreshing ?? false}
             onRefresh={handleRefresh}
-            tintColor="#667eea"
-            colors={['#667eea']}
+            tintColor="#708F96"
+            colors={['#708F96']}
           />
         }
         ListEmptyComponent={
           <Animated.View entering={FadeInDown.delay(100)} style={styles.empty}>
             <View style={styles.emptyIconWrap}>
-              <Svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="1.5" strokeLinecap="round">
+              <Svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#708F96" strokeWidth="1.5" strokeLinecap="round">
                 <Rect x="3" y="3" width="18" height="18" rx="2" />
                 <Path d="M3 9h18M9 21V9" />
               </Svg>
@@ -167,7 +167,7 @@ export function RoomBookingTab({ propertyId, userId, refreshing, onRefresh }: Ro
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f4f8',
+    backgroundColor: '#060912',
   },
   header: {
     flexDirection: 'row',
@@ -180,14 +180,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
+    fontFamily: 'Poppins-SemiBold',
   },
   subtitle: {
     fontSize: 12,
-    color: '#888',
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 2,
     fontWeight: '500',
+    fontFamily: 'Urbanist-Regular',
   },
   capacityRow: {
     flexDirection: 'row',
@@ -199,14 +201,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.07)',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   capChipActive: {
-    backgroundColor: '#667eea',
-    borderColor: '#667eea',
-    shadowColor: '#667eea',
+    backgroundColor: '#708F96',
+    borderColor: '#708F96',
+    shadowColor: '#708F96',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -214,12 +216,14 @@ const styles = StyleSheet.create({
   },
   capChipText: {
     fontSize: 12,
-    color: '#666',
+    color: 'rgba(255,255,255,0.55)',
     fontWeight: '500',
+    fontFamily: 'Urbanist-SemiBold',
   },
   capChipTextActive: {
     color: '#fff',
     fontWeight: '600',
+    fontFamily: 'Urbanist-SemiBold',
   },
   listContent: {
     padding: 16,
@@ -228,12 +232,12 @@ const styles = StyleSheet.create({
   roomCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: 'rgba(255,255,255,0.12)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
@@ -244,7 +248,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: 'rgba(102,126,234,0.1)',
+    backgroundColor: 'rgba(112,143,150,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -255,8 +259,9 @@ const styles = StyleSheet.create({
   roomName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     marginBottom: 5,
+    fontFamily: 'Urbanist-SemiBold',
   },
   roomMeta: {
     flexDirection: 'row',
@@ -271,8 +276,9 @@ const styles = StyleSheet.create({
   },
   roomMetaText: {
     fontSize: 11,
-    color: '#666',
+    color: 'rgba(255,255,255,0.55)',
     fontWeight: '500',
+    fontFamily: 'Urbanist-Regular',
   },
   creditBadge: {
     backgroundColor: 'rgba(212,160,23,0.1)',
@@ -286,11 +292,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   bookBtn: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#708F96',
     borderRadius: 10,
     paddingHorizontal: 18,
     paddingVertical: 9,
-    shadowColor: '#667eea',
+    shadowColor: '#708F96',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -300,21 +306,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
+    fontFamily: 'Urbanist-SemiBold',
   },
   empty: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 18,
     padding: 32,
     alignItems: 'center',
     marginTop: 20,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   emptyIconWrap: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(102,126,234,0.1)',
+    backgroundColor: 'rgba(112,143,150,0.12)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -322,12 +329,14 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     marginBottom: 4,
+    fontFamily: 'Urbanist-SemiBold',
   },
   emptySubtext: {
     fontSize: 13,
-    color: '#888',
+    color: 'rgba(255,255,255,0.45)',
     textAlign: 'center',
+    fontFamily: 'Urbanist-Regular',
   },
 });

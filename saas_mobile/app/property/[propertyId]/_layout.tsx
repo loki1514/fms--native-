@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Redirect, useLocalSearchParams, usePathname, useRouter, Slot } from 'expo-router';
+import { useLocalSearchParams, usePathname, useRouter, Slot } from 'expo-router';
 import {
   View,
   Text,
@@ -26,8 +26,6 @@ import {
   Fuel,
   Zap,
   Package,
-  CheckSquare,
-  Wrench,
   ArrowUpCircle,
   FileText,
   Settings,
@@ -37,6 +35,7 @@ import {
   Moon,
   Sun,
 } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { TenantTicketModal } from '@/components/tenant/TenantTicketModal';
 import AnimatedLogo from '@/components/shared/AnimatedLogo';
 
@@ -44,8 +43,15 @@ import AnimatedLogo from '@/components/shared/AnimatedLogo';
 const SIDEBAR_WIDTH = 288;
 
 // ---- Mobile-only roles (full-screen, no sidebar) ----
-// Mirrors: tenant and super_tenant get the mobile glassmorphism dashboard
+// tenant/super_tenant get the glassmorphism mobile dashboard
 const MOBILE_ROLES = ['tenant', 'super_tenant'];
+
+// ---- Roles that render their own full-screen dashboard with internal sidebar ----
+// NewMstDashboard and PremiumMstDashboard are self-contained (sidebar built in).
+// The property layout sidebar must NOT render alongside them or you get double sidebars.
+// NOTE: property_admin goes to DashboardScreen which has NO sidebar — keep the
+// property layout sidebar for property_admin so they have navigation.
+const FULL_DASHBOARD_ROLES = ['mst', 'maintenance_staff'];
 
 // ---- Property Context ----
 export const PropertyContext = React.createContext<{
@@ -67,50 +73,24 @@ type NavItem = {
   icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
 };
 
-type NavSection = {
-  title?: string;
-  items: NavItem[];
-  quickAction?: boolean;
-};
+// ---- Navigation Structure (matches web sidebar) ----
+const NAV_ITEMS: NavItem[] = [
+  { label: 'Dashboard',      route: 'dashboard',    icon: LayoutDashboard },
+  { label: 'Requests',       route: 'tickets',     icon: Ticket },
+  { label: 'Flow Map',       route: 'flow-map',    icon: ArrowUpCircle },
+  { label: 'User Management', route: 'users',     icon: Users },
+  { label: 'Visitors',      route: 'visitors',    icon: UserCheck },
+  { label: 'Rooms',         route: 'rooms',       icon: DoorOpen },
+  { label: 'Diesel',        route: 'diesel',      icon: Fuel },
+  { label: 'Electricity',   route: 'electricity', icon: Zap },
+  { label: 'Stock',         route: 'stock',      icon: Package },
+  { label: 'Reports',       route: 'reports',     icon: FileText },
+  { label: 'Settings',      route: 'settings',    icon: Settings },
+];
 
-// ---- Navigation Structure (exact match to web layout) ----
-const NAV_SECTIONS: NavSection[] = [
-  {
-    title: 'Quick Actions',
-    quickAction: true,
-    items: [
-      { label: 'New Request', route: '/new-request', icon: Plus },
-      { label: 'Scanner', route: '/scanner', icon: Scan },
-    ],
-  },
-  {
-    title: 'Core Operations',
-    items: [
-      { label: 'Dashboard',      route: 'dashboard',   icon: LayoutDashboard },
-      { label: 'Requests',       route: 'tickets',     icon: Ticket },
-    ],
-  },
-  {
-    title: 'Management Hub',
-    items: [
-      { label: 'User Management',     route: 'users',       icon: Users },
-      { label: 'Visitor Management',  route: 'visitors',    icon: UserCheck },
-      { label: 'Meeting Rooms',      route: 'rooms',       icon: DoorOpen },
-      { label: 'Diesel Logger',      route: 'diesel',      icon: Fuel },
-      { label: 'Electricity Logger',  route: 'electricity', icon: Zap },
-      { label: 'Stock Management',   route: 'stock',      icon: Package },
-      { label: 'Checklists',         route: 'checklist',   icon: CheckSquare },
-      { label: 'PPM Calendar',       route: 'ppm',         icon: Wrench },
-      { label: 'Escalation',         route: 'escalation',  icon: ArrowUpCircle },
-    ],
-  },
-  {
-    title: 'System',
-    items: [
-      { label: 'Reports',   route: 'reports',   icon: FileText },
-      { label: 'Settings',  route: 'settings',  icon: Settings },
-    ],
-  },
+const QUICK_ACTIONS: NavItem[] = [
+  { label: 'New Request', route: '/new-request', icon: Plus },
+  { label: 'Scanner',     route: '/scanner',    icon: Scan },
 ];
 
 // ---- Get User Initials ----
@@ -145,32 +125,63 @@ function SidebarItem({
   item,
   isActive,
   onPress,
+  collapsed,
+  isDark,
 }: {
   item: NavItem;
   isActive: boolean;
   onPress: () => void;
+  collapsed: boolean;
+  isDark: boolean;
 }) {
   const Icon = item.icon;
+  const primary = '#708F96';
+
+  if (collapsed) {
+    // Icon-only mode: small centered teal dot on active
+    return (
+      <TouchableOpacity
+        style={[styles.navItemCollapsed, isActive && styles.navItemCollapsedActive]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.navItemIconCentered}>
+          <Icon
+            size={18}
+            color={isActive ? primary : (isDark ? 'rgba(230,235,238,0.45)' : 'rgba(26,35,50,0.45)')}
+            strokeWidth={1.5}
+          />
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity
-      style={[styles.navItem, isActive && styles.navItemActive]}
-      onPress={() => {
-        console.log('[SidebarItem] pressed:', item.label, item.route);
-        onPress();
-      }}
+      style={[
+        styles.navItem,
+        isActive && {
+          backgroundColor: primary,
+          shadowColor: primary,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.35,
+          shadowRadius: 6,
+          elevation: 3,
+        },
+      ]}
+      onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.navItemInner}>
-        {isActive && <View style={styles.activeIndicator} />}
         <Icon
           size={17}
-          color={isActive ? '#FFFFFF' : 'rgba(26,35,50,0.6)'}
+          color={isActive ? '#FFFFFF' : (isDark ? 'rgba(230,235,238,0.6)' : 'rgba(26,35,50,0.6)')}
           strokeWidth={1.5}
         />
         <Text
           style={[
             styles.navItemLabel,
-            { color: isActive ? '#FFFFFF' : 'rgba(26,35,50,0.75)' },
+            { color: isActive ? '#FFFFFF' : (isDark ? 'rgba(230,235,238,0.75)' : 'rgba(26,35,50,0.75)') },
           ]}
         >
           {item.label}
@@ -184,145 +195,166 @@ function SidebarItem({
 function Sidebar({
   currentRoute,
   onNewRequest,
+  collapsed,
+  onToggle,
 }: {
   currentRoute: string;
   onNewRequest: () => void;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
   const { user, signOut } = useAuth();
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { theme } = useTheme();
   const router = useRouter();
+
   const handleNavigate = (route: string) => {
-    console.log('[Sidebar] navigate:', route, 'propertyId:', propertyId);
     if (route.startsWith('/')) {
       if (route === '/new-request') {
         onNewRequest();
       }
       return;
     }
-    const path = `/property/${propertyId}/${route}`;
-    console.log('[Sidebar] pushing to:', path);
-    router.push(path as never);
+    router.push(`/property/${propertyId}/${route}` as never);
   };
 
   const isDark = theme === 'dark';
   const bgColor = isDark ? '#151B2B' : '#FFFFFF';
   const borderColor = isDark ? '#2D3748' : '#E2E8F0';
-  const sectionTitleColor = isDark ? 'rgba(230,235,238,0.4)' : 'rgba(26,35,50,0.4)';
   const textPrimary = isDark ? '#F8FAFC' : '#1A2332';
+  const textSecondary = isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)';
+
+  // Collapsed width
+  const currentW = collapsed ? 72 : 288;
 
   return (
-    <View style={[styles.sidebar, { backgroundColor: bgColor, borderRightColor: borderColor }]}>
-      {/* Logo Header */}
+    <View style={[styles.sidebar, {
+      backgroundColor: bgColor,
+      borderRightColor: borderColor,
+      width: currentW,
+    }]}>
+      {/* Header: Logo + collapse toggle — web-matched styling */}
       <View style={styles.sidebarHeader}>
-        <AnimatedLogo size="md" />
+        {!collapsed ? (
+          <View style={styles.logoSection}>
+            <AnimatedLogo size="lg" />
+            {/* Staff Dashboard badge */}
+            <View style={[styles.staffBadge, {
+              backgroundColor: isDark ? 'rgba(112,143,150,0.1)' : 'rgba(112,143,150,0.06)',
+              borderColor: isDark ? 'rgba(112,143,150,0.15)' : 'rgba(112,143,150,0.1)',
+            }]}>
+              <Text style={[styles.staffBadgeText, { color: '#708F96' }]}>STAFF DASHBOARD</Text>
+            </View>
+          </View>
+        ) : (
+          <AnimatedLogo size="md" />
+        )}
+
+        {/* Hamburger / Collapse toggle */}
+        <TouchableOpacity
+          style={[styles.collapseBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9' }]}
+          onPress={onToggle}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={collapsed ? 'menu-outline' : 'chevron-back-outline'}
+            size={collapsed ? 20 : 16}
+            color={isDark ? 'rgba(230,235,238,0.6)' : '#64748B'}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* Quick Actions row */}
+      <View style={[styles.quickActionsRow, {
+        borderBottomColor: borderColor,
+        paddingHorizontal: collapsed ? 12 : 14,
+      }]}>
+        {QUICK_ACTIONS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <TouchableOpacity
+              key={item.route}
+              style={[styles.quickActionChip, {
+                backgroundColor: isDark ? 'rgba(112,143,150,0.08)' : 'rgba(112,143,150,0.06)',
+                borderColor: isDark ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.1)',
+                paddingHorizontal: collapsed ? 10 : 12,
+              }]}
+              onPress={() => handleNavigate(item.route)}
+              activeOpacity={0.7}
+            >
+              <Icon size={14} color="#708F96" strokeWidth={1.5} />
+              {!collapsed && (
+                <Text style={[styles.quickActionChipLabel, { color: textPrimary }]}>
+                  {item.label.toUpperCase()}
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Navigation */}
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingVertical: 8 }}
+        contentContainerStyle={{ paddingVertical: 6, paddingHorizontal: collapsed ? 10 : 12 }}
       >
-        {NAV_SECTIONS.map((section, sectionIdx) => (
-          <View key={section.title ?? `section-${sectionIdx}`}>
-            {section.title ? (
-              <View style={styles.sectionTitleRow}>
-                <View style={styles.sectionAccent} />
-                <Text style={[styles.sectionTitle, { color: sectionTitleColor }]}>
-                  {section.title}
-                </Text>
-              </View>
-            ) : null}
-
-            {section.quickAction ? (
-              <View style={styles.quickActionsGrid}>
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <TouchableOpacity
-                      key={item.route}
-                      style={[
-                        styles.quickActionBtn,
-                        {
-                          backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#F8FAFC',
-                          borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0',
-                        },
-                      ]}
-                      onPress={() => handleNavigate(item.route)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.quickActionIconWrap}>
-                        <Icon size={20} color="#708F96" strokeWidth={1.5} />
-                      </View>
-                      <Text style={[styles.quickActionLabel, { color: textPrimary }]}>
-                        {item.label.toUpperCase()}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : (
-              section.items.map((item) => (
-                <SidebarItem
-                  key={item.route}
-                  item={item}
-                  isActive={
-                    currentRoute === item.route ||
-                    (item.route === 'dashboard' &&
-                      (currentRoute === 'dashboard' || currentRoute === 'index'))
-                  }
-                  onPress={() => handleNavigate(item.route)}
-                />
-              ))
-            )}
-          </View>
+        {!collapsed && (
+          <Text style={[styles.navSectionLabel, { color: textSecondary }]}>MANAGEMENT</Text>
+        )}
+        {NAV_ITEMS.map((item) => (
+          <SidebarItem
+            key={item.route}
+            item={item}
+            isActive={
+              currentRoute === item.route ||
+              (item.route === 'dashboard' &&
+                (currentRoute === 'dashboard' || currentRoute === 'index'))
+            }
+            onPress={() => handleNavigate(item.route)}
+            collapsed={collapsed}
+            isDark={isDark}
+          />
         ))}
       </ScrollView>
 
-      {/* Bottom */}
-      <View style={[styles.sidebarBottom, { borderTopColor: borderColor }]}>
-        <View
-          style={[
-            styles.userCard,
-            {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
-              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-            },
-          ]}
-        >
+      {/* Bottom: User card + actions */}
+      <View style={[styles.sidebarBottom, {
+        borderTopColor: borderColor,
+        backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+      }]}>
+        {/* User card */}
+        <View style={[styles.userCard, {
+          backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+          borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+        }]}>
           <View style={[styles.avatar, { backgroundColor: 'rgba(112,143,150,0.12)' }]}>
             <Text style={[styles.avatarText, { color: '#708F96' }]}>
               {getInitials(user?.full_name ?? user?.email ?? 'User')}
             </Text>
           </View>
-          <View style={styles.userInfo}>
-            <Text
-              style={[styles.userName, { color: textPrimary }]}
-              numberOfLines={1}
-            >
-              {user?.full_name || user?.email?.split('@')[0] || 'User'}
-            </Text>
-            <Text
-              style={[styles.userRole, { color: sectionTitleColor }]}
-              numberOfLines={1}
-            >
-              {user?.name ?? 'Staff'}
-            </Text>
-          </View>
+          {!collapsed && (
+            <View style={styles.userInfo}>
+              <Text style={[styles.userName, { color: textPrimary }]} numberOfLines={1}>
+                {user?.full_name || user?.email?.split('@')[0] || 'User'}
+              </Text>
+              <Text style={[styles.userRole, { color: textSecondary }]} numberOfLines={1}>
+                {user?.name ?? 'Staff'}
+              </Text>
+            </View>
+          )}
         </View>
 
+        {/* Action row */}
         <View style={styles.actionBtns}>
           <ThemeToggleButton />
           <TouchableOpacity
             style={styles.logoutBtn}
-            onPress={async () => {
-              await signOut();
-            }}
+            onPress={async () => { await signOut(); }}
             activeOpacity={0.7}
           >
             <LogOut size={15} color="#EF4444" strokeWidth={1.5} />
-            <Text style={styles.logoutBtnText}>Logout</Text>
+            {!collapsed && <Text style={styles.logoutBtnText}>Logout</Text>}
           </TouchableOpacity>
         </View>
       </View>
@@ -357,6 +389,7 @@ export default function PropertyLayout() {
   }>({ authorized: null, role: null, checking: true });
 
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // ---- Access check via web API (mirrors GET /api/auth/property-access) ----
   // CRITICAL: membership is in deps — without it, the layout renders blank when
@@ -537,15 +570,37 @@ export default function PropertyLayout() {
 
   console.log('[PropertyLayout] Access granted — role:', role);
   const isMobileRole = MOBILE_ROLES.includes(role);
+  const isFullDashboardRole = FULL_DASHBOARD_ROLES.includes(role);
 
   // ---- Tenant / Super Tenant: full-screen mobile UI, no sidebar ----
   // Renders the mobile glassmorphism dashboard (via tenant/index.tsx)
-  console.log('[PropertyLayout] Render — role:', role, 'isMobile:', isMobileRole, 'membership:', membership ? 'exists' : 'null');
+  console.log('[PropertyLayout] Render — role:', role, 'isMobile:', isMobileRole, 'isFullDashboard:', isFullDashboardRole, 'membership:', membership ? 'exists' : 'null');
   if (isMobileRole) {
     console.log('[PropertyLayout] Mobile role — rendering children');
     return (
       <PropertyContext.Provider value={propertyInfo}>
         <Slot />
+      </PropertyContext.Provider>
+    );
+  }
+
+  // ---- Roles with their own full-screen dashboard: no sidebar here ----
+  // NewMstDashboard, PremiumMstDashboard, PropertyAdminDashboard are self-contained.
+  if (isFullDashboardRole) {
+    return (
+      <PropertyContext.Provider value={propertyInfo}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <Slot />
+        </View>
+        <TenantTicketModal
+          visible={ticketModalVisible}
+          propertyId={propertyId ?? ''}
+          organizationId={membership?.org_id ?? ''}
+          userId={user?.id ?? ''}
+          userName={user?.full_name ?? user?.email ?? 'User'}
+          propertyName={propertyInfo.propertyName}
+          onClose={() => setTicketModalVisible(false)}
+        />
       </PropertyContext.Provider>
     );
   }
@@ -558,10 +613,15 @@ export default function PropertyLayout() {
         <Sidebar
           currentRoute={currentRoute}
           onNewRequest={() => setTicketModalVisible(true)}
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(c => !c)}
         />
 
         {/* Content — children render here via Expo Router file-based routing */}
-        <View style={[styles.contentArea, { backgroundColor: colors.background }]}>
+        <View style={[styles.contentArea, {
+          backgroundColor: colors.background,
+          marginLeft: sidebarCollapsed ? 72 : SIDEBAR_WIDTH,
+        }]}>
           <Slot />
         </View>
 
@@ -594,6 +654,7 @@ const styles = StyleSheet.create({
     width: SIDEBAR_WIDTH,
     borderRightWidth: 1,
     zIndex: 2,
+    overflow: 'hidden',
   },
   contentArea: {
     flex: 1,
@@ -601,86 +662,91 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   sidebarHeader: {
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    alignItems: 'flex-start',
-  },
-  logoRow: {},
-  sectionTitleRow: {
+    paddingTop: 16,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 6,
-  },
-  sectionAccent: {
-    width: 4,
-    height: 12,
-    borderRadius: 2,
-    backgroundColor: '#708F96',
-  },
-  sectionTitle: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 10,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
     gap: 8,
-    paddingVertical: 4,
   },
-  quickActionBtn: {
+  logoSection: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-    borderRadius: 10,
-    borderWidth: 1,
     gap: 6,
   },
-  quickActionIconWrap: {
-    width: 32,
-    height: 32,
+  staffBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  staffBadgeText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  collapseBtn: {
+    width: 36,
+    height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(112,143,150,0.12)',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
-  quickActionLabel: {
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  quickActionChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  quickActionChipLabel: {
     fontFamily: 'Poppins-Bold',
     fontSize: 9,
     letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    textAlign: 'center',
+  },
+  navSectionLabel: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 9,
+    letterSpacing: 1.2,
+    marginBottom: 6,
+    marginLeft: 4,
   },
   navItem: {
-    marginHorizontal: 12,
     marginVertical: 1,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    position: 'relative',
     overflow: 'hidden',
   },
-  navItemActive: {
-    backgroundColor: '#708F96',
+  navItemCollapsed: {
+    marginVertical: 2,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  navItemCollapsedActive: {
+    backgroundColor: 'rgba(112,143,150,0.12)',
   },
   navItemInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  activeIndicator: {
-    width: 4,
-    height: 20,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    position: 'absolute',
-    left: -12,
+  navItemIconCentered: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navItemLabel: {
     fontFamily: 'Urbanist-Medium',
@@ -689,8 +755,8 @@ const styles = StyleSheet.create({
   },
   sidebarBottom: {
     borderTopWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingTop: 12,
     paddingBottom: 24,
   },
   userCard: {
@@ -752,22 +818,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Urbanist-Medium',
     fontSize: 13,
     color: '#EF4444',
-  },
-  menuBtn: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 4,
-  },
-  menuIcon: {
-    gap: 4,
-    justifyContent: 'center',
-  },
-  menuLine: {
-    width: 18,
-    height: 2,
-    borderRadius: 1,
   },
   // Access denied styles
   errorIcon: {

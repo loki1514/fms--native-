@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantTickets } from '@/hooks/tenant/useTenantTickets';
+import { useWeather } from '@/hooks/useWeather';
 import { VoicePipelineConfig } from '@/services/ai/voiceAgentPipeline';
 
 import { OverviewTab } from './tabs/OverviewTab';
@@ -14,6 +15,7 @@ import { ProfileTab } from './tabs/ProfileTab';
 import { TenantBottomNav } from './TenantBottomNav';
 import { VoiceOrbWrapper } from '../voice/VoiceOrbWrapper';
 import { TenantTicketModal } from './TenantTicketModal';
+import { AuroraBackground } from '../shared/AuroraBackground';
 import { useSuperTenantProperties, SuperTenantProperty } from '@/hooks/tenant/useSuperTenantProperties';
 
 type TabKey = 'home' | 'tickets' | 'rooms' | 'profile';
@@ -35,6 +37,7 @@ export default function TenantDashboard({
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, membership } = useAuth();
+  const { weather } = useWeather();
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [selectedPropertyId, setSelectedPropertyId] = useState(
     forcePropertyId ?? propertyId
@@ -147,6 +150,9 @@ export default function TenantDashboard({
 
   return (
     <View style={styles.container}>
+      {/* Ambient aurora background */}
+      {weather && <AuroraBackground colors={weather.auroraColors} />}
+
       {/* Tab content */}
       {activeTab === 'home' && (
         <OverviewTab
@@ -158,6 +164,7 @@ export default function TenantDashboard({
           onRefresh={handleRefresh}
           refreshing={refreshing}
           onTicketPress={handleTicketPress}
+          weather={weather}
         />
       )}
       {activeTab === 'tickets' && (

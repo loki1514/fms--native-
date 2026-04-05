@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/context';
 
 interface StatTileProps {
   label: string;
@@ -24,25 +25,31 @@ export default function StatTile({
   accentColor,
   style,
 }: StatTileProps) {
+  const { isDark, colors } = useTheme();
+
   return (
     <View
       style={[
         styles.card,
+        {
+          backgroundColor: colors.surface,
+          borderColor: colors.border,
+        },
         accentColor ? { borderLeftWidth: 4, borderLeftColor: accentColor } : {},
         style,
       ]}
     >
       <View style={styles.header}>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
         {icon && (
-          <View style={styles.iconContainer}>
-            <Ionicons name={icon} size={20} color="#64748B" />
+          <View style={[styles.iconContainer, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Ionicons name={icon} size={20} color={colors.textSecondary} />
           </View>
         )}
       </View>
 
       <View style={styles.valueRow}>
-        <Text style={[styles.value, accentColor ? { color: accentColor } : {}]}>
+        <Text style={[styles.value, { color: accentColor ?? colors.textPrimary }]}>
           {value}
         </Text>
         {trend && (
@@ -68,8 +75,8 @@ export default function StatTile({
       </View>
 
       {subtitle && (
-        <View style={styles.subtitleContainer}>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+        <View style={[styles.subtitleContainer, { borderTopColor: colors.border }]}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
         </View>
       )}
     </View>
@@ -78,10 +85,8 @@ export default function StatTile({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
     padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -98,7 +103,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#94A3B8',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
@@ -106,11 +110,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
   },
   valueRow: {
     flexDirection: 'row',
@@ -120,7 +122,6 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 36,
     fontWeight: '800',
-    color: '#1A2332',
     letterSpacing: -1,
   },
   trendBadge: {
@@ -137,10 +138,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(226,232,240,0.5)',
   },
   subtitle: {
     fontSize: 13,
-    color: '#94A3B8',
   },
 });

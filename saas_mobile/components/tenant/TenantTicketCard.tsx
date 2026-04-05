@@ -19,14 +19,14 @@ interface TenantTicketCardProps {
   onPress?: () => void;
 }
 
-const ClockIcon = ({ size = 12, color = '#4CAF50' }: { size?: number; color?: string }) => (
+const ClockIcon = ({ size = 12, color = '#10B981' }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
     <Circle cx="12" cy="12" r="10" />
     <Path d="M12 6v6l4 2" />
   </Svg>
 );
 
-const BuildingIcon = ({ size = 20, color = '#fff' }: { size?: number; color?: string }) => (
+const BuildingIcon = ({ size = 18, color = '#FFFFFF' }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5">
     <Path d="M3 21h18M5 21V7l8-4 8 4v14M9 21v-6h6v6" />
   </Svg>
@@ -34,10 +34,10 @@ const BuildingIcon = ({ size = 20, color = '#fff' }: { size?: number; color?: st
 
 function getPriorityColor(priority: string): string {
   switch (priority?.toLowerCase()) {
-    case 'critical': return '#E53935';
-    case 'high': return '#F57C00';
+    case 'critical': return '#EF4444';
+    case 'high': return '#F97316';
     case 'medium': return '#D4A017';
-    case 'low': return '#4CAF50';
+    case 'low': return '#64748B';
     default: return '#94A3B8';
   }
 }
@@ -55,7 +55,6 @@ function getStatusColor(status: string): string {
 }
 
 function getSlaCountdown(createdAt: string): string {
-  // DEFENSE-IN-DEPTH: Guard against null/invalid dates (silent crash source)
   const created = new Date(createdAt).getTime();
   if (!createdAt || isNaN(created)) return '--';
   const now = Date.now();
@@ -75,15 +74,20 @@ export function TenantTicketCard({ ticket, onPress }: TenantTicketCardProps) {
     .slice(0, 2) ?? '??';
 
   const isClosed = ['resolved', 'closed'].includes(ticket.status?.toLowerCase());
-  // DEFENSE-IN-DEPTH: created_at may be null from Supabase despite the TS type
   const countdown = ticket.created_at ? getSlaCountdown(ticket.created_at) : '--';
+  const priorityColor = getPriorityColor(ticket.priority);
+  const statusColor = getStatusColor(ticket.status);
+  const brandColor = '#708F96';
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.card}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.card}>
+      {/* Glassmorphism surface */}
+      <View style={[styles.glassSurface, { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.12)' }]} />
+
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <BuildingIcon size={18} color="#fff" />
+        <View style={[styles.avatar, { backgroundColor: brandColor + '30', borderColor: brandColor + '40' }]}>
+          <BuildingIcon size={16} color={brandColor} />
         </View>
         <View style={styles.info}>
           <Text style={styles.ticketId} numberOfLines={1}>
@@ -94,31 +98,28 @@ export function TenantTicketCard({ ticket, onPress }: TenantTicketCardProps) {
               ? new Date(ticket.created_at).toLocaleDateString('en-IN', {
                   month: 'short',
                   day: 'numeric',
-                  year: 'numeric',
                   hour: '2-digit',
                   minute: '2-digit',
                 })
               : '--'}
           </Text>
         </View>
-        <View style={styles.actions}>
-          <View style={[styles.actionBtn, { backgroundColor: 'rgba(0,0,0,0.2)' }]}>
-            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-              <Path d="M7 17L17 7M17 7H7M17 7V17" />
-            </Svg>
-          </View>
+        <View style={[styles.actionBtn, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
+          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2">
+            <Path d="M7 17L17 7M17 7H7M17 7V17" />
+          </Svg>
         </View>
       </View>
 
       {/* Tags */}
       <View style={styles.tags}>
-        <View style={[styles.tag, { backgroundColor: `${getPriorityColor(ticket.priority)}20` }]}>
-          <Text style={[styles.tagText, { color: getPriorityColor(ticket.priority) }]}>
+        <View style={[styles.tag, { backgroundColor: `${priorityColor}18`, borderColor: `${priorityColor}30` }]}>
+          <Text style={[styles.tagText, { color: priorityColor }]}>
             {ticket.priority?.toUpperCase() ?? 'MEDIUM'}
           </Text>
         </View>
-        <View style={[styles.tag, { backgroundColor: `${getStatusColor(ticket.status)}20` }]}>
-          <Text style={[styles.tagText, { color: getStatusColor(ticket.status) }]}>
+        <View style={[styles.tag, { backgroundColor: `${statusColor}18`, borderColor: `${statusColor}30` }]}>
+          <Text style={[styles.tagText, { color: statusColor }]}>
             {ticket.status?.replace('_', ' ').toUpperCase() ?? 'OPEN'}
           </Text>
         </View>
@@ -132,8 +133,8 @@ export function TenantTicketCard({ ticket, onPress }: TenantTicketCardProps) {
       {/* Assignee */}
       {ticket.assignee && (
         <View style={styles.assignee}>
-          <View style={styles.assigneeBadge}>
-            <Text style={styles.assigneeBadgeText}>{initials}</Text>
+          <View style={[styles.assigneeBadge, { backgroundColor: brandColor + '25', borderColor: brandColor + '35' }]}>
+            <Text style={[styles.assigneeBadgeText, { color: brandColor }]}>{initials}</Text>
           </View>
           <Text style={styles.assigneeName}>{ticket.assignee.full_name}</Text>
         </View>
@@ -145,8 +146,8 @@ export function TenantTicketCard({ ticket, onPress }: TenantTicketCardProps) {
           <View>
             <Text style={styles.slaLabel}>SLA COUNTDOWN</Text>
             <View style={styles.countdownRow}>
-              <ClockIcon />
-              <Text style={styles.countdown}>{countdown}</Text>
+              <ClockIcon color={priorityColor} />
+              <Text style={[styles.countdown, { color: priorityColor }]}>{countdown}</Text>
             </View>
           </View>
         </View>
@@ -154,12 +155,15 @@ export function TenantTicketCard({ ticket, onPress }: TenantTicketCardProps) {
 
       {/* CTA */}
       <View style={styles.ctaRow}>
-        <TouchableOpacity style={styles.primaryBtn}>
+        <TouchableOpacity
+          style={[styles.primaryBtn, { backgroundColor: brandColor + 'CC' }]}
+          onPress={onPress}
+        >
           <Text style={styles.primaryBtnText}>View Ticket</Text>
         </TouchableOpacity>
         {!isClosed && (
-          <View style={styles.secondaryBtn}>
-            <Text style={styles.secondaryBtnText}>Accept Task</Text>
+          <View style={[styles.secondaryBtn, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)' }]}>
+            <Text style={styles.secondaryBtnText}>Accept</Text>
           </View>
         )}
       </View>
@@ -169,16 +173,20 @@ export function TenantTicketCard({ ticket, onPress }: TenantTicketCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 18,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.6)',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 5,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 3,
+  },
+  glassSurface: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 18,
+    borderWidth: 1,
   },
   header: {
     flexDirection: 'row',
@@ -186,12 +194,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   avatar: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 10,
-    backgroundColor: '#667eea',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
   },
   info: {
     flex: 1,
@@ -199,13 +207,15 @@ const styles = StyleSheet.create({
   },
   ticketId: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-SemiBold',
   },
   date: {
     fontSize: 10,
-    color: '#666',
+    color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
+    fontFamily: 'Urbanist-Regular',
   },
   actions: {
     flexDirection: 'row',
@@ -227,16 +237,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 5,
+    borderWidth: 1,
   },
   tagText: {
     fontSize: 9,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    fontFamily: 'Urbanist-SemiBold',
   },
   description: {
     fontSize: 12,
-    color: '#333',
+    color: 'rgba(255,255,255,0.85)',
     lineHeight: 17,
     marginBottom: 10,
+    fontFamily: 'Urbanist-Regular',
   },
   assignee: {
     flexDirection: 'row',
@@ -247,19 +261,20 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#667eea',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+    borderWidth: 1,
   },
   assigneeBadgeText: {
     fontSize: 9,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: '700',
+    fontFamily: 'Urbanist-SemiBold',
   },
   assigneeName: {
     fontSize: 11,
-    color: '#555',
+    color: 'rgba(255,255,255,0.65)',
+    fontFamily: 'Urbanist-Regular',
   },
   footer: {
     flexDirection: 'row',
@@ -267,8 +282,10 @@ const styles = StyleSheet.create({
   },
   slaLabel: {
     fontSize: 8,
-    color: '#888',
+    color: 'rgba(255,255,255,0.35)',
     marginBottom: 2,
+    letterSpacing: 0.5,
+    fontFamily: 'Urbanist-SemiBold',
   },
   countdownRow: {
     flexDirection: 'row',
@@ -277,8 +294,8 @@ const styles = StyleSheet.create({
   },
   countdown: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#4CAF50',
+    fontWeight: '700',
+    fontFamily: 'Urbanist-Bold',
   },
   ctaRow: {
     flexDirection: 'row',
@@ -286,28 +303,27 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     flex: 1,
-    backgroundColor: '#667eea',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
   },
   primaryBtnText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    fontFamily: 'Urbanist-SemiBold',
   },
   secondaryBtn: {
     flex: 1,
-    backgroundColor: 'rgba(102,126,234,0.1)',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(102,126,234,0.2)',
   },
   secondaryBtnText: {
-    color: '#fff',
+    color: 'rgba(255,255,255,0.70)',
     fontSize: 12,
     fontWeight: '600',
+    fontFamily: 'Urbanist-SemiBold',
   },
 });

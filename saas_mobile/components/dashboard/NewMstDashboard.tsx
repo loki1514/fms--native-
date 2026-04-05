@@ -28,6 +28,8 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
+import { useWeather } from '@/hooks/useWeather';
+import { AuroraBackground } from '@/components/shared/AuroraBackground';
 import { useGamification, LeaderboardEntry as GamificationEntry } from '@/hooks/mst/useGamification';
 import { createClient } from '@/utils/supabase/client';
 import { Colors } from '@/constants/Colors';
@@ -196,7 +198,7 @@ function CollapsibleSidebar({
                   <Ionicons
                     name={item.icon as any}
                     size={20}
-                    color={isActive ? '#708F96' : '#64748B'}
+                    color={isActive ? '#708F96' : 'rgba(255,255,255,0.40)'}
                   />
                   {!isCollapsed && (
                     <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
@@ -241,11 +243,13 @@ function CollapsibleSidebar({
 }
 
 // KPI Card Component
-function KPICard({ value, label, color, delay = 0 }: { value: number; label: string; color: string; delay?: number }) {
+function KPICard({ value, label, color, delay = 0, labelColor }: { value: number; label: string; color: string; delay?: number; labelColor?: string }) {
+  const { theme } = useTheme();
+  const textSecondary = Colors[theme].textSecondary;
   return (
     <Animated.View entering={FadeInDown.delay(delay).springify()} style={styles.kpiCard}>
       <Text style={[styles.kpiValue, { color }]}>{value}</Text>
-      <Text style={styles.kpiLabel}>{label}</Text>
+      <Text style={[styles.kpiLabel, { color: labelColor ?? textSecondary }]}>{label}</Text>
     </Animated.View>
   );
 }
@@ -256,13 +260,13 @@ function TicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress: () =>
     switch (ticket.priority?.toLowerCase()) {
       case 'urgent':
       case 'critical':
-        return { bg: '#FEF2F2', text: '#DC2626', border: '#FECACA' };
+        return { bg: 'rgba(239,68,68,0.15)', text: '#EF4444', border: 'rgba(239,68,68,0.25)' };
       case 'high':
-        return { bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' };
+        return { bg: 'rgba(249,115,22,0.15)', text: '#F97316', border: 'rgba(249,115,22,0.25)' };
       case 'medium':
-        return { bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' };
+        return { bg: 'rgba(212,160,23,0.15)', text: '#D4A017', border: 'rgba(212,160,23,0.25)' };
       default:
-        return { bg: '#F1F5F9', text: '#64748B', border: '#E2E8F0' };
+        return { bg: 'rgba(100,116,139,0.15)', text: '#94A3B8', border: 'rgba(100,116,139,0.25)' };
     }
   };
 
@@ -283,10 +287,10 @@ function TicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress: () =>
             <Text style={styles.ticketTitle} numberOfLines={2}>{ticket.title}</Text>
             <View style={styles.ticketActions}>
               <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="create-outline" size={16} color="#64748B" />
+                <Ionicons name="create-outline" size={16} color="rgba(255,255,255,0.45)" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="share-outline" size={16} color="#64748B" />
+                <Ionicons name="share-outline" size={16} color="rgba(255,255,255,0.45)" />
               </TouchableOpacity>
             </View>
           </View>
@@ -297,8 +301,8 @@ function TicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress: () =>
           <View style={[styles.badge, { backgroundColor: priorityColors.bg, borderColor: priorityColors.border }]}>
             <Text style={[styles.badgeText, { color: priorityColors.text }]}>{ticket.priority?.toUpperCase()}</Text>
           </View>
-          <View style={[styles.badge, styles.statusBadge]}>
-            <Text style={styles.statusBadgeText}>ASSIGNED</Text>
+          <View style={[styles.badge, styles.statusBadge, { backgroundColor: 'rgba(139,92,246,0.15)', borderColor: 'rgba(139,92,246,0.25)' }]}>
+            <Text style={[styles.statusBadgeText, { color: '#8B5CF6' }]}>ASSIGNED</Text>
           </View>
         </View>
 
@@ -309,14 +313,14 @@ function TicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress: () =>
               {ticket.assignee?.full_name?.[0] || 'M'}
             </Text>
           </View>
-          <Text style={styles.assigneeName}>{ticket.assignee?.full_name || 'Unassigned'}</Text>
+          <Text style={[styles.assigneeName, { color: 'rgba(255,255,255,0.75)' }]}>{ticket.assignee?.full_name || 'Unassigned'}</Text>
         </View>
 
         {/* SLA */}
         {slaTime && (
           <View style={styles.slaRow}>
             <Ionicons name="time-outline" size={14} color="#EF4444" />
-            <Text style={styles.slaText}>
+            <Text style={[styles.slaText, { color: '#EF4444' }]}>
               {slaHours}h {slaMinutes}m
             </Text>
           </View>
@@ -346,7 +350,7 @@ function LeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; index: nu
       case 1: return { bg: '#FFD700', text: '#000' };
       case 2: return { bg: '#C0C0C0', text: '#000' };
       case 3: return { bg: '#CD7F32', text: '#fff' };
-      default: return { bg: '#F1F5F9', text: '#64748B' };
+      default: return { bg: 'rgba(255,255,255,0.10)', text: 'rgba(255,255,255,0.60)' };
     }
   };
 
@@ -362,19 +366,19 @@ function LeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; index: nu
       </View>
       <View style={styles.leaderboardInfo}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={styles.leaderboardName}>{entry.name}</Text>
+          <Text style={[styles.leaderboardName, { color: '#FFFFFF' }]}>{entry.name}</Text>
           {entry.badges && entry.badges.length > 0 && (
             <Ionicons name="medal" size={12} color={entry.badges[0].color} />
           )}
         </View>
-        <Text style={styles.leaderboardProperty}>
+        <Text style={[styles.leaderboardProperty, { color: 'rgba(255,255,255,0.45)' }]}>
           {entry.tickets_resolved ?? 0} resolved
           {(entry.streak_days ?? 0) > 0 && ` · ${entry.streak_days}d streak`}
         </Text>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={styles.leaderboardScore}>{entry.score.toLocaleString()}</Text>
-        <Text style={{ fontSize: 10, color: '#94A3B8' }}>pts</Text>
+        <Text style={[styles.leaderboardScore, { color: '#FFFFFF' }]}>{entry.score.toLocaleString()}</Text>
+        <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.40)' }}>pts</Text>
       </View>
     </Animated.View>
   );
@@ -383,14 +387,32 @@ function LeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; index: nu
 // Main Dashboard Component
 export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   const { user } = useAuth();
+  const { weather } = useWeather();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const { width } = useWindowDimensions();
+  const { theme } = useTheme();
+  const colors = Colors[theme];
   const isMobile = width < 768;
 
   // State
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobile);
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const sidebarTranslateX = useSharedValue(isMobile ? -280 : 0);
+  const sidebarBackdropOpacity = useSharedValue(0);
+
+  // Sync translateX when sidebarVisible changes on mobile
+  useEffect(() => {
+    if (isMobile) {
+      sidebarTranslateX.value = withSpring(sidebarVisible ? 0 : -280, { damping: 20 });
+      sidebarBackdropOpacity.value = withSpring(sidebarVisible ? 1 : 0, { damping: 20 });
+    }
+  }, [sidebarVisible, isMobile]);
+
+  const toggleMobileSidebar = () => setSidebarVisible(prev => !prev);
+  const closeMobileSidebar = () => setSidebarVisible(false);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -573,7 +595,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
     >
       <View style={styles.pageHeader}>
         <View>
-          <Text style={styles.pageTitle}>Property Requests</Text>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>Property Requests</Text>
           <Text style={styles.pageSubtitle}>
             {filteredTickets.length} request{filteredTickets.length !== 1 ? 's' : ''}
           </Text>
@@ -621,8 +643,8 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       {/* Header */}
       <View style={styles.pageHeader}>
         <View>
-          <Text style={styles.pageTitle}>Maintenance Dashboard</Text>
-          <Text style={styles.pageSubtitle}>{property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || 'MST Staff'}</Text>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>Maintenance Dashboard</Text>
+          <Text style={[styles.pageSubtitle, { color: colors.textSecondary }]}>{property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || 'MST Staff'}</Text>
         </View>
         <TouchableOpacity style={styles.customizeBtn}>
           <Ionicons name="options-outline" size={16} color="#64748B" />
@@ -632,9 +654,9 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* KPI Cards */}
       <View style={styles.kpiContainer}>
-        <KPICard value={stats.total} label="TOTAL" color="#1A2332" delay={0} />
-        <KPICard value={stats.active} label="ACTIVE" color="#708F96" delay={100} />
-        <KPICard value={stats.completed} label="COMPLETED" color="#10B981" delay={200} />
+        <KPICard value={stats.total} label="TOTAL" color={colors.primary} labelColor={colors.textSecondary} delay={0} />
+        <KPICard value={stats.active} label="ACTIVE" color={colors.primary} labelColor={colors.textSecondary} delay={100} />
+        <KPICard value={stats.completed} label="COMPLETED" color={colors.success} labelColor={colors.textSecondary} delay={200} />
       </View>
 
       {/* Property Requests Section */}
@@ -685,7 +707,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       {/* Header */}
       <View style={styles.pageHeader}>
         <View>
-          <Text style={styles.pageTitle}>Daily Top MSTs</Text>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>Daily Top MSTs</Text>
           <Text style={styles.pageSubtitle}>Resets at Midnight: 12:00 AM local time</Text>
         </View>
       </View>
@@ -725,7 +747,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       {/* Header */}
       <View style={styles.pageHeader}>
         <View>
-          <Text style={styles.pageTitle}>Live Flow Map</Text>
+          <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>Live Flow Map</Text>
           <Text style={styles.pageSubtitle}>Weekly Champion & Property Flow</Text>
         </View>
       </View>
@@ -743,11 +765,11 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
             </Text>
           </View>
           <View>
-            <Text style={styles.championName}>{leaderboard[0]?.name || 'No champion yet'}</Text>
-            <Text style={styles.championScore}>
+            <Text style={[styles.championName, { color: '#FFFFFF' }]}>{leaderboard[0]?.name || 'No champion yet'}</Text>
+            <Text style={[styles.championScore, { color: '#FFD700' }]}>
               {leaderboard[0]?.score.toLocaleString() ?? '0'} pts
             </Text>
-            <Text style={styles.championSub}>
+            <Text style={[styles.championSub, { color: 'rgba(255,255,255,0.55)' }]}>
               {leaderboard[0]?.tickets_resolved ?? 0} tickets resolved
             </Text>
           </View>
@@ -776,20 +798,63 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#708F96" />
-          <Text style={styles.loadingText}>Loading dashboard...</Text>
+        <StatusBar barStyle="light-content" />
+        {weather && <AuroraBackground colors={weather.auroraColors} />}
+        <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading dashboard...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle="light-content" />
+      {weather && <AuroraBackground colors={weather.auroraColors} />}
       <View style={styles.mainContainer}>
-        {/* Sidebar */}
+        {/* Mobile Sidebar Overlay */}
+        {isMobile && (
+          <>
+            {/* Backdrop */}
+            <Animated.View
+              style={[
+                styles.sidebarBackdrop,
+                {
+                  opacity: sidebarBackdropOpacity,
+                  pointerEvents: sidebarVisible ? 'auto' : 'none',
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={closeMobileSidebar}
+              />
+            </Animated.View>
+
+            {/* Sidebar Drawer */}
+            <Animated.View
+              style={[
+                styles.mobileSidebarOverlay,
+                { transform: [{ translateX: sidebarTranslateX }] },
+              ]}
+            >
+              <CollapsibleSidebar
+                isCollapsed={false}
+                onToggle={closeMobileSidebar}
+                activeTab={activeTab}
+                onTabChange={(tab) => {
+                  setActiveTab(tab);
+                  closeMobileSidebar();
+                }}
+                propertyId={propertyId}
+              />
+            </Animated.View>
+          </>
+        )}
+
+        {/* Desktop Sidebar */}
         {!isMobile && (
           <CollapsibleSidebar
             isCollapsed={sidebarCollapsed}
@@ -806,14 +871,14 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
           <View style={styles.topBar}>
             <View style={styles.topBarLeft}>
               {isMobile && (
-                <TouchableOpacity style={styles.menuButton}>
-                  <Ionicons name="menu" size={22} color="#475569" />
+                <TouchableOpacity style={styles.menuButton} onPress={toggleMobileSidebar}>
+                  <Ionicons name={sidebarVisible ? 'close' : 'menu'} size={22} color="rgba(255,255,255,0.70)" />
                 </TouchableOpacity>
               )}
             </View>
             <View style={styles.topBarRight}>
               <TouchableOpacity style={styles.topBarButton}>
-                <Ionicons name="notifications-outline" size={20} color="#64748B" />
+                <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.60)" />
                 <View style={styles.notificationDot} />
               </TouchableOpacity>
               <View style={styles.onDutyBadge}>
@@ -821,7 +886,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
                 <Text style={styles.onDutyText}>ON DUTY</Text>
                 <Ionicons name="chevron-down" size={14} color="#64748B" />
               </View>
-              <Text style={styles.userName}>{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST Staff'}</Text>
+              <Text style={[styles.userName, { color: 'rgba(255,255,255,0.85)' }]}>{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST Staff'}</Text>
             </View>
           </View>
 
@@ -839,7 +904,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFBFC',
+    // backgroundColor set via inline style with theme token (see JSX)
   },
   mainContainer: {
     flex: 1,
@@ -849,19 +914,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#060912',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
   },
 
   // Sidebar
   sidebarContainer: {
     width: 280,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRightWidth: 1,
-    borderRightColor: '#E2E8F0',
+    borderRightColor: 'rgba(255,255,255,0.08)',
     flexDirection: 'column',
   },
   sidebarCollapsed: {
@@ -870,7 +936,7 @@ const styles = StyleSheet.create({
   sidebarHeader: {
     padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -896,12 +962,12 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
     letterSpacing: 1,
   },
   logoSubtext: {
     fontSize: 10,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
     letterSpacing: 1,
     marginTop: 2,
   },
@@ -909,7 +975,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -924,7 +990,7 @@ const styles = StyleSheet.create({
   navSectionTitle: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.30)',
     letterSpacing: 1,
     marginBottom: 8,
     paddingLeft: 12,
@@ -943,12 +1009,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   navItemActive: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: 'rgba(112,143,150,0.15)',
   },
   navLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
   },
   navLabelActive: {
     color: '#708F96',
@@ -957,16 +1023,18 @@ const styles = StyleSheet.create({
   sidebarFooter: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 12,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
   },
   userCardCollapsed: {
     justifyContent: 'center',
@@ -976,14 +1044,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#708F96',
+    backgroundColor: 'rgba(112,143,150,0.30)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(112,143,150,0.40)',
   },
   userAvatarText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#708F96',
   },
   userInfo: {
     flex: 1,
@@ -991,11 +1061,11 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1A2332',
+    color: 'rgba(255,255,255,0.85)',
   },
   userRole: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
   },
   signOutBtn: {
     flexDirection: 'row',
@@ -1018,15 +1088,30 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'column',
   },
+
+  // Mobile Sidebar Overlay
+  mobileSidebarOverlay: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 280,
+    zIndex: 10,
+  },
+  sidebarBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 5,
+  },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(10,15,25,0.80)',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   topBarLeft: {
     flexDirection: 'row',
@@ -1041,17 +1126,17 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   topBarButton: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -1065,7 +1150,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#EF4444',
     borderWidth: 2,
-    borderColor: '#F8FAFC',
+    borderColor: 'rgba(10,15,25,0.80)',
   },
   onDutyBadge: {
     flexDirection: 'row',
@@ -1073,10 +1158,10 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: 'rgba(34,197,94,0.15)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: 'rgba(34,197,94,0.25)',
   },
   onDutyDot: {
     width: 8,
@@ -1087,7 +1172,7 @@ const styles = StyleSheet.create({
   onDutyText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#16A34A',
+    color: '#22C55E',
   },
   contentScroll: {
     flex: 1,
@@ -1104,12 +1189,13 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
     marginBottom: 4,
+    fontFamily: 'Poppins-SemiBold',
   },
   pageSubtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
   },
   customizeBtn: {
     flexDirection: 'row',
@@ -1117,15 +1203,15 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   customizeText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.70)',
   },
 
   // KPI Cards
@@ -1138,28 +1224,30 @@ const styles = StyleSheet.create({
   kpiCard: {
     flex: 1,
     minWidth: 180,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.20,
+    shadowRadius: 20,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   kpiValue: {
     fontSize: 36,
     fontWeight: '700',
     marginBottom: 4,
+    fontFamily: 'Poppins-Bold',
   },
   kpiLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1,
+    fontFamily: 'Urbanist-SemiBold',
   },
 
   // Section
@@ -1175,31 +1263,32 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
     marginBottom: 4,
+    fontFamily: 'Poppins-SemiBold',
   },
   sectionSubtitle: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.55)',
   },
 
   // Search
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   searchInput: {
     flex: 1,
     marginLeft: 12,
     fontSize: 15,
-    color: '#1A2332',
+    color: '#FFFFFF',
   },
 
   // Empty State
@@ -1210,7 +1299,7 @@ const styles = StyleSheet.create({
   emptyStateText: {
     marginTop: 12,
     fontSize: 15,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.45)',
     fontWeight: '500',
   },
 
@@ -1224,16 +1313,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   ticketCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 3,
   },
   ticketHeader: {
     marginBottom: 12,
@@ -1246,9 +1335,10 @@ const styles = StyleSheet.create({
   ticketTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
     flex: 1,
     lineHeight: 22,
+    fontFamily: 'Poppins-SemiBold',
   },
   ticketActions: {
     flexDirection: 'row',
@@ -1258,7 +1348,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1278,13 +1368,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   statusBadge: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
   },
   statusBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#2563EB',
   },
   assigneeRow: {
     flexDirection: 'row',
@@ -1307,7 +1394,6 @@ const styles = StyleSheet.create({
   },
   assigneeName: {
     fontSize: 13,
-    color: '#64748B',
   },
   slaRow: {
     flexDirection: 'row',
@@ -1318,7 +1404,6 @@ const styles = StyleSheet.create({
   slaText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#EF4444',
   },
   ticketMeta: {
     flexDirection: 'row',
@@ -1328,14 +1413,14 @@ const styles = StyleSheet.create({
   },
   ticketNumber: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
   },
   ticketDate: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
   },
   viewButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: 'rgba(112,143,150,0.85)',
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: 'center',
@@ -1348,26 +1433,28 @@ const styles = StyleSheet.create({
 
   // Daily Board
   countdownCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   countdownLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1,
     marginBottom: 8,
+    fontFamily: 'Urbanist-SemiBold',
   },
   countdownValue: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
+    fontFamily: 'Poppins-Bold',
   },
   leaderboardContainer: {
     gap: 12,
@@ -1376,11 +1463,11 @@ const styles = StyleSheet.create({
   leaderboardEntry: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   rankBadge: {
     width: 32,
@@ -1414,48 +1501,45 @@ const styles = StyleSheet.create({
   leaderboardName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1A2332',
   },
   leaderboardProperty: {
     fontSize: 12,
-    color: '#94A3B8',
   },
   leaderboardScore: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1A2332',
   },
   topPropertyCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   topPropertyLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
     letterSpacing: 1,
     marginBottom: 4,
   },
   topPropertyName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
   },
 
   // Flow Map
   championCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,215,0,0.08)',
     borderRadius: 16,
     padding: 24,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,215,0,0.20)',
   },
   championHeader: {
     flexDirection: 'row',
@@ -1466,7 +1550,7 @@ const styles = StyleSheet.create({
   championLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1,
   },
   championContent: {
@@ -1478,28 +1562,28 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FFD700',
+    backgroundColor: 'rgba(255,215,0,0.20)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.30)',
   },
   championAvatarText: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#FFFFFF',
+    color: '#FFD700',
   },
   championName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
   },
   championScore: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#FFD700',
   },
   championSub: {
     fontSize: 13,
-    color: '#94A3B8',
   },
   filterPills: {
     flexDirection: 'row',
@@ -1511,18 +1595,18 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   criticalPill: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderColor: 'rgba(239,68,68,0.25)',
   },
   highPill: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FDE68A',
+    backgroundColor: 'rgba(245,158,11,0.15)',
+    borderColor: 'rgba(245,158,11,0.25)',
   },
   pillDot: {
     width: 8,
@@ -1532,6 +1616,6 @@ const styles = StyleSheet.create({
   pillText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1A2332',
+    color: 'rgba(255,255,255,0.75)',
   },
 });

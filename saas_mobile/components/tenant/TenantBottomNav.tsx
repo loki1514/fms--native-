@@ -108,7 +108,7 @@ export function TenantBottomNav({ activeTab, onTabChange, style }: TenantBottomN
 
       {TAB_KEYS.map((key) => {
         const active = key === activeTab;
-        const color = active ? '#667eea' : '#9CA3AF';
+        const color = active ? '#708F96' : 'rgba(255,255,255,0.35)';
         const Icon = ICONS[key];
 
         return (
@@ -137,11 +137,12 @@ const styles = StyleSheet.create({
     height: 84,
     flexDirection: 'row',
     position: 'relative',
-    backgroundColor: 'rgba(250,251,255,0.95)',
+    backgroundColor: 'rgba(10,15,25,0.80)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
+    borderTopColor: 'rgba(255,255,255,0.08)',
     paddingHorizontal: 8,
     paddingBottom: 20,
+    backdropFilter: 'blur(20px)',
   },
   pill: {
     position: 'absolute',
@@ -149,9 +150,9 @@ const styles = StyleSheet.create({
     width: PILL_WIDTH,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(102,126,234,0.12)',
+    backgroundColor: 'rgba(112,143,150,0.20)',
     borderWidth: 1,
-    borderColor: 'rgba(102,126,234,0.2)',
+    borderColor: 'rgba(112,143,150,0.30)',
   },
   tab: {
     flex: 1,
@@ -160,19 +161,20 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 10,
-    color: '#9CA3AF',
+    color: 'rgba(255,255,255,0.40)',
     marginTop: 4,
     fontWeight: '500',
+    fontFamily: 'Urbanist-SemiBold',
   },
   labelActive: {
-    color: '#667eea',
+    color: '#708F96',
     fontWeight: '700',
   },
   activeDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#667eea',
+    backgroundColor: '#708F96',
     marginTop: 3,
   },
 });

@@ -1,25 +1,15 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, ActivityIndicator,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { getRequestsReport, RequestsReportResponse, SnagTicket } from '@/utils/api/mobileApi';
+import { ArrowLeft } from 'lucide-react-native';
+import { getSnagReport, SnagReportResponse, SnagTicket } from '@/utils/api/mobileApi';
 import { BarChart, KPICard } from '@/components/shared/ReportCharts';
-
-const MONTHS = [
-  '2026-03', '2026-02', '2026-01',
-  '2025-12', '2025-11', '2025-10',
-];
-
-const MONTH_LABELS: Record<string, string> = {
-  '2026-03': 'Mar 2026', '2026-02': 'Feb 2026', '2026-01': 'Jan 2026',
-  '2025-12': 'Dec 2025', '2025-11': 'Nov 2025', '2025-10': 'Oct 2025',
-};
 
 const STATUS_COLORS: Record<string, string> = {
   open: '#F97316',
@@ -34,19 +24,9 @@ function StatusBadge({ status }: { status: string }) {
   const color = STATUS_COLORS[status] || '#708F96';
   return (
     <View style={[styles.badge, { backgroundColor: color + '18' }]}>
-      <Text style={[styles.badgeText, { color }]}>
-        {status.replace(/_/g, ' ').toUpperCase()}
-      </Text>
+      <Text style={[styles.badgeText, { color }]}>{status.replace(/_/g, ' ').toUpperCase()}</Text>
     </View>
   );
-}
-
-function PriorityDot({ priority }: { priority: string }) {
-  const color = priority === 'critical' ? '#EF4444'
-    : priority === 'urgent' ? '#F97316'
-    : priority === 'high' ? '#EAB308'
-    : '#708F96';
-  return <View style={[styles.priorityDot, { backgroundColor: color }]} />;
 }
 
 function TicketRow({ ticket }: { ticket: SnagTicket }) {
@@ -59,14 +39,12 @@ function TicketRow({ ticket }: { ticket: SnagTicket }) {
     <View style={[styles.ticketRow, { backgroundColor: bg, borderColor: border }]}>
       <View style={styles.ticketLeft}>
         <View style={styles.ticketNumRow}>
-          <PriorityDot priority={ticket.priority} />
           <Text style={[styles.ticketNum, { color: isDark ? '#708F96' : '#708F96' }]}>
             {ticket.ticketNumberDisplay}
           </Text>
           <StatusBadge status={ticket.status} />
         </View>
-        <Text style={[styles.ticketTitle, { color: isDark ? '#F8FAFC' : '#1A2332' }]}
-          numberOfLines={1}>
+        <Text style={[styles.ticketTitle, { color: isDark ? '#F8FAFC' : '#1A2332' }]} numberOfLines={1}>
           {ticket.title || ticket.description?.slice(0, 60) || 'Untitled'}
         </Text>
         <Text style={[styles.ticketMeta, { color: isDark ? '#708F96' : '#708F96' }]}>
@@ -77,33 +55,27 @@ function TicketRow({ ticket }: { ticket: SnagTicket }) {
   );
 }
 
-export default function RequestsReportScreen() {
-  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+export default function SnagReportDetailScreen() {
+  const { propertyId, importId } = useLocalSearchParams<{ propertyId: string; importId: string }>();
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
   const isDark = theme === 'dark';
 
-  const [monthIdx, setMonthIdx] = useState(0);
-  const [data, setData] = useState<RequestsReportResponse | null>(null);
+  const [data, setData] = useState<SnagReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const selectedMonth = MONTHS[monthIdx];
-
-  const load = useCallback(async (month: string) => {
-    const result = await getRequestsReport(propertyId, month);
-    setData(result as RequestsReportResponse);
+  const load = async () => {
+    const result = await getSnagReport(importId);
+    setData(result as SnagReportResponse);
     setLoading(false);
     setRefreshing(false);
-  }, [propertyId]);
+  };
 
-  useEffect(() => { load(selectedMonth); }, [selectedMonth, load]);
+  useEffect(() => { load(); }, [importId]);
 
-  const onRefresh = () => { setRefreshing(true); load(selectedMonth); };
-
-  const prevMonth = () => { if (monthIdx < MONTHS.length - 1) setMonthIdx(m => m + 1); };
-  const nextMonth = () => { if (monthIdx > 0) setMonthIdx(m => m - 1); };
+  const onRefresh = () => { setRefreshing(true); load(); };
 
   const bg = isDark ? '#151B2B' : '#F8FAFC';
   const cardBg = isDark ? '#1E2535' : '#FFFFFF';
@@ -127,22 +99,9 @@ export default function RequestsReportScreen() {
               onPress={() => router.back()}
             />
             <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>
-              Requests Report
+              Snag Report
             </Text>
           </View>
-        </View>
-
-        {/* Month Picker */}
-        <View style={[styles.monthPicker, { backgroundColor: cardBg }]}>
-          <TouchableOpacity onPress={prevMonth} disabled={monthIdx >= MONTHS.length - 1}>
-            <ChevronLeft size={20} color={monthIdx >= MONTHS.length - 1 ? '#CBD5E1' : '#708F96'} strokeWidth={2} />
-          </TouchableOpacity>
-          <Text style={[styles.monthLabel, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>
-            {MONTH_LABELS[selectedMonth] || selectedMonth}
-          </Text>
-          <TouchableOpacity onPress={nextMonth} disabled={monthIdx <= 0}>
-            <ChevronRight size={20} color={monthIdx <= 0 ? '#CBD5E1' : '#708F96'} strokeWidth={2} />
-          </TouchableOpacity>
         </View>
 
         {loading ? (
@@ -156,17 +115,23 @@ export default function RequestsReportScreen() {
           </View>
         ) : data ? (
           <>
-            {/* Property */}
-            <Text style={[styles.propertyName, { color: isDark ? '#708F96' : '#708F96' }]}>
-              {data.property?.name} · {data.property?.code}
-            </Text>
+            {/* Import info */}
+            <View style={styles.importBanner}>
+              <Text style={styles.importFilename}>{data.import.filename}</Text>
+              <Text style={styles.importMeta}>
+                {data.import.totalRows} rows imported · {data.import.validRows} valid ·{' '}
+                {data.import.completedAt
+                  ? `Completed ${new Date(data.import.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                  : 'Processing'}
+              </Text>
+            </View>
 
             {/* KPIs */}
             <View style={styles.kpiGrid}>
               <KPICard
-                label="Total"
+                label="Total Snags"
                 value={data.kpis.totalSnags}
-                sub="requests"
+                sub="imported"
                 color="#1A2332"
               />
               <KPICard
@@ -180,14 +145,8 @@ export default function RequestsReportScreen() {
               <KPICard
                 label="Open"
                 value={data.kpis.openSnags}
-                sub="in progress"
+                sub="pending"
                 color="#F97316"
-              />
-              <KPICard
-                label="Pending Validation"
-                value={data.kpis.pendingValidationCount}
-                sub="awaiting sign-off"
-                color="#A855F7"
               />
             </View>
 
@@ -199,7 +158,7 @@ export default function RequestsReportScreen() {
                 </Text>
                 <BarChart data={{
                   labels: data.charts.floor.labels,
-                  series: [{ label: 'Requests', data: data.charts.floor.data, color: '#708F96' }],
+                  series: [{ label: 'Snags', data: data.charts.floor.data, color: '#F97316' }],
                 }} />
               </View>
             )}
@@ -223,21 +182,16 @@ export default function RequestsReportScreen() {
             {/* Ticket List */}
             <View style={[styles.card, { backgroundColor: cardBg }]}>
               <Text style={[styles.cardTitle, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>
-                Tickets ({data.tickets.length})
+                Snags ({data.tickets.length})
               </Text>
               {data.tickets.length === 0 ? (
                 <Text style={[styles.emptyText, { color: isDark ? '#708F96' : '#708F96' }]}>
-                  No tickets found for this period.
+                  No snags in this import.
                 </Text>
               ) : (
-                data.tickets.slice(0, 30).map((ticket) => (
+                data.tickets.map((ticket) => (
                   <TicketRow key={ticket.id} ticket={ticket} />
                 ))
-              )}
-              {data.tickets.length > 30 && (
-                <Text style={[styles.moreText, { color: '#708F96' }]}>
-                  +{data.tickets.length - 30} more tickets — view full report on web
-                </Text>
               )}
             </View>
           </>
@@ -256,17 +210,9 @@ const styles = StyleSheet.create({
   header: { marginBottom: 16 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   title: { fontSize: 22, fontFamily: 'Poppins-Bold' },
-  monthPicker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  monthLabel: { fontFamily: 'Poppins-Bold', fontSize: 15 },
-  propertyName: { fontFamily: 'Urbanist-Regular', fontSize: 12, marginBottom: 16 },
+  importBanner: { backgroundColor: '#F9731618', borderRadius: 14, padding: 16, marginBottom: 12 },
+  importFilename: { fontFamily: 'Poppins-Bold', fontSize: 14, color: '#F97316', marginBottom: 4 },
+  importMeta: { fontFamily: 'Urbanist-Regular', fontSize: 12, color: '#708F96' },
   kpiGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   card: { borderRadius: 14, padding: 16, marginBottom: 12 },
   cardTitle: { fontFamily: 'Poppins-Bold', fontSize: 14, marginBottom: 12 },
@@ -284,6 +230,4 @@ const styles = StyleSheet.create({
   ticketMeta: { fontFamily: 'Urbanist-Regular', fontSize: 11 },
   badge: { borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   badgeText: { fontFamily: 'Urbanist-Bold', fontSize: 9, letterSpacing: 0.5 },
-  priorityDot: { width: 6, height: 6, borderRadius: 3 },
-  moreText: { fontFamily: 'Urbanist-Regular', fontSize: 12, textAlign: 'center', paddingTop: 8 },
 });

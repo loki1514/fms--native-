@@ -27,7 +27,7 @@ interface RequestsTabProps {
 const FILTERS = ['All', 'Open', 'In Progress', 'Resolved'];
 
 const FILTER_COLORS: Record<string, string> = {
-  All: '#667eea',
+  All: '#708F96',
   Open: '#3B82F6',
   'In Progress': '#F59E0B',
   Resolved: '#10B981',
@@ -62,7 +62,7 @@ export function RequestsTab({ tickets, onRefresh, refreshing, onTicketPress, onC
 
       {/* Filter chips */}
       <View style={styles.filterRow}>
-        {FILTERS.map((f, i) => {
+        {FILTERS.map((f) => {
           const active = activeFilter === f;
           const color = FILTER_COLORS[f];
           return (
@@ -71,12 +71,13 @@ export function RequestsTab({ tickets, onRefresh, refreshing, onTicketPress, onC
               onPress={() => setActiveFilter(f)}
               style={[
                 styles.chip,
-                active && { backgroundColor: color, borderColor: color },
+                active
+                  ? { backgroundColor: color + '33', borderColor: color + '66' }
+                  : { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)' },
               ]}
               activeOpacity={0.7}
             >
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{f}</Text>
-              {active && <View style={[styles.chipDot, { backgroundColor: 'rgba(255,255,255,0.5)' }]} />}
+              <Text style={[styles.chipText, active && { color }]}>{f}</Text>
             </TouchableOpacity>
           );
         })}
@@ -98,15 +99,15 @@ export function RequestsTab({ tickets, onRefresh, refreshing, onTicketPress, onC
             <RefreshControl
               refreshing={refreshing ?? false}
               onRefresh={onRefresh}
-              tintColor="#667eea"
-              colors={['#667eea']}
+              tintColor="#708F96"
+              colors={['#708F96']}
             />
           ) : undefined
         }
         ListEmptyComponent={
           <Animated.View entering={FadeInDown.delay(100)} style={styles.empty}>
             <View style={styles.emptyIconWrap}>
-              <Svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#667eea" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <Svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#708F96" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <Path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
                 <Path d="M13 5v14M13 12h.01" />
               </Svg>
@@ -127,7 +128,6 @@ export function RequestsTab({ tickets, onRefresh, refreshing, onTicketPress, onC
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f4f8',
   },
   header: {
     flexDirection: 'row',
@@ -140,33 +140,33 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
+    fontFamily: 'Poppins-SemiBold',
   },
   subtitle: {
     fontSize: 12,
-    color: '#888',
+    color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
     fontWeight: '500',
+    fontFamily: 'Urbanist-Regular',
   },
   createBtn: {
-    backgroundColor: '#667eea',
+    backgroundColor: 'rgba(112,143,150,0.85)',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 9,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   createBtnText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
+    fontFamily: 'Urbanist-SemiBold',
   },
   filterRow: {
     flexDirection: 'row',
@@ -178,9 +178,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.9)',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -192,8 +190,9 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 12,
-    color: '#666',
+    color: 'rgba(255,255,255,0.50)',
     fontWeight: '500',
+    fontFamily: 'Urbanist-SemiBold',
   },
   chipTextActive: {
     color: '#fff',
@@ -207,19 +206,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   empty: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 18,
     padding: 32,
     alignItems: 'center',
     marginTop: 20,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    backdropFilter: 'blur(12px)',
   },
   emptyIconWrap: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(102,126,234,0.1)',
+    backgroundColor: 'rgba(112,143,150,0.12)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -227,12 +227,14 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#FFFFFF',
     marginBottom: 4,
+    fontFamily: 'Poppins-SemiBold',
   },
   emptySubtext: {
     fontSize: 13,
-    color: '#888',
+    color: 'rgba(255,255,255,0.45)',
     textAlign: 'center',
+    fontFamily: 'Urbanist-Regular',
   },
 });

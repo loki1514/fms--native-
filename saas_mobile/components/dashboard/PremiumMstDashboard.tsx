@@ -45,7 +45,11 @@ import Svg, {
   Rect as SvgRect,
 } from 'react-native-svg';
 import { useAuth } from '@/hooks/useAuth';
+import { useWeather } from '@/hooks/useWeather';
+import { AuroraBackground } from '@/components/shared/AuroraBackground';
 import { createClient } from '@/utils/supabase/client';
+import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -290,9 +294,9 @@ function PremiumKPICard({
       <Animated.View style={[styles.kpiGlow, { backgroundColor: color }, glowStyle]} />
       
       {/* Card */}
-      <BlurView intensity={20} tint="light" style={styles.kpiBlurCard}>
+      <BlurView intensity={20} tint="dark" style={styles.kpiBlurCard}>
         <LinearGradient
-          colors={['#FFFFFF', '#FAFBFC']}
+          colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.05)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.kpiGradient}
@@ -329,6 +333,8 @@ function PremiumKPICard({
 
 // Animated Ticket Card with Skia effects
 function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress: () => void; index: number }) {
+  const { theme } = useTheme();
+  const colors = Colors[theme];
   const translateY = useSharedValue(50);
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.95);
@@ -350,13 +356,13 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
     switch (ticket.priority?.toLowerCase()) {
       case 'urgent':
       case 'critical':
-        return { bg: '#FEF2F2', text: '#DC2626', gradient: ['#DC2626', '#EF4444'] };
+        return { bg: 'rgba(239,68,68,0.15)', text: '#EF4444', gradient: ['#EF4444', '#F87171'] };
       case 'high':
-        return { bg: '#EFF6FF', text: '#2563EB', gradient: ['#2563EB', '#3B82F6'] };
+        return { bg: 'rgba(249,115,22,0.15)', text: '#F97316', gradient: ['#F97316', '#FB923C'] };
       case 'medium':
-        return { bg: '#FFFBEB', text: '#D97706', gradient: ['#D97706', '#F59E0B'] };
+        return { bg: 'rgba(212,160,23,0.15)', text: '#D4A017', gradient: ['#D4A017', '#F59E0B'] };
       default:
-        return { bg: '#F1F5F9', text: '#64748B', gradient: ['#64748B', '#94A3B8'] };
+        return { bg: 'rgba(100,116,139,0.15)', text: '#94A3B8', gradient: ['#94A3B8', '#CBD5E1'] };
     }
   };
 
@@ -379,9 +385,9 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
       <View style={styles.ticketCardShadow} />
       
       {/* Card Content */}
-      <BlurView intensity={40} tint="light" style={styles.ticketBlurCard}>
+      <BlurView intensity={40} tint="dark" style={styles.ticketBlurCard}>
         <LinearGradient
-          colors={['#FFFFFF', '#FAFBFC']}
+          colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.05)']}
           locations={[0, 1]}
           style={styles.ticketGradient}
         >
@@ -399,7 +405,7 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
               <Text style={styles.ticketTitle} numberOfLines={2}>{ticket.title}</Text>
               <View style={styles.ticketActions}>
                 <TouchableOpacity style={styles.iconButton}>
-                  <Ionicons name="create-outline" size={16} color="#64748B" />
+                  <Ionicons name="create-outline" size={16} color="rgba(255,255,255,0.45)" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -418,9 +424,9 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
                 {ticket.priority?.toUpperCase()}
               </Text>
             </View>
-            <View style={styles.statusBadge}>
-              <View style={styles.statusDot} />
-              <Text style={styles.statusBadgeText}>ASSIGNED</Text>
+            <View style={[styles.statusBadge, { backgroundColor: 'rgba(139,92,246,0.15)', borderColor: 'rgba(139,92,246,0.25)' }]}>
+              <View style={[styles.statusDot, { backgroundColor: '#8B5CF6' }]} />
+              <Text style={[styles.statusBadgeText, { color: '#8B5CF6' }]}>ASSIGNED</Text>
             </View>
           </View>
 
@@ -428,7 +434,7 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
           <View style={styles.assigneeRow}>
             <View style={styles.assigneeAvatar}>
               <LinearGradient
-                colors={['#708F96', '#8AA5AC']}
+                colors={[colors.primary, colors.primaryLight]}
                 style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -438,7 +444,7 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
               </Text>
             </View>
             <View style={styles.assigneeInfo}>
-              <Text style={styles.assigneeName}>{ticket.assignee?.full_name || 'Unassigned'}</Text>
+              <Text style={[styles.assigneeName, { color: '#FFFFFF' }]}>{ticket.assignee?.full_name || 'Unassigned'}</Text>
               <Text style={styles.assigneeEmail}>{ticket.assignee?.email || 'mst@ssplaza.com'}</Text>
             </View>
           </View>
@@ -447,7 +453,7 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
           {slaTime && (
             <View style={[styles.slaRow, isSlaWarning ? styles.slaWarning : undefined]}>
               <Ionicons name="time-outline" size={14} color={isSlaWarning ? '#EF4444' : '#64748B'} />
-              <Text style={[styles.slaText, isSlaWarning ? styles.slaWarningText : undefined]}>
+              <Text style={[styles.slaText, isSlaWarning ? styles.slaWarningText : undefined, { color: isSlaWarning ? '#EF4444' : 'rgba(255,255,255,0.55)' }]}>
                 {slaHours}h {slaMinutes}m remaining
               </Text>
             </View>
@@ -455,10 +461,10 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
 
           {/* Footer */}
           <View style={styles.ticketFooter}>
-            <Text style={styles.ticketNumber}>{ticket.ticket_number}</Text>
+            <Text style={[styles.ticketNumber, { color: 'rgba(255,255,255,0.40)' }]}>{ticket.ticket_number}</Text>
             <TouchableOpacity style={styles.viewButton} onPress={onPress}>
               <LinearGradient
-                colors={['#2563EB', '#1D4ED8']}
+                colors={[colors.primary, colors.primaryDark]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.viewButtonGradient}
@@ -476,6 +482,8 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
 
 // Premium Leaderboard Entry
 function PremiumLeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; index: number }) {
+  const { theme } = useTheme();
+  const colors = Colors[theme];
   const translateX = useSharedValue(-30);
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.9);
@@ -525,9 +533,9 @@ function PremiumLeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; in
 
   return (
     <Animated.View style={[styles.leaderboardEntryContainer, animatedStyle]}>
-      <BlurView intensity={30} tint="light" style={styles.leaderboardBlur}>
+      <BlurView intensity={30} tint="dark" style={styles.leaderboardBlur}>
         <LinearGradient
-          colors={['#FFFFFF', isTop3 ? '#FAFBFC' : '#FFFFFF']}
+          colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.05)']}
           style={styles.leaderboardGradient}
         >
           {/* Rank Badge */}
@@ -579,6 +587,8 @@ function PremiumLeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; in
 
 // Premium Countdown Timer
 function PremiumCountdown({ countdown }: { countdown: string }) {
+  const { theme } = useTheme();
+  const colors = Colors[theme];
   const pulse = useSharedValue(1);
 
   useEffect(() => {
@@ -598,9 +608,9 @@ function PremiumCountdown({ countdown }: { countdown: string }) {
 
   return (
     <Animated.View entering={FadeInUp.springify()} style={styles.countdownContainer}>
-      <BlurView intensity={60} tint="light" style={styles.countdownBlur}>
+      <BlurView intensity={60} tint="dark" style={styles.countdownBlur}>
         <LinearGradient
-          colors={['rgba(112, 143, 150, 0.1)', 'rgba(112, 143, 150, 0.05)']}
+          colors={['rgba(112, 143, 150, 0.15)', 'rgba(112, 143, 150, 0.05)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.countdownGradient}
@@ -612,7 +622,7 @@ function PremiumCountdown({ countdown }: { countdown: string }) {
           <View style={styles.countdownBar}>
             <Animated.View style={styles.countdownProgress}>
               <LinearGradient
-                colors={['#708F96', '#8AA5AC']}
+                colors={[colors.primary, colors.primaryLight]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
@@ -641,6 +651,8 @@ function PremiumSidebar({
 }) {
   const { user } = useAuth();
   const router = useRouter();
+  const { theme } = useTheme();
+  const colors = Colors[theme];
   const sidebarWidth = useSharedValue(isCollapsed ? 80 : 280);
 
   useEffect(() => {
@@ -686,7 +698,7 @@ function PremiumSidebar({
   return (
     <Animated.View style={[styles.sidebarContainer, animatedStyle]}>
       <LinearGradient
-        colors={['#FFFFFF', '#FAFBFC']}
+        colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.03)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
@@ -698,7 +710,7 @@ function PremiumSidebar({
           <Animated.View entering={FadeIn} style={styles.logoRow}>
             <View style={styles.logoIcon}>
               <LinearGradient
-                colors={['#708F96', '#5A737A']}
+                colors={[colors.primary, colors.primaryDark]}
                 style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
@@ -748,7 +760,7 @@ function PremiumSidebar({
                       end={{ x: 1, y: 0 }}
                     />
                   )}
-                  <Ionicons name={item.icon as any} size={20} color={isActive ? '#708F96' : '#64748B'} />
+                  <Ionicons name={item.icon as any} size={20} color={isActive ? colors.primary : 'rgba(255,255,255,0.40)'} />
                   {!isCollapsed && (
                     <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
                   )}
@@ -761,7 +773,7 @@ function PremiumSidebar({
 
       {/* Footer */}
       <View style={styles.sidebarFooter}>
-        <BlurView intensity={20} tint="light" style={styles.userCard}>
+        <BlurView intensity={20} tint="dark" style={styles.userCard}>
           <View style={[styles.userAvatar, isCollapsed && styles.userAvatarCollapsed]}>
             <LinearGradient
               colors={['#708F96', '#8AA5AC']}
@@ -791,13 +803,31 @@ function PremiumSidebar({
 
 export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   const { user } = useAuth();
+  const { weather } = useWeather();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const { width } = useWindowDimensions();
+  const { theme } = useTheme();
+  const colors = Colors[theme];
   const isMobile = width < 768;
 
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobile);
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const sidebarTranslateX = useSharedValue(isMobile ? -280 : 0);
+  const sidebarBackdropOpacity = useSharedValue(0);
+
+  // Sync translateX when sidebarVisible changes on mobile
+  useEffect(() => {
+    if (isMobile) {
+      sidebarTranslateX.value = withSpring(sidebarVisible ? 0 : -280, { damping: 20 });
+      sidebarBackdropOpacity.value = withSpring(sidebarVisible ? 1 : 0, { damping: 20 });
+    }
+  }, [sidebarVisible, isMobile]);
+
+  const toggleMobileSidebar = () => setSidebarVisible(prev => !prev);
+  const closeMobileSidebar = () => setSidebarVisible(false);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -979,12 +1009,12 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
       {/* Header */}
       <Animated.View entering={FadeInDown} style={styles.pageHeader}>
         <View>
-          <Text style={styles.pageTitle}>Maintenance Dashboard</Text>
+          <Text style={[styles.pageTitle, { color: '#FFFFFF' }]}>Maintenance Dashboard</Text>
           <Text style={styles.pageSubtitle}>{property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || 'MST Staff'}</Text>
         </View>
         <TouchableOpacity style={styles.customizeBtn}>
           <Ionicons name="options-outline" size={16} color="#64748B" />
-          <Text style={styles.customizeText}>Customize</Text>
+          <Text style={[styles.customizeText, { color: 'rgba(255,255,255,0.70)' }]}>Customize</Text>
         </TouchableOpacity>
       </Animated.View>
 
@@ -993,14 +1023,14 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
         <PremiumKPICard
           value={stats.total}
           label="TOTAL TICKETS"
-          color="#1A2332"
+          color={colors.primary}
           delay={0}
           icon="layers-outline"
         />
         <PremiumKPICard
           value={stats.active}
           label="ACTIVE"
-          color="#708F96"
+          color={colors.primary}
           delay={100}
           icon="flash-outline"
         />
@@ -1017,13 +1047,13 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
       <View style={styles.section}>
         <Animated.View entering={FadeInDown.delay(300)} style={styles.sectionHeader}>
           <View>
-            <Text style={styles.sectionTitle}>Property Requests</Text>
+            <Text style={[styles.sectionTitle, { color: '#FFFFFF' }]}>Property Requests</Text>
             <Text style={styles.sectionSubtitle}>All requests for this property</Text>
           </View>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(350)} style={styles.searchContainer}>
-          <BlurView intensity={30} tint="light" style={styles.searchBlur}>
+          <BlurView intensity={30} tint="dark" style={styles.searchBlur}>
             <Ionicons name="search" size={20} color="#94A3B8" />
             <TextInput
               style={styles.searchInput}
@@ -1061,7 +1091,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
     >
       <Animated.View entering={FadeInDown} style={styles.pageHeader}>
         <View>
-          <Text style={styles.pageTitle}>Property Requests</Text>
+          <Text style={[styles.pageTitle, { color: '#FFFFFF' }]}>Property Requests</Text>
           <Text style={styles.pageSubtitle}>
             {filteredTickets.length} request{filteredTickets.length !== 1 ? 's' : ''} for {property?.name || 'Property'}
           </Text>
@@ -1070,7 +1100,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Search */}
       <Animated.View entering={FadeInDown.delay(100)} style={styles.searchContainer}>
-        <BlurView intensity={30} tint="light" style={styles.searchBlur}>
+        <BlurView intensity={30} tint="dark" style={styles.searchBlur}>
           <Ionicons name="search" size={20} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
@@ -1127,7 +1157,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
     >
       <Animated.View entering={FadeInDown} style={styles.pageHeader}>
         <View>
-          <Text style={styles.pageTitle}>Daily Top MSTs</Text>
+          <Text style={[styles.pageTitle, { color: '#FFFFFF' }]}>Daily Top MSTs</Text>
           <Text style={styles.pageSubtitle}>Resets at Midnight: 12:00 AM local time</Text>
         </View>
       </Animated.View>
@@ -1152,13 +1182,13 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
     >
       <Animated.View entering={FadeInDown} style={styles.pageHeader}>
         <View>
-          <Text style={styles.pageTitle}>Live Flow Map</Text>
+          <Text style={[styles.pageTitle, { color: '#FFFFFF' }]}>Live Flow Map</Text>
           <Text style={styles.pageSubtitle}>Weekly Champion & Property Flow</Text>
         </View>
       </Animated.View>
 
       <Animated.View entering={ZoomIn.delay(200)} style={styles.championCard}>
-        <BlurView intensity={40} tint="light" style={styles.championBlur}>
+        <BlurView intensity={40} tint="dark" style={styles.championBlur}>
           <LinearGradient
             colors={['rgba(255, 215, 0, 0.1)', 'rgba(255, 215, 0, 0.02)']}
             start={{ x: 0, y: 0 }}
@@ -1182,8 +1212,8 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
                 </Text>
               </View>
               <View>
-                <Text style={styles.championName}>{leaderboard[0]?.name || 'No champion yet'}</Text>
-                <Text style={styles.championScore}>
+                <Text style={[styles.championName, { color: '#FFFFFF' }]}>{leaderboard[0]?.name || 'No champion yet'}</Text>
+                <Text style={[styles.championScore, { color: '#FFD700' }]}>
                   {leaderboard[0]?.score > 0 ? `${leaderboard[0].score.toLocaleString()} pts` : '—'}
                 </Text>
               </View>
@@ -1215,21 +1245,21 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
     >
       <Animated.View entering={FadeInDown} style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>My Profile</Text>
+        <Text style={[styles.pageTitle, { color: '#FFFFFF' }]}>My Profile</Text>
         <Text style={styles.pageSubtitle}>{property?.name || 'Property'}</Text>
       </Animated.View>
 
       {/* Profile Card */}
       <Animated.View entering={FadeInDown.delay(100)}>
-        <BlurView intensity={30} tint="light" style={styles.profileCardBlur}>
+        <BlurView intensity={30} tint="dark" style={styles.profileCardBlur}>
           <LinearGradient
-            colors={['#FFFFFF', '#FAFBFC']}
+            colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.05)']}
             style={styles.profileCardGradient}
           >
             <View style={styles.profileHeader}>
               <View style={styles.profileAvatar}>
                 <LinearGradient
-                  colors={['#708F96', '#8AA5AC']}
+                  colors={[colors.primary, colors.primaryLight]}
                   style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -1238,8 +1268,8 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
                   {user?.user_metadata?.full_name?.[0]?.toUpperCase() || 'U'}
                 </Text>
               </View>
-              <View style={styles.profileBadge}>
-                <Text style={styles.profileBadgeText}>MST Staff</Text>
+              <View style={[styles.profileBadge, { backgroundColor: 'rgba(112,143,150,0.20)', borderColor: 'rgba(112,143,150,0.30)' }]}>
+                <Text style={[styles.profileBadgeText, { color: colors.primary }]}>MST Staff</Text>
               </View>
             </View>
 
@@ -1267,12 +1297,12 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Personal Stats */}
       <Animated.View entering={FadeInDown.delay(200)}>
-        <Text style={[styles.sectionTitle, { marginTop: 8, marginBottom: 12 }]}>My Performance</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 8, marginBottom: 12, color: '#FFFFFF' }]}>My Performance</Text>
         <View style={styles.kpiContainer}>
           <PremiumKPICard
             value={stats.myActive}
             label="MY ACTIVE"
-            color="#708F96"
+            color={colors.primary}
             delay={0}
             icon="construct-outline"
           />
@@ -1292,8 +1322,51 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
+      {weather && <AuroraBackground colors={weather.auroraColors} />}
       <View style={styles.mainContainer}>
+        {/* Mobile Sidebar Overlay */}
+        {isMobile && (
+          <>
+            {/* Backdrop */}
+            <Animated.View
+              style={[
+                styles.sidebarBackdrop,
+                {
+                  opacity: sidebarBackdropOpacity,
+                  pointerEvents: sidebarVisible ? 'auto' : 'none',
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={closeMobileSidebar}
+              />
+            </Animated.View>
+
+            {/* Sidebar Drawer */}
+            <Animated.View
+              style={[
+                styles.mobileSidebarOverlay,
+                { transform: [{ translateX: sidebarTranslateX }] },
+              ]}
+            >
+              <PremiumSidebar
+                isCollapsed={false}
+                onToggle={closeMobileSidebar}
+                activeTab={activeTab}
+                onTabChange={(tab) => {
+                  setActiveTab(tab);
+                  closeMobileSidebar();
+                }}
+                propertyId={propertyId}
+              />
+            </Animated.View>
+          </>
+        )}
+
+        {/* Desktop Sidebar */}
         {!isMobile && (
           <PremiumSidebar
             isCollapsed={sidebarCollapsed}
@@ -1306,28 +1379,28 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
         <View style={styles.contentArea}>
           {/* Top Bar */}
-          <BlurView intensity={60} tint="light" style={styles.topBar}>
+          <BlurView intensity={60} tint="dark" style={styles.topBar}>
             <LinearGradient
-              colors={['rgba(255,255,255,0.9)', 'rgba(250,251,252,0.9)']}
+              colors={['rgba(10,15,25,0.80)', 'rgba(10,15,25,0.70)']}
               style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
             />
             <View style={styles.topBarLeft}>
               {isMobile && (
-                <TouchableOpacity style={styles.menuButton}>
-                  <Ionicons name="menu" size={22} color="#475569" />
+                <TouchableOpacity style={styles.menuButton} onPress={toggleMobileSidebar}>
+                  <Ionicons name={sidebarVisible ? 'close' : 'menu'} size={22} color="rgba(255,255,255,0.70)" />
                 </TouchableOpacity>
               )}
             </View>
             <View style={styles.topBarRight}>
               <TouchableOpacity style={styles.topBarButton}>
-                <Ionicons name="notifications-outline" size={20} color="#64748B" />
+                <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.60)" />
                 <View style={styles.notificationDot} />
               </TouchableOpacity>
-              <View style={styles.onDutyBadge}>
+              <View style={[styles.onDutyBadge, { backgroundColor: 'rgba(34,197,94,0.15)', borderColor: 'rgba(34,197,94,0.25)' }]}>
                 <View style={styles.onDutyDot} />
                 <Text style={styles.onDutyText}>ON DUTY</Text>
               </View>
-              <Text style={styles.userName}>{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST Staff'}</Text>
+              <Text style={[styles.userName, { color: 'rgba(255,255,255,0.85)' }]}>{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST Staff'}</Text>
             </View>
           </BlurView>
 
@@ -1347,7 +1420,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFBFC',
+    backgroundColor: '#060912',
   },
   mainContainer: {
     flex: 1,
@@ -1357,25 +1430,26 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#060912',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
   },
 
   // Sidebar
   sidebarContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRightWidth: 1,
-    borderRightColor: '#E2E8F0',
+    borderRightColor: 'rgba(255,255,255,0.08)',
     flexDirection: 'column',
     overflow: 'hidden',
   },
   sidebarHeader: {
     padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1401,12 +1475,12 @@ const styles = StyleSheet.create({
   logoText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
     letterSpacing: 1,
   },
   logoSubtext: {
     fontSize: 10,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
     letterSpacing: 1,
     marginTop: 2,
   },
@@ -1414,7 +1488,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1429,7 +1503,7 @@ const styles = StyleSheet.create({
   navSectionTitle: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.30)',
     letterSpacing: 1,
     marginBottom: 8,
     paddingLeft: 12,
@@ -1454,7 +1528,7 @@ const styles = StyleSheet.create({
   navLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
   },
   navLabelActive: {
     color: '#708F96',
@@ -1463,7 +1537,7 @@ const styles = StyleSheet.create({
   sidebarFooter: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   userCard: {
     flexDirection: 'row',
@@ -1497,17 +1571,32 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1A2332',
+    color: 'rgba(255,255,255,0.85)',
   },
   userRole: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
   },
 
   // Content Area
   contentArea: {
     flex: 1,
     flexDirection: 'column',
+  },
+
+  // Mobile Sidebar Overlay
+  mobileSidebarOverlay: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 280,
+    zIndex: 10,
+  },
+  sidebarBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 5,
   },
   topBar: {
     flexDirection: 'row',
@@ -1516,7 +1605,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
   },
   topBarLeft: {
@@ -1532,17 +1621,17 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   topBarButton: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -1556,7 +1645,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#EF4444',
     borderWidth: 2,
-    borderColor: '#F8FAFC',
+    borderColor: 'rgba(10,15,25,0.80)',
   },
   onDutyBadge: {
     flexDirection: 'row',
@@ -1564,10 +1653,10 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: 'rgba(34,197,94,0.15)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: 'rgba(34,197,94,0.25)',
   },
   onDutyDot: {
     width: 8,
@@ -1578,7 +1667,7 @@ const styles = StyleSheet.create({
   onDutyText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#16A34A',
+    color: '#22C55E',
   },
   contentScroll: {
     flex: 1,
@@ -1595,12 +1684,13 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
     marginBottom: 4,
+    fontFamily: 'Poppins-SemiBold',
   },
   pageSubtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
   },
   customizeBtn: {
     flexDirection: 'row',
@@ -1608,15 +1698,15 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   customizeText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.70)',
   },
 
   // KPI Cards
@@ -1643,6 +1733,8 @@ const styles = StyleSheet.create({
   kpiBlurCard: {
     borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   kpiGradient: {
     padding: 24,
@@ -1671,10 +1763,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   trendUp: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: 'rgba(16,185,129,0.15)',
   },
   trendDown: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(239,68,68,0.15)',
   },
   trendText: {
     fontSize: 12,
@@ -1683,12 +1775,14 @@ const styles = StyleSheet.create({
   kpiValue: {
     fontSize: 36,
     fontWeight: '800',
+    fontFamily: 'Poppins-Bold',
   },
   kpiLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1,
+    fontFamily: 'Urbanist-SemiBold',
   },
   sparklineContainer: {
     marginTop: 8,
@@ -1704,12 +1798,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
     marginBottom: 4,
+    fontFamily: 'Poppins-SemiBold',
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.55)',
   },
 
   // Search
@@ -1723,14 +1818,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
     overflow: 'hidden',
   },
   searchInput: {
     flex: 1,
     marginLeft: 12,
     fontSize: 15,
-    color: '#1A2332',
+    color: '#FFFFFF',
   },
 
   // Filter Chips
@@ -1743,9 +1838,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   filterChipActive: {
     backgroundColor: '#708F96',
@@ -1754,7 +1849,7 @@ const styles = StyleSheet.create({
   filterChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
   },
   filterChipTextActive: {
     color: '#FFFFFF',
@@ -1768,7 +1863,7 @@ const styles = StyleSheet.create({
   emptyStateText: {
     marginTop: 12,
     fontSize: 15,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.45)',
     fontWeight: '500',
   },
 
@@ -1798,6 +1893,8 @@ const styles = StyleSheet.create({
   ticketBlurCard: {
     borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   ticketGradient: {
     padding: 20,
@@ -1821,10 +1918,11 @@ const styles = StyleSheet.create({
   ticketTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
     flex: 1,
     lineHeight: 24,
     marginRight: 8,
+    fontFamily: 'Poppins-SemiBold',
   },
   ticketActions: {
     flexDirection: 'row',
@@ -1834,7 +1932,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1858,19 +1956,16 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    backgroundColor: '#F0FDF4',
     borderRadius: 8,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#22C55E',
   },
   statusBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#16A34A',
   },
   assigneeRow: {
     flexDirection: 'row',
@@ -1897,11 +1992,11 @@ const styles = StyleSheet.create({
   assigneeName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1A2332',
+    fontFamily: 'Urbanist-SemiBold',
   },
   assigneeEmail: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
   },
   slaRow: {
     flexDirection: 'row',
@@ -1909,7 +2004,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
@@ -1919,7 +2014,6 @@ const styles = StyleSheet.create({
   slaText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#64748B',
   },
   slaWarningText: {
     color: '#EF4444',
@@ -1931,12 +2025,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   ticketNumber: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94A3B8',
   },
   viewButton: {
     borderRadius: 8,
@@ -1962,6 +2055,8 @@ const styles = StyleSheet.create({
   countdownBlur: {
     borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   countdownGradient: {
     padding: 28,
@@ -1970,21 +2065,23 @@ const styles = StyleSheet.create({
   countdownLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#708F96',
+    color: 'rgba(255,255,255,0.55)',
     letterSpacing: 2,
     marginBottom: 12,
+    fontFamily: 'Urbanist-SemiBold',
   },
   countdownValue: {
     fontSize: 48,
     fontWeight: '800',
-    color: '#1A2332',
+    color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
     marginBottom: 16,
+    fontFamily: 'Poppins-Bold',
   },
   countdownBar: {
     width: '80%',
     height: 6,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -2004,6 +2101,8 @@ const styles = StyleSheet.create({
   leaderboardBlur: {
     borderRadius: 16,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   leaderboardGradient: {
     flexDirection: 'row',
@@ -2053,11 +2152,12 @@ const styles = StyleSheet.create({
   leaderboardName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-SemiBold',
   },
   leaderboardProperty: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
   },
   scoreContainer: {
     position: 'relative',
@@ -2070,7 +2170,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     fontSize: 12,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
   },
 
   // Champion
@@ -2080,6 +2180,8 @@ const styles = StyleSheet.create({
   championBlur: {
     borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,215,0,0.20)',
   },
   championGradient: {
     padding: 24,
@@ -2096,7 +2198,7 @@ const styles = StyleSheet.create({
   championLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.55)',
     letterSpacing: 2,
   },
   championContent: {
@@ -2120,12 +2222,10 @@ const styles = StyleSheet.create({
   championName: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1A2332',
   },
   championScore: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#FFD700',
     marginTop: 4,
   },
 
@@ -2134,6 +2234,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   profileCardGradient: {
     padding: 24,
@@ -2157,19 +2259,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   profileBadge: {
-    backgroundColor: '#F0F9FF',
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
   },
   profileBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0284C7',
     textTransform: 'uppercase',
     letterSpacing: 1,
+    fontFamily: 'Urbanist-SemiBold',
   },
   profileInfo: {
     gap: 16,
@@ -2177,18 +2277,20 @@ const styles = StyleSheet.create({
   profileRow: {
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   profileLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
     letterSpacing: 1,
     marginBottom: 4,
+    fontFamily: 'Urbanist-SemiBold',
   },
   profileValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-SemiBold',
   },
 });

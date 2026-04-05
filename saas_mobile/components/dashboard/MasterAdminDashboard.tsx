@@ -19,6 +19,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '../../utils/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
+import { AuroraBackground } from '../shared/AuroraBackground';
+import { useWeather } from '@/hooks/useWeather';
 import SignOutModal from '../ui/SignOutModal';
 import Skeleton from '../ui/Skeleton';
 
@@ -54,6 +56,7 @@ interface DashboardStats {
 export default function MasterAdminDashboard() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const { weather } = useWeather();
 
   // State
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -82,7 +85,7 @@ export default function MasterAdminDashboard() {
 
   const checkMasterAdmin = async () => {
     if (!user) return;
-    
+
     const { data: userProfile } = await (supabase
       .from('users')
       .select('is_master_admin')
@@ -149,7 +152,7 @@ export default function MasterAdminDashboard() {
 
   const handleCreateOrg = async () => {
     if (!newOrgName.trim() || !newOrgCode.trim()) return;
-    
+
     setIsCreatingOrg(true);
     try {
       const { error } = await (supabase
@@ -161,7 +164,7 @@ export default function MasterAdminDashboard() {
         }] as any));
 
       if (error) throw error;
-      
+
       setShowCreateOrgModal(false);
       setNewOrgName('');
       setNewOrgCode('');
@@ -227,9 +230,9 @@ export default function MasterAdminDashboard() {
   }, [users, searchQuery]);
 
   const renderOverviewTab = () => (
-    <ScrollView 
+    <ScrollView
       style={styles.tabContent}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#708F96" />}
     >
       {/* Header */}
       <View style={styles.header}>
@@ -240,23 +243,23 @@ export default function MasterAdminDashboard() {
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <View style={[styles.statCard, styles.statCardBlue]}>
-          <Ionicons name="business" size={24} color="#3B82F6" />
-          <Text style={styles.statNumber}>{stats.entities}</Text>
+          <Ionicons name="business" size={24} color="#708F96" />
+          <Text style={[styles.statNumber, { color: '#FFFFFF' }]}>{stats.entities}</Text>
           <Text style={styles.statLabel}>Organizations</Text>
         </View>
         <View style={[styles.statCard, styles.statCardGreen]}>
-          <Ionicons name="pulse" size={24} color="#10B981" />
-          <Text style={styles.statNumber}>{stats.activeSessions}</Text>
+          <Ionicons name="pulse" size={24} color="#708F96" />
+          <Text style={[styles.statNumber, { color: '#FFFFFF' }]}>{stats.activeSessions}</Text>
           <Text style={styles.statLabel}>Active Sessions</Text>
         </View>
         <View style={[styles.statCard, styles.statCardPurple]}>
-          <Ionicons name="shield-checkmark" size={24} color="#8B5CF6" />
-          <Text style={styles.statNumber}>{stats.securityAlerts}</Text>
+          <Ionicons name="shield-checkmark" size={24} color="#708F96" />
+          <Text style={[styles.statNumber, { color: '#FFFFFF' }]}>{stats.securityAlerts}</Text>
           <Text style={styles.statLabel}>Security Alerts</Text>
         </View>
         <View style={[styles.statCard, styles.statCardRed]}>
-          <Ionicons name="trash" size={24} color="#EF4444" />
-          <Text style={styles.statNumber}>{stats.pendingDeletions}</Text>
+          <Ionicons name="trash" size={24} color="#708F96" />
+          <Text style={[styles.statNumber, { color: '#FFFFFF' }]}>{stats.pendingDeletions}</Text>
           <Text style={styles.statLabel}>Pending Deletions</Text>
         </View>
       </View>
@@ -265,32 +268,32 @@ export default function MasterAdminDashboard() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.quickActions}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.quickActionBtn}
             onPress={() => setShowCreateOrgModal(true)}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="add-circle" size={24} color="#3B82F6" />
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.25)' }]}>
+              <Ionicons name="add-circle" size={24} color="#708F96" />
             </View>
             <Text style={styles.quickActionText}>New Organization</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.quickActionBtn}
             onPress={() => setActiveTab('users')}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: '#F0FDF4' }]}>
-              <Ionicons name="person-add" size={24} color="#10B981" />
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(76,175,80,0.15)', borderColor: 'rgba(76,175,80,0.25)' }]}>
+              <Ionicons name="person-add" size={24} color="#708F96" />
             </View>
             <Text style={styles.quickActionText}>Add User</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.quickActionBtn}
             onPress={() => setActiveTab('tickets')}
           >
-            <View style={[styles.quickActionIcon, { backgroundColor: '#FDF4FF' }]}>
-              <Ionicons name="ticket" size={24} color="#A855F7" />
+            <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(139,92,246,0.15)', borderColor: 'rgba(139,92,246,0.25)' }]}>
+              <Ionicons name="ticket" size={24} color="#708F96" />
             </View>
             <Text style={styles.quickActionText}>View Tickets</Text>
           </TouchableOpacity>
@@ -305,10 +308,10 @@ export default function MasterAdminDashboard() {
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
         </View>
-        
+
         {organizations.slice(0, 3).map((org) => (
           <View key={org.id} style={[styles.orgCard, org.is_deleted && styles.orgCardDeleted]}>
-            <View style={styles.orgIcon}>
+            <View style={[styles.orgIcon, { backgroundColor: 'rgba(112,143,150,0.25)' }]}>
               <Text style={styles.orgIconText}>{org.name.substring(0, 2).toUpperCase()}</Text>
             </View>
             <View style={styles.orgInfo}>
@@ -330,10 +333,10 @@ export default function MasterAdminDashboard() {
             </View>
           </View>
         ))}
-        
+
         {organizations.length === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons name="business-outline" size={48} color="#CBD5E1" />
+            <Ionicons name="business-outline" size={48} color="rgba(255,255,255,0.40)" />
             <Text style={styles.emptyStateText}>No organizations yet</Text>
           </View>
         )}
@@ -342,33 +345,33 @@ export default function MasterAdminDashboard() {
   );
 
   const renderOrganizationsTab = () => (
-    <ScrollView 
+    <ScrollView
       style={styles.tabContent}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#708F96" />}
     >
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#94A3B8" />
+        <Ionicons name="search" size={20} color="rgba(255,255,255,0.40)" />
         <TextInput
           style={styles.searchInput}
           placeholder="Search organizations..."
+          placeholderTextColor="rgba(255,255,255,0.40)"
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholderTextColor="#94A3B8"
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color="#94A3B8" />
+            <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.40)" />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Create Button */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.createButton}
         onPress={() => setShowCreateOrgModal(true)}
       >
-        <Ionicons name="add" size={20} color="#FFF" />
+        <Ionicons name="add" size={20} color="#FFFFFF" />
         <Text style={styles.createButtonText}>Create Organization</Text>
       </TouchableOpacity>
 
@@ -376,7 +379,7 @@ export default function MasterAdminDashboard() {
       <View style={styles.listContainer}>
         {filteredOrganizations.map((org) => (
           <View key={org.id} style={[styles.orgCard, org.is_deleted && styles.orgCardDeleted]}>
-            <View style={styles.orgIcon}>
+            <View style={[styles.orgIcon, { backgroundColor: 'rgba(112,143,150,0.25)' }]}>
               <Text style={styles.orgIconText}>{org.name.substring(0, 2).toUpperCase()}</Text>
             </View>
             <View style={styles.orgInfo}>
@@ -390,14 +393,14 @@ export default function MasterAdminDashboard() {
             </View>
             <View style={styles.orgActions}>
               {org.is_deleted ? (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.restoreButton}
                   onPress={() => handleRestoreOrg(org.id)}
                 >
-                  <Ionicons name="refresh" size={18} color="#3B82F6" />
+                  <Ionicons name="refresh" size={18} color="#708F96" />
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.deleteButton}
                   onPress={() => handleSoftDeleteOrg(org.id)}
                 >
@@ -407,10 +410,10 @@ export default function MasterAdminDashboard() {
             </View>
           </View>
         ))}
-        
+
         {filteredOrganizations.length === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons name="search-outline" size={48} color="#CBD5E1" />
+            <Ionicons name="search-outline" size={48} color="rgba(255,255,255,0.40)" />
             <Text style={styles.emptyStateText}>No organizations found</Text>
           </View>
         )}
@@ -419,23 +422,23 @@ export default function MasterAdminDashboard() {
   );
 
   const renderUsersTab = () => (
-    <ScrollView 
+    <ScrollView
       style={styles.tabContent}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#708F96" />}
     >
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#94A3B8" />
+        <Ionicons name="search" size={20} color="rgba(255,255,255,0.40)" />
         <TextInput
           style={styles.searchInput}
           placeholder="Search users..."
+          placeholderTextColor="rgba(255,255,255,0.40)"
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholderTextColor="#94A3B8"
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color="#94A3B8" />
+            <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.40)" />
           </TouchableOpacity>
         )}
       </View>
@@ -460,10 +463,10 @@ export default function MasterAdminDashboard() {
             </View>
           </View>
         ))}
-        
+
         {filteredUsers.length === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={48} color="#CBD5E1" />
+            <Ionicons name="people-outline" size={48} color="rgba(255,255,255,0.40)" />
             <Text style={styles.emptyStateText}>No users found</Text>
           </View>
         )}
@@ -474,7 +477,7 @@ export default function MasterAdminDashboard() {
   const renderTicketsTab = () => (
     <ScrollView style={styles.tabContent}>
       <View style={styles.comingSoon}>
-        <Ionicons name="ticket-outline" size={64} color="#CBD5E1" />
+        <Ionicons name="ticket-outline" size={64} color="rgba(255,255,255,0.40)" />
         <Text style={styles.comingSoonTitle}>Support Tickets</Text>
         <Text style={styles.comingSoonText}>
           View and manage all support tickets across the platform.
@@ -487,13 +490,13 @@ export default function MasterAdminDashboard() {
     <ScrollView style={styles.tabContent}>
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
-          <View style={[styles.profileAvatar, { backgroundColor: '#7C3AED' }]}>
+          <View style={[styles.profileAvatar, { backgroundColor: 'rgba(112,143,150,0.25)' }]}>
             <Text style={styles.profileAvatarText}>
               {user?.email?.[0].toUpperCase() || 'M'}
             </Text>
           </View>
-          <View style={[styles.profileBadge, { backgroundColor: '#7C3AED' }]}>
-            <Text style={[styles.profileBadgeText, { color: '#FFF' }]}>Master Admin</Text>
+          <View style={styles.profileBadge}>
+            <Text style={[styles.profileBadgeText, { color: '#708F96' }]}>Master Admin</Text>
           </View>
         </View>
 
@@ -513,7 +516,7 @@ export default function MasterAdminDashboard() {
         </View>
       </View>
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.signOutButton}
         onPress={() => setShowSignOutModal(true)}
       >
@@ -526,9 +529,9 @@ export default function MasterAdminDashboard() {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle="light-content" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color="#708F96" />
           <Text style={styles.loadingText}>Loading master dashboard...</Text>
         </View>
       </SafeAreaView>
@@ -537,8 +540,9 @@ export default function MasterAdminDashboard() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      
+      <StatusBar barStyle="light-content" />
+      {weather && <AuroraBackground colors={weather.auroraColors} />}
+
       {/* Top Navigation */}
       <View style={styles.topNav}>
         <View>
@@ -546,7 +550,7 @@ export default function MasterAdminDashboard() {
           <Text style={styles.topNavSubtitle}>System Administration</Text>
         </View>
         <TouchableOpacity onPress={() => setShowSignOutModal(true)}>
-          <Ionicons name="log-out-outline" size={24} color="#64748B" />
+          <Ionicons name="log-out-outline" size={24} color="rgba(255,255,255,0.40)" />
         </TouchableOpacity>
       </View>
 
@@ -559,50 +563,50 @@ export default function MasterAdminDashboard() {
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItem} 
+        <TouchableOpacity
+          style={styles.navItem}
           onPress={() => setActiveTab('overview')}
         >
-          <Ionicons 
-            name={activeTab === 'overview' ? 'grid' : 'grid-outline'} 
-            size={24} 
-            color={activeTab === 'overview' ? '#3B82F6' : '#94A3B8'} 
+          <Ionicons
+            name={activeTab === 'overview' ? 'grid' : 'grid-outline'}
+            size={24}
+            color={activeTab === 'overview' ? '#708F96' : 'rgba(255,255,255,0.40)'}
           />
           <Text style={[styles.navText, activeTab === 'overview' && styles.navTextActive]}>Overview</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.navItem} 
+
+        <TouchableOpacity
+          style={styles.navItem}
           onPress={() => setActiveTab('organizations')}
         >
-          <Ionicons 
-            name={activeTab === 'organizations' ? 'business' : 'business-outline'} 
-            size={24} 
-            color={activeTab === 'organizations' ? '#3B82F6' : '#94A3B8'} 
+          <Ionicons
+            name={activeTab === 'organizations' ? 'business' : 'business-outline'}
+            size={24}
+            color={activeTab === 'organizations' ? '#708F96' : 'rgba(255,255,255,0.40)'}
           />
           <Text style={[styles.navText, activeTab === 'organizations' && styles.navTextActive]}>Orgs</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.navItem} 
+        <TouchableOpacity
+          style={styles.navItem}
           onPress={() => setActiveTab('users')}
         >
-          <Ionicons 
-            name={activeTab === 'users' ? 'people' : 'people-outline'} 
-            size={24} 
-            color={activeTab === 'users' ? '#3B82F6' : '#94A3B8'} 
+          <Ionicons
+            name={activeTab === 'users' ? 'people' : 'people-outline'}
+            size={24}
+            color={activeTab === 'users' ? '#708F96' : 'rgba(255,255,255,0.40)'}
           />
           <Text style={[styles.navText, activeTab === 'users' && styles.navTextActive]}>Users</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.navItem} 
+        <TouchableOpacity
+          style={styles.navItem}
           onPress={() => setActiveTab('profile')}
         >
-          <Ionicons 
-            name={activeTab === 'profile' ? 'person' : 'person-outline'} 
-            size={24} 
-            color={activeTab === 'profile' ? '#3B82F6' : '#94A3B8'} 
+          <Ionicons
+            name={activeTab === 'profile' ? 'person' : 'person-outline'}
+            size={24}
+            color={activeTab === 'profile' ? '#708F96' : 'rgba(255,255,255,0.40)'}
           />
           <Text style={[styles.navText, activeTab === 'profile' && styles.navTextActive]}>Profile</Text>
         </TouchableOpacity>
@@ -627,16 +631,17 @@ export default function MasterAdminDashboard() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Create Organization</Text>
               <TouchableOpacity onPress={() => setShowCreateOrgModal(false)}>
-                <Ionicons name="close" size={24} color="#64748B" />
+                <Ionicons name="close" size={24} color="rgba(255,255,255,0.40)" />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.inputLabel}>Organization Name</Text>
             <TextInput
               style={styles.input}
               value={newOrgName}
               onChangeText={setNewOrgName}
               placeholder="e.g., Acme Corporation"
+              placeholderTextColor="rgba(255,255,255,0.40)"
             />
 
             <Text style={styles.inputLabel}>Organization Code</Text>
@@ -645,23 +650,24 @@ export default function MasterAdminDashboard() {
               value={newOrgCode}
               onChangeText={setNewOrgCode}
               placeholder="e.g., acme-corp"
+              placeholderTextColor="rgba(255,255,255,0.40)"
               autoCapitalize="none"
             />
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setShowCreateOrgModal(false)}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.saveButton, (!newOrgName.trim() || !newOrgCode.trim()) && styles.saveButtonDisabled]}
                 onPress={handleCreateOrg}
                 disabled={!newOrgName.trim() || !newOrgCode.trim() || isCreatingOrg}
               >
                 {isCreatingOrg ? (
-                  <ActivityIndicator size="small" color="#FFF" />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.saveButtonText}>Create</Text>
                 )}
@@ -677,7 +683,7 @@ export default function MasterAdminDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#060912',
   },
   loadingContainer: {
     flex: 1,
@@ -687,7 +693,8 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: 'Urbanist-Regular',
   },
   topNav: {
     flexDirection: 'row',
@@ -695,37 +702,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: 'rgba(255,255,255,0.12)',
   },
   topNavTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
   },
   topNavSubtitle: {
     fontSize: 13,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 2,
+    fontFamily: 'Urbanist-Regular',
   },
   tabContent: {
     flex: 1,
   },
   header: {
     padding: 20,
-    backgroundColor: '#FFF',
-    marginBottom: 12,
+    backgroundColor: 'transparent',
+    marginBottom: 4,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 4,
+    fontFamily: 'Urbanist-Regular',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -736,39 +747,45 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: '47%',
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   statCardBlue: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderColor: 'rgba(59,130,246,0.25)',
   },
   statCardGreen: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
+    backgroundColor: 'rgba(76,175,80,0.12)',
+    borderColor: 'rgba(76,175,80,0.25)',
   },
   statCardPurple: {
-    backgroundColor: '#F5F3FF',
-    borderColor: '#DDD6FE',
+    backgroundColor: 'rgba(139,92,246,0.12)',
+    borderColor: 'rgba(139,92,246,0.25)',
   },
   statCardRed: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderColor: 'rgba(239,68,68,0.25)',
   },
   statNumber: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#1A2332',
     marginTop: 8,
+    fontFamily: 'Poppins-Bold',
   },
   statLabel: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 4,
+    fontFamily: 'Urbanist-SemiBold',
   },
   section: {
     padding: 20,
@@ -782,12 +799,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
   },
   seeAllText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#3B82F6',
+    color: '#708F96',
+    fontFamily: 'Urbanist-SemiBold',
   },
   quickActions: {
     flexDirection: 'row',
@@ -795,12 +814,17 @@ const styles = StyleSheet.create({
   },
   quickActionBtn: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 2,
   },
   quickActionIcon: {
     width: 48,
@@ -809,39 +833,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
+    borderWidth: 1,
   },
   quickActionText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-SemiBold',
   },
   orgCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 2,
   },
   orgCardDeleted: {
     opacity: 0.6,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   orgIcon: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   orgIconText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#FFF',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
   },
   orgInfo: {
     flex: 1,
@@ -849,61 +882,74 @@ const styles = StyleSheet.create({
   orgName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-SemiBold',
   },
   orgNameDeleted: {
     textDecorationLine: 'line-through',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
   },
   orgCode: {
     fontSize: 12,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 2,
+    fontFamily: 'Urbanist-Regular',
   },
   orgProperties: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
     marginTop: 4,
+    fontFamily: 'Urbanist-Regular',
   },
   orgMeta: {
     alignItems: 'flex-end',
   },
   activeBadge: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: 'rgba(76,175,80,0.15)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76,175,80,0.25)',
   },
   activeBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#059669',
+    color: '#4CAF50',
     textTransform: 'uppercase',
+    fontFamily: 'Urbanist-SemiBold',
   },
   deletedBadge: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: 'rgba(239,68,68,0.15)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.25)',
   },
   deletedBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#DC2626',
+    color: '#EF4444',
     textTransform: 'uppercase',
+    fontFamily: 'Urbanist-SemiBold',
   },
   orgActions: {
     marginLeft: 12,
   },
   deleteButton: {
     padding: 8,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(239,68,68,0.15)',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.25)',
   },
   restoreButton: {
     padding: 8,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: 'rgba(59,130,246,0.15)',
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(59,130,246,0.25)',
   },
   emptyState: {
     alignItems: 'center',
@@ -912,13 +958,14 @@ const styles = StyleSheet.create({
   emptyStateText: {
     marginTop: 12,
     fontSize: 15,
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
     fontWeight: '500',
+    fontFamily: 'Urbanist-Regular',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     marginHorizontal: 20,
     marginTop: 16,
     marginBottom: 12,
@@ -926,13 +973,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   searchInput: {
     flex: 1,
     marginLeft: 12,
     fontSize: 15,
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-Regular',
   },
   createButton: {
     flexDirection: 'row',
@@ -942,13 +990,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 16,
     paddingVertical: 14,
-    backgroundColor: '#3B82F6',
+    backgroundColor: 'rgba(112,143,150,0.85)',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   createButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFF',
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-SemiBold',
   },
   listContainer: {
     padding: 20,
@@ -957,26 +1008,34 @@ const styles = StyleSheet.create({
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 2,
   },
   userAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   userAvatarText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.70)',
+    fontFamily: 'Poppins-Bold',
   },
   userInfo: {
     flex: 1,
@@ -984,26 +1043,31 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-SemiBold',
   },
   userEmail: {
     fontSize: 13,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 2,
+    fontFamily: 'Urbanist-Regular',
   },
   masterBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#7C3AED',
+    backgroundColor: 'rgba(139,92,246,0.15)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
     marginTop: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.25)',
   },
   masterBadgeText: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#FFF',
+    color: '#8B5CF6',
     letterSpacing: 0.5,
+    fontFamily: 'Urbanist-SemiBold',
   },
   comingSoon: {
     flex: 1,
@@ -1015,22 +1079,29 @@ const styles = StyleSheet.create({
   comingSoonTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
     marginTop: 16,
+    fontFamily: 'Poppins-Bold',
   },
   comingSoonText: {
     fontSize: 14,
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 8,
     textAlign: 'center',
+    fontFamily: 'Urbanist-Regular',
   },
   profileCard: {
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     margin: 20,
     borderRadius: 20,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 4,
   },
   profileHeader: {
     alignItems: 'center',
@@ -1040,27 +1111,31 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   profileAvatarText: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#FFF',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
   },
   profileBadge: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: 'rgba(112,143,150,0.15)',
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(112,143,150,0.25)',
   },
   profileBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#3B82F6',
     textTransform: 'uppercase',
+    fontFamily: 'Urbanist-SemiBold',
   },
   profileInfo: {
     gap: 16,
@@ -1070,18 +1145,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   profileLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.55)',
     textTransform: 'uppercase',
+    fontFamily: 'Urbanist-SemiBold',
   },
   profileValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-SemiBold',
   },
   signOutButton: {
     flexDirection: 'row',
@@ -1091,25 +1168,26 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 8,
     paddingVertical: 16,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(239,68,68,0.15)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: 'rgba(239,68,68,0.25)',
   },
   signOutText: {
     fontSize: 15,
     fontWeight: '600',
     color: '#EF4444',
+    fontFamily: 'Urbanist-SemiBold',
   },
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     paddingVertical: 8,
     paddingBottom: 24,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: 'rgba(255,255,255,0.12)',
   },
   navItem: {
     alignItems: 'center',
@@ -1118,23 +1196,27 @@ const styles = StyleSheet.create({
   navText: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#94A3B8',
+    color: 'rgba(255,255,255,0.40)',
     marginTop: 4,
+    fontFamily: 'Urbanist-SemiBold',
   },
   navTextActive: {
-    color: '#3B82F6',
+    color: '#708F96',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    backgroundColor: 'rgba(6,9,18,0.7)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderTopWidth: 1,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1145,24 +1227,27 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1A2332',
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
   },
   inputLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
     marginBottom: 8,
     textTransform: 'uppercase',
+    fontFamily: 'Urbanist-SemiBold',
   },
   input: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 12,
     padding: 16,
     fontSize: 15,
-    color: '#1A2332',
+    color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.12)',
     marginBottom: 16,
+    fontFamily: 'Urbanist-Regular',
   },
   modalButtons: {
     flexDirection: 'row',
@@ -1173,20 +1258,25 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   cancelButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#64748B',
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: 'Urbanist-SemiBold',
   },
   saveButton: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 12,
-    backgroundColor: '#3B82F6',
+    backgroundColor: 'rgba(112,143,150,0.85)',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   saveButtonDisabled: {
     opacity: 0.5,
@@ -1194,6 +1284,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFF',
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-SemiBold',
   },
 });

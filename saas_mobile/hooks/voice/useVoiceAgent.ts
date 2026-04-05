@@ -167,7 +167,7 @@ export function useVoiceAgent(config: VoiceContext) {
       if (currentState) {
         // Stop recording
         if (Platform.OS === 'web') {
-          service.stopRecording();
+          await service.stopRecording();
           store.setListening(false);
           store.setProcessing(true);
         } else {

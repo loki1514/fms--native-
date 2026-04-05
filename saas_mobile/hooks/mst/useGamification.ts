@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getLeaderboard, getMyGamificationStats, LeaderboardEntry, MyStatsResponse } from '@/utils/api/mobileApi';
+export type { LeaderboardEntry };
 import { supabase } from '@/utils/supabase/client';
 
 export interface GamificationState {

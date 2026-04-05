@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -15,8 +15,17 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '@/utils/supabase/client';
+import { createTicket } from '@/utils/api/mobileApi';
 import MediaCaptureModal, { MediaFile } from '../shared/MediaCaptureModal';
 import { Video, ResizeMode } from 'expo-av';
+import { useTheme } from '@/context';
+import {
+  classifyTicketEnhanced,
+  getSkillGroupDisplayName,
+  getSkillGroupColor,
+  getIssueCodeDisplayName,
+  EnhancedClassificationResult,
+} from '@/utils/ticketing/classifyTicket';
 
 interface TicketCreateModalProps {
   isOpen: boolean;
@@ -36,13 +45,22 @@ export default function TicketCreateModal({
   isAdminMode = false,
 }: TicketCreateModalProps) {
   const supabase = createClient();
+  const { isDark, colors } = useTheme();
+
   const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium');
+  const [location, setLocation] = useState('');
   const [isInternal, setIsInternal] = useState(false);
   const [media, setMedia] = useState<MediaFile | null>(null);
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Classification preview state
+  const [classification, setClassification] = useState<EnhancedClassificationResult | null>(null);
+  const [isClassifying, setIsClassifying] = useState(false);
+  const classifyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Mentions
   const [propertyUsers, setPropertyUsers] = useState<{ id: string; full_name: string; role?: string }[]>([]);
@@ -70,6 +88,32 @@ export default function TicketCreateModal({
     };
     fetchUsers();
   }, [propertyId, isOpen]);
+
+  // Debounced classification as user types
+  useEffect(() => {
+    if (!description.trim() || description.trim().length < 5) {
+      setClassification(null);
+      setIsClassifying(false);
+      return;
+    }
+
+    setIsClassifying(true);
+    if (classifyTimeoutRef.current) {
+      clearTimeout(classifyTimeoutRef.current);
+    }
+
+    classifyTimeoutRef.current = setTimeout(() => {
+      const result = classifyTicketEnhanced(description);
+      setClassification(result);
+      setIsClassifying(false);
+    }, 400);
+
+    return () => {
+      if (classifyTimeoutRef.current) {
+        clearTimeout(classifyTimeoutRef.current);
+      }
+    };
+  }, [description]);
 
   const handleTextChange = (text: string) => {
     setDescription(text);
@@ -102,31 +146,24 @@ export default function TicketCreateModal({
     setError(null);
 
     try {
-      // 1. Create Ticket
-      const { data: ticket, error: ticketError } = await (supabase
-        .from('tickets')
-        .insert({
-          description: description.trim(),
-          property_id: propertyId,
-          organization_id: organizationId,
-          internal: isInternal,
-          assigned_to: taggedUser?.id,
-          status: 'open',
-          priority: 'medium', // default
-          title: description.split('\n')[0].slice(0, 80),
-        } as any) as any).select().single();
+      const title = description.split('\n')[0].slice(0, 80);
 
-      if (ticketError) throw ticketError;
+      const result = await createTicket({
+        description: description.trim(),
+        title,
+        propertyId,
+        organizationId,
+        isInternal,
+        priority,
+        assignedTo: taggedUser?.id,
+      });
 
-      // 2. Upload Media (Mock logic for now, using the URI from MediaFile)
-      if (media && ticket) {
-        // In real app, we use FileSystem + Supabase Storage
-        // For this migration, we assume the component caller handles final sync or we use a helper
-        console.log('Attaching media to ticket:', ticket.id, media.uri);
+      if (result.error) {
+        throw new Error(result.error);
       }
 
       setSuccess(true);
-      onSuccess?.(ticket);
+      onSuccess?.(result.ticket);
       setTimeout(() => {
         handleReset();
         onClose();
@@ -140,66 +177,184 @@ export default function TicketCreateModal({
 
   const handleReset = () => {
     setDescription('');
+    setPriority('medium');
+    setLocation('');
     setIsInternal(false);
     setMedia(null);
+    setClassification(null);
     setSuccess(false);
     setError(null);
     setTaggedUser(null);
+    setShowMentionDropdown(false);
   };
+
+  const sgColor = classification ? getSkillGroupColor(classification.skill_group) : null;
+  const hasContent = description.trim().length >= 5;
+
+  // Dark mode surface/border from theme
+  const cardBg = isDark ? '#1E2535' : '#FFFFFF';
+  const cardBorder = isDark ? '#2D3748' : '#E2E8F0';
+  const inputBg = isDark ? '#141820' : '#F8FAFC';
+  const inputBorder = isDark ? '#2D3748' : '#E2E8F0';
+  const mutedText = isDark ? '#94A3B8' : '#64748B';
 
   return (
     <Modal visible={isOpen} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.background : '#F8FAFC' }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: cardBorder }]}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color="#475569" />
+              <Ionicons name="close" size={24} color={mutedText} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Raise Request</Text>
+            <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Raise Request</Text>
             <View style={{ width: 40 }} />
           </View>
 
           <ScrollView style={styles.form} contentContainerStyle={{ padding: 20 }}>
             {success ? (
               <View style={styles.successView}>
-                <Ionicons name="checkmark-circle" size={80} color="#10B981" />
-                <Text style={styles.successText}>Request Submitted!</Text>
-                <Text style={styles.successSubText}>Your ticket has been created and assigned.</Text>
+                <View style={[styles.successIconWrap, { backgroundColor: isDark ? '#064E3B' : '#D1FAE5' }]}>
+                  <Ionicons name="checkmark-circle" size={80} color="#10B981" />
+                </View>
+                <Text style={[styles.successText, { color: colors.textPrimary }]}>Request Submitted!</Text>
+                <Text style={[styles.successSubText, { color: mutedText }]}>
+                  Your ticket has been created and assigned.
+                </Text>
+                {classification && (
+                  <View style={[styles.successBadge, { backgroundColor: sgColor?.bg, borderColor: sgColor?.border }]}>
+                    <Text style={[styles.successBadgeText, { color: sgColor?.text }]}>
+                      {getSkillGroupDisplayName(classification.skill_group)} — {getIssueCodeDisplayName(classification.issue_code)}
+                    </Text>
+                  </View>
+                )}
               </View>
             ) : (
               <>
+                {/* Classification Preview */}
+                {hasContent && (
+                  <View style={[styles.classificationCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
+                    <View style={styles.classificationHeader}>
+                      <Ionicons name="bulb-outline" size={14} color={colors.primary} />
+                      <Text style={[styles.classificationLabel, { color: colors.primary }]}>AI Classification</Text>
+                      {isClassifying && <ActivityIndicator size="small" color={colors.primary} />}
+                    </View>
+
+                    {classification ? (
+                      <View style={styles.classificationResult}>
+                        <View style={[styles.sgBadge, { backgroundColor: sgColor?.bg, borderColor: sgColor?.border }]}>
+                          <Text style={[styles.sgBadgeText, { color: sgColor?.text }]}>
+                            {getSkillGroupDisplayName(classification.skill_group)}
+                          </Text>
+                        </View>
+                        <View style={[styles.issueBadge, { backgroundColor: isDark ? '#1C2530' : '#F1F5F9', borderColor: cardBorder }]}>
+                          <Text style={[styles.issueBadgeText, { color: colors.textPrimary }]}>
+                            {getIssueCodeDisplayName(classification.issue_code)}
+                          </Text>
+                        </View>
+                        <View style={[styles.confidenceBadge, {
+                          backgroundColor: classification.confidence === 'high'
+                            ? 'rgba(16,185,129,0.1)'
+                            : 'rgba(245,158,11,0.1)',
+                          borderColor: classification.confidence === 'high'
+                            ? 'rgba(16,185,129,0.2)'
+                            : 'rgba(245,158,11,0.2)',
+                        }]}>
+                          <Text style={[styles.confidenceText, {
+                            color: classification.confidence === 'high' ? '#10B981' : '#F59E0B',
+                          }]}>
+                            {classification.confidence === 'high' ? 'High confidence' : 'Low confidence — will be reviewed'}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <Text style={[styles.classifyingText, { color: mutedText }]}>
+                        Analyzing description...
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Priority Selection */}
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: mutedText }]}>Priority</Text>
+                  <View style={styles.chipRow}>
+                    {(['low', 'medium', 'high', 'critical'] as const).map(p => {
+                      const pc = {
+                        low:      { bg: isDark ? '#1E2D1E' : '#F0FDF4', border: isDark ? '#22543D' : '#BBF7D0', text: '#22C55E' },
+                        medium:   { bg: isDark ? '#2D2A1E' : '#FFFBEB', border: isDark ? '#92400E' : '#FDE68A', text: '#F59E0B' },
+                        high:     { bg: isDark ? '#2D1E1E' : '#FFF7ED', border: isDark ? '#991B1B' : '#FDBA74', text: '#F97316' },
+                        critical: { bg: isDark ? '#2D1E1E' : '#FEF2F2', border: isDark ? '#7F1D1D' : '#FECACA', text: '#EF4444' },
+                      }[p];
+                      return (
+                        <TouchableOpacity
+                          key={p}
+                          style={[
+                            styles.chip,
+                            {
+                              backgroundColor: priority === p ? pc.bg : (isDark ? '#1E2535' : '#F1F5F9'),
+                              borderColor: priority === p ? pc.border : inputBorder,
+                            },
+                          ]}
+                          onPress={() => setPriority(p)}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              { color: priority === p ? pc.text : mutedText },
+                              priority === p && { fontWeight: '700' },
+                            ]}
+                          >
+                            {p.charAt(0).toUpperCase() + p.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
                 {/* Description */}
                 <View style={styles.field}>
-                  <Text style={styles.label}>Description</Text>
+                  <Text style={[styles.label, { color: mutedText }]}>Description</Text>
                   <View style={styles.inputWrapper}>
                     <TextInput
-                      style={styles.textArea}
+                      style={[
+                        styles.textArea,
+                        {
+                          backgroundColor: inputBg,
+                          borderColor: inputBorder,
+                          color: colors.textPrimary,
+                        },
+                      ]}
                       placeholder="Describe the issue... (use @ to tag)"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={mutedText}
                       multiline
                       value={description}
                       onChangeText={handleTextChange}
                     />
-                    
+
                     {/* Mention Dropdown */}
                     {showMentionDropdown && (
-                      <View style={styles.mentionOverlay}>
+                      <View style={[styles.mentionOverlay, { backgroundColor: cardBg, borderColor: cardBorder }]}>
                         {propertyUsers
                           .filter(u => u.full_name.toLowerCase().includes(mentionQuery.toLowerCase()))
                           .slice(0, 5)
                           .map(user => (
                             <TouchableOpacity
                               key={user.id}
-                              style={styles.mentionItem}
+                              style={[styles.mentionItem, { borderBottomColor: cardBorder }]}
                               onPress={() => selectMention(user)}
                             >
-                              <View style={styles.avatarMini}>
-                                <Text style={styles.avatarText}>{user.full_name[0]}</Text>
+                              <View style={[styles.avatarMini, { backgroundColor: colors.primary }]}>
+                                <Text style={styles.avatarText}>
+                                  {user.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                                </Text>
                               </View>
                               <View>
-                                <Text style={styles.mentionName}>{user.full_name}</Text>
-                                <Text style={styles.mentionRole}>{user.role?.replace(/_/g, ' ')}</Text>
+                                <Text style={[styles.mentionName, { color: colors.textPrimary }]}>{user.full_name}</Text>
+                                <Text style={[styles.mentionRole, { color: mutedText }]}>
+                                  {user.role?.replace(/_/g, ' ')}
+                                </Text>
                               </View>
                             </TouchableOpacity>
                           ))}
@@ -208,14 +363,51 @@ export default function TicketCreateModal({
                   </View>
                 </View>
 
+                {/* Location */}
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: mutedText }]}>Location / Unit (optional)</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: inputBg,
+                        borderColor: inputBorder,
+                        color: colors.textPrimary,
+                      },
+                    ]}
+                    placeholder="e.g. Conference Room B, Level 2"
+                    placeholderTextColor={mutedText}
+                    value={location}
+                    onChangeText={setLocation}
+                  />
+                </View>
+
+                {/* Tagged user chip */}
+                {taggedUser && (
+                  <View style={styles.taggedRow}>
+                    <View style={[styles.taggedChip, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '30' }]}>
+                      <Ionicons name="at" size={12} color={colors.primary} />
+                      <Text style={[styles.taggedChipText, { color: colors.primary }]}>{taggedUser.full_name}</Text>
+                      <TouchableOpacity onPress={() => {
+                        setTaggedUser(null);
+                        setDescription(d =>
+                          d.replace(`@${taggedUser.full_name} `, '').replace(`@${taggedUser.full_name}`, ''),
+                        );
+                      }}>
+                        <Ionicons name="close-circle" size={14} color={colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
                 {/* Internal Toggle */}
-                <View style={styles.toggleRow}>
+                <View style={[styles.toggleRow, { backgroundColor: inputBg, borderColor: inputBorder }]}>
                   <View>
-                    <Text style={styles.toggleLabel}>Internal Ticket</Text>
-                    <Text style={styles.toggleSubLabel}>Not visible to tenants</Text>
+                    <Text style={[styles.toggleLabel, { color: colors.textPrimary }]}>Internal Ticket</Text>
+                    <Text style={[styles.toggleSubLabel, { color: mutedText }]}>Not visible to tenants</Text>
                   </View>
                   <TouchableOpacity
-                    style={[styles.toggle, isInternal && styles.toggleActive]}
+                    style={[styles.toggle, isInternal ? { backgroundColor: '#F59E0B' } : { backgroundColor: inputBorder }]}
                     onPress={() => setIsInternal(!isInternal)}
                   >
                     <View style={[styles.toggleCircle, isInternal && styles.toggleCircleActive]} />
@@ -224,7 +416,7 @@ export default function TicketCreateModal({
 
                 {/* Media Attachment */}
                 <View style={[styles.field, { marginTop: 20 }]}>
-                  <Text style={styles.label}>Proof Attachment</Text>
+                  <Text style={[styles.label, { color: mutedText }]}>Proof Attachment</Text>
                   {media ? (
                     <View style={styles.mediaPreview}>
                       {media.type === 'image' ? (
@@ -242,16 +434,23 @@ export default function TicketCreateModal({
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <TouchableOpacity style={styles.mediaPlaceholder} onPress={() => setShowMediaModal(true)}>
-                      <Ionicons name="camera-outline" size={32} color="#64748B" />
-                      <Text style={styles.mediaPlaceholderText}>Add Photo or Video</Text>
+                    <TouchableOpacity
+                      style={[styles.mediaPlaceholder, { borderColor: inputBorder, backgroundColor: inputBg }]}
+                      onPress={() => setShowMediaModal(true)}
+                    >
+                      <Ionicons name="camera-outline" size={32} color={mutedText} />
+                      <Text style={[styles.mediaPlaceholderText, { color: mutedText }]}>Add Photo or Video</Text>
                     </TouchableOpacity>
                   )}
                 </View>
 
                 {/* Submit Action */}
                 <TouchableOpacity
-                  style={[styles.submitBtn, (!description.trim() || isSubmitting) && styles.submitBtnDisabled]}
+                  style={[
+                    styles.submitBtn,
+                    (!description.trim() || isSubmitting) && styles.submitBtnDisabled,
+                    { backgroundColor: colors.primary },
+                  ]}
                   onPress={handleSubmit}
                   disabled={isSubmitting || !description.trim()}
                 >
@@ -265,7 +464,12 @@ export default function TicketCreateModal({
                   )}
                 </TouchableOpacity>
 
-                {error && <Text style={styles.errorText}>{error}</Text>}
+                {error && (
+                  <View style={[styles.errorRow, { backgroundColor: isDark ? '#2D1B1B' : '#FEF2F2', borderColor: isDark ? '#7F1D1D' : '#FECACA' }]}>
+                    <Ionicons name="alert-circle" size={16} color="#EF4444" />
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
               </>
             )}
           </ScrollView>
@@ -283,38 +487,254 @@ export default function TicketCreateModal({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  closeBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 16, fontWeight: '900', color: '#1A2332', textTransform: 'uppercase', letterSpacing: 1 },
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   form: { flex: 1 },
   field: { marginBottom: 12 },
-  label: { fontSize: 13, fontWeight: '800', color: '#64748B', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 },
+  label: {
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   inputWrapper: { position: 'relative', zIndex: 10 },
-  textArea: { backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', padding: 16, fontSize: 15, color: '#1A2332', height: 140, textAlignVertical: 'top' },
-  mentionOverlay: { position: 'absolute', top: 145, left: 0, right: 0, backgroundColor: '#FFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 5, zIndex: 20 },
-  mentionItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  avatarMini: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#4F46E5', justifyContent: 'center', alignItems: 'center' },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  input: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    fontSize: 15,
+  },
+  textArea: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    fontSize: 15,
+    height: 140,
+    textAlignVertical: 'top',
+  },
+  mentionOverlay: {
+    position: 'absolute',
+    top: 145,
+    left: 0,
+    right: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+    zIndex: 20,
+  },
+  mentionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderBottomWidth: 1,
+  },
+  avatarMini: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   avatarText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
-  mentionName: { fontSize: 14, fontWeight: '700', color: '#1A2332' },
-  mentionRole: { fontSize: 10, color: '#94A3B8', textTransform: 'uppercase' },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: '#F8FAFC', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', marginTop: 8 },
-  toggleLabel: { fontSize: 14, fontWeight: '800', color: '#1A2332' },
-  toggleSubLabel: { fontSize: 12, color: '#64748B' },
-  toggle: { width: 48, height: 24, borderRadius: 12, backgroundColor: '#E2E8F0', padding: 2 },
+  mentionName: { fontSize: 14, fontWeight: '700' },
+  mentionRole: { fontSize: 10, textTransform: 'uppercase' },
+  taggedRow: { flexDirection: 'row', marginTop: 8, marginBottom: 4 },
+  taggedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  taggedChipText: { fontSize: 12, fontWeight: '700' },
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  toggleLabel: { fontSize: 14, fontWeight: '800' },
+  toggleSubLabel: { fontSize: 12 },
+  toggle: {
+    width: 48,
+    height: 24,
+    borderRadius: 12,
+    padding: 2,
+  },
   toggleActive: { backgroundColor: '#F59E0B' },
   toggleCircle: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFF' },
   toggleCircleActive: { transform: [{ translateX: 24 }] },
-  mediaPlaceholder: { height: 140, borderStyle: 'dashed', borderWidth: 2, borderColor: '#CBD5E1', borderRadius: 16, justifyContent: 'center', alignItems: 'center', gap: 8, backgroundColor: '#F8FAFC' },
-  mediaPlaceholderText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
-  mediaPreview: { height: 200, borderRadius: 16, overflow: 'hidden', position: 'relative' },
+  classificationCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 16,
+  },
+  classificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  classificationLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    flex: 1,
+  },
+  classificationResult: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    alignItems: 'center',
+  },
+  sgBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  sgBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  issueBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  issueBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  confidenceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  confidenceText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  classifyingText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  mediaPlaceholder: {
+    height: 140,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mediaPlaceholderText: { fontSize: 13, fontWeight: '700' },
+  mediaPreview: {
+    height: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+  },
   previewContent: { width: '100%', height: '100%' },
-  removeMedia: { position: 'absolute', top: 12, right: 12, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  submitBtn: { flexDirection: 'row', backgroundColor: '#7C3AED', padding: 18, borderRadius: 18, justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 32 },
+  removeMedia: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitBtn: {
+    flexDirection: 'row',
+    padding: 18,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 32,
+  },
   submitBtnDisabled: { opacity: 0.5 },
-  submitBtnText: { color: '#FFF', fontSize: 15, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
-  errorText: { color: '#EF4444', fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 12 },
+  submitBtnText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  errorText: { color: '#EF4444', fontSize: 12, fontWeight: '700', flex: 1 },
   successView: { alignItems: 'center', paddingVertical: 40 },
-  successText: { fontSize: 20, fontStyle: 'italic', fontWeight: '900', color: '#1A2332', marginTop: 24 },
-  successSubText: { fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 8 },
+  successIconWrap: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center' },
+  successText: { fontSize: 20, fontWeight: '900', marginTop: 24 },
+  successSubText: { fontSize: 14, textAlign: 'center', marginTop: 8 },
+  successBadge: {
+    marginTop: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  successBadgeText: { fontSize: 12, fontWeight: '700' },
 });
