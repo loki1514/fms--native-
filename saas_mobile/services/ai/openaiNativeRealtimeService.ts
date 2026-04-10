@@ -1,21 +1,20 @@
 /**
- * OpenAI Native Realtime Service
+ * OpenAI Native Realtime Service — mobile voice input.
  *
- * Fully local pipeline on mobile — no backend hop needed.
- * Everything runs on the device: Whisper STT → GPT-4o pipeline → expo-speech TTS.
+ * All AI calls are routed through the server-side /api/voice proxy.
+ * No API keys are stored or used on the client.
  *
- * Pipeline: expo-av recording → Whisper (direct) → voice pipeline (local) → expo-speech
+ * Pipeline: expo-av recording → send audio to backend → Whisper → full pipeline → TTS → expo-speech
  */
 
 import * as FileSystem from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { supabase } from '@/utils/supabase/client';
 import { VoiceContext } from './openaiService';
-import { runVoicePipeline } from './pipeline/voicePipeline';
+import { VoicePipelineResult } from './pipeline/voicePipeline';
 import { HistoryEntry } from './pipeline/types';
 
-const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
-const OPENAI_BASE = 'https://api.openai.com/v1';
+const VOICE_API_BASE = process.env.EXPO_PUBLIC_VOICE_API_URL ?? '';
 
 export type NativeRealtimeState =
   | 'idle'
@@ -61,19 +60,11 @@ export class OpenAINativeRealtimeService {
     this.handlers.onStateChange(state);
   }
 
-  // -------------------------------------------------------------------------
-  // Connect — validate auth
-  // -------------------------------------------------------------------------
   async connect(): Promise<void> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         this.handlers.onError('Not authenticated. Please log in again.');
-        this.setState('error');
-        return;
-      }
-      if (!OPENAI_API_KEY) {
-        this.handlers.onError('OpenAI API key not configured.');
         this.setState('error');
         return;
       }
@@ -85,37 +76,28 @@ export class OpenAINativeRealtimeService {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Start recording (handled externally by useVoiceRecording hook)
-  // -------------------------------------------------------------------------
   async startRecording(): Promise<void> {
     this.setState('recording');
   }
 
-  // -------------------------------------------------------------------------
-  // Stop recording
-  // -------------------------------------------------------------------------
   async stopRecording(): Promise<void> {
     this.setState('idle');
   }
 
-  // -------------------------------------------------------------------------
-  // Provide the recorded audio URI for processing
-  // -------------------------------------------------------------------------
   async setRecordingUri(uri: string): Promise<void> {
     await this.processAudio(uri);
   }
 
-  // -------------------------------------------------------------------------
-  // Process audio — fully local pipeline
-  // -------------------------------------------------------------------------
   async processAudio(uri: string): Promise<void> {
     this.setState('processing');
     this.handlers.onThinking();
 
     try {
-      // 1. Transcribe with Whisper (direct API call)
-      const transcript = await this.transcribe(uri);
+      // Send audio directly to backend — Whisper runs server-side with the API key
+      const audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+      const result = await this.callBackend(audioBase64, uri);
+
+      const transcript = result.transcript ?? '';
       if (!transcript.trim()) {
         this.handlers.onError('Could not understand audio. Please try again.');
         this.setState('idle');
@@ -129,15 +111,7 @@ export class OpenAINativeRealtimeService {
       // Notify UI
       this.handlers.onTranscript(transcript, true);
 
-      // 2. Run the local voice pipeline
-      const result = await runVoicePipeline(
-        transcript,
-        { ...this.ctx, sessionId: this.sessionId },
-        this.conversationHistory,
-        this.sessionId
-      );
-
-      if (!result.response.trim()) {
+      if (!result.response?.trim()) {
         this.setState('idle');
         return;
       }
@@ -146,7 +120,7 @@ export class OpenAINativeRealtimeService {
       this.conversationHistory.push({ role: 'assistant', content: result.response });
       this.trimHistory();
 
-      // 3. Speak the response
+      // Speak the response
       this.setState('speaking');
       this.handlers.onSpeaking();
       this.handlers.onAudioPlaybackStart();
@@ -177,12 +151,16 @@ export class OpenAINativeRealtimeService {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Transcribe audio with Whisper (direct OpenAI API, no backend)
-  // -------------------------------------------------------------------------
-  private async transcribe(uri: string): Promise<string> {
-    const audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-    const audioBuffer = this.base64ToArrayBuffer(audioBase64);
+  /**
+   * Send audio to the backend proxy. The backend handles Whisper + the full
+   * voice pipeline with server-side API keys.
+   */
+  private async callBackend(
+    audioBase64: string,
+    uri: string
+  ): Promise<{ transcript?: string; response?: string }> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token ?? '';
 
     const ext = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
     const mimeType = ext === 'wav' ? 'audio/wav'
@@ -190,45 +168,35 @@ export class OpenAINativeRealtimeService {
       : ext === 'webm' ? 'audio/webm'
       : 'audio/mp4';
 
-    const formData = new FormData();
-    formData.append('file', {
-      uri,
-      name: `recording.${ext}`,
-      type: mimeType,
-    } as any);
-    formData.append('model', 'whisper-1');
-    formData.append('language', 'en');
+    if (!VOICE_API_BASE) {
+      this.handlers.onError('Voice API URL not configured. Please contact support.');
+      return {};
+    }
 
-    const response = await fetch(`${OPENAI_BASE}/audio/transcriptions`, {
+    const res = await fetch(`${VOICE_API_BASE}/api/voice`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
       },
-      body: formData,
+      body: JSON.stringify({
+        audio: audioBase64,
+        format: mimeType,
+        context: this.ctx,
+        history: this.conversationHistory,
+        sessionId: this.sessionId,
+      }),
     });
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Whisper error ${response.status}: ${text}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(err.error ?? `Voice API error: ${res.status}`);
     }
 
-    const data = await response.json() as { text?: string };
-    return data.text ?? '';
+    const data = await res.json() as { transcript?: string; response?: string };
+    return data;
   }
 
-  private base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binary = atob(base64);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes.buffer;
-  }
-
-  // -------------------------------------------------------------------------
-  // Disconnect
-  // -------------------------------------------------------------------------
   disconnect(): void {
     Speech.stop();
     this.conversationHistory = [];
@@ -236,9 +204,6 @@ export class OpenAINativeRealtimeService {
     this.setState('idle');
   }
 
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
   private trimHistory() {
     if (this.conversationHistory.length > this.maxHistory) {
       this.conversationHistory = this.conversationHistory.slice(-this.maxHistory);

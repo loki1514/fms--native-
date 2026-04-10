@@ -1,11 +1,9 @@
 /**
- * Intent Extraction — converts raw voice text to structured intent + entities.
- * Uses lightweight LLM call for parsing.
+ * Intent Extraction — purely keyword-based (no LLM, no API key needed).
+ *
+ * @deprecated Use the server-side /api/voice proxy instead.
+ *             This file is only used in the local-only fallback path.
  */
-
-import OpenAI from 'openai';
-
-const openai = new OpenAI({ apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY, dangerouslyAllowBrowser: true });
 
 export type Intent =
   | 'create_ticket'
@@ -27,83 +25,15 @@ export interface ExtractedIntent {
   reasoning: string;
 }
 
-const INTENT_EXTRACTION_PROMPT = `You are an intent classifier for a property management voice assistant.
-
-Classify the user's voice message into ONE of these intents:
-- create_ticket: user wants to report an issue or create a maintenance request
-- check_ticket: user wants to know the status of a specific ticket
-- list_tickets: user wants to see their tickets or a list of tickets
-- get_property_info: user asks about property stats, open tickets count, etc.
-- list_visitors: user asks about recent visitors
-- list_rooms: user asks what meeting rooms are available
-- book_room: user wants to book a meeting room (has time/date)
-- cancel_booking: user wants to cancel a booking
-- greeting: user says hello
-- small_talk: casual conversation
-- unknown: unclear intent
-
-Extract entities:
-- title (tickets): issue title
-- description (tickets): issue description
-- priority (tickets): low, medium, high, critical
-- date: YYYY-MM-DD
-- start_time: HH:MM
-- end_time: HH:MM
-- capacity: minimum room capacity
-- ticket_id: ticket UUID
-- status: open, resolved, closed
-
-Respond ONLY as JSON:
-{
-  "intent": "...",
-  "entities": { ... },
-  "confidence": 0.0-1.0,
-  "reasoning": "brief explanation"
-}
-
-Today is ${new Date().toISOString().split('T')[0]}.`;
-
-export async function extractIntent(
+/**
+ * Keyword-based intent extraction. Covers the common voice use cases.
+ * No API key required — safe for local fallback.
+ */
+export function extractIntent(
   userText: string,
-  history?: Array<{ role: string; content: string }>
-): Promise<ExtractedIntent> {
-  const fastResult = fastPathClassification(userText);
-  if (fastResult.confidence > 0.9) return fastResult;
-
-  try {
-    const historyContext = history
-      ? `\n\nRecent conversation:\n${history.slice(-4).map(h => `${h.role}: ${h.content}`).join('\n')}`
-      : '';
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: INTENT_EXTRACTION_PROMPT },
-        { role: 'user', content: userText + historyContext },
-      ],
-      temperature: 0.1,
-      max_tokens: 200,
-      response_format: { type: 'json_object' },
-    });
-
-    const content = response.choices[0].message.content ?? '{}';
-    const parsed = JSON.parse(content);
-
-    return {
-      intent: normalizeIntent(parsed.intent),
-      entities: parsed.entities ?? {},
-      confidence: Math.min(1, Math.max(0, Number(parsed.confidence) || 0.5)),
-      reasoning: parsed.reasoning ?? '',
-    };
-  } catch (err) {
-    console.error('[intent] LLM extraction failed, fallback:', err);
-    return {
-      intent: fastResult.intent,
-      entities: fastResult.entities,
-      confidence: fastResult.confidence * 0.5,
-      reasoning: 'LLM extraction failed, used keyword fallback',
-    };
-  }
+  _history?: Array<{ role: string; content: string }>
+): ExtractedIntent {
+  return fastPathClassification(userText);
 }
 
 function fastPathClassification(text: string): ExtractedIntent {
@@ -127,6 +57,8 @@ function fastPathClassification(text: string): ExtractedIntent {
     return { intent: 'list_visitors', entities: {}, confidence: 0.9, reasoning: 'Keyword match for visitor list' };
   if (/property.*info|how many.*ticket|stats.*property/.test(lower))
     return { intent: 'get_property_info', entities: {}, confidence: 0.85, reasoning: 'Keyword match for property info' };
+  if (/cancel.*booking|cancel.*room|unbook/.test(lower))
+    return { intent: 'cancel_booking', entities: {}, confidence: 0.9, reasoning: 'Keyword match for booking cancellation' };
 
   return { intent: 'unknown', entities: {}, confidence: 0.0, reasoning: 'No pattern matched' };
 }
@@ -180,16 +112,4 @@ function extractTicketEntities(text: string): Record<string, unknown> {
 
   entities.description = text;
   return entities;
-}
-
-function normalizeIntent(intent: string): Intent {
-  const mapping: Record<string, Intent> = {
-    'book_room': 'book_room', 'cancel_booking': 'cancel_booking',
-    'check_ticket': 'check_ticket', 'create_ticket': 'create_ticket',
-    'get_property_info': 'get_property_info', 'greeting': 'greeting',
-    'list_rooms': 'list_rooms', 'list_tickets': 'list_tickets',
-    'list_visitors': 'list_visitors', 'small_talk': 'small_talk',
-    'unknown': 'unknown',
-  };
-  return mapping[intent.toLowerCase()] ?? 'unknown';
 }

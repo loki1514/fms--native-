@@ -1,8 +1,12 @@
 'use client';
+import * as FileSystem from 'expo-file-system';
+import * as Speech from 'expo-speech';
+import { supabase } from '@/utils/supabase/client';
+import { VoiceContext } from '@/services/ai/openaiService';
 import { useVoiceAgentStore } from '@/store/voiceAgentStore';
-import { transcribeAudio, chatWithVoice, VoiceContext } from '@/services/ai/openaiService';
 import { useVoiceRecording } from '@/hooks/voice/useVoiceRecording';
-import { useTextToSpeech } from '@/hooks/voice/useTextToSpeech';
+
+const VOICE_API_BASE = process.env.EXPO_PUBLIC_VOICE_API_URL ?? '';
 
 export interface VoicePipelineConfig {
   userId: string;
@@ -16,25 +20,17 @@ export interface VoicePipelineConfig {
 export async function runVoiceSession(config: VoicePipelineConfig): Promise<void> {
   const store = useVoiceAgentStore.getState();
   const recording = useVoiceRecording();
-  const tts = useTextToSpeech();
 
   try {
-    // 1. Request microphone permission
     const granted = await recording.requestPermission();
     if (!granted) {
       store.setError('Microphone permission denied');
       return;
     }
 
-    // 2. Start recording
     store.setListening(true);
     store.setError(null);
     await recording.startRecording();
-
-    // 3. Wait for user to tap again (tap-to-talk)
-    // In a real implementation, we'd track this via the orb press
-    // For now, the caller manages the recording lifecycle
-
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Recording failed';
     store.setError(msg);
@@ -49,14 +45,65 @@ export async function processRecording(
   if (!recordingUri) return null;
 
   const store = useVoiceAgentStore.getState();
-  const tts = useTextToSpeech();
 
   try {
     store.setListening(false);
     store.setProcessing(true);
 
-    // 4. Transcribe via Whisper
-    const transcript = await transcribeAudio(recordingUri);
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token ?? '';
+
+    if (!VOICE_API_BASE) {
+      store.setError('Voice API URL not configured.');
+      store.setProcessing(false);
+      return null;
+    }
+
+    // Read audio and send to backend proxy
+    const audioBase64 = await FileSystem.readAsStringAsync(recordingUri, { encoding: 'base64' });
+    const ext = recordingUri.split('.').pop()?.toLowerCase() ?? 'm4a';
+    const mimeType = ext === 'wav' ? 'audio/wav'
+      : ext === 'mp3' ? 'audio/mpeg'
+      : ext === 'webm' ? 'audio/webm'
+      : 'audio/mp4';
+
+    const ctx: VoiceContext = {
+      userId: config.userId,
+      propertyId: config.propertyId,
+      organizationId: config.organizationId,
+      userRole: config.userRole,
+      userName: config.userName,
+      propertyName: config.propertyName,
+    };
+
+    const res = await fetch(`${VOICE_API_BASE}/api/voice`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        audio: audioBase64,
+        format: mimeType,
+        context: ctx,
+        history: store.conversationHistory,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      throw new Error(err.error ?? 'Voice API error');
+    }
+
+    const data = await res.json() as {
+      transcript?: string;
+      response?: string;
+      audio?: string; // base64 TTS audio from backend
+    };
+
+    const transcript = data.transcript ?? '';
+    const response = data.response ?? '';
+
     store.setTranscript(transcript);
 
     if (!transcript.trim()) {
@@ -65,30 +112,31 @@ export async function processRecording(
       return null;
     }
 
-    // 5. Get AI response via gpt-4o with tool calling
-    const { response, pendingToolCall: _pendingToolCall } = await chatWithVoice(
-      transcript,
-      config,
-      store.conversationHistory
-    );
-
     store.setAiResponse(response);
 
-    // Add to conversation history
     store.addToHistory({ role: 'user', content: transcript });
     store.addToHistory({ role: 'assistant', content: response });
 
-    // 6. Speak the response
     store.setProcessing(false);
     store.setSpeaking(true);
 
-    await tts.speak(response);
-
-    store.setSpeaking(false);
-    store.clearSession();
+    // Use expo-speech for TTS (no API key needed, works offline)
+    await Speech.speak(response, {
+      language: 'en-US',
+      pitch: 1.0,
+      rate: 1.0,
+      onDone: () => {
+        store.setSpeaking(false);
+        store.clearSession();
+      },
+      onError: (e) => {
+        store.setError(e ? String(e) : 'Speech failed');
+        store.setSpeaking(false);
+        store.clearSession();
+      },
+    });
 
     return response;
-
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'AI processing failed';
     store.setError(msg);

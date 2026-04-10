@@ -2,7 +2,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import * as Speech from 'expo-speech';
-import { generateSpeech } from '@/services/ai/openaiService';
 
 // ---------------------------------------------------------------------------
 // Text-to-Speech Hook
@@ -56,34 +55,8 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
     stop();
 
     if (Platform.OS === 'web') {
-      try {
-        // Try OpenAI TTS first
-        const audioUrl = await generateSpeech(text);
-
-        // @ts-ignore — Audio is available in browser
-        const audio = new Audio(audioUrl);
-        audioRef.current = audio;
-
-        setIsSpeaking(true);
-
-        audio.onended = () => {
-          setIsSpeaking(false);
-          if (audioUrl.startsWith('blob:')) {
-            URL.revokeObjectURL(audioUrl);
-          }
-        };
-
-        audio.onerror = () => {
-          setIsSpeaking(false);
-          // Fallback to Web SpeechSynthesis
-          webFallbackSpeak(text);
-        };
-
-        await audio.play();
-      } catch (err) {
-        // Fallback to Web SpeechSynthesis API
-        webFallbackSpeak(text);
-      }
+      // Web: use Web SpeechSynthesis API (no API key needed)
+      webFallbackSpeak(text);
     } else {
       // Native: use expo-speech
       try {
