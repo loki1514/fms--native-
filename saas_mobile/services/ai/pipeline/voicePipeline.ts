@@ -74,8 +74,6 @@ async function voiceApiProxy(
         context: ctx,
         history,
         sessionId,
-        // Memories fetched locally for lowest latency — server validates them
-        prefetchedMemories: undefined,
       }),
     });
 
