@@ -1,13 +1,13 @@
 import React from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import PremiumMstDashboard from '../../../../components/dashboard/PremiumMstDashboard';
+import MstDashboard from '../../../../components/dashboard/MstDashboard';
 
 export default function MstDashboardPage() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
-  
+
   if (!propertyId) {
     return null;
   }
 
-  return <PremiumMstDashboard propertyId={propertyId} />;
+  return <MstDashboard propertyId={propertyId} />;
 }

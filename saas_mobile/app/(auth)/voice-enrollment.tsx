@@ -257,7 +257,7 @@ export default function VoiceEnrollmentScreen() {
       for (const phrase of recorded) {
         if (!phrase.uri) continue;
         const data = await FileSystem.readAsStringAsync(phrase.uri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: 'base64' as const,
         });
         chunks.push(data);
       }

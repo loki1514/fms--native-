@@ -11,20 +11,22 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
-  SafeAreaView,
   StatusBar,
   Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createClient } from '../../utils/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
+import { useTheme } from '@/context';
 import TicketCard from '../shared/TicketCard';
 import SignOutModal from '../ui/SignOutModal';
 import Skeleton from '../ui/Skeleton';
+import CreateTicketModal from '../shared/CreateTicketModal';
 
 // Types
-type Tab = 'dashboard' | 'requests' | 'create_request' | 'visitors' | 'settings' | 'profile';
+type Tab = 'dashboard' | 'requests' | 'map' | 'visitors' | 'profile';
 
 interface Property {
   id: string;
@@ -68,7 +70,8 @@ interface MstDashboardProps {
 export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const { user, signOut } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
 
   // State
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -89,6 +92,9 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showLoggersMenu, setShowLoggersMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -218,13 +224,13 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
   const renderDashboardTab = () => (
     <ScrollView 
-      style={styles.tabContent}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+      style={[styles.tabContent, { backgroundColor: colors.background }]}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Maintenance Dashboard</Text>
-        <Text style={styles.headerSubtitle}>
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Maintenance Dashboard</Text>
+        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
           {property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST'}
         </Text>
       </View>
@@ -232,49 +238,49 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
         <TouchableOpacity 
-          style={styles.statCard}
+          style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => setRequestFilter('all')}
         >
-          <Text style={styles.statNumber}>{totalTickets}</Text>
-          <Text style={styles.statLabel}>Total</Text>
+          <Text style={[styles.statNumber, { color: colors.textPrimary }]}>{totalTickets}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[styles.statCard, styles.activeStatCard]}
+          style={[styles.statCard, styles.activeStatCard, { backgroundColor: isDark ? 'rgba(59,130,246,0.1)' : '#EFF6FF', borderColor: colors.primary }]}
           onPress={() => setRequestFilter('active')}
         >
-          <Text style={[styles.statNumber, styles.activeStatNumber]}>{activeCount}</Text>
-          <Text style={styles.statLabel}>Active</Text>
+          <Text style={[styles.statNumber, styles.activeStatNumber, { color: colors.primary }]}>{activeCount}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Active</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={styles.statCard}
+          style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => setRequestFilter('completed')}
         >
-          <Text style={[styles.statNumber, styles.completedStatNumber]}>{completedTickets.length}</Text>
-          <Text style={styles.statLabel}>Completed</Text>
+          <Text style={[styles.statNumber, styles.completedStatNumber, { color: colors.success }]}>{completedTickets.length}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Completed</Text>
         </TouchableOpacity>
       </View>
 
       {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#94A3B8" />
+      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Ionicons name="search" size={20} color={colors.textTertiary} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: colors.textPrimary }]}
           placeholder="Search requests..."
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholderTextColor="#94A3B8"
+          placeholderTextColor={colors.textTertiary}
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color="#94A3B8" />
+            <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
           </TouchableOpacity>
         )}
       </View>
 
       {/* Property Requests */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Property Requests</Text>
-        <Text style={styles.sectionSubtitle}>All requests for this property</Text>
+      <View style={[styles.section, { backgroundColor: colors.background }]}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Property Requests</Text>
+        <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>All requests for this property</Text>
         
         {isFetching ? (
           <View style={styles.skeletonContainer}>
@@ -311,6 +317,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
                   assignedTo={ticket.assignee?.full_name || 'Unassigned'}
                   assigneePhotoUrl={ticket.assignee?.user_photo_url}
                   photoUrl={ticket.photo_before_url}
+                  materialsOrdered={(ticket as any).materials_ordered}
                   escalationChain={(() => {
                     const logs = ticket.ticket_escalation_logs;
                     if (!logs || logs.length === 0) return undefined;
@@ -328,7 +335,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
                     });
                     return chain.length > 0 ? chain : undefined;
                   })()}
-                  onClick={() => router.push(`/tickets/${ticket.id}` as any)}
+                  onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
                   onEdit={() => {
                     setEditingTicket(ticket);
                     setEditTitle(ticket.title);
@@ -348,14 +355,22 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
     >
       {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
+      <View style={[styles.filterContainer, { backgroundColor: colors.background }]}>
         {(['all', 'active', 'completed'] as const).map((filter) => (
           <TouchableOpacity
             key={filter}
-            style={[styles.filterTab, requestFilter === filter && styles.filterTabActive]}
+            style={[
+              styles.filterTab, 
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              requestFilter === filter && { backgroundColor: colors.primary, borderColor: colors.primary }
+            ]}
             onPress={() => setRequestFilter(filter)}
           >
-            <Text style={[styles.filterTabText, requestFilter === filter && styles.filterTabTextActive]}>
+            <Text style={[
+              styles.filterTabText, 
+              { color: colors.textSecondary },
+              requestFilter === filter && { color: '#FFF' }
+            ]}>
               {filter.charAt(0).toUpperCase() + filter.slice(1)}
             </Text>
           </TouchableOpacity>
@@ -363,7 +378,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
       </View>
 
       {/* Tickets List */}
-      <View style={styles.ticketsList}>
+      <View style={[styles.ticketsList, { backgroundColor: colors.background, paddingHorizontal: 20 }]}>
         {(requestFilter === 'all' || requestFilter === 'active') && filteredIncomingTickets.map((ticket) => (
           <TicketCard
             key={ticket.id}
@@ -379,7 +394,8 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             assignedTo={ticket.assignee?.full_name || 'Unassigned'}
             assigneePhotoUrl={ticket.assignee?.user_photo_url}
             photoUrl={ticket.photo_before_url}
-            onClick={() => router.push(`/tickets/${ticket.id}` as any)}
+            materialsOrdered={(ticket as any).materials_ordered}
+            onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
             onEdit={() => {
               setEditingTicket(ticket);
               setEditTitle(ticket.title);
@@ -399,7 +415,8 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             assignedTo={ticket.assignee?.full_name || 'Unassigned'}
             assigneePhotoUrl={ticket.assignee?.user_photo_url}
             photoUrl={ticket.photo_before_url}
-            onClick={() => router.push(`/tickets/${ticket.id}` as any)}
+            materialsOrdered={(ticket as any).materials_ordered}
+            onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
           />
         ))}
         {((requestFilter === 'active' && filteredIncomingTickets.length === 0) ||
@@ -414,41 +431,41 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   );
 
   const renderProfileTab = () => (
-    <ScrollView style={styles.tabContent}>
-      <View style={styles.profileCard}>
+    <ScrollView style={[styles.tabContent, { backgroundColor: colors.background }]}>
+      <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.profileHeader}>
-          <View style={styles.profileAvatar}>
+          <View style={[styles.profileAvatar, { backgroundColor: colors.primary }]}>
             <Text style={styles.profileAvatarText}>
               {user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
             </Text>
           </View>
-          <View style={styles.profileBadge}>
-            <Text style={styles.profileBadgeText}>{userRole}</Text>
+          <View style={[styles.profileBadge, { backgroundColor: isDark ? 'rgba(112,143,150,0.15)' : '#EFF6FF' }]}>
+            <Text style={[styles.profileBadgeText, { color: colors.primary }]}>{userRole}</Text>
           </View>
         </View>
 
         <View style={styles.profileInfo}>
-          <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Full Name</Text>
-            <Text style={styles.profileValue}>{user?.user_metadata?.full_name || 'Not Set'}</Text>
+          <View style={[styles.profileRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.profileLabel, { color: colors.textTertiary }]}>Full Name</Text>
+            <Text style={[styles.profileValue, { color: colors.textPrimary }]}>{user?.user_metadata?.full_name || 'Not Set'}</Text>
           </View>
-          <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Phone</Text>
-            <Text style={styles.profileValue}>{user?.user_metadata?.phone || 'Not Set'}</Text>
+          <View style={[styles.profileRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.profileLabel, { color: colors.textTertiary }]}>Phone</Text>
+            <Text style={[styles.profileValue, { color: colors.textPrimary }]}>{user?.user_metadata?.phone || 'Not Set'}</Text>
           </View>
-          <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Email</Text>
-            <Text style={styles.profileValue}>{user?.email || 'Not Set'}</Text>
+          <View style={[styles.profileRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.profileLabel, { color: colors.textTertiary }]}>Email</Text>
+            <Text style={[styles.profileValue, { color: colors.textPrimary }]}>{user?.email || 'Not Set'}</Text>
           </View>
-          <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Property</Text>
-            <Text style={styles.profileValue}>{property?.name || 'Not Assigned'}</Text>
+          <View style={[styles.profileRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.profileLabel, { color: colors.textTertiary }]}>Property</Text>
+            <Text style={[styles.profileValue, { color: colors.textPrimary }]}>{property?.name || 'Not Assigned'}</Text>
           </View>
         </View>
       </View>
 
       <TouchableOpacity 
-        style={styles.signOutButton}
+        style={[styles.signOutButton, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2', borderColor: isDark ? 'rgba(239,68,68,0.2)' : '#FECACA' }]}
         onPress={() => setShowSignOutModal(true)}
       >
         <Ionicons name="log-out-outline" size={20} color="#EF4444" />
@@ -459,19 +476,19 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
   if (isLoading && !property) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#3B82F6" />
           <Text style={styles.loadingText}>Loading dashboard...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!property) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <StatusBar barStyle="dark-content" />
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
@@ -481,84 +498,74 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
       {/* Top Navigation */}
-      <View style={styles.topNav}>
-        <Text style={styles.topNavTitle}>MST Portal</Text>
+      <View style={[styles.topNav, { 
+        backgroundColor: colors.surface, 
+        borderBottomColor: colors.border,
+        paddingTop: Math.max(insets.top, 16) 
+      }]}>
+        <Text style={[styles.topNavTitle, { color: colors.textPrimary }]}>MST Portal</Text>
         <TouchableOpacity onPress={() => setShowSignOutModal(true)}>
-          <Ionicons name="log-out-outline" size={24} color="#64748B" />
+          <Ionicons name="log-out-outline" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
       {/* Main Content */}
-      {activeTab === 'dashboard' && renderDashboardTab()}
-      {activeTab === 'requests' && renderRequestsTab()}
-      {activeTab === 'profile' && renderProfileTab()}
+      <View style={{ flex: 1 }}>
+        {activeTab === 'dashboard' && renderDashboardTab()}
+        {activeTab === 'requests' && renderRequestsTab()}
+        {activeTab === 'profile' && renderProfileTab()}
+      </View>
 
       {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => setActiveTab('dashboard')}
-        >
-          <Ionicons 
-            name={activeTab === 'dashboard' ? 'grid' : 'grid-outline'} 
-            size={24} 
-            color={activeTab === 'dashboard' ? '#3B82F6' : '#94A3B8'} 
-          />
-          <Text style={[styles.navText, activeTab === 'dashboard' && styles.navTextActive]}>Dashboard</Text>
+      <View style={[styles.bottomNav, { 
+        backgroundColor: colors.surface, 
+        borderTopColor: colors.border,
+        paddingBottom: Math.max(insets.bottom, 12)
+      }]}>
+        <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('dashboard')}>
+          <View style={[styles.navIconWrapper, activeTab === 'dashboard' && { backgroundColor: isDark ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
+            <Ionicons name={activeTab === 'dashboard' ? 'grid' : 'grid-outline'} size={22} color={activeTab === 'dashboard' ? colors.primary : colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: activeTab === 'dashboard' ? colors.primary : colors.textTertiary }]}>OVERVIEW</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => setActiveTab('requests')}
-        >
-          <Ionicons 
-            name={activeTab === 'requests' ? 'ticket' : 'ticket-outline'} 
-            size={24} 
-            color={activeTab === 'requests' ? '#3B82F6' : '#94A3B8'} 
-          />
-          <Text style={[styles.navText, activeTab === 'requests' && styles.navTextActive]}>Requests</Text>
+        <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('requests')}>
+          <View style={[styles.navIconWrapper, activeTab === 'requests' && { backgroundColor: isDark ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
+            <Ionicons name={activeTab === 'requests' ? 'ticket' : 'ticket-outline'} size={22} color={activeTab === 'requests' ? colors.primary : colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: activeTab === 'requests' ? colors.primary : colors.textTertiary }]}>REQUESTS</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => router.push('/tickets/create' as any)}
+          style={styles.navItemCenter} 
+          onPress={() => setShowCreateModal(true)}
         >
-          <View style={styles.createButton}>
-            <Ionicons name="add" size={28} color="#FFF" />
+          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
+            <Ionicons name="add" size={32} color="#FFF" />
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => setActiveTab('visitors')}
-        >
-          <Ionicons 
-            name={activeTab === 'visitors' ? 'people' : 'people-outline'} 
-            size={24} 
-            color={activeTab === 'visitors' ? '#3B82F6' : '#94A3B8'} 
-          />
-          <Text style={[styles.navText, activeTab === 'visitors' && styles.navTextActive]}>Visitors</Text>
+        <TouchableOpacity style={styles.navItem} onPress={() => setShowLoggersMenu(true)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="options" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>LOGGERS</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => setActiveTab('profile')}
-        >
-          <Ionicons 
-            name={activeTab === 'profile' ? 'person' : 'person-outline'} 
-            size={24} 
-            color={activeTab === 'profile' ? '#3B82F6' : '#94A3B8'} 
-          />
-          <Text style={[styles.navText, activeTab === 'profile' && styles.navTextActive]}>Profile</Text>
+        <TouchableOpacity style={styles.navItem} onPress={() => setShowMoreMenu(true)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>MORE</Text>
         </TouchableOpacity>
       </View>
 
@@ -569,6 +576,52 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         onConfirm={signOut}
       />
 
+      {/* Create Ticket Modal */}
+      <CreateTicketModal
+        visible={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={() => fetchTickets()}
+        propertyId={propertyId}
+      />
+
+      {/* Loggers Modal */}
+      <Modal visible={showLoggersMenu} transparent animationType="fade" onRequestClose={() => setShowLoggersMenu(false)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowLoggersMenu(false)}>
+          <View style={[styles.menuContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.menuTitle, { color: colors.textPrimary }]}>Loggers</Text>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowLoggersMenu(false); /* Nav to Electricity Logger */ }}>
+              <Ionicons name="flash-outline" size={20} color={colors.primary} />
+              <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Electricity Logger</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowLoggersMenu(false); /* Nav to Diesel Logger */ }}>
+              <Ionicons name="water-outline" size={20} color={colors.primary} />
+              <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Diesel Logger</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* More Modal */}
+      <Modal visible={showMoreMenu} transparent animationType="fade" onRequestClose={() => setShowMoreMenu(false)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowMoreMenu(false)}>
+          <View style={[styles.menuContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.menuTitle, { color: colors.textPrimary }]}>More Options</Text>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowMoreMenu(false); setActiveTab('visitors'); }}>
+              <Ionicons name="people-outline" size={20} color={colors.primary} />
+              <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Visitors</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowMoreMenu(false); setActiveTab('profile'); }}>
+              <Ionicons name="person-outline" size={20} color={colors.primary} />
+              <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Profile & Settings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowMoreMenu(false); setShowSignOutModal(true); }}>
+              <Ionicons name="log-out-outline" size={20} color="#F43F5E" />
+              <Text style={[styles.menuItemText, { color: '#F43F5E' }]}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Edit Ticket Modal */}
       <Modal
         visible={!!editingTicket}
@@ -577,41 +630,43 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         onRequestClose={() => setEditingTicket(null)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Request</Text>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Edit Request</Text>
               <TouchableOpacity onPress={() => setEditingTicket(null)}>
-                <Ionicons name="close" size={24} color="#64748B" />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             
-            <Text style={styles.inputLabel}>Title</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Title</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]}
               value={editTitle}
               onChangeText={setEditTitle}
               placeholder="Request title"
+              placeholderTextColor={colors.textTertiary}
             />
 
-            <Text style={styles.inputLabel}>Description</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Description</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, { backgroundColor: colors.background, color: colors.textPrimary, borderColor: colors.border }]}
               value={editDescription}
               onChangeText={setEditDescription}
               placeholder="Detailed description..."
+              placeholderTextColor={colors.textTertiary}
               multiline
               numberOfLines={4}
             />
 
             <View style={styles.modalButtons}>
               <TouchableOpacity 
-                style={styles.cancelButton}
+                style={[styles.cancelButton, { backgroundColor: colors.border }]}
                 onPress={() => setEditingTicket(null)}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.textPrimary }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={styles.saveButton}
+                style={[styles.saveButton, { backgroundColor: colors.primary }]}
                 onPress={handleUpdateTicket}
                 disabled={isUpdating}
               >
@@ -625,7 +680,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -678,15 +733,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFF',
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   topNavTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1A2332',
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   tabContent: {
     flex: 1,
@@ -912,28 +965,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  navIconWrapper: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  navIconWrapperActive: {
+    backgroundColor: '#EFF6FF',
+  },
   navText: {
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 9,
+    fontWeight: '700',
     color: '#94A3B8',
-    marginTop: 4,
   },
   navTextActive: {
     color: '#3B82F6',
   },
-  createButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  navItemCenter: {
+    alignItems: 'center',
+    flex: 1,
+    height: 60,
+    justifyContent: 'flex-start',
+  },
+  centerFab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -24,
+    marginTop: -20,
     shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 8,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  menuContent: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  menuTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1A2332',
+    marginBottom: 16,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  menuItemText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A2332',
   },
   modalOverlay: {
     flex: 1,

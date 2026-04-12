@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
@@ -443,6 +443,7 @@ export default function ElectricityScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   const [meters, setMeters] = useState<ElectricityMeter[]>([]);
   const [readings, setReadings] = useState<ElectricityReading[]>([]);
@@ -540,7 +541,7 @@ export default function ElectricityScreen() {
   }, [readings]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: '#708F96' }]}>
         <Text style={styles.headerTitle}>Electricity Logger</Text>
@@ -649,7 +650,7 @@ export default function ElectricityScreen() {
           onSuccess={fetchData}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

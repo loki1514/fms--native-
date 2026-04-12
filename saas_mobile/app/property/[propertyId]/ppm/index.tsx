@@ -16,7 +16,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
@@ -122,6 +122,7 @@ export default function PPMScreen() {
   const { theme } = useTheme();
   const { membership } = useAuth();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
 
   // ── State ────────────────────────────────────────────────────────────────────
@@ -316,17 +317,17 @@ export default function PPMScreen() {
 
   if (isLoading && schedules.length === 0 && contracts.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading PPM...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* ── Header ── */}
       <View style={[styles.headerSection, { backgroundColor: '#708F96' }]}>
         <View style={styles.headerTop}>
@@ -741,7 +742,7 @@ export default function PPMScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

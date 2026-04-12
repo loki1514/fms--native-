@@ -28,8 +28,8 @@ export const HapticCard: React.FC<HapticCardProps> = ({
 }) => {
   const [isDwelling, setIsDwelling] = useState(false);
   const [dwellProgress, setDwellProgress] = useState(0);
-  const dwellTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const expandAnim = useRef(new Animated.Value(0)).current;
 

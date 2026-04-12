@@ -11,7 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
@@ -253,6 +253,7 @@ function SummaryCard({
 }) {
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   return (
     <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={[styles.summaryIconWrap, { backgroundColor: color + '18' }]}>
@@ -271,6 +272,7 @@ function SummaryCard({
 function AlertItem({ message, color }: { message: string; color: string }) {
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   return (
     <View style={[styles.alertItem, { backgroundColor: color + '15', borderColor: color + '30' }]}>
       <AlertTriangle size={14} color={color} />
@@ -286,6 +288,7 @@ export default function DieselAnalyticsScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   const [generators, setGenerators] = useState<Generator[]>([]);
   const [readings, setReadings] = useState<DieselReading[]>([]);
@@ -390,7 +393,7 @@ export default function DieselAnalyticsScreen() {
   });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <View style={styles.headerTop}>
@@ -545,7 +548,7 @@ export default function DieselAnalyticsScreen() {
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -15,6 +15,7 @@ import {
   Dimensions,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -48,6 +49,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
 import { AuroraBackground } from '@/components/shared/AuroraBackground';
 import { createClient } from '@/utils/supabase/client';
+import { TenantGlassHeader } from '@/components/tenant/TenantGlassHeader';
+import { TenantStatsCard } from '@/components/tenant/TenantStatsCard';
+import { TenantTicketCard } from '@/components/tenant/TenantTicketCard';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/context';
 
@@ -59,16 +63,16 @@ export type TabKey = 'dashboard' | 'requests' | 'daily-board' | 'flow-map' | 'vi
 
 interface Ticket {
   id: string;
-  ticket_number: string;
-  title: string;
-  description: string;
+  ticket_number?: string;
+  title?: string;
+  description?: string;
   status: string;
   priority: string;
   created_at: string;
   assigned_to?: string | null;
   assignee?: {
-    full_name: string;
-    email: string;
+    full_name?: string;
+    email?: string;
     user_photo_url?: string | null;
   } | null;
   sla_due_at?: string;
@@ -809,7 +813,9 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   const { width } = useWindowDimensions();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const isDark = theme === 'dark';
   const isMobile = width < 768;
+  const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobile);
@@ -986,9 +992,9 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   const filteredTickets = useMemo(() => {
     if (!searchQuery) return tickets;
     const q = searchQuery.toLowerCase();
-    return tickets.filter(t => 
-      t.title.toLowerCase().includes(q) ||
-      t.ticket_number.toLowerCase().includes(q)
+    return tickets.filter(t =>
+      (t.title?.toLowerCase().includes(q) ?? false) ||
+      (t.ticket_number?.toLowerCase().includes(q) ?? false)
     );
   }, [tickets, searchQuery]);
 
@@ -1006,78 +1012,93 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
     >
-      {/* Header */}
-      <Animated.View entering={FadeInDown} style={styles.pageHeader}>
-        <View>
-          <Text style={[styles.pageTitle, { color: '#FFFFFF' }]}>Maintenance Dashboard</Text>
-          <Text style={styles.pageSubtitle}>{property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || 'MST Staff'}</Text>
-        </View>
-        <TouchableOpacity style={styles.customizeBtn}>
-          <Ionicons name="options-outline" size={16} color="#64748B" />
-          <Text style={[styles.customizeText, { color: 'rgba(255,255,255,0.70)' }]}>Customize</Text>
-        </TouchableOpacity>
-      </Animated.View>
+      {/* Glassmorphism Header */}
+      <TenantGlassHeader
+        propertyName={property?.name || 'Property'}
+        userName={user?.user_metadata?.full_name || 'MST Staff'}
+      />
 
-      {/* KPI Cards with Premium Effects */}
-      <View style={styles.kpiContainer}>
-        <PremiumKPICard
-          value={stats.total}
-          label="TOTAL TICKETS"
-          color={colors.primary}
-          delay={0}
-          icon="layers-outline"
-        />
-        <PremiumKPICard
-          value={stats.active}
-          label="ACTIVE"
-          color={colors.primary}
-          delay={100}
-          icon="flash-outline"
-        />
-        <PremiumKPICard
-          value={stats.completed}
-          label="COMPLETED"
-          color="#10B981"
-          delay={200}
-          icon="checkmark-done-outline"
-        />
+      {/* Stats Row */}
+      <View style={styles.mstStatsRow}>
+        <View style={styles.mstStatItem}>
+          <TenantStatsCard
+            value={stats.total}
+            label="Total Tickets"
+            color="#708F96"
+            icon="ticket"
+            trend="neutral"
+          />
+        </View>
+        <View style={styles.mstStatItem}>
+          <TenantStatsCard
+            value={stats.active}
+            label="Active"
+            color="#D4A017"
+            icon="alert"
+            trend="up"
+          />
+        </View>
+        <View style={styles.mstStatItem}>
+          <TenantStatsCard
+            value={stats.completed}
+            label="Completed"
+            color="#10B981"
+            icon="check"
+            trend="up"
+          />
+        </View>
       </View>
 
-      {/* Property Requests with Search */}
-      <View style={styles.section}>
-        <Animated.View entering={FadeInDown.delay(300)} style={styles.sectionHeader}>
-          <View>
-            <Text style={[styles.sectionTitle, { color: '#FFFFFF' }]}>Property Requests</Text>
-            <Text style={styles.sectionSubtitle}>All requests for this property</Text>
-          </View>
-        </Animated.View>
+      {/* My Performance */}
+      <View style={styles.mstSectionHeader}>
+        <Text style={styles.mstSectionTitle}>MY PERFORMANCE</Text>
+      </View>
+      <View style={styles.mstStatsRow}>
+        <View style={styles.mstStatItem}>
+          <TenantStatsCard
+            value={stats.myActive}
+            label="My Active"
+            color="#F97316"
+            icon="clock"
+            trend="neutral"
+          />
+        </View>
+        <View style={styles.mstStatItem}>
+          <TenantStatsCard
+            value={stats.myCompleted}
+            label="My Completed"
+            color="#4CAF50"
+            icon="trending"
+            trend="up"
+          />
+        </View>
+      </View>
 
-        <Animated.View entering={FadeInDown.delay(350)} style={styles.searchContainer}>
-          <BlurView intensity={30} tint="dark" style={styles.searchBlur}>
-            <Ionicons name="search" size={20} color="#94A3B8" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search requests..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </BlurView>
-        </Animated.View>
+      {/* Tickets Section */}
+      <View style={styles.mstSectionHeader}>
+        <Text style={styles.mstSectionTitle}>RECENT TICKETS</Text>
+        {tickets.length > 0 && (
+          <Text style={styles.mstSectionCount}>{tickets.length} total</Text>
+        )}
+      </View>
 
-        {/* Tickets Grid */}
-        <View style={[styles.ticketsGrid, { flexDirection: getGridColumns() === 1 ? 'column' : 'row' }]}>
-          {filteredTickets.slice(0, 6).map((ticket, index) => (
-            <View key={ticket.id} style={{ flex: 1, minWidth: getGridColumns() === 1 ? '100%' : `${100 / getGridColumns()}%`, padding: 8 }}>
-              <PremiumTicketCard
-                ticket={ticket}
-                index={index}
+      {filteredTickets.length === 0 ? (
+        <View style={styles.mstEmptyState}>
+          <Ionicons name="checkmark-done-circle-outline" size={40} color="rgba(255,255,255,0.25)" />
+          <Text style={styles.mstEmptyText}>No tickets found</Text>
+        </View>
+      ) : (
+        <View style={styles.mstTicketsList}>
+          {filteredTickets.slice(0, 10).map((ticket, index) => (
+            <View key={ticket.id} style={styles.mstTicketItem}>
+              <TenantTicketCard
+                ticket={ticket as any}
                 onPress={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
               />
             </View>
           ))}
         </View>
-      </View>
+      )}
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -1228,13 +1249,13 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" />
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#0F172a' : '#F8FAFC' }]}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#708F96" />
           <Text style={styles.loadingText}>Loading dashboard...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -1321,8 +1342,8 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       {weather && <AuroraBackground colors={weather.auroraColors} />}
       <View style={styles.mainContainer}>
         {/* Mobile Sidebar Overlay */}
@@ -1411,7 +1432,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
           {activeTab === 'profile' && renderProfileContent()}
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -2292,5 +2313,55 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     fontFamily: 'Urbanist-SemiBold',
+  },
+
+  // MST Glassmorphism Dashboard styles
+  mstStatsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 4,
+  },
+  mstStatItem: {
+    flex: 1,
+    minHeight: 140,
+  },
+  mstSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  mstSectionTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.50)',
+    letterSpacing: 1.5,
+    fontFamily: 'Urbanist-SemiBold',
+  },
+  mstSectionCount: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.35)',
+    fontFamily: 'Urbanist-Regular',
+  },
+  mstTicketsList: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  mstTicketItem: {
+    width: '100%',
+  },
+  mstEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    gap: 12,
+  },
+  mstEmptyText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.30)',
+    fontFamily: 'Urbanist-Regular',
   },
 });

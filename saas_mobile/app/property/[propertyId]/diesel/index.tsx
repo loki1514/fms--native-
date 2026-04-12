@@ -13,7 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
@@ -100,6 +100,7 @@ function getPeriodDates(period: Period): { start: string; end: string } {
 function FuelGauge({ level, maxLitres, size = 'normal' }: { level: number; maxLitres: number; size?: 'small' | 'normal' }) {
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   const pct = maxLitres > 0 ? Math.min(100, Math.max(0, (level / maxLitres) * 100)) : 0;
   const isLow = pct < 20;
 
@@ -517,6 +518,7 @@ export default function DieselScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   const [generators, setGenerators] = useState<Generator[]>([]);
   const [readings, setReadings] = useState<DieselReading[]>([]);
@@ -617,7 +619,7 @@ export default function DieselScreen() {
   });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: '#708F96' }]}>
         <Text style={styles.headerTitle}>Diesel Logger</Text>
@@ -737,7 +739,7 @@ export default function DieselScreen() {
           onSuccess={fetchData}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

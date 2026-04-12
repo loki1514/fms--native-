@@ -11,7 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
@@ -151,6 +151,7 @@ function SummaryCard({
 }) {
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   return (
     <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={[styles.summaryIconWrap, { backgroundColor: color + '18' }]}>
@@ -171,6 +172,7 @@ export default function ElectricityAnalyticsScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   const [meters, setMeters] = useState<ElectricityMeter[]>([]);
   const [readings, setReadings] = useState<ElectricityReading[]>([]);
@@ -298,7 +300,7 @@ export default function ElectricityAnalyticsScreen() {
   }, [meters, perMeterTotals]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.primary }]}>
         <View style={styles.headerTop}>
@@ -503,7 +505,7 @@ export default function ElectricityAnalyticsScreen() {
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

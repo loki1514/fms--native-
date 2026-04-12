@@ -377,7 +377,7 @@ export async function checkPropertyAccess(propertyId: string): Promise<PropertyA
       if (orgError) console.error('[checkPropertyAccess] org_memberships error:', orgError);
       console.log('[checkPropertyAccess] Org membership:', orgMembership);
 
-      if (orgMembership && ['org_admin', 'org_super_admin', 'owner'].includes(orgMembership.role)) {
+      if (orgMembership && ['org_admin', 'org_super_admin', 'owner', 'super_tenant'].includes(orgMembership.role)) {
         console.log('[checkPropertyAccess] Org-level access granted:', orgMembership.role);
         return { authorized: true, role: orgMembership.role };
       }
@@ -436,13 +436,13 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
     case 'tenant':
       return [`${basePath}/tenant`];
     case 'security':
-      return [`${basePath}/security`, `${basePath}/dashboard`];
+      return [`${basePath}/security`, `${basePath}/dashboard`, `${basePath}/tickets`];
     case 'staff':
-      return [`${basePath}/staff`, `${basePath}/dashboard`];
+      return [`${basePath}/staff`, `${basePath}/dashboard`, `${basePath}/tickets`];
     case 'mst':
-      return [`${basePath}/mst`, `${basePath}/dashboard`];
+      return [`${basePath}/mst`, `${basePath}/dashboard`, `${basePath}/tickets`];
     case 'vendor':
-      return [`${basePath}/vendor`, `${basePath}/dashboard`];
+      return [`${basePath}/vendor`, `${basePath}/dashboard`, `${basePath}/tickets`];
     case 'super_tenant':
       return [`${basePath}/tenant`];
     default:

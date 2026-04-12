@@ -81,7 +81,7 @@ export class VoiceEnrollmentService {
 
     try {
       const audioBase64 = await FileSystem.readAsStringAsync(recordingUri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64' as const,
       });
 
       const result = await this.callEnrollApi(audioBase64, recordingUri);
@@ -122,7 +122,7 @@ export class VoiceEnrollmentService {
 
     try {
       const audioBase64 = await FileSystem.readAsStringAsync(recordingUri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64' as const,
       });
 
       const result = await this.callEnrollApi(audioBase64, recordingUri);

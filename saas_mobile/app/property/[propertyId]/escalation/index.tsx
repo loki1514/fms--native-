@@ -15,7 +15,7 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
@@ -77,6 +77,7 @@ export default function EscalationScreen() {
   const { theme } = useTheme();
   const { membership, user } = useAuth();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   // ── State ────────────────────────────────────────────────────────────────────
   const [hierarchies, setHierarchies] = useState<EscalationHierarchy[]>([]);
@@ -347,12 +348,12 @@ export default function EscalationScreen() {
 
   if (isLoading && hierarchies.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading escalation matrix...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -481,7 +482,7 @@ export default function EscalationScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* ── Header ── */}
       <View style={[styles.headerSection, { backgroundColor: '#708F96' }]}>
         <View style={styles.headerTop}>
@@ -621,7 +622,7 @@ export default function EscalationScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

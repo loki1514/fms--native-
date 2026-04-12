@@ -4,7 +4,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { ArrowLeft } from 'lucide-react-native';
@@ -60,6 +60,7 @@ export default function SnagReportDetailScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   const isDark = theme === 'dark';
 
   const [data, setData] = useState<SnagReportResponse | null>(null);
@@ -81,7 +82,7 @@ export default function SnagReportDetailScreen() {
   const cardBg = isDark ? '#1E2535' : '#FFFFFF';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: bg, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -197,7 +198,7 @@ export default function SnagReportDetailScreen() {
           </>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
