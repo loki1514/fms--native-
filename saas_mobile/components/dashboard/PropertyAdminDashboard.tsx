@@ -14,6 +14,7 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '../../utils/supabase/client';
@@ -76,6 +77,8 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
   const { weather } = useWeather();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const isDark = theme === 'dark';
+  const insets = useSafeAreaInsets();
 
   // State
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -527,21 +530,21 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
 
   if (isLoading && !property) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" />
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#060912' : '#F8FAFC' }]}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
         {weather && <AuroraBackground colors={weather.auroraColors} />}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#708F96" />
           <Text style={styles.loadingText}>Loading dashboard...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!property) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" />
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#060912' : '#F8FAFC' }]}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
         {weather && <AuroraBackground colors={weather.auroraColors} />}
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color="#708F96" />
@@ -551,13 +554,13 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#060912' : '#F8FAFC' }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       {weather && <AuroraBackground colors={weather.auroraColors} />}
 
       {/* Top Navigation */}
@@ -635,7 +638,7 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
         onClose={() => setShowSignOutModal(false)}
         onConfirm={signOut}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

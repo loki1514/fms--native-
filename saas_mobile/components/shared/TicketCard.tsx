@@ -6,6 +6,7 @@ import {
   Image,
   StyleSheet,
   ViewStyle,
+  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context';
@@ -22,11 +23,13 @@ export interface TicketCardProps {
   assigneePhotoUrl?: string | null;
   photoUrl?: string;
   propertyName?: string;
+  materialsOrdered?: boolean;
   escalationChain?: { name: string; avatar?: string | null }[];
   raisedByTenant?: boolean;
   onClick: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onShare?: () => void;
   onValidate?: () => void;
   onReject?: () => void;
   style?: ViewStyle;
@@ -35,12 +38,22 @@ export interface TicketCardProps {
 export default function TicketCard({
   id, title, priority, status, ticketNumber, createdAt,
   assignedTo, assigneePhotoUrl, photoUrl, propertyName,
-  escalationChain, raisedByTenant,
-  onClick, onEdit, onDelete, onValidate, onReject, style,
+  materialsOrdered, escalationChain, raisedByTenant,
+  onClick, onEdit, onDelete, onShare, onValidate, onReject, style,
 }: TicketCardProps) {
   const dateObj = new Date(createdAt);
   const dateStr = dateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
   const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  const handleShare = async () => {
+    if (onShare) { onShare(); return; }
+    try {
+      await Share.share({
+        message: `🎫 Ticket: ${title}\n📋 ${ticketNumber}\n⏰ ${dateStr} ${timeStr}\n📊 Priority: ${priority} | Status: ${status.replace(/_/g, ' ')}${assignedTo ? `\n👤 Assigned: ${assignedTo}` : ''}`,
+        title: `Ticket ${ticketNumber}`,
+      });
+    } catch (_) {}
+  };
 
   const isClosed = ['COMPLETED', 'CLOSED', 'RESOLVED'].includes(status?.toUpperCase() || '');
   const isCritical = priority?.toUpperCase() === 'CRITICAL' && !isClosed;
@@ -99,6 +112,16 @@ export default function TicketCard({
           <Image source={{ uri: photoUrl }} style={styles.thumbnail} />
         )}
         <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>{title}</Text>
+        <View style={styles.topActions}>
+          {onEdit && (
+            <TouchableOpacity style={[styles.topIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]} onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[styles.topIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]} onPress={handleShare} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="share-outline" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Badges */}
@@ -109,6 +132,12 @@ export default function TicketCard({
         <View style={[styles.badge, { backgroundColor: sStyle.bg, borderColor: sStyle.bg }]}>
           <Text style={[styles.badgeText, { color: sStyle.text }]}>{status.replace(/_/g, ' ')}</Text>
         </View>
+        {materialsOrdered && (
+          <View style={[styles.badge, { backgroundColor: 'rgba(59,130,246,0.1)', borderColor: 'rgba(59,130,246,0.3)' }]}>
+            <Ionicons name="cube-outline" size={10} color="#3B82F6" />
+            <Text style={[styles.badgeText, { color: '#3B82F6' }]}>Materials</Text>
+          </View>
+        )}
         {propertyName && (
           <View style={[styles.badge, { backgroundColor: 'rgba(99,102,241,0.06)', borderColor: 'rgba(99,102,241,0.2)' }]}>
             <Ionicons name="business-outline" size={10} color="#6366F1" />
@@ -203,6 +232,8 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   thumbnail: { width: 56, height: 56, borderRadius: 12 },
   title: { flex: 1, fontSize: 15, fontWeight: '600', lineHeight: 20 },
+  topActions: { flexDirection: 'row', gap: 6, marginLeft: 4 },
+  topIconBtn: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1 },
   badgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
@@ -222,6 +253,8 @@ const styles = StyleSheet.create({
   timerText: { fontSize: 10, fontWeight: '900' },
   viewBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#708F96', borderRadius: 10 },
   viewBtnText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 8 },
+  iconBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(100,116,139,0.08)', justifyContent: 'center', alignItems: 'center' },
   validationRow: { flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 1 },
   validateBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, backgroundColor: '#10B981', borderRadius: 12 },
   validateBtnText: { fontSize: 12, fontWeight: '700', color: '#FFF' },

@@ -16,6 +16,7 @@ import {
   FlatList,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -30,6 +31,7 @@ import Animated, {
 import { useAuth } from '@/hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
 import { AuroraBackground } from '@/components/shared/AuroraBackground';
+import ShareModal from '@/components/shared/ShareModal';
 import { useGamification, LeaderboardEntry as GamificationEntry } from '@/hooks/mst/useGamification';
 import { createClient } from '@/utils/supabase/client';
 import { Colors } from '@/constants/Colors';
@@ -255,7 +257,7 @@ function KPICard({ value, label, color, delay = 0, labelColor }: { value: number
 }
 
 // Ticket Card Component
-function TicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress: () => void; index: number }) {
+function TicketCard({ ticket, onPress, index, onEdit, onShare }: { ticket: Ticket; onPress: () => void; index: number; onEdit?: () => void; onShare?: () => void }) {
   const getPriorityColor = () => {
     switch (ticket.priority?.toLowerCase()) {
       case 'urgent':
@@ -286,12 +288,16 @@ function TicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress: () =>
           <View style={styles.ticketTitleRow}>
             <Text style={styles.ticketTitle} numberOfLines={2}>{ticket.title}</Text>
             <View style={styles.ticketActions}>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="create-outline" size={16} color="rgba(255,255,255,0.45)" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="share-outline" size={16} color="rgba(255,255,255,0.45)" />
-              </TouchableOpacity>
+              {onEdit && (
+                <TouchableOpacity style={styles.iconButton} onPress={onEdit}>
+                  <Ionicons name="create-outline" size={16} color="rgba(255,255,255,0.45)" />
+                </TouchableOpacity>
+              )}
+              {onShare && (
+                <TouchableOpacity style={styles.iconButton} onPress={onShare}>
+                  <Ionicons name="share-outline" size={16} color="rgba(255,255,255,0.45)" />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -393,7 +399,9 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   const { width } = useWindowDimensions();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const isDark = theme === 'dark';
   const isMobile = width < 768;
+  const insets = useSafeAreaInsets();
 
   // State
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
@@ -427,6 +435,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   const [property, setProperty] = useState<{ name: string } | null>(null);
   const [countdown, setCountdown] = useState('00:00:00');
   const [searchQuery, setSearchQuery] = useState('');
+  const [shareModalTicket, setShareModalTicket] = useState<Ticket | null>(null);
 
   // Gamification hook
   const { leaderboard: gamifyLb, myStats, loading: gamifyLoading, error: gamifyError, refetch: gamifyRefetch } = useGamification(propertyId);
@@ -625,6 +634,8 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
               ticket={ticket}
               index={index}
               onPress={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+              onEdit={() => router.push(`/property/${propertyId}/tickets/${ticket.id}?edit=true` as any)}
+              onShare={() => setShareModalTicket(ticket)}
             />
           </View>
         ))
@@ -688,6 +699,8 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
                 ticket={ticket}
                 index={index}
                 onPress={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+                onEdit={() => router.push(`/property/${propertyId}/tickets/${ticket.id}?edit=true` as any)}
+                onShare={() => setShareModalTicket(ticket)}
               />
             </View>
           ))}
@@ -797,20 +810,20 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" />
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
         {weather && <AuroraBackground colors={weather.auroraColors} />}
         <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading dashboard...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       {weather && <AuroraBackground colors={weather.auroraColors} />}
       <View style={styles.mainContainer}>
         {/* Mobile Sidebar Overlay */}
@@ -897,7 +910,18 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
           {activeTab === 'flow-map' && renderFlowMapContent()}
         </View>
       </View>
-    </SafeAreaView>
+
+      {/* Share Modal */}
+      {shareModalTicket && (
+        <ShareModal
+          isOpen={!!shareModalTicket}
+          onClose={() => setShareModalTicket(null)}
+          ticketId={shareModalTicket.id}
+          ticketNumber={shareModalTicket.ticket_number}
+          title={shareModalTicket.title}
+        />
+      )}
+    </View>
   );
 }
 

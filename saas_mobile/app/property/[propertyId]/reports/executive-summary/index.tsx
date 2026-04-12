@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react-native';
@@ -40,6 +40,7 @@ export default function ExecutiveSummaryScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   const isDark = theme === 'dark';
 
   const [data, setData] = useState<ExecutiveReportResponse | null>(null);
@@ -61,21 +62,21 @@ export default function ExecutiveSummaryScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: bg, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.loadingWrap}>
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading executive summary…</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (data?.error || !data) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: bg, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.loadingWrap}>
           <Text style={styles.errorText}>{data?.error || 'Failed to load report'}</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -107,7 +108,7 @@ export default function ExecutiveSummaryScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: bg, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -228,7 +229,7 @@ export default function ExecutiveSummaryScreen() {
           </Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

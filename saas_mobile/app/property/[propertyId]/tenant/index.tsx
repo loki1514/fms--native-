@@ -40,7 +40,7 @@ export default function TenantPage() {
     }
 
     // Check org-level roles for super_tenant
-    if (['org_admin', 'org_super_admin', 'owner'].includes(membership.org_role ?? '')) {
+    if (['org_admin', 'org_super_admin', 'owner', 'super_tenant'].includes(membership.org_role ?? '')) {
       console.log('[TenantPage] Org-level role, isSuperTenant: true');
       return { role: membership.org_role, isSuperTenant: true };
     }

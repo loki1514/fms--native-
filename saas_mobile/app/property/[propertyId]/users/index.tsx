@@ -14,7 +14,7 @@ import {
   Image,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
@@ -983,6 +983,7 @@ export default function UsersScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   const [users, setUsers] = useState<UserWithMembership[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1079,9 +1080,8 @@ export default function UsersScreen() {
   const activeCount = users.filter((u) => u.is_active).length;
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      edges={['top']}
+    <View
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}
     >
       {/* Header */}
       <View style={styles.header}>
@@ -1184,7 +1184,7 @@ export default function UsersScreen() {
           onSuccess={fetchUsers}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -15,7 +15,7 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
@@ -88,6 +88,7 @@ export default function StockScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   // ── State ────────────────────────────────────────────────────────────────────
   const [items, setItems] = useState<StockItem[]>([]);
@@ -323,17 +324,17 @@ export default function StockScreen() {
 
   if (isLoading && items.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading inventory...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* ── Header ── */}
       <View style={[styles.headerSection, { backgroundColor: '#708F96' }]}>
         <View style={styles.headerTop}>
@@ -799,7 +800,7 @@ export default function StockScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

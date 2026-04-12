@@ -7,54 +7,40 @@
  * 1. Authenticate via Bearer token (Supabase)
  * 2. Decode base64 audio (m4a / webm / wav)
  * 3. Convert audio to WAV PCM 16-bit 16kHz mono (FFmpeg, if available)
- * 4. Call the Cassandra ECAPA-TDNN server for a 192-dim embedding
+ * 4. Call the ECAPA-TDNN server for a 192-dim embedding
  * 5. Store the embedding in Supabase `user_voice_embeddings`
  * 6. Return { embedding_id }
  *
- * If CASSANDRA_ECAPA_URL is not set or the server is unreachable,
- * a mock 192-dim embedding is generated so that local dev works without
- * the Cassandra service running.
+ * If the ECAPA server is unreachable, a mock 192-dim embedding is
+ * generated so that local dev works without the service running.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { createClientFromToken, extractBearerToken } from '@/utils/supabase/mobile-auth';
 
-// ---------------------------------------------------------------------------
-// CORS headers — allow requests from any origin (mobile apps, web, localhost)
-// ---------------------------------------------------------------------------
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-function jsonResponse(body: object, init?: ResponseInit): NextResponse {
-  return NextResponse.json(body, {
+function jsonResponse(body: object, init?: ResponseInit): Response {
+  return new Response(JSON.stringify(body), {
     ...init,
     headers: {
+      'Content-Type': 'application/json',
       ...CORS_HEADERS,
       ...(init?.headers as Record<string, string> | undefined),
     },
   });
 }
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 interface EnrollRequest {
-  audio: string;   // base64-encoded audio data
-  format: string;  // mime type: audio/m4a | audio/webm | audio/wav | audio/mp4
+  audio: string;
+  format: string;
 }
 
-// ---------------------------------------------------------------------------
-// FFmpeg audio conversion — converts input audio to PCM 16-bit 16kHz mono WAV
-// Returns the WAV buffer, or null if FFmpeg is unavailable.
-// ---------------------------------------------------------------------------
 async function convertAudioToWav(inputBuffer: Buffer, inputFormat: string): Promise<Buffer | null> {
-  // FFmpeg is only available in Node.js server environments (not in Edge runtime).
-  // Only attempt this import inside this async function so the module compiles
-  // in both Edge and Node.js runtimes.
   try {
     const { execFile } = await import('child_process');
     const path = await import('path');
@@ -65,10 +51,8 @@ async function convertAudioToWav(inputBuffer: Buffer, inputFormat: string): Prom
       const tempInput = path.join(os.tmpdir(), `voice_enroll_input_${Date.now()}.tmp`);
       const tempOutput = path.join(os.tmpdir(), `voice_enroll_output_${Date.now()}.wav`);
 
-      // Write input buffer to a temp file
       fs.writeFileSync(tempInput, inputBuffer);
 
-      // Derive ffmpeg input args from mime type
       const formatMap: Record<string, string> = {
         'audio/m4a': 'm4a',
         'audio/mp4': 'mp4',
@@ -80,18 +64,17 @@ async function convertAudioToWav(inputBuffer: Buffer, inputFormat: string): Prom
       const ffmpegFormat = formatMap[inputFormat] ?? 'wav';
 
       const args = [
-        '-y',                          // overwrite output
-        '-f', ffmpegFormat,             // input format
-        '-i', tempInput,                // input file
-        '-ar', '16000',                 // 16kHz sample rate
-        '-ac', '1',                     // mono
-        '-acodec', 'pcm_s16le',         // PCM 16-bit little-endian
-        '-f', 'wav',                    // output format
-        tempOutput,                     // output file
+        '-y',
+        '-f', ffmpegFormat,
+        '-i', tempInput,
+        '-ar', '16000',
+        '-ac', '1',
+        '-acodec', 'pcm_s16le',
+        '-f', 'wav',
+        tempOutput,
       ];
 
       execFile('ffmpeg', args, (error: Error | null, _stdout: string, stderr: string) => {
-        // Always clean up input temp file
         try { fs.unlinkSync(tempInput); } catch {}
         if (error) {
           console.error('[voice/enroll] FFmpeg error:', stderr);
@@ -117,24 +100,15 @@ async function convertAudioToWav(inputBuffer: Buffer, inputFormat: string): Prom
   }
 }
 
-// ---------------------------------------------------------------------------
-// Mock 192-dim ECAPA embedding (development fallback)
-// ---------------------------------------------------------------------------
 function generateMockEmbedding(): number[] {
-  // Generate a deterministic-ish random vector for consistent testing.
-  // Real embeddings come from the ECAPA-TDNN model (serres17/ecapa_tdnn).
   const dims = 192;
   const vec = new Float32Array(dims);
   for (let i = 0; i < dims; i++) {
-    // Values should be roughly in [-1, 1] for cosine-similarity search
-    vec[i] = (Math.random() * 2) - 1;
+    vec[i] = Math.random() * 2 - 1;
   }
   return Array.from(vec);
 }
 
-// ---------------------------------------------------------------------------
-// ECAPA server call — POSTs WAV audio, receives a 192-dim embedding vector
-// ---------------------------------------------------------------------------
 async function callEcapServer(wavBuffer: Buffer): Promise<number[] | null> {
   const ecapaUrl = process.env.CASSANDRA_ECAPA_URL;
   if (!ecapaUrl) {
@@ -169,19 +143,14 @@ async function callEcapServer(wavBuffer: Buffer): Promise<number[] | null> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// POST handler
-// ---------------------------------------------------------------------------
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    // 1. Authenticate — extract and verify Bearer token
     const authHeader = request.headers.get('Authorization');
     const accessToken = extractBearerToken(authHeader);
     if (!accessToken) {
       return jsonResponse({ error: 'Unauthorized: missing or malformed Authorization header' }, { status: 401 });
     }
 
-    // 2. Parse request body
     let body: EnrollRequest;
     try {
       body = await request.json();
@@ -198,7 +167,6 @@ export async function POST(request: NextRequest) {
       return jsonResponse({ error: 'Missing required field: format (mime type string)' }, { status: 400 });
     }
 
-    // 3. Decode base64 audio
     let audioBuffer: Buffer;
     try {
       audioBuffer = Buffer.from(audioBase64, 'base64');
@@ -210,12 +178,14 @@ export async function POST(request: NextRequest) {
       return jsonResponse({ error: 'Empty audio data' }, { status: 400 });
     }
 
-    const maxSizeBytes = 25 * 1024 * 1024; // 25 MB
+    const maxSizeBytes = 25 * 1024 * 1024;
     if (audioBuffer.length > maxSizeBytes) {
-      return jsonResponse({ error: `Audio too large: ${(audioBuffer.length / 1024 / 1024).toFixed(1)}MB (max 25MB)` }, { status: 413 });
+      return jsonResponse(
+        { error: `Audio too large: ${(audioBuffer.length / 1024 / 1024).toFixed(1)}MB (max 25MB)` },
+        { status: 413 }
+      );
     }
 
-    // 4. Authenticated client — verify the user exists and get their ID
     const userSupabase = createClientFromToken(accessToken);
     const { data: authUser, error: authError } = await userSupabase.auth.getUser();
     if (authError || !authUser) {
@@ -223,7 +193,6 @@ export async function POST(request: NextRequest) {
     }
     const userId = authUser.id;
 
-    // 5. Get organization_id from org_memberships (optional, for org-level enrollment)
     const adminClient = createAdminClient();
     const { data: orgMembership } = await adminClient
       .from('organization_memberships')
@@ -234,17 +203,12 @@ export async function POST(request: NextRequest) {
 
     const organizationId: string | null = orgMembership?.organization_id ?? null;
 
-    // 6. Convert audio to WAV PCM 16-bit 16kHz mono
-    //    FFmpeg is attempted first. If unavailable, the raw buffer is sent as-is
-    //    (the ECAPA server may handle conversion internally).
     let wavBuffer = await convertAudioToWav(audioBuffer, format);
     if (!wavBuffer) {
-      // Fallback: send raw buffer. The ECAPA server may accept raw PCM or WAV.
       console.warn('[voice/enroll] FFmpeg conversion failed — sending raw buffer to ECAPA server');
       wavBuffer = audioBuffer;
     }
 
-    // 7. Get embedding from ECAPA server (or mock in dev)
     let embedding = await callEcapServer(wavBuffer);
     let isMock = false;
 
@@ -254,16 +218,11 @@ export async function POST(request: NextRequest) {
       isMock = true;
     }
 
-    // Validate embedding dimensions
     if (!embedding || embedding.length !== 192) {
       console.error('[voice/enroll] Embedding dimension mismatch:', embedding?.length);
       return jsonResponse({ error: 'Speaker embedding generation failed: invalid dimensions' }, { status: 502 });
     }
 
-    // 8. Store embedding in Supabase
-    //    Uses the admin client to bypass RLS so the record can always be inserted.
-    //    The embedding vector is stored as a JSONB array (pgvector can also be used
-    //    with the `vector` type if the extension is installed).
     const { data: inserted, error: insertError } = await adminClient
       .from('user_voice_embeddings')
       .insert({
@@ -279,10 +238,7 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error('[voice/enroll] Failed to store embedding:', insertError);
-      return jsonResponse(
-        { error: 'Failed to store voice embedding. Please try again.' },
-        { status: 500 }
-      );
+      return jsonResponse({ error: 'Failed to store voice embedding. Please try again.' }, { status: 500 });
     }
 
     if (!inserted?.id) {
@@ -302,9 +258,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// OPTIONS — CORS preflight
-// ---------------------------------------------------------------------------
 export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
 }

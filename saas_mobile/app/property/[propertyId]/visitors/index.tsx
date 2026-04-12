@@ -16,7 +16,7 @@ import {
   Alert,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors, DesignTokens } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
@@ -628,6 +628,7 @@ function CheckInForm({
 function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => void }) {
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
@@ -828,6 +829,7 @@ export default function VisitorsScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [visitors, setVisitors] = useState<VisitorLog[]>([]);
@@ -940,9 +942,9 @@ export default function VisitorsScreen() {
   // Kiosk mode renders full screen
   if (kioskMode) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.primary }} edges={['top']}>
+      <View style={{ flex: 1, backgroundColor: colors.primary, paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <KioskMode propertyId={propertyId!} onExit={() => setKioskMode(false)} />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -953,7 +955,7 @@ export default function VisitorsScreen() {
   const filteredAll = visitors;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -1127,7 +1129,7 @@ export default function VisitorsScreen() {
           )}
         </BottomSheetView>
       </BottomSheet>
-    </SafeAreaView>
+    </View>
   );
 }
 

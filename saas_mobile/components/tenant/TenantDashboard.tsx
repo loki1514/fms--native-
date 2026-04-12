@@ -1,8 +1,9 @@
 'use client';
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantTickets } from '@/hooks/tenant/useTenantTickets';
 import { useWeather } from '@/hooks/useWeather';
@@ -17,6 +18,7 @@ import { VoiceOrbWrapper } from '../voice/VoiceOrbWrapper';
 import { TenantTicketModal } from './TenantTicketModal';
 import { AuroraBackground } from '../shared/AuroraBackground';
 import { useSuperTenantProperties, SuperTenantProperty } from '@/hooks/tenant/useSuperTenantProperties';
+import SuperTenantSidebar from './SuperTenantSidebar';
 
 type TabKey = 'home' | 'tickets' | 'rooms' | 'profile';
 

@@ -15,7 +15,7 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
@@ -125,6 +125,7 @@ export default function ChecklistScreen() {
   const { theme } = useTheme();
   const { user, membership } = useAuth();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   // ── State ────────────────────────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState<ViewMode>('active');
@@ -421,12 +422,12 @@ export default function ChecklistScreen() {
 
   if (isLoading && templates.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading checklists...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -445,7 +446,7 @@ export default function ChecklistScreen() {
     });
 
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+      <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         {/* Header */}
         <View style={[styles.runnerHeader, { backgroundColor: colors.primary }]}>
           <View style={styles.runnerHeaderTop}>
@@ -552,13 +553,13 @@ export default function ChecklistScreen() {
             </View>
           )}
         />
-      </SafeAreaView>
+      </View>
     );
   }
 
   // ── Main View ──
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bgColor }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Header */}
       <View style={[styles.headerSection, { backgroundColor: '#708F96' }]}>
         <View style={styles.headerTop}>
@@ -845,7 +846,7 @@ export default function ChecklistScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

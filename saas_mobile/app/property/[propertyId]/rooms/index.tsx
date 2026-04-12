@@ -14,7 +14,7 @@ import {
   Switch,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors, DesignTokens } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
@@ -683,6 +683,7 @@ export default function RoomsScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<RoomTab>('rooms');
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -842,7 +843,7 @@ export default function RoomsScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -1053,7 +1054,7 @@ export default function RoomsScreen() {
           )}
         </BottomSheetView>
       </BottomSheet>
-    </SafeAreaView>
+    </View>
   );
 }
 

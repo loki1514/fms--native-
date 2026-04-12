@@ -8,13 +8,13 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   TextInput,
   Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '@/utils/supabase/client';
@@ -76,6 +76,7 @@ export default function TicketsScreen() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState(false);
 
+  const insets = useSafeAreaInsets();
   const orgId = membership?.org_id ?? '';
 
   const buildQuery = useCallback((offset: number, limit: number) => {
@@ -239,7 +240,7 @@ export default function TicketsScreen() {
         }}
       />
 
-      <View style={[styles.container, { backgroundColor: bg }]}>
+      <View style={[styles.container, { backgroundColor: bg, paddingBottom: insets.bottom }]}>
         {/* Filter Tabs */}
         <View style={[styles.tabBar, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
           <ScrollView
@@ -339,7 +340,7 @@ export default function TicketsScreen() {
         animationType="slide"
         onRequestClose={() => { setShowCreateModal(false); resetCreate(); }}
       >
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: isDark ? '#0F1521' : '#FFF' }]}>
+        <View style={[styles.modalContainer, { backgroundColor: isDark ? '#0F1521' : '#FFF', paddingTop: insets.top, paddingBottom: insets.bottom }]}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={{ flex: 1 }}
@@ -522,7 +523,7 @@ export default function TicketsScreen() {
               )}
             </ScrollView>
           </KeyboardAvoidingView>
-        </SafeAreaView>
+        </View>
 
         <MediaCaptureModal
           isOpen={showMediaModal}

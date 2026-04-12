@@ -42,7 +42,7 @@ export default function PropertyIndex() {
     return <Redirect href={`/property/${propertyId}/mst`} />;
   }
 
-  if (['org_admin', 'org_super_admin', 'owner'].includes(orgRole)) {
+  if (['org_admin', 'org_super_admin', 'owner', 'super_tenant'].includes(orgRole)) {
     return <Redirect href={`/property/${propertyId}/tenant`} />;
   }
 

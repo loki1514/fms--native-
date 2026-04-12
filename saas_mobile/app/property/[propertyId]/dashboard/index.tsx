@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 
@@ -27,6 +27,7 @@ import {
   Users,
   Package,
   Store,
+  LogOut,
 } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -301,7 +302,8 @@ function VendorRevenueCard({ revenue, commission, count }: { revenue: number; co
 // ---- Main Dashboard Screen ----
 export default function DashboardScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
-  const { membership } = useAuth();
+  const router = useRouter();
+  const { membership, signOut } = useAuth();
   const { theme } = useTheme();
   const colors = Colors[theme];
 
@@ -330,6 +332,11 @@ export default function DashboardScreen() {
   }, [membership, propertyId]);
 
   const periodLabel = timePeriod === 'today' ? 'Today' : timePeriod === 'month' ? 'Month' : 'All';
+
+  const handleLogout = async () => {
+    await signOut();
+    router.replace('/login');
+  };
 
   const fetchStats = async () => {
     if (!propertyId) return;
@@ -448,6 +455,10 @@ export default function DashboardScreen() {
       {/* Header Section — Teal */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Unified Dashboard</Text>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.7}>
+          <LogOut size={16} color="rgba(255,255,255,0.8)" strokeWidth={1.5} />
+          <Text style={styles.logoutBtnText}>Logout</Text>
+        </TouchableOpacity>
 
         {/* Time Period Filter */}
         <View style={styles.filterRow}>
@@ -640,6 +651,24 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: '#FFFFFF',
     marginBottom: 12,
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(239,68,68,0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+  },
+  logoutBtnText: {
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
   },
   filterRow: {
     flexDirection: 'row',
