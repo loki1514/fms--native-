@@ -14,6 +14,7 @@ import {
   Platform,
   Dimensions,
   Modal,
+  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -23,7 +24,13 @@ import { createClient } from '@/utils/supabase/client';
 import { useTheme } from '@/context';
 import StatusBadge from '@/components/tickets/StatusBadge';
 import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
-import { compressImage, getStoragePath } from '@/utils/mediaUtils';
+import MediaActionsSheet from '@/components/shared/MediaActionsSheet';
+import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
+import { compressImage, getStoragePath, getStoragePathForSlot } from '@/utils/mediaUtils';
+import { WEB_API_BASE } from '@/utils/api/mobileApi';
+import * as FileSystem from 'expo-file-system';
+// @ts-ignore
+import * as MediaLibrary from 'expo-media-library';
 
 interface Ticket {
   id: string;
@@ -32,13 +39,13 @@ interface Ticket {
   status: string;
   priority: string;
   category?: string;
+  skill_group?: string;
   ticket_number: string;
   created_at: string;
   updated_at: string;
   assigned_at?: string;
   work_started_at?: string;
   resolved_at?: string;
-  closed_at?: string;
   work_paused: boolean;
   work_pause_reason?: string;
   sla_deadline?: string | null;
@@ -70,6 +77,7 @@ interface Activity {
   new_value?: string | null;
   old_value?: string | null;
   created_at: string;
+  user_id?: string;
   user?: { full_name: string };
 }
 
@@ -97,19 +105,18 @@ const PRIORITY_CONFIG: Record<string, { bg: string; text: string; label: string 
 };
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
-  open:               ['waitlist', 'assigned'],
-  waitlist:           ['open', 'assigned'],
-  assigned:           ['in_progress', 'open'],
+  open:               ['assigned'],
+  waitlist:           ['assigned'],       // backward compat: existing DB tickets
+  assigned:           ['in_progress'],
   in_progress:        ['paused', 'pending_validation', 'resolved'],
-  paused:             ['in_progress', 'open'],
-  pending_validation: ['resolved', 'open'],
+  paused:             ['in_progress'],
+  pending_validation: ['resolved'],
   resolved:           ['closed', 'in_progress'],
   closed:             ['in_progress'],
 };
 
 const STATUS_LABELS: Record<string, string> = {
   open:               'Open',
-  waitlist:           'Waitlist',
   assigned:           'Assigned',
   in_progress:        'In Progress',
   paused:             'Paused',
@@ -174,6 +181,14 @@ export default function TicketDetailScreen() {
   const [selectedProcurementId, setSelectedProcurementId] = useState<string | null>(null);
   const [showProcurementDropdown, setShowProcurementDropdown] = useState(false);
   const [validationEnabled, setValidationEnabled] = useState(false);
+  const [userNameMap, setUserNameMap] = useState<Record<string, string>>({});
+  const [showLoggersMenu, setShowLoggersMenu] = useState(false);
+
+  // Media actions sheet state
+  const [selectedMediaSlot, setSelectedMediaSlot] = useState<'before' | 'after' | null>(null);
+  const [showMediaActions, setShowMediaActions] = useState(false);
+  const [showImagePreview, setShowImagePreview] = useState(false);
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
 
   // Property segregation: verify ticket belongs to current property
   const fetchTicket = useCallback(async () => {
@@ -193,6 +208,7 @@ export default function TicketDetailScreen() {
         .single() as any);
 
       if (ticketError || !ticketData) {
+        console.error('[fetchTicket] Failed to fetch ticket:', ticketError);
         setTicket(null);
         setLoading(false);
         return;
@@ -200,7 +216,7 @@ export default function TicketDetailScreen() {
 
       // Property segregation guard
       if (ticketData.property_id !== propertyId) {
-        console.error('Property segregation violation: ticket belongs to different property');
+        console.error('[fetchTicket] Property segregation violation');
         setTicket(null);
         setLoading(false);
         return;
@@ -209,28 +225,67 @@ export default function TicketDetailScreen() {
       setTicket(ticketData as Ticket);
 
       // Fetch comments
-      const { data: commentData } = await (supabase
+      const { data: commentData, error: commentError } = await (supabase
         .from('ticket_comments')
         .select(`*, user:users(full_name, user_photo_url)`)
         .eq('ticket_id', id)
         .order('created_at', { ascending: true }) as any);
+      if (commentError) console.error('[fetchTicket] Comments error:', commentError);
       setComments((commentData ?? []) as Comment[]);
 
       // Fetch activity
-      const { data: activityData } = await (supabase
+      const { data: activityData, error: activityError } = await (supabase
         .from('ticket_activity_log')
         .select(`*, user:users(full_name)`)
         .eq('ticket_id', id)
         .order('created_at', { ascending: true }) as any);
+      if (activityError) console.error('[fetchTicket] Activity error:', activityError);
       setActivities((activityData ?? []) as Activity[]);
 
+      // Build userNameMap from activity entries for reassignment display
+      const newMap: Record<string, string> = {};
+      (activityData ?? []).forEach((act: Activity) => {
+        if (act.user?.full_name && act.user_id) {
+          newMap[act.user_id] = act.user.full_name;
+        }
+        if (
+          (act.action === 'assigned' || act.action === 'reassigned') &&
+          act.new_value &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(act.new_value)
+        ) {
+          newMap[act.new_value] = act.new_value;
+        }
+      });
+      // Resolve assignee names from the ticket's assignee relation
+      if (ticketData.assignee?.id && ticketData.assignee?.full_name) {
+        newMap[ticketData.assignee.id] = ticketData.assignee.full_name;
+      }
+      if (ticketData.creator?.id && ticketData.creator?.full_name) {
+        newMap[ticketData.creator.id] = ticketData.creator.full_name;
+      }
+      // Resolve UUIDs in new_value to user names
+      const idsToResolve = Object.keys(newMap).filter(k =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k)
+      );
+      if (idsToResolve.length > 0) {
+        const { data: userRows } = await (supabase
+          .from('users')
+          .select('id, full_name')
+          .in('id', idsToResolve) as any);
+        (userRows ?? []).forEach((u: { id: string; full_name: string }) => {
+          newMap[u.id] = u.full_name;
+        });
+      }
+      setUserNameMap(newMap);
+
       // Fetch escalation logs
-      const { data: escData } = await supabase
+      const { data: escData, error: escError } = await supabase
         .from('ticket_escalation_logs')
         .select(`*, from_employee:users!from_employee_id(full_name),
                          to_employee:users!to_employee_id(full_name)`)
         .eq('ticket_id', id)
         .order('escalated_at', { ascending: true });
+      if (escError) console.error('[fetchTicket] Escalation error:', escError);
       setEscalationLogs((escData ?? []) as EscalationLog[]);
 
       // Fetch validationEnabled from property_features
@@ -239,8 +294,8 @@ export default function TicketDetailScreen() {
         .select('feature_key, is_enabled')
         .eq('property_id', propertyId)
         .eq('feature_key', 'ticket_validation')
-        .single();
-      setValidationEnabled(featData?.is_enabled ?? true);
+        .maybeSingle();
+      setValidationEnabled(featData?.is_enabled === true);
 
       // Fetch current user's role for this property
       if (user) {
@@ -255,7 +310,8 @@ export default function TicketDetailScreen() {
       }
 
     } catch (err) {
-      console.error('Error fetching ticket:', err);
+      console.error('[fetchTicket] Unexpected error:', err);
+      Alert.alert('Refresh Failed', `Could not reload ticket data. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -454,62 +510,227 @@ export default function TicketDetailScreen() {
   };
 
   const handleUpdateStatus = async (newStatus: string) => {
-    if (!id) return;
+    if (!id || !ticket) return;
     setUpdatingStatus(true);
     setShowStatusPicker(false);
+
+    // Optimistic update: immediately update local state so UI reflects change
+    const originalTicket = ticket;
+    const optimisticTicket: Ticket = { ...ticket };
+    optimisticTicket.status = newStatus;
+    if ((newStatus === 'closed' || newStatus === 'resolved') && !ticket.resolved_at) {
+      optimisticTicket.resolved_at = new Date().toISOString();
+    }
+    if (newStatus === 'in_progress' && !ticket.work_started_at) {
+      optimisticTicket.work_started_at = new Date().toISOString();
+    }
+    if (newStatus === 'open' && ticket.status === 'pending_validation') {
+      optimisticTicket.resolved_at = undefined;
+    }
+    setTicket(optimisticTicket);
+
     try {
       const updates: any = { status: newStatus };
       // Web app flow: 'closed' = MST completes (sets resolved_at), 'resolved' = tenant approves
-      if ((newStatus === 'closed' || newStatus === 'resolved') && !ticket?.resolved_at) {
+      if ((newStatus === 'closed' || newStatus === 'resolved') && !ticket.resolved_at) {
         updates.resolved_at = new Date().toISOString();
       }
-      if (newStatus === 'closed' && !ticket?.closed_at) {
-        updates.closed_at = new Date().toISOString();
-      }
-      if (newStatus === 'in_progress' && !ticket?.work_started_at) {
+      if (newStatus === 'in_progress' && !ticket.work_started_at) {
         updates.work_started_at = new Date().toISOString();
       }
       // When tenant rejects validation → back to 'open', clear resolved_at
-      if (newStatus === 'open' && ticket?.status === 'pending_validation') {
+      if (newStatus === 'open' && ticket.status === 'pending_validation') {
         updates.resolved_at = null;
       }
 
+      console.log('[handleUpdateStatus] Updating ticket:', id, 'with:', updates);
       const { error } = await (supabase.from('tickets') as any)
         .update(updates)
         .eq('id', id)
         .eq('property_id', propertyId);
-      if (error) throw error;
+
+      if (error) {
+        console.error('[handleUpdateStatus] Supabase error:', error);
+        setTicket(originalTicket);
+        Alert.alert('Update Failed', `Could not update status: ${error.message ?? 'Unknown error'}`);
+        return;
+      }
+
+      // Verify the update actually persisted in the DB
+      const { data: verifyData, error: verifyError } = await (supabase
+        .from('tickets')
+        .select('id, status, resolved_at')
+        .eq('id', id)
+        .eq('property_id', propertyId)
+        .single() as any);
+
+      if (verifyError || !verifyData) {
+        console.error('[handleUpdateStatus] Verification read failed:', verifyError);
+        // Try full refresh
+        await fetchTicket();
+        Alert.alert('Update Failed', 'Could not verify the update. Please refresh the page.');
+        return;
+      }
+
+      // If DB still has old status, revert
+      if (verifyData.status !== newStatus) {
+        console.error('[handleUpdateStatus] DB status mismatch:', verifyData.status, '!=', newStatus);
+        setTicket(originalTicket);
+        await fetchTicket();
+        Alert.alert('Update Failed', 'Status was not saved. Please try again.');
+        return;
+      }
+
+      // DB confirmed — proceed with full refresh
       await fetchTicket();
+
+      // Log activity (like web app does)
+      const { data: { user } } = await supabase.auth.getUser();
+      let activityAction: string | null = null;
+      if (newStatus === 'in_progress' && ticket.status === 'assigned') activityAction = 'work_started';
+      else if (newStatus === 'resolved' || newStatus === 'closed') activityAction = 'completed';
+      else if (newStatus === 'paused') activityAction = 'paused';
+      else if (newStatus === 'in_progress' && ticket.status === 'paused') activityAction = 'resumed';
+      else if (newStatus === 'pending_validation') activityAction = 'pending_validation';
+
+      if (activityAction && user?.id) {
+        try {
+          await (supabase.from('ticket_activity_log') as any).insert({
+            ticket_id: id,
+            user_id: user.id,
+            action: activityAction,
+            old_value: ticket.status,
+            new_value: newStatus,
+          });
+        } catch (logErr) {
+          console.warn('[handleUpdateStatus] Activity log insert failed (non-critical):', logErr);
+        }
+      }
+
+      const statusLabel = STATUS_LABELS[newStatus] ?? newStatus;
+      Alert.alert('Status Updated', `Ticket marked as ${statusLabel}.`);
     } catch (err) {
       console.error('Error updating status:', err);
+      setTicket(originalTicket);
+      Alert.alert('Update Failed', 'Could not refresh ticket data. Please try again.');
     } finally {
       setUpdatingStatus(false);
     }
   };
 
   const handleReassign = async (mstId: string) => {
-    if (!id) return;
+    if (!id || !ticket) return;
     setShowAssigneePicker(false);
-    const isClosed = ticket?.status === 'closed';
-    const updates: any = { assigned_to: mstId, assigned_at: new Date().toISOString() };
-
-    if (isClosed) {
-      updates.status = 'in_progress';
-      updates.closed_at = null;
-      updates.work_started_at = new Date().toISOString();
-    } else {
-      updates.status = 'assigned';
-    }
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      let newStatus = ticket.status;
+      if (mstId && (ticket.status === 'open' || ticket.status === 'waitlist')) {
+        newStatus = 'assigned';
+      } else if (!mstId) {
+        newStatus = 'open';
+      }
+
+      const updates: any = {
+        assigned_to: mstId || null,
+        status: newStatus,
+        assigned_at: mstId ? new Date().toISOString() : null,
+      };
+
       const { error } = await (supabase.from('tickets') as any)
         .update(updates)
         .eq('id', id)
         .eq('property_id', propertyId);
-      if (error) throw error;
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (user?.id) {
+        const oldAssigneeId = ticket.assignee?.id || null;
+        let action = 'assigned';
+        if (oldAssigneeId && mstId && oldAssigneeId !== mstId) action = 'reassigned';
+        if (!mstId) action = 'unassigned';
+
+        try {
+          await (supabase.from('ticket_activity_log') as any).insert({
+            ticket_id: id,
+            user_id: user.id,
+            action: action,
+            old_value: oldAssigneeId,
+            new_value: mstId,
+          });
+        } catch (logErr) {
+          console.warn('[handleReassign] Activity log insert failed:', logErr);
+        }
+      }
+
       await fetchTicket();
     } catch (err) {
-      console.error('Error reassigning:', err);
+      console.error('[handleReassign] Error:', err);
+      Alert.alert('Reassign Failed', 'Could not reassign the ticket. Please try again.');
+    }
+  };
+
+  const handleMediaDownload = async (url: string, mediaType: 'before' | 'after', fileType: 'photo' | 'video') => {
+    if (!url) {
+      Alert.alert('Error', 'No media URL available.');
+      return;
+    }
+
+    if (fileType === 'video') {
+      Alert.alert('Not Supported', 'Video download is not yet supported on mobile. Please use the web app.');
+      return;
+    }
+
+    try {
+      // ── Step 1: Request permission ──────────────────────────────────────────
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please allow access to save photos to your library in Settings.',
+        );
+        return;
+      }
+
+      // ── Step 2: Strip Supabase transform params from URL ────────────────────
+      // Supabase adds ?transform=... which breaks direct file downloads
+      const cleanUrl = url.split('?')[0];
+      console.log('[handleMediaDownload] Original URL:', url);
+      console.log('[handleMediaDownload] Clean URL:', cleanUrl);
+
+      // ── Step 3: Determine file extension ───────────────────────────────────
+      const urlParts = cleanUrl.split('.');
+      const lastPart = urlParts[urlParts.length - 1];
+      const ext = lastPart.split('?')[0] || 'jpg';
+      const filename = `${mediaType}_${Date.now()}.${ext}`;
+      // @ts-ignore
+      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+
+      console.log('[handleMediaDownload] Downloading to:', localUri);
+
+      // ── Step 4: Download file ───────────────────────────────────────────────
+      const { uri: downloadedUri } = await FileSystem.downloadAsync(cleanUrl, localUri);
+      console.log('[handleMediaDownload] Downloaded to:', downloadedUri);
+
+      // ── Step 5: Save to photo library ──────────────────────────────────────
+      const asset = await MediaLibrary.createAssetAsync(downloadedUri);
+      console.log('[handleMediaDownload] Saved as asset:', asset.id);
+
+      Alert.alert('Downloaded', 'Photo saved to your photo library.');
+    } catch (err: any) {
+      console.error('[handleMediaDownload] Error:', err);
+      // Provide a more helpful error message
+      const errorMessage = err?.message || 'Unknown error';
+      if (errorMessage.includes('network') || errorMessage.includes('ENOTFOUND')) {
+        Alert.alert('Network Error', 'Could not reach the server. Please check your connection and try again.');
+      } else if (errorMessage.includes('403') || errorMessage.includes('401')) {
+        Alert.alert('Access Denied', 'The file may no longer be publicly accessible.');
+      } else {
+        Alert.alert('Download Failed', `Could not download the photo. ${errorMessage}`);
+      }
     }
   };
 
@@ -517,57 +738,89 @@ export default function TicketDetailScreen() {
     if (!mediaUploadType || !id) return;
     setShowMediaModal(false);
     setIsUploading(true);
+
     try {
       const isImage = media.type === 'image';
-      const extension = isImage ? 'jpg' : 'mp4';
-      const path = getStoragePath(id as string, mediaUploadType, extension);
-      
+      const newExtension = isImage ? 'jpg' : 'mp4';
+      const newBucket = isImage ? 'ticket_photos' : 'ticket_videos';
+      const newPath = getStoragePath(id as string, mediaUploadType, newExtension);
+
+      // ── Step 1: Delete the old file from storage (if any) ──────────────────
+      const oldPhotoUrl = mediaUploadType === 'before' ? ticket?.photo_before_url : ticket?.photo_after_url;
+      const oldVideoUrl = mediaUploadType === 'before' ? ticket?.video_before_url : ticket?.video_after_url;
+
+      if (oldPhotoUrl) {
+        const oldPath = getStoragePathForSlot(id as string, mediaUploadType, true);
+        console.log('[handleMediaUpload] Deleting old photo:', oldPath);
+        await supabase.storage.from('ticket_photos').remove([oldPath]);
+      }
+      if (oldVideoUrl) {
+        const oldPath = getStoragePathForSlot(id as string, mediaUploadType, false);
+        console.log('[handleMediaUpload] Deleting old video:', oldPath);
+        await supabase.storage.from('ticket_videos').remove([oldPath]);
+      }
+
+      // ── Step 2: Compress image if needed ─────────────────────────────────────
       let finalUri = media.uri;
       if (isImage) {
         console.log('[handleMediaUpload] Compressing image...');
         finalUri = await compressImage(media.uri);
       }
 
-      console.log('[handleMediaUpload] Uploading to Supabase Storage:', path);
-      
-      // Convert URI to Blob for Supabase upload
+      // ── Step 3: Upload new file (overwrites at the same path) ─────────────────
+      console.log('[handleMediaUpload] Uploading to:', newPath, 'bucket:', newBucket);
       const response = await fetch(finalUri);
       const blob = await response.blob();
-      
-      const bucketName = isImage ? 'ticket_photos' : 'ticket_videos';
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from(bucketName)
-        .upload(path, blob, {
+
+      const { error: uploadError } = await supabase.storage
+        .from(newBucket)
+        .upload(newPath, blob, {
           contentType: isImage ? 'image/jpeg' : 'video/mp4',
           cacheControl: '3600',
-          upsert: true
+          upsert: true,
         });
 
       if (uploadError) throw uploadError;
 
-      // Get Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(path);
+      // ── Step 4: Get public URL and strip Supabase transform params ───────────
+      const { data: { publicUrl: rawUrl } } = supabase.storage
+        .from(newBucket)
+        .getPublicUrl(newPath);
 
-      console.log('[handleMediaUpload] Upload success. Public URL:', publicUrl);
+      // Remove Supabase transformation params (e.g. ?transform=...)
+      const publicUrl = rawUrl.split('?')[0];
+      console.log('[handleMediaUpload] Public URL:', publicUrl);
 
-      // Determine which field to update
-      let field = '';
+      // ── Step 5: Build DB update payload ──────────────────────────────────────
+      // If type changed (photo→video or video→photo), CLEAR the old column
+      const updates: Record<string, unknown> = {};
+
       if (isImage) {
-        field = mediaUploadType === 'before' ? 'photo_before_url' : 'photo_after_url';
+        updates.photo_before_url = mediaUploadType === 'before' ? publicUrl : undefined;
+        updates.photo_after_url  = mediaUploadType === 'after'  ? publicUrl : undefined;
+        // Clear the opposite (video) column for this slot
+        if (mediaUploadType === 'before') updates.video_before_url = null;
+        else                              updates.video_after_url  = null;
       } else {
-        field = mediaUploadType === 'before' ? 'video_before_url' : 'video_after_url';
+        updates.video_before_url = mediaUploadType === 'before' ? publicUrl : undefined;
+        updates.video_after_url  = mediaUploadType === 'after'  ? publicUrl : undefined;
+        // Clear the opposite (photo) column for this slot
+        if (mediaUploadType === 'before') updates.photo_before_url = null;
+        else                              updates.photo_after_url  = null;
       }
 
-      // Update Database
+      // Clean up undefined values
+      Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
+
+      console.log('[handleMediaUpload] DB updates:', updates);
+
       const { error: dbError } = await (supabase.from('tickets') as any)
-        .update({ [field]: publicUrl })
+        .update(updates)
         .eq('id', id)
         .eq('property_id', propertyId);
 
       if (dbError) throw dbError;
-      
+
       await fetchTicket();
       Alert.alert('Success', `${isImage ? 'Photo' : 'Video'} uploaded successfully.`);
     } catch (err) {
@@ -579,6 +832,20 @@ export default function TicketDetailScreen() {
     }
   };
 
+  // Derive current media URL and type from the selected slot
+  const getCurrentMedia = () => {
+    if (!ticket || !selectedMediaSlot) return { url: '', fileType: 'photo' as const };
+    const url = selectedMediaSlot === 'before'
+      ? (ticket.photo_before_url || ticket.video_before_url || '')
+      : (ticket.photo_after_url || ticket.video_after_url || '');
+    const isPhoto = Boolean(
+      selectedMediaSlot === 'before'
+        ? ticket.photo_before_url
+        : ticket.photo_after_url
+    );
+    return { url, fileType: isPhoto ? ('photo' as const) : ('video' as const) };
+  };
+
   const pCfg = ticket ? (PRIORITY_CONFIG[ticket.priority?.toLowerCase()] ?? PRIORITY_CONFIG.low) : PRIORITY_CONFIG.low;
   const isAssignee = currentUser && ticket?.assignee?.id === currentUser.id;
   const isTenant = currentUserRole === 'client';
@@ -587,6 +854,9 @@ export default function TicketDetailScreen() {
   const textPrimary = isDark ? '#F0F4F8' : '#1A2332';
   const textSecondary = isDark ? '#A0AEC0' : '#64748B';
   const borderColor = isDark ? 'rgba(80,100,130,0.30)' : '#E2E8F0';
+  const { colors } = useTheme();
+  const primary = colors.primary;
+  const textTertiary = colors.textTertiary;
 
   if (loading) {
     return (
@@ -625,6 +895,37 @@ export default function TicketDetailScreen() {
 
   const availableStatuses = STATUS_TRANSITIONS[ticket.status] ?? [];
 
+  // Find the user who triggered a step by matching the closest activity log entry
+  const findStepUser = (
+    stepTime: string | null | undefined,
+    stepLabel: string
+  ): string | undefined => {
+    if (!stepTime) return undefined;
+    // Created: use ticket creator
+    if (stepLabel === 'Created') {
+      return ticket.creator?.full_name;
+    }
+    // Assigned: prefer the assignee (person assigned to), fallback to activity
+    if (stepLabel === 'Assigned' && ticket.assignee?.full_name) {
+      return ticket.assignee.full_name;
+    }
+    // For other steps, find the closest activity log entry at or before the step time
+    const stepMs = new Date(stepTime).getTime();
+    let closest: Activity | null = null;
+    let closestDiff = Infinity;
+    for (const act of activities) {
+      const actMs = new Date(act.created_at).getTime();
+      if (actMs <= stepMs) {
+        const diff = stepMs - actMs;
+        if (diff < closestDiff) {
+          closestDiff = diff;
+          closest = act;
+        }
+      }
+    }
+    return closest?.user?.full_name;
+  };
+
   const slaSteps = [
     { label: 'Created', time: ticket.created_at, done: true, color: '#94A3B8' },
     { label: 'Assigned', time: ticket.assigned_at, done: !!ticket.assigned_at, color: '#3B82F6' },
@@ -637,35 +938,50 @@ export default function TicketDetailScreen() {
       isDeadline: true,
     },
     { label: 'Resolved', time: ticket.resolved_at, done: !!ticket.resolved_at, color: '#10B981' },
-  ].filter(s => s.time || s.label === 'Created');
+  ].filter(s => s.time || s.label === 'Created').map(s => ({
+    ...s,
+    userName: findStepUser(s.time, s.label),
+  }));
+
+  // Reassignment history: filter activity log for assignment-related events
+  const reassignActivities = activities.filter(a =>
+    a.action?.includes('assigned') ||
+    a.action?.includes('reassign') ||
+    a.action?.includes('assigned_to')
+  );
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: bg }}>
       <Stack.Screen
         options={{
-          title: ticket.ticket_number ?? 'Request',
-          headerBackTitle: 'Requests',
-          headerStyle: { backgroundColor: bg },
-          headerTintColor: textPrimary,
-          headerShadowVisible: false,
+          headerShown: false,
         }}
       />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
+      {/* Top Navigation */}
+      <View style={[styles.topNav, {
+        backgroundColor: cardBg,
+        borderBottomColor: borderColor,
+        paddingTop: Math.max(insets.top, 16)
+      }]}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={{ padding: 4 }}>
+          <Ionicons name="chevron-back" size={26} color={textPrimary} />
+        </TouchableOpacity>
+        <Text style={[styles.topNavTitle, { color: textPrimary }]}>Request Details</Text>
+        <TouchableOpacity
+          style={styles.bellButton}
+          onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="notifications-outline" size={24} color={textSecondary} />
+        </TouchableOpacity>
+      </View>
 
       <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: bg, paddingBottom: insets.bottom }}
+        style={{ flex: 1, backgroundColor: bg, paddingBottom: 0 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={90}
       >
-        <View style={[styles.customHeader, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
-          <TouchableOpacity 
-            onPress={() => router.back()} 
-            style={styles.customBackButton}
-          >
-            <Ionicons name="chevron-back" size={24} color={textPrimary} />
-            <Text style={[styles.customBackText, { color: textPrimary }]}>Back</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Sub-section tabs */}
         <View style={[styles.tabContainer, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
           {(['details', 'timeline', 'chat'] as const).map(tab => (
@@ -728,7 +1044,7 @@ export default function TicketDetailScreen() {
               <Text style={[styles.sectionTitle, { color: textPrimary }]}>My Actions</Text>
               <View style={styles.primaryActionRow}>
                 {/* Start Work */}
-                {(ticket.status === 'assigned' || ticket.status === 'open' || ticket.status === 'waitlist') && (
+                {(ticket.status === 'assigned' || ticket.status === 'open') && (
                   <TouchableOpacity
                     style={[styles.primaryBlockBtn, { backgroundColor: '#3B82F6', flex: 1 }]}
                     onPress={() => handleUpdateStatus('in_progress')}
@@ -898,7 +1214,7 @@ export default function TicketDetailScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
               <Text style={{ color: textSecondary, fontSize: 14 }}>Category</Text>
               <Text style={{ color: textPrimary, fontSize: 14, fontWeight: '500' }}>
-                {ticket.category || 'N/A'}
+                {ticket.category || (ticket.skill_group ? ticket.skill_group.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A')}
               </Text>
             </View>
 
@@ -928,107 +1244,289 @@ export default function TicketDetailScreen() {
           )}
 
           {activeTab === 'timeline' && (
-            <>
-              {/* Request Progress Timeline */}
-              {slaSteps.length > 0 && (
             <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.sectionTitle, { color: textPrimary }]}>Request Progress</Text>
-              <View style={styles.timeline}>
-                {slaSteps.map((step, i) => (
-                  <View key={step.label} style={styles.timelineItem}>
-                    <View style={styles.timelineLeft}>
-                      <View style={[
-                        styles.timelineDot,
-                        { backgroundColor: step.done ? step.color : isDark ? '#2D3748' : '#E2E8F0' },
-                      ]}>
-                        {step.done && (
-                          <Ionicons name="checkmark" size={10} color="#FFF" />
-                        )}
-                      </View>
-                      {i < slaSteps.length - 1 && (
-                        <View style={[
-                          styles.timelineLine,
-                          { backgroundColor: step.done && slaSteps[i + 1]?.done ? step.color : borderColor },
-                        ]} />
-                      )}
-                    </View>
-                    <View style={styles.timelineRight}>
-                      <Text style={[
-                        styles.timelineLabel,
-                        { color: step.done ? textPrimary : textSecondary },
-                      ]}>
-                        {step.label}
-                      </Text>
-                      {step.time && (
-                        <Text style={[styles.timelineTime, { color: textSecondary }]}>
-                          {formatDate(step.time)}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Escalation Timeline */}
-          {escalationLogs.length > 0 && (
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor: 'rgba(244,63,94,0.3)' }]}>
-              <View style={styles.escalationHeader}>
-                <Ionicons name="arrow-up-circle" size={18} color="#F43F5E" />
-                <Text style={[styles.sectionTitle, { color: '#F43F5E', marginBottom: 0 }]}>
-                  Escalation Timeline
+              <View style={styles.seqHeader}>
+                <Ionicons name="git-commit" size={16} color={textPrimary} />
+                <Text style={[styles.sectionTitle, { color: textPrimary, marginBottom: 0 }]}>
+                  Sequence of Events
+                </Text>
+                <Text style={[styles.seqCount, { color: textSecondary }]}>
+                  {1 + activities.length + escalationLogs.length} events
                 </Text>
               </View>
-              {escalationLogs.map(log => {
-                const reasonLabel = log.reason === 'timeout' ? 'SLA Timeout'
-                  : log.reason === 'manual' ? 'Manual' : log.reason || 'Timeout';
-                return (
-                  <View key={log.id} style={[styles.escalationItem, { borderColor: 'rgba(244,63,94,0.2)' }]}>
-                    <View style={styles.escLevelRow}>
-                      <View style={styles.levelBadge}>
-                        <Text style={styles.levelText}>L{log.from_level}</Text>
-                      </View>
-                      <Ionicons name="arrow-forward" size={12} color="#F43F5E" />
-                      <View style={[styles.levelBadge, styles.levelBadgeActive]}>
-                        <Text style={styles.levelTextActive}>L{log.to_level ?? 'Final'}</Text>
-                      </View>
-                      <View style={[styles.reasonBadge, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
-                        <Text style={[styles.reasonText, { color: '#F59E0B' }]}>{reasonLabel}</Text>
-                      </View>
-                      <Text style={[styles.escTime, { color: textSecondary }]}>
-                        {timeAgo(log.escalated_at)}
-                      </Text>
+
+              <View style={styles.seqTimeline}>
+                {/* 1. Ticket Created */}
+                <View style={styles.seqEvent}>
+                  <View style={styles.seqLeft}>
+                    <View style={[styles.seqDot, { backgroundColor: '#94A3B8' }]}>
+                      <Ionicons name="add-circle" size={14} color="#FFF" />
                     </View>
-                    <View style={styles.escEmployeeRow}>
-                      <View style={styles.escEmployee}>
-                        <View style={[styles.escAvatar, { backgroundColor: isDark ? '#2D3748' : '#E2E8F0' }]}>
-                          <Text style={styles.escAvatarText}>
-                            {log.from_employee?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'}
-                          </Text>
-                        </View>
-                        <Text style={[styles.escEmployeeName, { color: textSecondary }]}>
-                          {log.from_employee?.full_name ?? 'Unassigned'}
+                    <View style={[styles.seqLine, { backgroundColor: borderColor }]} />
+                  </View>
+                  <View style={styles.seqRight}>
+                    <View style={[styles.seqCard, { borderColor: 'rgba(148,163,184,0.2)', backgroundColor: isDark ? 'rgba(148,163,184,0.05)' : 'rgba(148,163,184,0.05)' }]}>
+                      <View style={styles.seqCardHeader}>
+                        <Text style={[styles.seqAction, { color: '#94A3B8' }]}>Ticket Created</Text>
+                        <Text style={[styles.seqTime, { color: textSecondary }]}>
+                          {ticket.created_at ? formatDate(ticket.created_at) : '—'}
                         </Text>
                       </View>
-                      <Ionicons name="arrow-forward" size={14} color={textSecondary} />
-                      <View style={styles.escEmployee}>
-                        <View style={[styles.escAvatar, { backgroundColor: 'rgba(244,63,94,0.15)' }]}>
-                          <Text style={[styles.escAvatarText, { color: '#F43F5E' }]}>
-                            {log.to_employee?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'}
+                      <View style={styles.seqUserRow}>
+                        <View style={[styles.seqAvatar, { backgroundColor: 'rgba(148,163,184,0.12)' }]}>
+                          <Text style={[styles.seqAvatarText, { color: '#94A3B8' }]}>
+                            {ticket.creator?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'}
                           </Text>
                         </View>
-                        <Text style={[styles.escEmployeeName, { color: textPrimary }]}>
-                          {log.to_employee?.full_name ?? 'No Assignee'}
+                        <Text style={[styles.seqUserName, { color: textPrimary }]}>
+                          {ticket.creator?.full_name ?? 'Unknown'}
                         </Text>
                       </View>
+                      {ticket.description && (
+                        <Text style={[styles.seqNote, { color: textSecondary }]} numberOfLines={2}>
+                          {ticket.description}
+                        </Text>
+                      )}
                     </View>
                   </View>
-                );
-              })}
+                </View>
+
+                {/* 2. Activity Log Events */}
+                {activities.map((act, idx) => {
+                  const isReassign = act.action?.includes('reassign') || act.action === 'assigned';
+                  const isStart = act.action === 'work_started' || act.action === 'in_progress';
+                  const isComplete = act.action === 'completed' || act.action === 'resolved' || act.action === 'closed';
+                  const isPause = act.action === 'paused' || act.action === 'pause_work';
+                  const isResume = act.action === 'resumed' || act.action === 'resume_work';
+                  const isValidation = act.action?.includes('validation') || act.action === 'pending_validation';
+                  const isPriority = act.action === 'priority_changed' || act.action === 'priority';
+
+                  // Determine icon, color, and label for this action
+                  let iconName: keyof typeof Ionicons.glyphMap = 'ellipse';
+                  let dotColor = '#6366F1';
+                  let actionLabel = act.action?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) ?? 'Event';
+
+                  if (isReassign) {
+                    iconName = 'swap-horizontal';
+                    dotColor = '#3B82F6';
+                    actionLabel = act.action === 'assigned' ? 'Ticket Assigned' : 'Ticket Reassigned';
+                  } else if (isStart) {
+                    iconName = 'play-circle';
+                    dotColor = '#F59E0B';
+                    actionLabel = 'Work Started';
+                  } else if (isComplete) {
+                    iconName = 'checkmark-circle';
+                    dotColor = '#10B981';
+                    actionLabel = act.action === 'closed' ? 'Ticket Closed' : 'Ticket Completed';
+                  } else if (isPause) {
+                    iconName = 'pause-circle';
+                    dotColor = '#8B5CF6';
+                    actionLabel = 'Work Paused';
+                  } else if (isResume) {
+                    iconName = 'play-forward';
+                    dotColor = '#F59E0B';
+                    actionLabel = 'Work Resumed';
+                  } else if (isValidation) {
+                    iconName = 'shield-checkmark';
+                    dotColor = '#EC4899';
+                    actionLabel = act.action === 'pending_validation' ? 'Sent for Validation' : 'Validation Update';
+                  } else if (isPriority) {
+                    iconName = 'flag';
+                    dotColor = '#F97316';
+                    actionLabel = 'Priority Changed';
+                  } else if (act.action === 'sla_breached') {
+                    iconName = 'warning';
+                    dotColor = '#F43F5E';
+                    actionLabel = 'SLA Breached';
+                  }
+
+                  // For reassignments, resolve user names
+                  const performerName = act.user?.full_name ?? 'Unknown';
+                  let fromName: string | null = null;
+                  let toName: string | null = null;
+
+                  if (isReassign && act.new_value) {
+                    // new_value is the assignee UUID
+                    toName = userNameMap[act.new_value] ?? act.new_value;
+                    // old_value might be a previous assignee UUID
+                    if (act.old_value && userNameMap[act.old_value]) {
+                      fromName = userNameMap[act.old_value];
+                    } else if (act.old_value) {
+                      fromName = userNameMap[act.old_value] ?? null;
+                    }
+                  }
+
+                  const isLast = idx === activities.length - 1 && escalationLogs.length === 0;
+
+                  return (
+                    <View key={act.id} style={styles.seqEvent}>
+                      <View style={styles.seqLeft}>
+                        <View style={[styles.seqDot, { backgroundColor: dotColor }]}>
+                          <Ionicons name={iconName} size={12} color="#FFF" />
+                        </View>
+                        {!isLast && (
+                          <View style={[styles.seqLine, { backgroundColor: borderColor }]} />
+                        )}
+                      </View>
+                      <View style={styles.seqRight}>
+                        <View style={[styles.seqCard, {
+                          borderColor: isReassign ? 'rgba(59,130,246,0.2)'
+                            : isComplete ? 'rgba(16,185,129,0.2)'
+                            : isPause || isResume ? 'rgba(139,92,246,0.2)'
+                            : isValidation ? 'rgba(236,72,153,0.2)'
+                            : 'rgba(99,102,241,0.15)',
+                          backgroundColor: isDark ? 'rgba(30,38,51,0.6)' : '#FAFBFF',
+                        }]}>
+                          <View style={styles.seqCardHeader}>
+                            <Text style={[styles.seqAction, { color: dotColor }]}>{actionLabel}</Text>
+                            <Text style={[styles.seqTime, { color: textSecondary }]}>
+                              {formatDate(act.created_at)}
+                            </Text>
+                          </View>
+
+                          {/* Performer */}
+                          <View style={styles.seqUserRow}>
+                            <View style={[styles.seqAvatar, { backgroundColor: `${dotColor}20` }]}>
+                              <Text style={[styles.seqAvatarText, { color: dotColor }]}>
+                                {performerName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                              </Text>
+                            </View>
+                            <Text style={[styles.seqUserName, { color: textPrimary }]}>
+                              {performerName}
+                            </Text>
+                          </View>
+
+                          {/* Reassignment detail: from → to */}
+                          {isReassign && (
+                            <View style={[styles.seqReassignRow, { borderColor: 'rgba(59,130,246,0.15)' }]}>
+                              <View style={styles.seqReassignPerson}>
+                                <Ionicons name="person-outline" size={12} color={textSecondary} />
+                                <Text style={[styles.seqReassignLabel, { color: textSecondary }]}>From</Text>
+                                <Text style={[styles.seqReassignName, { color: textSecondary }]} numberOfLines={1}>
+                                  {fromName ?? 'Unassigned'}
+                                </Text>
+                              </View>
+                              <Ionicons name="arrow-forward" size={12} color="#3B82F6" />
+                              <View style={styles.seqReassignPerson}>
+                                <Ionicons name="person" size={12} color="#3B82F6" />
+                                <Text style={[styles.seqReassignLabel, { color: textSecondary }]}>To</Text>
+                                <Text style={[styles.seqReassignName, { color: '#3B82F6' }]} numberOfLines={1}>
+                                  {toName ?? 'No Assignee'}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+
+                          {/* Priority change detail */}
+                          {isPriority && act.new_value && (
+                            <View style={styles.seqChangeRow}>
+                              <Text style={[styles.seqChangeLabel, { color: textSecondary }]}>
+                                {act.old_value ? `${act.old_value?.toUpperCase()} → ` : ''}
+                              </Text>
+                              <View style={[styles.seqPriorityBadge, { backgroundColor: `${dotColor}15` }]}>
+                                <Text style={[styles.seqPriorityText, { color: dotColor }]}>
+                                  {act.new_value?.toUpperCase()}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+
+                          {/* Status change detail (non-reassign) */}
+                          {!isReassign && !isPriority && act.new_value && (
+                            <View style={styles.seqChangeRow}>
+                              {act.old_value && (
+                                <>
+                                  <Text style={[styles.seqChangeLabel, { color: textSecondary }]}>
+                                    {act.old_value?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                  </Text>
+                                  <Ionicons name="arrow-forward" size={10} color={textSecondary} style={{ marginHorizontal: 4 }} />
+                                </>
+                              )}
+                              <Text style={[styles.seqChangeLabel, { color: dotColor, fontWeight: '600' }]}>
+                                {act.new_value?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+
+                {/* 3. Escalation Events */}
+                {escalationLogs.map((log, idx) => {
+                  const reasonLabel = log.reason === 'timeout' ? 'SLA Timeout'
+                    : log.reason === 'manual' ? 'Manual Escalation' : log.reason || 'Escalation';
+                  const isLast = idx === escalationLogs.length - 1;
+                  return (
+                    <View key={log.id} style={styles.seqEvent}>
+                      <View style={styles.seqLeft}>
+                        <View style={[styles.seqDot, { backgroundColor: '#F43F5E' }]}>
+                          <Ionicons name="arrow-up-circle" size={12} color="#FFF" />
+                        </View>
+                        {!isLast && (
+                          <View style={[styles.seqLine, { backgroundColor: borderColor }]} />
+                        )}
+                      </View>
+                      <View style={styles.seqRight}>
+                        <View style={[styles.seqCard, {
+                          borderColor: 'rgba(244,63,94,0.2)',
+                          backgroundColor: 'rgba(244,63,94,0.04)',
+                        }]}>
+                          <View style={styles.seqCardHeader}>
+                            <Text style={[styles.seqAction, { color: '#F43F5E' }]}>Escalated</Text>
+                            <View style={[styles.seqReasonBadge, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
+                              <Text style={[styles.seqReasonText, { color: '#F59E0B' }]}>{reasonLabel}</Text>
+                            </View>
+                            <Text style={[styles.seqTime, { color: textSecondary }]}>
+                              {formatDate(log.escalated_at)}
+                            </Text>
+                          </View>
+
+                          {/* Level change */}
+                          <View style={styles.seqLevelRow}>
+                            <View style={[styles.seqLevelBadge, { backgroundColor: 'rgba(148,163,184,0.12)' }]}>
+                              <Text style={[styles.seqLevelText, { color: '#94A3B8' }]}>L{log.from_level}</Text>
+                            </View>
+                            <Ionicons name="arrow-forward" size={12} color="#F43F5E" />
+                            <View style={[styles.seqLevelBadge, styles.seqLevelBadgeActive]}>
+                              <Text style={[styles.seqLevelTextActive, { color: '#F43F5E' }]}>
+                                L{log.to_level ?? 'Final'}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Employee change */}
+                          <View style={styles.seqEscEmployeeRow}>
+                            <View style={styles.seqEscEmployee}>
+                              <View style={[styles.seqAvatar, { backgroundColor: isDark ? '#2D3748' : '#E2E8F0' }]}>
+                                <Text style={[styles.seqAvatarText, { color: '#64748B' }]}>
+                                  {log.from_employee?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'}
+                                </Text>
+                              </View>
+                              <Text style={[styles.seqUserName, { color: textSecondary }]} numberOfLines={1}>
+                                {log.from_employee?.full_name ?? 'Unassigned'}
+                              </Text>
+                            </View>
+                            <Ionicons name="arrow-forward" size={12} color="#F43F5E" />
+                            <View style={styles.seqEscEmployee}>
+                              <View style={[styles.seqAvatar, { backgroundColor: 'rgba(244,63,94,0.12)' }]}>
+                                <Text style={[styles.seqAvatarText, { color: '#F43F5E' }]}>
+                                  {log.to_employee?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'}
+                                </Text>
+                              </View>
+                              <Text style={[styles.seqUserName, { color: textPrimary }]} numberOfLines={1}>
+                                {log.to_employee?.full_name ?? 'No Assignee'}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
-          )}
-            </>
           )}
 
           {activeTab === 'details' && (
@@ -1046,7 +1544,16 @@ export default function TicketDetailScreen() {
               {/* Before */}
               <TouchableOpacity
                 style={[styles.mediaSlot, { backgroundColor: isDark ? '#1E2633' : '#F8FAFC', borderColor }]}
-                onPress={() => { setMediaUploadType('before'); setShowMediaModal(true); }}
+                onPress={() => {
+                  const hasMedia = Boolean(ticket.photo_before_url || ticket.video_before_url);
+                  if (hasMedia) {
+                    setSelectedMediaSlot('before');
+                    setShowMediaActions(true);
+                  } else {
+                    setMediaUploadType('before');
+                    setShowMediaModal(true);
+                  }
+                }}
                 disabled={isUploading}
               >
                 {ticket.photo_before_url ? (
@@ -1071,7 +1578,16 @@ export default function TicketDetailScreen() {
               {/* After */}
               <TouchableOpacity
                 style={[styles.mediaSlot, { backgroundColor: isDark ? '#1E2633' : '#F8FAFC', borderColor }]}
-                onPress={() => { setMediaUploadType('after'); setShowMediaModal(true); }}
+                onPress={() => {
+                  const hasMedia = Boolean(ticket.photo_after_url || ticket.video_after_url);
+                  if (hasMedia) {
+                    setSelectedMediaSlot('after');
+                    setShowMediaActions(true);
+                  } else {
+                    setMediaUploadType('after');
+                    setShowMediaModal(true);
+                  }
+                }}
                 disabled={isUploading}
               >
                 {ticket.photo_after_url ? (
@@ -1149,25 +1665,13 @@ export default function TicketDetailScreen() {
 
           {activeTab === 'chat' && (
             <View style={[styles.whatsappBackground, { backgroundColor: isDark ? '#0B141A' : '#EFEAE2' }]}>
-              {/* Activity Feed */}
-              {(activities.length > 0 || comments.length > 0) && (
+              {/* Chat Feed */}
+              {(comments.length > 0) && (
               <View style={styles.whatsappChatContainer}>
                 {[
-                  ...activities.map(a => ({ ...a, type: 'activity' as const })),
                   ...comments.map(c => ({ ...c, type: 'comment' as const }))
                 ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
                  .map(event => {
-                  if (event.type === 'activity') {
-                    return (
-                      <View key={`act_${event.id}`} style={styles.systemPill}>
-                        <Text style={styles.systemPillText}>
-                          {event.user?.full_name ?? 'System'} {event.action.replace(/_/g, ' ')}
-                          {event.new_value && ` to "${event.new_value}"`}
-                        </Text>
-                        <Text style={styles.systemPillTime}>{timeAgo(event.created_at)}</Text>
-                      </View>
-                    );
-                  } else {
                     const isMe = currentUser && event.user_id === currentUser.id;
                     return (
                       <View key={`com_${event.id}`} style={[styles.chatRow, isMe ? styles.chatRowRight : styles.chatRowLeft]}>
@@ -1201,7 +1705,6 @@ export default function TicketDetailScreen() {
                         </View>
                       </View>
                     );
-                  }
                 })}
               </View>
           )}
@@ -1257,6 +1760,50 @@ export default function TicketDetailScreen() {
           </View>
         )}
       </KeyboardAvoidingView>
+
+      {/* Bottom Navigation */}
+      <View style={[styles.bottomNav, { 
+        backgroundColor: cardBg, 
+        borderTopColor: borderColor,
+        paddingBottom: Math.max(insets.bottom, 12)
+      }]}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/${isTenant ? 'tenant' : 'mst'}`)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="grid-outline" size={22} color={textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: textTertiary }]}>OVERVIEW</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/${isTenant ? 'tenant' : 'mst'}`)}>
+          <View style={[styles.navIconWrapper, { backgroundColor: isDark ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
+            <Ionicons name="ticket" size={22} color={primary} />
+          </View>
+          <Text style={[styles.navText, { color: primary }]}>REQUESTS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navItemCenter} 
+          onPress={() => { Alert.alert('Create Request', 'Please go back to the dashboard to create new requests.'); }}
+        >
+          <View style={[styles.centerFab, { backgroundColor: primary }]}>
+            <Ionicons name="add" size={32} color="#FFF" />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => setShowLoggersMenu(true)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="options-outline" size={22} color={textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: textTertiary }]}>LOGGERS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => Alert.alert('More', 'More menu coming soon')}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="ellipsis-horizontal" size={22} color={textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: textTertiary }]}>MORE</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Status Picker Modal */}
       <Modal visible={showStatusPicker} transparent animationType="fade" onRequestClose={() => setShowStatusPicker(false)}>
@@ -1483,25 +2030,31 @@ export default function TicketDetailScreen() {
         >
           <View style={[styles.pickerCard, { backgroundColor: isDark ? '#1E2633' : '#FFF', borderColor }]}>
             <Text style={[styles.pickerTitle, { color: textPrimary }]}>Reassign To</Text>
-            {availableMSTs.length === 0 ? (
-              <Text style={[styles.noMSTText, { color: textSecondary }]}>
-                No technicians available
-              </Text>
-            ) : (
-              availableMSTs.map(mst => (
-                <TouchableOpacity
-                  key={mst.id}
-                  style={[styles.pickerItem, { borderColor }]}
-                  onPress={() => handleReassign(mst.id)}
-                >
-                  <Text style={[styles.pickerItemText, { color: textPrimary }]}>
-                    {mst.full_name}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            )}
+            <ScrollView 
+              style={{ maxHeight: 400 }} 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 8 }}
+            >
+              {availableMSTs.length === 0 ? (
+                <Text style={[styles.noMSTText, { color: textSecondary }]}>
+                  No technicians available
+                </Text>
+              ) : (
+                availableMSTs.map(mst => (
+                  <TouchableOpacity
+                    key={mst.id}
+                    style={[styles.pickerItem, { borderColor }]}
+                    onPress={() => handleReassign(mst.id)}
+                  >
+                    <Text style={[styles.pickerItemText, { color: textPrimary }]}>
+                      {mst.full_name}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
             <TouchableOpacity
-              style={[styles.pickerItem, { borderColor }]}
+              style={[styles.pickerItem, { borderColor, borderTopWidth: 1, marginTop: 8 }]}
               onPress={() => setShowAssigneePicker(false)}
             >
               <Text style={[styles.pickerItemText, { color: textSecondary }]}>Cancel</Text>
@@ -1511,12 +2064,73 @@ export default function TicketDetailScreen() {
       </Modal>
 
       <MediaCaptureModal
+        key={`media-capture-${mediaUploadType}-${Date.now()}`}
         isOpen={showMediaModal}
         onClose={() => { setShowMediaModal(false); setMediaUploadType(null); }}
         onCapture={handleMediaUpload}
         title={`Upload ${mediaUploadType === 'before' ? 'Before' : 'After'} Media`}
       />
-    </>
+
+      {/* Loggers Modal */}
+      <Modal visible={showLoggersMenu} transparent animationType="fade" onRequestClose={() => setShowLoggersMenu(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowLoggersMenu(false)}>
+          <View style={{ backgroundColor: cardBg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: textPrimary, marginBottom: 16 }}>Loggers</Text>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: borderColor }} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/electricity` as any); }}>
+              <Ionicons name="flash-outline" size={20} color={primary} />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: textPrimary }}>Electricity Logger</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: borderColor }} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/diesel` as any); }}>
+              <Ionicons name="water-outline" size={20} color={primary} />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: textPrimary }}>Diesel Logger</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Media Actions Sheet — shown when tapping an existing photo/video */}
+      {(() => {
+        const { url, fileType } = getCurrentMedia();
+        return (
+          <MediaActionsSheet
+            isOpen={showMediaActions}
+            mediaType={selectedMediaSlot || 'before'}
+            fileType={fileType}
+            onViewFullScreen={() => {
+              if (fileType === 'photo' && url) {
+                setPreviewMediaUrl(url);
+                setShowImagePreview(true);
+              } else {
+                Alert.alert('Preview', 'Video preview is not available on mobile yet. Please use the web app.');
+              }
+            }}
+            onReplace={() => {
+              // Close the sheet, then open camera after a short delay
+              setShowMediaActions(false);
+              setTimeout(() => {
+                if (selectedMediaSlot) {
+                  setMediaUploadType(selectedMediaSlot);
+                  setShowMediaModal(true);
+                }
+              }, 300);
+            }}
+            onDownload={() => {
+              // Handle download in parent — it has access to the URL
+              setShowMediaActions(false);
+              handleMediaDownload(url, selectedMediaSlot || 'before', fileType);
+            }}
+          />
+        );
+      })()}
+
+      {/* Full Screen Image Preview */}
+      <ImagePreviewModal
+        isOpen={showImagePreview}
+        onClose={() => setShowImagePreview(false)}
+        imageUrl={previewMediaUrl}
+        title={`${selectedMediaSlot === 'before' ? 'Before' : 'After'} Photo`}
+      />
+    </View>
   );
 }
 
@@ -1692,6 +2306,51 @@ const styles = StyleSheet.create({
   timelineTime: {
     fontSize: 11,
   },
+  timelineUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  timelineUserName: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  reassignLeft: {
+    alignItems: 'center',
+    width: 32,
+  },
+  reassignAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  reassignAvatarText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  reassignLine: {
+    width: 1,
+    flex: 1,
+    marginTop: 4,
+    minHeight: 16,
+  },
+  reassignAction: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  reassignDetail: {
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  reassignTime: {
+    fontSize: 10,
+  },
   escalationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1769,6 +2428,180 @@ const styles = StyleSheet.create({
   escEmployeeName: {
     fontSize: 12,
     fontWeight: '600',
+    flex: 1,
+  },
+  // Sequence of Events (timeline)
+  seqHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  seqCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 'auto',
+  },
+  seqTimeline: {
+    gap: 0,
+  },
+  seqEvent: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  seqLeft: {
+    alignItems: 'center',
+    width: 20,
+  },
+  seqDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  seqLine: {
+    width: 2,
+    flex: 1,
+    minHeight: 12,
+    marginVertical: 2,
+  },
+  seqRight: {
+    flex: 1,
+    paddingBottom: 8,
+  },
+  seqCard: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 8,
+  },
+  seqCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  seqAction: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  seqTime: {
+    fontSize: 10,
+    marginLeft: 'auto',
+  },
+  seqReasonBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  seqReasonText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  seqUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  seqAvatar: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  seqAvatarText: {
+    fontSize: 8,
+    fontWeight: '700',
+  },
+  seqUserName: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  seqNote: {
+    fontSize: 11,
+    marginTop: 4,
+  },
+  seqReassignRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    flexWrap: 'wrap',
+  },
+  seqReassignPerson: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  seqReassignLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  seqReassignName: {
+    fontSize: 11,
+    fontWeight: '700',
+    flex: 1,
+  },
+  seqChangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  seqChangeLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  seqPriorityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  seqPriorityText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  seqLevelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  seqLevelBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(148,163,184,0.12)',
+  },
+  seqLevelBadgeActive: {
+    backgroundColor: 'rgba(244,63,94,0.12)',
+  },
+  seqLevelText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  seqLevelTextActive: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F43F5E',
+  },
+  seqEscEmployeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  seqEscEmployee: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     flex: 1,
   },
   uploadingRow: {
@@ -2205,5 +3038,70 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  topNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    zIndex: 10,
+  },
+  topNavTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  bellButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 60,
+  },
+  navItemCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 60,
+    marginTop: -24,
+  },
+  navIconWrapper: {
+    width: 44,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  centerFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  navText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });

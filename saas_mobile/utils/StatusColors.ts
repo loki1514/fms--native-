@@ -10,7 +10,6 @@ export type TicketStatus =
   | 'open'
   | 'assigned'
   | 'in_progress'
-  | 'waitlist'
   | 'paused'
   | 'pending_validation'
   | 'resolved'
@@ -23,7 +22,6 @@ export const STATUS_CONFIG: Record<
   open:          { bg: '#F9731618', text: '#F97316', dot: '#F97316' },  // orange
   assigned:      { bg: '#3B82F618', text: '#3B82F6', dot: '#3B82F6' },  // blue
   in_progress:   { bg: '#F59E0B18', text: '#F59E0B', dot: '#F59E0B' },  // amber
-  waitlist:      { bg: '#EAB30818', text: '#EAB308', dot: '#EAB308' },  // yellow
   paused:        { bg: '#64748B18', text: '#64748B', dot: '#64748B' },    // gray
   pending_validation: { bg: '#A855F718', text: '#A855F7', dot: '#A855F7' }, // purple
   resolved:      { bg: '#22C55E18', text: '#22C55E', dot: '#22C55E' },  // green

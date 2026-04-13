@@ -92,7 +92,7 @@ export default function TicketsScreen() {
       .range(offset, offset + limit - 1);
 
     if (statusFilter === 'open') {
-      q = q.in('status', ['open', 'waitlist', 'assigned']);
+      q = q.in('status', ['open', 'assigned']);
     } else if (statusFilter === 'in_progress') {
       q = q.in('status', ['in_progress', 'paused', 'pending_validation']);
     } else if (statusFilter !== 'all') {

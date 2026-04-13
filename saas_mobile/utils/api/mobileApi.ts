@@ -440,7 +440,21 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
     case 'staff':
       return [`${basePath}/staff`, `${basePath}/dashboard`, `${basePath}/tickets`];
     case 'mst':
-      return [`${basePath}/mst`, `${basePath}/dashboard`, `${basePath}/tickets`];
+      return [
+        `${basePath}/mst`,
+        `${basePath}/dashboard`,
+        `${basePath}/tickets`,
+        `${basePath}/diesel`,
+        `${basePath}/electricity`,
+        `${basePath}/visitors`,
+        `${basePath}/flow-map`,
+        `${basePath}/checklist`,
+        `${basePath}/stock`,
+        `${basePath}/reports`,
+        `${basePath}/settings`,
+        `${basePath}/users`,
+        `${basePath}/rooms`,
+      ];
     case 'vendor':
       return [`${basePath}/vendor`, `${basePath}/dashboard`, `${basePath}/tickets`];
     case 'super_tenant':

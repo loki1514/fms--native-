@@ -17,7 +17,6 @@ const STATUS_COLORS: Record<string, string> = {
   pending_validation: '#A855F7',
   resolved: '#22C55E',
   closed: '#22C55E',
-  waitlist: '#EAB308',
 };
 
 function StatusBadge({ status }: { status: string }) {

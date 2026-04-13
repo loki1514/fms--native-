@@ -148,15 +148,16 @@ export interface Ticket {
   metadata?: Record<string, any>;
 }
 
-export type TicketStatus = 
-  | 'open' 
-  | 'in_progress' 
-  | 'on_hold' 
-  | 'resolved' 
-  | 'closed' 
-  | 'escalated';
+export type TicketStatus =
+  | 'open'
+  | 'assigned'
+  | 'in_progress'
+  | 'paused'
+  | 'pending_validation'
+  | 'resolved'
+  | 'closed';
 
-export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 
 // TicketComment is an alias for Comment (used by ticket service)
 export type TicketComment = Comment;

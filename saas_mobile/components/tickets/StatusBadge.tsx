@@ -4,7 +4,6 @@ import { getStatusConfig } from '@/utils/StatusColors';
 
 const STATUS_LABELS: Record<string, string> = {
   open: 'Open',
-  waitlist: 'Waitlist',
   assigned: 'Assigned',
   in_progress: 'In Progress',
   paused: 'Paused',

@@ -14,8 +14,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  RefreshControl,
+  Pressable,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors, DesignTokens } from '@/constants/Colors';
@@ -41,7 +44,6 @@ import {
   Monitor,
   ClipboardList,
 } from 'lucide-react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 import * as ImagePicker from 'expo-image-picker';
 
 // ---------------------------------------------------------------------------
@@ -827,9 +829,11 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
 
 export default function VisitorsScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
+  const [property, setProperty] = useState<any>(null);
 
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [visitors, setVisitors] = useState<VisitorLog[]>([]);
@@ -837,16 +841,18 @@ export default function VisitorsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'checked_in' | 'checked_out' | 'pending'>('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Detail sheet
-  const detailSheetRef = useRef<BottomSheet>(null);
+  // Nav states
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showLoggersMenu, setShowLoggersMenu] = useState(false);
+
   const [selectedVisitor, setSelectedVisitor] = useState<VisitorLog | null>(null);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState<boolean>(false);
+  const [isVisitorDetailVisible, setIsVisitorDetailVisible] = useState(false);
 
   // Kiosk mode
   const [kioskMode, setKioskMode] = useState(false);
-
-  const detailSnapPoints = useMemo(() => ['60%', '90%'], []);
 
   // Fetch visitors
   const fetchVisitors = useCallback(async () => {
@@ -898,10 +904,22 @@ export default function VisitorsScreen() {
 
   useEffect(() => {
     fetchVisitors();
+    
+    // Fetch property info for header
+    if (propertyId) {
+      supabase.from('properties').select('*').eq('id', propertyId).single().then(({ data }) => setProperty(data));
+    }
+
     // Auto-refresh every 30s
     const interval = setInterval(fetchVisitors, 30000);
     return () => clearInterval(interval);
-  }, [fetchVisitors]);
+  }, [fetchVisitors, propertyId]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchVisitors();
+    setIsRefreshing(false);
+  };
 
   const handleCheckout = async () => {
     if (!selectedVisitor) return;
@@ -912,7 +930,7 @@ export default function VisitorsScreen() {
         .eq('id', selectedVisitor.id);
       if (error) throw error;
       toast.success(`${selectedVisitor.name} checked out`);
-      detailSheetRef.current?.close();
+      setIsVisitorDetailVisible(false);
       setSelectedVisitor(null);
       fetchVisitors();
     } catch (err: any) {
@@ -924,20 +942,10 @@ export default function VisitorsScreen() {
 
   const handleVisitorPress = (visitor: VisitorLog) => {
     setSelectedVisitor(visitor);
-    detailSheetRef.current?.expand();
+    setIsVisitorDetailVisible(true);
   };
 
-  const renderBackdrop = useCallback(
-    (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.5}
-      />
-    ),
-    []
-  );
+
 
   // Kiosk mode renders full screen
   if (kioskMode) {
@@ -955,23 +963,66 @@ export default function VisitorsScreen() {
   const filteredAll = visitors;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Visitor Management</Text>
-          <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
-            Real-time visitor tracking
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.kioskBtn, { backgroundColor: colors.primary }]}
-          onPress={() => setKioskMode(true)}
-          activeOpacity={0.8}
-        >
-          <Monitor size={16} color="#fff" />
-          <Text style={styles.kioskBtnText}>Kiosk</Text>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: 0 }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      {/* Top Navigation */}
+      <View style={[styles.topNav, {
+        backgroundColor: colors.surface,
+        borderBottomColor: colors.border,
+        paddingTop: Math.max(insets.top, 16)
+      }]}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={{ padding: 4 }}>
+          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
+        
+        <Text style={[styles.topNavTitle, { 
+          color: colors.textPrimary, 
+          fontFamily: 'PressStart2P',
+          fontSize: 11,
+          letterSpacing: 0.5,
+          fontWeight: '400',
+          lineHeight: 18,
+        }]}>
+          {property?.name || 'Head Office'}
+        </Text>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={[styles.bellButton, { marginRight: 8 }]}
+            onPress={() => router.push('/property/' + propertyId + '/stock/scan' as any)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="qr-code-outline" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Hero Header */}
+      <View style={[styles.heroHeader, { backgroundColor: colors.primary }]}>
+        <View style={styles.heroContent}>
+          <View>
+            <Text style={styles.heroTitle}>Visitors</Text>
+            <Text style={styles.heroSub}>
+              {stats.checked_in} currently on premise
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.kioskBtnHero}
+            onPress={() => setKioskMode(true)}
+            activeOpacity={0.8}
+          >
+            <Monitor size={18} color={colors.primary} />
+            <Text style={[styles.kioskBtnTextHero, { color: colors.primary }]}>Kiosk Mode</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Stats Row */}
@@ -1098,6 +1149,9 @@ export default function VisitorsScreen() {
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
               ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+              refreshControl={
+                <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+              }
             />
           )}
         </>
@@ -1105,30 +1159,129 @@ export default function VisitorsScreen() {
         <CheckInForm propertyId={propertyId!} onSuccess={fetchVisitors} />
       )}
 
-      {/* Visitor Detail Bottom Sheet */}
-      <BottomSheet
-        ref={detailSheetRef}
-        index={-1}
-        snapPoints={detailSnapPoints}
-        enablePanDownToClose
-        backdropComponent={renderBackdrop}
-        backgroundStyle={{ backgroundColor: colors.card }}
-        handleIndicatorStyle={{ backgroundColor: colors.border }}
-        onChange={(index) => {
-          if (index === -1) setSelectedVisitor(null);
-        }}
+      {/* Visitor Detail Modal */}
+      <Modal
+        visible={isVisitorDetailVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsVisitorDetailVisible(false)}
       >
-        <BottomSheetView style={{ flex: 1 }}>
-          {selectedVisitor && (
-            <VisitorDetailSheet
-              visitor={selectedVisitor}
-              onClose={() => detailSheetRef.current?.close()}
-              onCheckout={handleCheckout}
-              loading={checkoutLoading}
-            />
-          )}
-        </BottomSheetView>
-      </BottomSheet>
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setIsVisitorDetailVisible(false)}
+        >
+          <View style={[styles.detailModalContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {selectedVisitor && (
+              <VisitorDetailSheet
+                visitor={selectedVisitor}
+                onClose={() => setIsVisitorDetailVisible(false)}
+                onCheckout={handleCheckout}
+                loading={checkoutLoading}
+              />
+            )}
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* Standard Bottom Navigation */}
+      <View style={[styles.bottomNav, { 
+        backgroundColor: colors.surface, 
+        borderTopColor: colors.border,
+        paddingBottom: Math.max(insets.bottom, 12)
+      }]}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="grid-outline" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>OVERVIEW</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="ticket-outline" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>REQUESTS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navItemCenter} 
+          onPress={() => { Alert.alert('Create Request', 'Please go back to the dashboard to create new requests.'); }}
+        >
+          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
+            <Ionicons name="add" size={32} color="#FFF" />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => setShowLoggersMenu(true)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="options-outline" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>LOGGERS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => Alert.alert('More', 'More menu coming soon')}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>MORE</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Loggers Menu Modal */}
+      <Modal
+        visible={showLoggersMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLoggersMenu(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay} 
+          onPress={() => setShowLoggersMenu(false)}
+        >
+          <View style={[styles.loggersMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.loggersHeader}>
+              <Text style={[styles.loggersTitle, { color: colors.text }]}>Select Logger</Text>
+              <TouchableOpacity onPress={() => setShowLoggersMenu(false)}>
+                <Ionicons name="close" size={24} color={colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.loggerOption}
+              onPress={() => {
+                setShowLoggersMenu(false);
+                router.push(`/property/${propertyId}/electricity` as any);
+              }}
+            >
+              <View style={[styles.loggerIcon, { backgroundColor: 'rgba(52,199,89,0.1)' }]}>
+                <Ionicons name="flash" size={24} color="#34C759" />
+              </View>
+              <View style={styles.loggerInfo}>
+                <Text style={[styles.loggerName, { color: colors.text }]}>Electricity Meter</Text>
+                <Text style={[styles.loggerSub, { color: colors.textTertiary }]}>Log daily meter readings</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.loggerOption}
+              onPress={() => {
+                setShowLoggersMenu(false);
+                router.push(`/property/${propertyId}/diesel` as any);
+              }}
+            >
+              <View style={[styles.loggerIcon, { backgroundColor: 'rgba(255,149,0,0.1)' }]}>
+                <Ionicons name="water" size={24} color="#FF9500" />
+              </View>
+              <View style={styles.loggerInfo}>
+                <Text style={[styles.loggerName, { color: colors.text }]}>Diesel Generator</Text>
+                <Text style={[styles.loggerSub, { color: colors.textTertiary }]}>Log fuel and run hours</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1141,25 +1294,63 @@ const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
+  topNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 22, fontFamily: 'Poppins-Bold' },
-  headerSub: { fontSize: 12, fontFamily: 'Urbanist-Regular', marginTop: 2 },
-  kioskBtn: {
+  topNavTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    flex: 1,
+    textAlign: 'center',
+  },
+  bellButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    marginBottom: 20,
+  },
+  heroContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroTitle: {
+    color: '#FFF',
+    fontSize: 28,
+    fontFamily: 'Poppins-Bold',
+  },
+  heroSub: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 2,
+  },
+  kioskBtnHero: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 6,
   },
-  kioskBtnText: { color: '#fff', fontSize: 12, fontFamily: 'Urbanist-Bold' },
+  kioskBtnTextHero: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Bold',
+  },
   statsRow: {
     flexDirection: 'row',
     paddingHorizontal: 12,
@@ -1292,4 +1483,99 @@ const styles = StyleSheet.create({
   kioskNewVisitorText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins-Bold' },
   kioskExitBtn: { paddingHorizontal: 24, paddingVertical: 12 },
   kioskExitText: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontFamily: 'Urbanist-Regular' },
+  // Bottom Nav
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 64,
+  },
+  navIconWrapper: {
+    marginBottom: 4,
+  },
+  navText: {
+    fontSize: 9,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 0.5,
+  },
+  navItemCenter: {
+    marginTop: -30,
+    alignItems: 'center',
+  },
+  centerFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  // Modal / Loggers Menu
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  detailModalContainer: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    height: '80%',
+  },
+  loggersMenu: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    borderTopWidth: 1,
+  },
+  loggersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  loggersTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+  },
+  loggerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 16,
+  },
+  loggerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loggerInfo: {
+    flex: 1,
+  },
+  loggerName: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+  },
+  loggerSub: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Medium',
+  },
 });
