@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Alert,
+  Pressable,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,7 +27,9 @@ import Skeleton from '../ui/Skeleton';
 import CreateTicketModal from '../shared/CreateTicketModal';
 
 // Types
-type Tab = 'dashboard' | 'requests' | 'map' | 'visitors' | 'profile';
+type Tab = 'dashboard' | 'requests' | 'profile';
+
+const DRAWER_WIDTH = 280;
 
 interface Property {
   id: string;
@@ -71,7 +74,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, theme } = useTheme();
 
   // State
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -95,6 +98,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const [showLoggersMenu, setShowLoggersMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -218,9 +222,180 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   }, [completedTickets, searchQuery]);
 
   const totalTickets = incomingTickets.length + completedTickets.length;
-  const activeCount = incomingTickets.filter(t => 
+  const activeCount = incomingTickets.filter(t =>
     t.status === 'in_progress' || t.status === 'assigned' || t.status === 'open'
   ).length;
+
+  // ---- Get User Initials ----
+  function getInitials(name: string): string {
+    return name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+  }
+
+  // ---- Drawer Nav Items ----
+  type DrawerItem = { label: string; icon: keyof typeof Ionicons.glyphMap; tab?: Tab; action?: () => void };
+  const DRAWER_ITEMS: DrawerItem[] = [
+    { label: 'Overview',       icon: 'grid-outline',          tab: 'dashboard' },
+    { label: 'Requests',      icon: 'ticket-outline',        tab: 'requests' },
+    { label: 'Live Flow Map', icon: 'git-network-outline',   action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/flow-map'); } },
+  ];
+
+  const DRAWER_OPERATIONS_ITEMS: DrawerItem[] = [
+    { label: 'Visitors',           icon: 'people-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/visitors'); } },
+    { label: 'Diesel Logger',      icon: 'water-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/diesel'); } },
+    { label: 'Electricity Logger',icon: 'flash-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/electricity'); } },
+    { label: 'Checklists',         icon: 'checkbox-outline',    action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/checklist'); } },
+  ];
+
+  const DRAWER_SYSTEM_ITEMS: DrawerItem[] = [
+    { label: 'Settings',  icon: 'settings-outline', action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/settings'); } },
+    { label: 'Profile',   icon: 'person-outline',  action: () => { setActiveTab('profile'); setDrawerOpen(false); } },
+  ];
+
+  // ---- MstSidebar Drawer ----
+  function MstSidebar({ themeVal }: { themeVal: string }) {
+    const isDark = themeVal === 'dark';
+    const bgColor = isDark ? '#1A1F2E' : '#FFFFFF';
+    const borderColor = isDark ? '#2D3748' : '#F1F5F9';
+    const textPrimary = isDark ? '#F8FAFC' : '#1A2332';
+    const textSecondary = isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)';
+    const primary = '#708F96';
+
+    const handleItemPress = (item: DrawerItem) => {
+      if (item.tab) setActiveTab(item.tab);
+      else if (item.action) item.action();
+      setDrawerOpen(false);
+    };
+
+    return (
+      <>
+        {/* Overlay */}
+        <Pressable
+          style={[styles.drawerOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+          onPress={() => setDrawerOpen(false)}
+        />
+
+        {/* Drawer */}
+        <View style={[styles.drawer, { backgroundColor: bgColor, borderRightColor: borderColor }]}>
+          {/* Header */}
+          <View style={[styles.drawerHeader, { borderBottomColor: borderColor, paddingTop: Math.max(insets.top, 16) }]}>
+            <View style={styles.drawerLogoRow}>
+              <View style={[styles.drawerLogoIcon, { backgroundColor: primary }]}>
+                <Ionicons name="navigate-outline" size={20} color="#FFF" />
+              </View>
+              <Text style={[styles.drawerAppName, { color: textPrimary }]}>Autopilot</Text>
+            </View>
+            <TouchableOpacity style={styles.drawerCloseBtn} onPress={() => setDrawerOpen(false)}>
+              <Ionicons name="close" size={22} color={textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Maintenance Portal Badge */}
+          <View style={[styles.drawerBadge, { backgroundColor: isDark ? 'rgba(112,143,150,0.1)' : 'rgba(112,143,150,0.06)', borderColor: isDark ? 'rgba(112,143,150,0.15)' : 'rgba(112,143,150,0.1)' }]}>
+            <Text style={[styles.drawerBadgeText, { color: primary }]}>MAINTENANCE PORTAL</Text>
+          </View>
+
+          {/* Scrollable Nav */}
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 8 }}>
+            {/* Daily Work */}
+            <Text style={[styles.drawerSectionLabel, { color: textSecondary }]}>DAILY WORK</Text>
+            {DRAWER_ITEMS.map((item) => {
+              const isActive = item.tab === activeTab;
+              return (
+                <TouchableOpacity
+                  key={item.label}
+                  style={[styles.drawerItem, isActive && { backgroundColor: primary }]}
+                  onPress={() => handleItemPress(item)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={isActive ? (item.icon.replace('-outline', '') as keyof typeof Ionicons.glyphMap) : item.icon}
+                    size={20}
+                    color={isActive ? '#FFF' : (isDark ? 'rgba(230,235,238,0.6)' : 'rgba(26,35,50,0.6)')}
+                  />
+                  <Text style={[styles.drawerItemLabel, { color: isActive ? '#FFF' : textPrimary }]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* Operations */}
+            <Text style={[styles.drawerSectionLabel, { color: textSecondary, marginTop: 12 }]}>OPERATIONS</Text>
+            {DRAWER_OPERATIONS_ITEMS.map((item) => {
+              const isActive = item.tab === activeTab;
+              return (
+                <TouchableOpacity
+                  key={item.label}
+                  style={[styles.drawerItem, isActive && { backgroundColor: primary }]}
+                  onPress={() => handleItemPress(item)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={isActive ? (item.icon.replace('-outline', '') as keyof typeof Ionicons.glyphMap) : item.icon}
+                    size={20}
+                    color={isActive ? '#FFF' : (isDark ? 'rgba(230,235,238,0.6)' : 'rgba(26,35,50,0.6)')}
+                  />
+                  <Text style={[styles.drawerItemLabel, { color: isActive ? '#FFF' : textPrimary }]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+
+            {/* System & Personal */}
+            <Text style={[styles.drawerSectionLabel, { color: textSecondary, marginTop: 12 }]}>SYSTEM &amp; PERSONAL</Text>
+            {DRAWER_SYSTEM_ITEMS.map((item) => {
+              const isActive = item.tab === activeTab;
+              return (
+                <TouchableOpacity
+                  key={item.label}
+                  style={[styles.drawerItem, isActive && { backgroundColor: primary }]}
+                  onPress={() => handleItemPress(item)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={isActive ? (item.icon.replace('-outline', '') as keyof typeof Ionicons.glyphMap) : item.icon}
+                    size={20}
+                    color={isActive ? '#FFF' : (isDark ? 'rgba(230,235,238,0.6)' : 'rgba(26,35,50,0.6)')}
+                  />
+                  <Text style={[styles.drawerItemLabel, { color: isActive ? '#FFF' : textPrimary }]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* User Card + Sign Out */}
+          <View style={[styles.drawerBottom, { borderTopColor: borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
+            <View style={[styles.drawerUserCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}>
+              <View style={[styles.drawerAvatar, { backgroundColor: 'rgba(112,143,150,0.12)' }]}>
+                <Text style={styles.drawerAvatarText}>
+                  {getInitials(user?.user_metadata?.full_name ?? user?.email ?? 'User')}
+                </Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.drawerUserName, { color: textPrimary }]} numberOfLines={1}>
+                  {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+                </Text>
+                <Text style={[styles.drawerUserRole, { color: textSecondary }]} numberOfLines={1}>
+                  {userRole}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.drawerSignOut, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2' }]}
+              onPress={() => { setDrawerOpen(false); setShowSignOutModal(true); }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+              <Text style={styles.drawerSignOutText}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </>
+    );
+  }
 
   const renderDashboardTab = () => (
     <ScrollView 
@@ -505,17 +680,48 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
+      {/* Mobile Sidebar Drawer */}
+      {drawerOpen && <MstSidebar themeVal={theme} />}
       
       {/* Top Navigation */}
-      <View style={[styles.topNav, { 
-        backgroundColor: colors.surface, 
+      <View style={[styles.topNav, {
+        backgroundColor: colors.surface,
         borderBottomColor: colors.border,
-        paddingTop: Math.max(insets.top, 16) 
+        paddingTop: Math.max(insets.top, 16)
       }]}>
-        <Text style={[styles.topNavTitle, { color: colors.textPrimary }]}>MST Portal</Text>
-        <TouchableOpacity onPress={() => setShowSignOutModal(true)}>
-          <Ionicons name="log-out-outline" size={24} color={colors.textSecondary} />
+        {/* Hamburger + App Name */}
+        <TouchableOpacity onPress={() => setDrawerOpen(true)} activeOpacity={0.7}>
+          <Ionicons name="menu-outline" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
+        <Text style={[styles.topNavTitle, { 
+          color: colors.textPrimary, 
+          fontFamily: 'PressStart2P',
+          fontSize: 11,
+          letterSpacing: 0.5,
+          fontWeight: '400',
+          lineHeight: 18,
+        }]}>
+          {property?.name || 'Head Office'}
+        </Text>
+
+        {/* Top Right Actions */}
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={[styles.bellButton, { marginRight: 8 }]}
+            onPress={() => router.push('/property/' + propertyId + '/stock/scan')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="qr-code-outline" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Main Content */}
@@ -589,11 +795,11 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowLoggersMenu(false)}>
           <View style={[styles.menuContent, { backgroundColor: colors.surface }]}>
             <Text style={[styles.menuTitle, { color: colors.textPrimary }]}>Loggers</Text>
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowLoggersMenu(false); /* Nav to Electricity Logger */ }}>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/electricity` as any); }}>
               <Ionicons name="flash-outline" size={20} color={colors.primary} />
               <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Electricity Logger</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowLoggersMenu(false); /* Nav to Diesel Logger */ }}>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/diesel` as any); }}>
               <Ionicons name="water-outline" size={20} color={colors.primary} />
               <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Diesel Logger</Text>
             </TouchableOpacity>
@@ -740,6 +946,183 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     letterSpacing: -0.5,
+  },
+  bellButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // ---- Drawer Styles ----
+  drawerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+  },
+  drawer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: DRAWER_WIDTH,
+    zIndex: 101,
+    flexDirection: 'column',
+    shadowColor: '#000',
+    shadowOffset: { width: 4, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  drawerLogoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  drawerLogoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  drawerAppName: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  drawerCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  drawerBadge: {
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  drawerBadgeText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  drawerSectionLabel: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    paddingHorizontal: 16,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  drawerQuickActions: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+  },
+  drawerQuickAction: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  drawerQuickActionText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  drawerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 8,
+    borderRadius: 12,
+    marginBottom: 2,
+  },
+  drawerItemLabel: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 15,
+    letterSpacing: 0.1,
+  },
+  drawerBottom: {
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 24,
+  },
+  drawerUserCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  drawerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  drawerAvatarText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
+    color: '#708F96',
+  },
+  drawerUserName: {
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  drawerUserRole: {
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  drawerSignOut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  drawerSignOutText: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#EF4444',
   },
   tabContent: {
     flex: 1,
@@ -995,7 +1378,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -20,
     shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

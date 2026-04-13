@@ -133,7 +133,7 @@ export const ticketService = {
       category: data.category,
       subcategory: data.subcategory,
       priority: data.priority,
-      status: 'open',
+      status: data.assignedTo ? 'assigned' : 'open',
       property_id: data.propertyId,
       organization_id: data.organizationId,
       assigned_to: data.assignedTo,

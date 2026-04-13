@@ -37,7 +37,7 @@ interface Member {
 
 export default function CreateTicketModal({ visible, onClose, onSuccess, propertyId }: CreateTicketModalProps) {
   const { user } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const supabase = createClient();
 
@@ -202,6 +202,7 @@ export default function CreateTicketModal({ visible, onClose, onSuccess, propert
           priority: classification.priority,
           status: taggedUser ? 'assigned' : 'open',
           assigned_to: taggedUser?.id || null,
+          assigned_at: taggedUser ? new Date().toISOString() : null,
           raised_by: user?.id,
           internal: isInternal,
           is_vague: classification.confidence === 'low',
@@ -220,6 +221,27 @@ export default function CreateTicketModal({ visible, onClose, onSuccess, propert
         .single() as unknown) as { data: { id: string } | null; error: any };
 
       if (insertErr) throw insertErr;
+
+      // 3b. Log ticket creation activity
+      const creatorId = user?.id;
+      if (ticket && creatorId) {
+        await (supabase.from('ticket_activity_log') as any).insert({
+          ticket_id: ticket.id,
+          user_id: creatorId,
+          action: 'created',
+          new_value: 'open',
+        });
+
+        // If assigned during creation, log the assignment
+        if (taggedUser?.id) {
+          await (supabase.from('ticket_activity_log') as any).insert({
+            ticket_id: ticket.id,
+            user_id: creatorId,
+            action: 'assigned',
+            new_value: taggedUser.id,
+          });
+        }
+      }
 
       // 4. Upload media as before photo/video
       if (mediaFile && ticket) {

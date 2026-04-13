@@ -19,9 +19,26 @@ export async function compressImage(uri: string): Promise<string> {
 }
 
 /**
- * Gets a clean filename for storage.
+ * Gets a clean, consistent path for storage.
+ * Uses a FIXED filename per slot so replacements overwrite the old file directly.
+ * The extension must match the ACTUAL file type being stored.
  */
-export function getStoragePath(ticketId: string, type: 'before' | 'after', extension: string): string {
-  const timestamp = new Date().getTime();
-  return `${ticketId}/${type}_${timestamp}.${extension}`;
+export function getStoragePath(
+  ticketId: string,
+  type: 'before' | 'after',
+  extension: 'jpg' | 'mp4'
+): string {
+  return `${ticketId}/${type}.${extension}`;
+}
+
+/**
+ * Gets the storage path for a specific media type (photo or video) for a slot.
+ * Used to find and delete the old file before uploading a replacement.
+ */
+export function getStoragePathForSlot(
+  ticketId: string,
+  type: 'before' | 'after',
+  isPhoto: boolean
+): string {
+  return `${ticketId}/${type}.${isPhoto ? 'jpg' : 'mp4'}`;
 }

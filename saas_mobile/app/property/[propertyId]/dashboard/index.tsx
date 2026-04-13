@@ -38,7 +38,6 @@ type TimePeriod = 'today' | 'month' | 'all';
 interface TicketStats {
   total: number;
   open: number;
-  waitlist: number;
   in_progress: number;
   resolved: number;
   pending_validation: number;
@@ -309,7 +308,7 @@ export default function DashboardScreen() {
 
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all');
   const [stats, setStats] = useState<DashboardStats>({
-    ticketStats: { total: 0, open: 0, waitlist: 0, in_progress: 0, resolved: 0, pending_validation: 0, urgent_open: 0 },
+    ticketStats: { total: 0, open: 0, in_progress: 0, resolved: 0, pending_validation: 0, urgent_open: 0 },
     electricityUnits: 0,
     electricityUnitsToday: 0,
     visitorsToday: 0,
@@ -361,7 +360,6 @@ export default function DashboardScreen() {
       const [
         totalRes,
         openRes,
-        waitlistRes,
         inProgressRes,
         resolvedRes,
         pendingValRes,
@@ -371,8 +369,7 @@ export default function DashboardScreen() {
         elecRes,
       ] = await Promise.all([
         makeTicketQuery(),
-        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('status', ['open', 'waitlist', 'blocked', 'client_raised']).gte('created_at', dateFilter ?? '2000-01-01'),
-        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('status', ['waitlist']).gte('created_at', dateFilter ?? '2000-01-01'),
+        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('status', ['open', 'blocked', 'client_raised']).gte('created_at', dateFilter ?? '2000-01-01'),
         supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('status', ['assigned', 'in_progress', 'paused', 'work_started']).gte('created_at', dateFilter ?? '2000-01-01'),
         supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('status', ['resolved', 'closed', 'satisfied', 'pending_validation']).gte('created_at', dateFilter ?? '2000-01-01'),
         supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).eq('status', 'pending_validation').gte('created_at', dateFilter ?? '2000-01-01'),
@@ -398,7 +395,6 @@ export default function DashboardScreen() {
         ticketStats: {
           total: totalRes.count ?? 0,
           open: openRes.count ?? 0,
-          waitlist: waitlistRes.count ?? 0,
           in_progress: inProgressRes.count ?? 0,
           resolved: resolvedRes.count ?? 0,
           pending_validation: pendingValRes.count ?? 0,
@@ -527,11 +523,7 @@ export default function DashboardScreen() {
               <View style={styles.statusDots}>
                 <View style={styles.dotRow}>
                   <View style={[styles.dot, { backgroundColor: '#60A5FA' }]} />
-                  <Text style={styles.dotLabel}>{stats.ticketStats.open - stats.ticketStats.waitlist} Open</Text>
-                </View>
-                <View style={styles.dotRow}>
-                  <View style={[styles.dot, { backgroundColor: '#FCD34D' }]} />
-                  <Text style={styles.dotLabel}>{stats.ticketStats.waitlist} Waitlist</Text>
+                  <Text style={styles.dotLabel}>{stats.ticketStats.open} Open</Text>
                 </View>
                 <View style={styles.dotRow}>
                   <View style={[styles.dot, { backgroundColor: '#22D3EE' }]} />

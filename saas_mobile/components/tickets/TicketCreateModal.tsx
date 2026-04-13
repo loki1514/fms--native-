@@ -20,11 +20,11 @@ import MediaCaptureModal, { MediaFile } from '../shared/MediaCaptureModal';
 import { Video, ResizeMode } from 'expo-av';
 import { useTheme } from '@/context';
 import {
-  classifyTicketEnhanced,
+  classifyTicket,
   getSkillGroupDisplayName,
   getSkillGroupColor,
   getIssueCodeDisplayName,
-  EnhancedClassificationResult,
+  ClassificationResult,
 } from '@/utils/ticketing/classifyTicket';
 
 interface TicketCreateModalProps {
@@ -58,7 +58,7 @@ export default function TicketCreateModal({
   const [success, setSuccess] = useState(false);
 
   // Classification preview state
-  const [classification, setClassification] = useState<EnhancedClassificationResult | null>(null);
+  const [classification, setClassification] = useState<ClassificationResult | null>(null);
   const [isClassifying, setIsClassifying] = useState(false);
   const classifyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -102,8 +102,8 @@ export default function TicketCreateModal({
       clearTimeout(classifyTimeoutRef.current);
     }
 
-    classifyTimeoutRef.current = setTimeout(() => {
-      const result = classifyTicketEnhanced(description);
+    classifyTimeoutRef.current = setTimeout(async () => {
+      const result = await classifyTicket(description);
       setClassification(result);
       setIsClassifying(false);
     }, 400);

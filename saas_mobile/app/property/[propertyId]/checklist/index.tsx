@@ -14,7 +14,8 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
@@ -124,6 +125,7 @@ export default function ChecklistScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { theme } = useTheme();
   const { user, membership } = useAuth();
+  const router = useRouter();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
 
@@ -137,6 +139,7 @@ export default function ChecklistScreen() {
   const [showRunner, setShowRunner] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState<SOPTemplate | null>(null);
   const [activeCompletion, setActiveCompletion] = useState<SOPCompletion | null>(null);
+  const [showLoggersMenu, setShowLoggersMenu] = useState(false);
   const [itemStates, setItemStates] = useState<Record<string, { checked: boolean; photo?: string; value?: string }>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [liveNow, setLiveNow] = useState(() => new Date());
@@ -559,11 +562,41 @@ export default function ChecklistScreen() {
 
   // ── Main View ──
   return (
-    <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Header */}
+    <View style={[styles.container, { backgroundColor: bgColor, paddingBottom: 0 }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      {/* Top Navigation */}
+      <View style={[styles.topNav, {
+        backgroundColor: colors.surface,
+        borderBottomColor: colors.border,
+        paddingTop: Math.max(insets.top, 16)
+      }]}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={{ padding: 4 }}>
+          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={[styles.topNavTitle, { color: colors.textPrimary }]}>Checklists</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={[styles.bellButton, { marginRight: 8 }]}
+            onPress={() => router.push('/property/' + propertyId + '/stock/scan' as any)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="qr-code-outline" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Header Banner */}
       <View style={[styles.headerSection, { backgroundColor: '#708F96' }]}>
         <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>Checklists</Text>
+          <Text style={styles.headerTitle}>Overview</Text>
           {isAdmin && (
             <TouchableOpacity
               style={[styles.headerBtn, { backgroundColor: 'rgba(255,255,255,0.25)' }]}
@@ -745,6 +778,50 @@ export default function ChecklistScreen() {
         />
       )}
 
+      {/* Bottom Navigation */}
+      <View style={[styles.bottomNav, { 
+        backgroundColor: colors.surface, 
+        borderTopColor: colors.border,
+        paddingBottom: Math.max(insets.bottom, 12)
+      }]}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="grid-outline" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>OVERVIEW</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="ticket-outline" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>REQUESTS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navItemCenter} 
+          onPress={() => { Alert.alert('Create Request', 'Please go back to the dashboard to create new requests.'); }}
+        >
+          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
+            <Ionicons name="add" size={32} color="#FFF" />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => setShowLoggersMenu(true)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="options" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>LOGGERS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => Alert.alert('More', 'More menu coming soon')}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>MORE</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* ── Create Template Modal ── */}
       <Modal visible={showCreateTemplate} animationType="slide" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
@@ -845,6 +922,23 @@ export default function ChecklistScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Loggers Modal */}
+      <Modal visible={showLoggersMenu} transparent animationType="fade" onRequestClose={() => setShowLoggersMenu(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowLoggersMenu(false)}>
+          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 16 }}>Loggers</Text>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/electricity` as any); }}>
+              <Ionicons name="flash-outline" size={20} color={colors.primary} />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>Electricity Logger</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/diesel` as any); }}>
+              <Ionicons name="water-outline" size={20} color={colors.primary} />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>Diesel Logger</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -948,4 +1042,68 @@ const styles = StyleSheet.create({
   submitBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins-Bold' },
   createFirstBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
   createFirstBtnText: { color: '#FFFFFF', fontSize: 13, fontFamily: 'Poppins-Bold' },
+  topNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    zIndex: 10,
+  },
+  topNavTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  bellButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 60,
+  },
+  navItemCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 60,
+  },
+  navIconWrapper: {
+    width: 44,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  centerFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  navText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
 });
