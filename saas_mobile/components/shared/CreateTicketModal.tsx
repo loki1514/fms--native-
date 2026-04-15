@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createClient } from '@/utils/supabase/client';
+import { readFileAsArrayBuffer } from '@/utils/mediaUtils';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context';
 import MediaCaptureModal, { MediaFile } from './MediaCaptureModal';

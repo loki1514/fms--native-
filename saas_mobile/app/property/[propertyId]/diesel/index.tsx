@@ -20,6 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
+import { AppBottomNav } from '@/components/shared/AppBottomNav';
+import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import {
   Fuel,
   ChevronDown,
@@ -326,6 +328,7 @@ function LogReadingModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showGenPicker, setShowGenPicker] = useState(false);
   const [lastClosings, setLastClosings] = useState<Record<string, LastClosing>>({});
+  const [ceilings, setCeilings] = useState<Record<string, { hours: number | null; diesel: number | null }>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const today = new Date().toISOString().split('T')[0];
@@ -351,38 +354,53 @@ function LogReadingModal({
   }, [visible, generators, initialGenId]);
 
   useEffect(() => {
-    if (!visible) return;
-    const loadClosings = async () => {
-      const closings: Record<string, LastClosing> = {};
-      await Promise.all(generators.map(async (gen) => {
-        const { data } = await supabase
-          .from('diesel_readings')
-          .select('closing_hours, closing_diesel_level, closing_kwh, reading_date, created_at')
-          .eq('property_id', propertyId)
-          .eq('generator_id', gen.id)
-          .order('reading_date', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (data) {
-          const d = data as any;
-          closings[gen.id] = {
-            hours: d.closing_hours,
-            diesel: d.closing_diesel_level,
-            kwh: d.closing_kwh,
-          };
-        } else {
-          closings[gen.id] = {
-            hours: gen.initial_run_hours ?? 0,
-            diesel: gen.initial_diesel_level ?? 0,
-            kwh: gen.initial_kwh_reading ?? 0,
-          };
-        }
-      }));
-      setLastClosings(closings);
+    if (!visible || !selectedGenId) return;
+    const loadBounds = async () => {
+      // 1. Fetch latest reading BEFORE or ON this date
+      const { data: beforeData } = await (supabase
+        .from('diesel_readings')
+        .select('closing_hours, closing_diesel_level, closing_kwh')
+        .eq('property_id', propertyId)
+        .eq('generator_id', selectedGenId)
+        .lt('reading_date', readingDate)
+        .order('reading_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle() as any);
+      
+      if (beforeData) {
+        setLastClosings(prev => ({ ...prev, [selectedGenId]: {
+          hours: beforeData.closing_hours,
+          diesel: beforeData.closing_diesel_level,
+          kwh: beforeData.closing_kwh,
+        }}));
+      } else {
+        setLastClosings(prev => ({ ...prev, [selectedGenId]: {
+          hours: selectedGen?.initial_run_hours ?? 0,
+          diesel: selectedGen?.initial_diesel_level ?? 0,
+          kwh: selectedGen?.initial_kwh_reading ?? 0,
+        }}));
+      }
+
+      // 2. Fetch earliest reading AFTER this date
+      const { data: afterData } = await (supabase
+        .from('diesel_readings')
+        .select('opening_hours, opening_diesel_level')
+        .eq('property_id', propertyId)
+        .eq('generator_id', selectedGenId)
+        .gt('reading_date', readingDate)
+        .order('reading_date', { ascending: true })
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle() as any);
+      
+      setCeilings(prev => ({ ...prev, [selectedGenId]: {
+        hours: afterData?.opening_hours ?? null,
+        diesel: afterData?.opening_diesel_level ?? null,
+      }}));
     };
-    loadClosings();
-  }, [visible, generators, propertyId]);
+    loadBounds();
+  }, [visible, selectedGenId, readingDate, propertyId]);
 
   // Reset on close
   useEffect(() => {
@@ -414,9 +432,19 @@ function LogReadingModal({
     const cH = parseFloat(closingHours);
     const cD = parseFloat(closingDiesel);
     const added = parseFloat(dieselAdded) || 0;
+    const ceiling = ceilings[selectedGenId] ?? { hours: null, diesel: null };
+
+    if (cH < o.hours) {
+      Alert.alert('Invalid Runtime', `Current hours (${cH}) cannot be less than opening hours (${o.hours.toFixed(1)}).`);
+      return;
+    }
+    if (ceiling.hours !== null && cH > ceiling.hours) {
+      Alert.alert('Invalid Runtime', `Current hours (${cH}) cannot be greater than a future reading recorded (${ceiling.hours.toFixed(1)}).`);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // Insert directly via Supabase
       const { error } = await (supabase.from('diesel_readings') as any)
         .insert({
           property_id: propertyId,
@@ -435,6 +463,14 @@ function LogReadingModal({
         });
 
       if (error) throw error;
+
+      // Update generator carry-forward values
+      await (supabase.from('generators') as any)
+        .update({
+          initial_run_hours: cH,
+          initial_diesel_level: cD,
+        })
+        .eq('id', selectedGenId);
 
       onClose();
       onSuccess();
@@ -700,7 +736,7 @@ function formatRelative(dateStr: string): string {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function DieselScreen() {
-  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const { propertyId, mode } = useLocalSearchParams<{ propertyId: string, mode?: string }>();
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
@@ -738,7 +774,7 @@ export default function DieselScreen() {
               .eq('id', id) as any);
             if (deleteError) throw deleteError;
 
-            // Update generator to previous reading
+            // Recalibrate generator carry-forward
             const { data: remaining } = await (supabase
               .from('diesel_readings')
               .select('closing_hours, closing_diesel_level')
@@ -767,6 +803,10 @@ export default function DieselScreen() {
       },
     ]);
   };
+
+  useEffect(() => {
+    if (mode === 'history') setShowHistoryModal(true);
+  }, [mode]);
 
   const fetchHistoryReadings = async () => {
     if (!propertyId) return;
@@ -1061,49 +1101,17 @@ export default function DieselScreen() {
         </View>
       </Modal>
 
-      {/* Bottom Navigation */}
-      <View style={[styles.bottomNav, { 
-        backgroundColor: colors.surface, 
-        borderTopColor: colors.border,
-        paddingBottom: Math.max(insets.bottom, 12)
-      }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="grid-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>OVERVIEW</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="ticket-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>REQUESTS</Text>
-        </TouchableOpacity>
+      <AppBottomNav 
+        activeTab="loggers"
+        propertyId={propertyId!}
+        onLoggersPress={() => setShowLoggersMenu(true)}
+      />
 
-        <TouchableOpacity 
-          style={styles.navItemCenter} 
-          onPress={() => { Alert.alert('Create Request', 'Please go back to the dashboard to create new requests.'); }}
-        >
-          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
-            <Ionicons name="add" size={32} color="#FFF" />
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => setShowLoggersMenu(true)}>
-          <View style={[styles.navIconWrapper, { backgroundColor: theme === 'dark' ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
-            <Ionicons name="options" size={22} color={colors.primary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.primary }]}>LOGGERS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => Alert.alert('More', 'More menu coming soon')}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>MORE</Text>
-        </TouchableOpacity>
-      </View>
+      <LoggersMenu
+        visible={showLoggersMenu}
+        onClose={() => setShowLoggersMenu(false)}
+        propertyId={propertyId!}
+      />
 
       {showSheet && (
         <LogReadingModal
@@ -1120,22 +1128,7 @@ export default function DieselScreen() {
         />
       )}
 
-      {/* Loggers Modal */}
-      <Modal visible={showLoggersMenu} transparent animationType="fade" onRequestClose={() => setShowLoggersMenu(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowLoggersMenu(false)}>
-          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 16 }}>Loggers</Text>
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/electricity` as any); }}>
-              <Ionicons name="flash-outline" size={20} color={colors.primary} />
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>Electricity Logger</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border }} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/diesel` as any); }}>
-              <Ionicons name="water-outline" size={20} color={colors.primary} />
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>Diesel Logger</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+
     </View>
   );
 }

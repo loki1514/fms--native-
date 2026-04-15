@@ -5,7 +5,7 @@
  * and stores the resulting ECAPA-TDNN speaker embedding.
  */
 
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { supabase } from '@/utils/supabase/client';
 
 const ENROLL_API_URL = process.env.EXPO_PUBLIC_VOICE_API_URL ?? '';
@@ -80,9 +80,7 @@ export class VoiceEnrollmentService {
     this.setState('processing');
 
     try {
-      const audioBase64 = await FileSystem.readAsStringAsync(recordingUri, {
-        encoding: 'base64' as const,
-      });
+      const audioBase64 = await new File(recordingUri).base64();
 
       const result = await this.callEnrollApi(audioBase64, recordingUri);
 
@@ -121,9 +119,7 @@ export class VoiceEnrollmentService {
     this.setState('processing');
 
     try {
-      const audioBase64 = await FileSystem.readAsStringAsync(recordingUri, {
-        encoding: 'base64' as const,
-      });
+      const audioBase64 = await new File(recordingUri).base64();
 
       const result = await this.callEnrollApi(audioBase64, recordingUri);
 

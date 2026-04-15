@@ -53,6 +53,9 @@ const MOBILE_ROLES = ['tenant', 'super_tenant'];
 // property layout sidebar for property_admin so they have navigation.
 const FULL_DASHBOARD_ROLES = ['mst', 'maintenance_staff'];
 
+// ---- Full-screen routes for full-dashboard roles (no sidebar) ----
+const FULL_SCREEN_ROUTES = ['mst', 'maintenance_staff', 'settings', 'profile'];
+
 // ---- Property Context ----
 export const PropertyContext = React.createContext<{
   propertyName: string;
@@ -415,7 +418,9 @@ export default function PropertyLayout() {
 
       console.log('[PropertyLayout] Calling checkPropertyAccess for:', propertyId);
       try {
-        const data = await checkPropertyAccess(propertyId);
+        // Pass user from AuthContext so checkPropertyAccess doesn't need to re-hydrate
+        // the session — the AuthContext client has it; the mobileApi singleton may not.
+        const data = await checkPropertyAccess(propertyId, user);
         console.log('[PropertyLayout] checkPropertyAccess result:', JSON.stringify(data));
 
         if (!data.authorized) {

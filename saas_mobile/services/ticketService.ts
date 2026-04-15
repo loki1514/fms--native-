@@ -219,11 +219,13 @@ export const ticketService = {
     content: string,
     isInternal: boolean = false
   ): Promise<ApiResponse<TicketComment>> {
-    const { data: { user } } = await supabase.auth.getUser();
+    // Use getSession() first (cached) for reliability on mobile/Expo Go.
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id ?? (await supabase.auth.getUser()).data.user?.id;
 
     return apiClient.post<TicketComment>('ticket_comments', {
       ticket_id: ticketId,
-      user_id: user?.id,
+      user_id: userId,
       content,
       is_internal: isInternal,
     });

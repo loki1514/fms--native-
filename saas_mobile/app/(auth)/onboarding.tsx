@@ -388,13 +388,19 @@ export default function OnboardingScreen() {
         }
       }
 
-      // Update user profile
+      // Upsert user profile (upsert = safety net in case the row doesn't exist yet,
+      // e.g. signup happened through a path that didn't create the users row)
       const cleanPhone = phoneNumber.trim();
-      const profileUpdate: Record<string, string | boolean> = { onboarding_completed: true };
-      if (cleanPhone.length >= 10) profileUpdate.phone = cleanPhone;
+      const profileUpsert: Record<string, string | boolean> = { onboarding_completed: true };
+      if (cleanPhone.length >= 10) profileUpsert.phone = cleanPhone;
+      profileUpsert.full_name = authUser.user_metadata?.full_name ?? userName;
 
       // @ts-expect-error Supabase client has no schema types — type suppression required
-      const { error: userErr } = await supabase.from('users').update(profileUpdate).eq('id', authUser.id);
+      const { error: userErr } = await supabase.from('users').upsert({
+        id: authUser.id,
+        email: authUser.email ?? '',
+        ...profileUpsert,
+      }, { onConflict: 'id' });
       if (userErr) throw userErr;
 
       await supabase.auth.updateUser({ data: { onboarding_completed: true } });

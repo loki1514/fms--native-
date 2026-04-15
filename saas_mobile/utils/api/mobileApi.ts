@@ -38,12 +38,40 @@ export function extractBearerToken(authHeader: string | null): string | null {
 /**
  * Get the current Supabase access token for Bearer auth.
  * Returns null if not authenticated.
+ *
+ * Strategy: use getSession() (synchronous, cached from storage) first to avoid
+ * a network round-trip on mobile. On Expo Go, AsyncStorage may not be fully
+ * synchronised when the app starts, so we fall back to getUser() which validates
+ * the token with the Supabase Auth server — slower but authoritative.
  */
 export async function getSupabaseToken(): Promise<string | null> {
   try {
     const supabase = createClient();
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
+    // getSession() reads from cached storage — works immediately, no network call.
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData.session?.access_token) return sessionData.session.access_token;
+
+    // Fallback: validate token with server (handles expired/refresh scenarios)
+    const { data: userData } = await supabase.auth.getUser();
+    return userData.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get the current user's ID, with the same session-first strategy as getSupabaseToken.
+ * Safe to call from non-React service files (unlike useAuth() which requires a hook).
+ * Returns null if no authenticated session is found.
+ */
+export async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const supabase = createClient();
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session?.user?.id) return sessionData.session.user.id;
+
+    const { data: userData } = await supabase.auth.getUser();
+    return userData.user?.id ?? null;
   } catch {
     return null;
   }
@@ -327,17 +355,31 @@ export interface PropertyAccessResponse {
  * 1. Master admin bypass
  * 2. Org-level access (org_admin / org_super_admin / owner)
  * 3. Property-level membership (staff, tenant, etc.)
+ *
+ * @param propertyId - The property ID to check access for
+ * @param userOverride - (optional) Pre-fetched user object. When provided, this is used
+ *   instead of calling getSession/getUser internally. This is the PREFERRED way to call
+ *   this function on mobile/Expo Go because the supabase singleton in mobileApi.ts may
+ *   not share session state with the AuthContext client (separate AsyncStorage hydration).
  */
-export async function checkPropertyAccess(propertyId: string): Promise<PropertyAccessResponse> {
+export async function checkPropertyAccess(
+  propertyId: string,
+  userOverride?: { id: string; email?: string } | null
+): Promise<PropertyAccessResponse> {
   try {
     const supabase = createClient();
 
-    // Get current user
-    const { data: sessionData } = await supabase.auth.getSession();
-    const user = sessionData?.session?.user;
-    console.log('[checkPropertyAccess] Session user:', user?.email, 'id:', user?.id);
+    // Get current user — prefer passed-in user (from AuthContext) to avoid session
+    // hydration issues between the mobileApi singleton and AuthContext's client.
+    let user = userOverride ?? null;
     if (!user) {
-      console.log('[checkPropertyAccess] No session user — returning unauthorized');
+      console.log('[checkPropertyAccess] No userOverride — attempting getSession');
+      const { data: sessionData } = await supabase.auth.getSession();
+      user = sessionData?.session?.user ?? null;
+    }
+    console.log('[checkPropertyAccess] Acting user:', user?.email, 'id:', user?.id);
+    if (!user) {
+      console.log('[checkPropertyAccess] No user — returning unauthorized');
       return { authorized: false };
     }
 
@@ -436,9 +478,9 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
     case 'tenant':
       return [`${basePath}/tenant`];
     case 'security':
-      return [`${basePath}/security`, `${basePath}/dashboard`, `${basePath}/tickets`];
+      return [`${basePath}/security`, `${basePath}/dashboard`, `${basePath}/tickets`, `${basePath}/profile`];
     case 'staff':
-      return [`${basePath}/staff`, `${basePath}/dashboard`, `${basePath}/tickets`];
+      return [`${basePath}/staff`, `${basePath}/dashboard`, `${basePath}/tickets`, `${basePath}/profile`];
     case 'mst':
       return [
         `${basePath}/mst`,
@@ -452,6 +494,7 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
         `${basePath}/stock`,
         `${basePath}/reports`,
         `${basePath}/settings`,
+        `${basePath}/profile`,
         `${basePath}/users`,
         `${basePath}/rooms`,
       ];

@@ -1,5 +1,5 @@
 'use client';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { supabase } from '@/utils/supabase/client';
 import { VoiceContext } from '@/services/ai/openaiService';
@@ -60,7 +60,7 @@ export async function processRecording(
     }
 
     // Read audio and send to backend proxy
-    const audioBase64 = await FileSystem.readAsStringAsync(recordingUri, { encoding: 'base64' });
+    const audioBase64 = await new File(recordingUri).base64();
     const ext = recordingUri.split('.').pop()?.toLowerCase() ?? 'm4a';
     const mimeType = ext === 'wav' ? 'audio/wav'
       : ext === 'mp3' ? 'audio/mpeg'

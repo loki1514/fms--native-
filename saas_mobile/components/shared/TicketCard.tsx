@@ -8,6 +8,8 @@ import {
   ViewStyle,
   Share,
 } from 'react-native';
+import { File } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context';
 import { getPriorityConfig, getStatusConfig } from '@/utils/StatusColors';
@@ -16,7 +18,7 @@ export interface TicketCardProps {
   id: string;
   title: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'OPEN' | 'PENDING_VALIDATION' | 'WAITLISTED';
+  status: 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'OPEN' | 'PENDING_VALIDATION';
   ticketNumber: string;
   createdAt: string;
   assignedTo?: string;
@@ -33,13 +35,14 @@ export interface TicketCardProps {
   onValidate?: () => void;
   onReject?: () => void;
   style?: ViewStyle;
+  compact?: boolean;
 }
 
 export default function TicketCard({
   id, title, priority, status, ticketNumber, createdAt,
   assignedTo, assigneePhotoUrl, photoUrl, propertyName,
   materialsOrdered, escalationChain, raisedByTenant,
-  onClick, onEdit, onDelete, onShare, onValidate, onReject, style,
+  onClick, onEdit, onDelete, onShare, onValidate, onReject, style, compact,
 }: TicketCardProps) {
   const dateObj = new Date(createdAt);
   const dateStr = dateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -47,12 +50,32 @@ export default function TicketCard({
 
   const handleShare = async () => {
     if (onShare) { onShare(); return; }
+    
+    // Construct a comprehensive message
+    const messageText = `🎫 Ticket: ${title}\n📋 ${ticketNumber}\n⏰ ${dateStr} ${timeStr}\n📊 Priority: ${priority} | Status: ${status.replace(/_/g, ' ')}${assignedTo ? `\n👤 Assigned: ${assignedTo}` : ''}`;
+    
     try {
-      await Share.share({
-        message: `🎫 Ticket: ${title}\n📋 ${ticketNumber}\n⏰ ${dateStr} ${timeStr}\n📊 Priority: ${priority} | Status: ${status.replace(/_/g, ' ')}${assignedTo ? `\n👤 Assigned: ${assignedTo}` : ''}`,
-        title: `Ticket ${ticketNumber}`,
-      });
-    } catch (_) {}
+      if (photoUrl && (await Sharing.isAvailableAsync())) {
+        // Download the image to share it as a file
+        const fileUri = `${FileSystem.cacheDirectory}share_${id.slice(0, 8)}.jpg`;
+        const downloadResult = await File.downloadAsync(photoUrl, fileUri);
+        
+        // Use Sharing.shareAsync for files (Expo Go compatible)
+        await Sharing.shareAsync(downloadResult.uri, {
+          dialogTitle: `Share Ticket ${ticketNumber}`,
+          UTI: 'public.jpeg', // iOS specific hint
+          mimeType: 'image/jpeg',
+        });
+      } else {
+        // Fallback to standard text share
+        await Share.share({
+          message: messageText,
+          title: `Ticket ${ticketNumber}`,
+        });
+      }
+    } catch (error) {
+      console.log('Share failed or cancelled', error);
+    }
   };
 
   const isClosed = ['COMPLETED', 'CLOSED', 'RESOLVED'].includes(status?.toUpperCase() || '');
@@ -96,8 +119,10 @@ export default function TicketCard({
       style={[
         styles.card,
         {
-          backgroundColor: colors.surface,
-          borderColor: colors.border,
+          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
+          padding: compact ? 12 : 16, 
+          gap: compact ? 8 : 12,
         },
         isCritical && { borderWidth: 2, borderColor: '#EF4444' },
         raisedByTenant && !isCritical && { borderWidth: 2, borderColor: '#F59E0B' },
@@ -107,19 +132,19 @@ export default function TicketCard({
       activeOpacity={0.7}
     >
       {/* Header */}
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, { gap: compact ? 8 : 12 }]}>
         {photoUrl && (
-          <Image source={{ uri: photoUrl }} style={styles.thumbnail} />
+          <Image source={{ uri: photoUrl }} style={[styles.thumbnail, compact && { width: 44, height: 44 }]} />
         )}
-        <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>{title}</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }, compact && { fontSize: 14, lineHeight: 18 }]} numberOfLines={compact ? 1 : 2}>{title}</Text>
         <View style={styles.topActions}>
           {onEdit && (
-            <TouchableOpacity style={[styles.topIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]} onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="create-outline" size={16} color={colors.textSecondary} />
+            <TouchableOpacity style={[styles.topIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }, compact && { width: 26, height: 26 }]} onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="create-outline" size={compact ? 14 : 16} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={[styles.topIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]} onPress={handleShare} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="share-outline" size={16} color={colors.textSecondary} />
+          <TouchableOpacity style={[styles.topIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }, compact && { width: 26, height: 26 }]} onPress={handleShare} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="share-outline" size={compact ? 14 : 16} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -148,38 +173,38 @@ export default function TicketCard({
 
       {/* Assignee */}
       {assignedTo && status !== 'OPEN' && (
-        <View style={styles.assigneeRow}>
-          <Text style={[styles.assigneeLabel, { color: colors.textSecondary }]}>Serving:</Text>
+        <View style={[styles.assigneeRow, { gap: compact ? 4 : 6 }]}>
+          <Text style={[styles.assigneeLabel, { color: colors.textSecondary }, compact && { fontSize: 11 }]}>Serving:</Text>
           {assigneePhotoUrl ? (
-            <Image source={{ uri: assigneePhotoUrl }} style={styles.assigneeAvatar} />
+            <Image source={{ uri: assigneePhotoUrl }} style={[styles.assigneeAvatar, compact && { width: 18, height: 18 }]} />
           ) : (
-            <View style={[styles.assigneeInitials, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Text style={[styles.initialsText, { color: colors.primary }]}>
+            <View style={[styles.assigneeInitials, { backgroundColor: colors.background, borderColor: colors.border }, compact && { width: 18, height: 18 }]}>
+              <Text style={[styles.initialsText, { color: colors.primary }, compact && { fontSize: 7 }]}>
                 {assignedTo.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
               </Text>
             </View>
           )}
-          <Text style={[styles.assigneeName, { color: colors.textPrimary }]}>{assignedTo}</Text>
+          <Text style={[styles.assigneeName, { color: colors.textPrimary }, compact && { fontSize: 12 }]} numberOfLines={1}>{assignedTo}</Text>
         </View>
       )}
 
       {/* Escalation chain */}
       {escalationChain && escalationChain.length > 0 && (
-        <View style={styles.escalationRow}>
-          <Text style={styles.escalatedLabel}>Escalated</Text>
-          {escalationChain.map((person, i) => {
+        <View style={[styles.escalationRow, { gap: compact ? 3 : 4 }]}>
+          <Text style={[styles.escalatedLabel, compact && { fontSize: 9, marginRight: 2 }]}>Escalated</Text>
+          {escalationChain.slice(0, compact ? 4 : 6).map((person, i) => {
             const initials = person.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-            const isLast = i === escalationChain.length - 1;
+            const isLast = i === Math.min(escalationChain.length, compact ? 4 : 6) - 1;
             return (
               <React.Fragment key={i}>
-                <View style={[styles.escalationCircle, isLast ? { borderColor: '#FCA5A5' } : { borderColor: colors.border, backgroundColor: colors.background }]}>
+                <View style={[styles.escalationCircle, { width: compact ? 20 : 24, height: compact ? 20 : 24 }, isLast ? { borderColor: '#FCA5A5' } : { borderColor: colors.border, backgroundColor: colors.background }]}>
                   {person.avatar ? (
-                    <Image source={{ uri: person.avatar }} style={{ width: 24, height: 24, borderRadius: 12 }} />
+                    <Image source={{ uri: person.avatar }} style={{ width: compact ? 20 : 24, height: compact ? 20 : 24, borderRadius: compact ? 10 : 12 }} />
                   ) : (
-                    <Text style={[styles.escalationInitials, isLast && { color: '#EF4444' }]}>{initials}</Text>
+                    <Text style={[styles.escalationInitials, { fontSize: compact ? 7 : 8 }, isLast && { color: '#EF4444' }]}>{initials}</Text>
                   )}
                 </View>
-                {!isLast && <Ionicons name="chevron-forward" size={10} color="#FCA5A5" />}
+                {!isLast && <Ionicons name="chevron-forward" size={compact ? 8 : 10} color="#FCA5A5" />}
               </React.Fragment>
             );
           })}
@@ -187,18 +212,18 @@ export default function TicketCard({
       )}
 
       {/* Footer */}
-      <View style={[styles.footer, { borderTopColor: colors.border }]}>
+      <View style={[styles.footer, { borderTopColor: colors.border, paddingTop: compact ? 10 : 12 }]}>
         <View>
-          <Text style={[styles.metaText, { color: colors.textSecondary }]}>{ticketNumber} • {dateStr} • {timeStr}</Text>
+          <Text style={[styles.metaText, { color: colors.textSecondary }, compact && { fontSize: 9 }]}>{ticketNumber} • {dateStr}</Text>
           <View style={styles.timerRow}>
-            <Ionicons name="timer-outline" size={12} color={timerColor} />
-            <Text style={[styles.timerText, { color: timerColor }]}>
-              {isClosed ? `Closed after ${formatElapsed(elapsedSec)}` : formatElapsed(elapsedSec)}
+            <Ionicons name="timer-outline" size={compact ? 10 : 12} color={timerColor} />
+            <Text style={[styles.timerText, { color: timerColor }, compact && { fontSize: 9 }]}>
+              {isClosed ? `Closed` : formatElapsed(elapsedSec)}
             </Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.viewBtn} onPress={onClick}>
-          <Text style={styles.viewBtnText}>View</Text>
+        <TouchableOpacity style={[styles.viewBtn, compact && { paddingHorizontal: 12, paddingVertical: 6 }]} onPress={onClick}>
+          <Text style={[styles.viewBtnText, compact && { fontSize: 11 }]}>View</Text>
         </TouchableOpacity>
       </View>
 
@@ -225,9 +250,13 @@ export default function TicketCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16, padding: 16, gap: 12,
+    borderRadius: 16, 
     borderWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+    shadowColor: '#94A3B8', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.12, 
+    shadowRadius: 8, 
+    elevation: 3,
   },
   headerRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   thumbnail: { width: 56, height: 56, borderRadius: 12 },

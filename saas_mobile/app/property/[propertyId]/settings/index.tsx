@@ -18,7 +18,6 @@ import { Colors } from '@/constants/Colors';
 import { createClient } from '@/utils/supabase/client';
 import {
   User,
-  Settings,
   Bell,
   ChevronRight,
   Shield,
@@ -27,8 +26,8 @@ import {
   FileText,
   HelpCircle,
   LogOut,
-  Edit3,
 } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 // Types
 interface Property {
@@ -120,7 +119,7 @@ export default function SettingsScreen() {
       icon: <User size={20} color={colors.primary} />,
       title: 'Profile',
       subtitle: userProfile?.full_name || 'View and edit profile',
-      onPress: () => router.push(`/property/${propertyId}/profile`),
+      onPress: () => router.push(`/property/${propertyId}/profile` as any),
     },
     {
       icon: <Building2 size={20} color={colors.primary} />,
@@ -164,7 +163,7 @@ export default function SettingsScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -173,15 +172,47 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       
       {/* Header */}
       <View style={[styles.header, { backgroundColor: '#708F96' }]}>
-        <View style={styles.headerContent}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={24} color="#fff" />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
-          <Text style={styles.headerSubtitle}>Manage your account and preferences</Text>
+          <View style={{ width: 40 }} />
         </View>
+        {/* User Avatar + Name */}
+        <TouchableOpacity
+          style={styles.headerUserRow}
+          onPress={() => router.push(`/property/${propertyId}/profile`)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.headerAvatar}>
+            {userProfile?.user_photo_url ? (
+              <Image source={{ uri: userProfile.user_photo_url }} style={styles.headerAvatarImg} />
+            ) : (
+              <Text style={styles.headerAvatarText}>
+                {userProfile?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+              </Text>
+            )}
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.headerUserName} numberOfLines={1}>
+              {userProfile?.full_name || 'User'}
+            </Text>
+            <Text style={styles.headerUserEmail} numberOfLines={1}>
+              {userProfile?.email || user?.email || ''}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -189,40 +220,6 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {/* Profile Card */}
-        <View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.profileHeader}>
-            <View style={[styles.avatarContainer, { backgroundColor: colors.primary + '20' }]}>
-              {userProfile?.user_photo_url ? (
-                <Image source={{ uri: userProfile.user_photo_url }} style={styles.avatarImage} />
-              ) : (
-                <Text style={[styles.avatarText, { color: colors.primary }]}>
-                  {userProfile?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-                </Text>
-              )}
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
-                {userProfile?.full_name || 'User'}
-              </Text>
-              <Text style={[styles.profileEmail, { color: colors.textSecondary }]} numberOfLines={1}>
-                {userProfile?.email || user?.email || 'No email'}
-              </Text>
-              <View style={[styles.roleBadge, { backgroundColor: colors.primary + '18' }]}>
-                <Text style={[styles.roleText, { color: colors.primary }]}>{getRoleDisplay()}</Text>
-              </View>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.editProfileBtn, { backgroundColor: colors.primary }]}
-            onPress={() => router.push(`/property/${propertyId}/profile`)}
-          >
-            <Edit3 size={14} color="#fff" />
-            <Text style={styles.editProfileText}>Edit Profile</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Property Info */}
         {property && (
           <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -323,6 +320,50 @@ export default function SettingsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Bottom Navigation */}
+      <View style={[styles.bottomNav, {
+        backgroundColor: colors.surface,
+        borderTopColor: colors.border,
+        paddingBottom: Math.max(insets.bottom, 12)
+      }]}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="grid-outline" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>OVERVIEW</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/tickets` as any)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="ticket-outline" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>REQUESTS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navItemCenter}
+          onPress={() => router.push(`/property/${propertyId}/mst` as any)}
+        >
+          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
+            <Ionicons name="add" size={32} color="#FFF" />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/electricity` as any)}>
+          <View style={styles.navIconWrapper}>
+            <Ionicons name="flash-outline" size={22} color={colors.textTertiary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>LOGGERS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/settings`)}>
+          <View style={[styles.navIconWrapper, { backgroundColor: theme === 'dark' ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
+            <Ionicons name="settings-outline" size={22} color={colors.primary} />
+          </View>
+          <Text style={[styles.navText, { color: colors.primary }]}>SETTINGS</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -338,12 +379,25 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: 24,
   },
-  headerContent: {},
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 18,
     fontFamily: 'Poppins-Bold',
     color: '#fff',
   },
@@ -353,77 +407,47 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
   },
+  headerUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  headerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  headerAvatarImg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  headerAvatarText: {
+    fontSize: 20,
+    fontFamily: 'Poppins-Bold',
+    color: '#fff',
+  },
+  headerUserName: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+    color: '#fff',
+  },
+  headerUserEmail: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Regular',
+    color: 'rgba(255,255,255,0.65)',
+    marginTop: 2,
+  },
   content: {
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
-  },
-  profileCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 16,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  avatarContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-  },
-  avatarText: {
-    fontSize: 28,
-    fontFamily: 'Poppins-Bold',
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 18,
-    fontFamily: 'Poppins-Bold',
-  },
-  profileEmail: {
-    fontSize: 13,
-    fontFamily: 'Urbanist-Regular',
-    marginTop: 2,
-  },
-  roleBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginTop: 8,
-  },
-  roleText: {
-    fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  editProfileBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  editProfileText: {
-    fontSize: 14,
-    fontFamily: 'Urbanist-Bold',
-    color: '#fff',
   },
   sectionCard: {
     borderRadius: 16,
@@ -513,5 +537,50 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 12,
     fontFamily: 'Urbanist-Regular',
+  },
+
+  // Bottom Navigation
+  bottomNav: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  navItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 60,
+  },
+  navItemCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 60,
+  },
+  navIconWrapper: {
+    width: 44,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  centerFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  navText: {
+    fontSize: 10,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 0.3,
   },
 });

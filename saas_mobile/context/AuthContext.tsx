@@ -292,6 +292,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const enrichedUser = enrichUser(data.session.user);
         setSession(data.session);
         setUser(enrichedUser);
+
+        // ─── Create users profile row (mirrors web app auth callback) ───
+        // This must exist before onboarding tries to .update() it.
+        await supabase.from('users').upsert({
+          id: data.session.user.id,
+          email: email,
+          full_name: fullName,
+        }, { onConflict: 'id' });
+
         await fetchMembership(data.session.user.id);
       }
 

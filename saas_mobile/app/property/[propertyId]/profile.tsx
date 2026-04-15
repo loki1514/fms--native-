@@ -19,6 +19,9 @@ import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
 import { createClient } from '@/utils/supabase/client';
+import { readFileAsArrayBuffer } from '@/utils/mediaUtils';
+import { AppBottomNav } from '@/components/shared/AppBottomNav';
+import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import {
   ArrowLeft,
   Camera,
@@ -27,9 +30,6 @@ import {
   X,
   Mail,
   Phone,
-  Building2,
-  Briefcase,
-  MapPin,
   Shield,
   Calendar,
 } from 'lucide-react-native';
@@ -66,6 +66,7 @@ export default function ProfileScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showLoggersMenu, setShowLoggersMenu] = useState(false);
   
   // Edit form state
   const [editForm, setEditForm] = useState<Partial<UserProfile>>({});
@@ -112,11 +113,6 @@ export default function ProfileScreen() {
         .update({
           full_name: editForm.full_name,
           phone: editForm.phone,
-          designation: editForm.designation,
-          department: editForm.department,
-          address: editForm.address,
-          city: editForm.city,
-          country: editForm.country,
         })
         .eq('id', profile.id);
 
@@ -153,12 +149,11 @@ export default function ProfileScreen() {
         const uriParts = uri.split('.');
         const ext = uriParts[uriParts.length - 1] || 'jpg';
         const filename = `${profile?.id}/${Date.now()}.${ext}`;
-        const response = await fetch(uri);
-        const blob = await response.blob();
+        const arrayBuffer = await readFileAsArrayBuffer(uri);
 
         const { error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(filename, blob, { contentType: 'image/jpeg' });
+          .upload(filename, arrayBuffer, { contentType: 'image/jpeg' });
 
         if (uploadError) throw uploadError;
 
@@ -192,12 +187,11 @@ export default function ProfileScreen() {
         const uriParts = uri.split('.');
         const ext = uriParts[uriParts.length - 1] || 'jpg';
         const filename = `${profile?.id}/${Date.now()}.${ext}`;
-        const response = await fetch(uri);
-        const blob = await response.blob();
+        const arrayBuffer = await readFileAsArrayBuffer(uri);
 
         const { error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(filename, blob, { contentType: 'image/jpeg' });
+          .upload(filename, arrayBuffer, { contentType: 'image/jpeg' });
 
         if (uploadError) throw uploadError;
 
@@ -242,7 +236,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       
       {/* Header */}
@@ -340,83 +334,23 @@ export default function ProfileScreen() {
                 />
               </View>
               
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]} numberOfLines={1}>Designation</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                  value={editForm.designation || ''}
-                  onChangeText={(text) => setEditForm(prev => ({ ...prev, designation: text }))}
-                  placeholder="Enter designation"
-                  placeholderTextColor={colors.textTertiary}
-                />
-              </View>
-              
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]} numberOfLines={1}>Department</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                  value={editForm.department || ''}
-                  onChangeText={(text) => setEditForm(prev => ({ ...prev, department: text }))}
-                  placeholder="Enter department"
-                  placeholderTextColor={colors.textTertiary}
-                />
-              </View>
             </View>
           ) : (
             <View style={styles.infoList}>
-              <InfoItem 
+              <InfoItem
                 icon={<Mail size={18} color={colors.primary} />}
                 label="Email"
                 value={profile?.email || 'Not set'}
               />
-              
-              <InfoItem 
+
+              <InfoItem
                 icon={<Phone size={18} color={colors.primary} />}
                 label="Phone"
                 value={profile?.phone || 'Not set'}
               />
-              
-              <InfoItem 
-                icon={<Briefcase size={18} color={colors.primary} />}
-                label="Designation"
-                value={profile?.designation || 'Not set'}
-              />
-              
-              <InfoItem 
-                icon={<Building2 size={18} color={colors.primary} />}
-                label="Department"
-                value={profile?.department || 'Not set'}
-              />
             </View>
           )}
         </View>
-
-        {/* Address Information */}
-        {!isEditing && (
-          <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ADDRESS</Text>
-            
-            <View style={styles.infoList}>
-              <InfoItem 
-                icon={<MapPin size={18} color={colors.primary} />}
-                label="Address"
-                value={profile?.address || 'Not set'}
-              />
-              
-              <InfoItem 
-                icon={<Building2 size={18} color={colors.primary} />}
-                label="City"
-                value={profile?.city || 'Not set'}
-              />
-              
-              <InfoItem 
-                icon={<Shield size={18} color={colors.primary} />}
-                label="Country"
-                value={profile?.country || 'Not set'}
-              />
-            </View>
-          </View>
-        )}
 
         {/* Account Information */}
         <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -480,6 +414,17 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+      <AppBottomNav 
+        activeTab="profile"
+        propertyId={propertyId!}
+        onLoggersPress={() => setShowLoggersMenu(true)}
+      />
+
+      <LoggersMenu
+        visible={showLoggersMenu}
+        onClose={() => setShowLoggersMenu(false)}
+        propertyId={propertyId!}
+      />
     </View>
   );
 }

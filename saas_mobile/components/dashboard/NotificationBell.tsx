@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { createClient } from '@/utils/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Notification {
   id: string;
@@ -30,11 +31,11 @@ export default function NotificationBell() {
   const [isLoading, setIsLoading] = useState(false);
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const { user: authUser } = useAuth();
 
   const fetchNotifications = useCallback(async () => {
     setIsLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!authUser?.id) return;
 
     const { data, error } = await (supabase
       .from('notifications')
@@ -55,19 +56,17 @@ export default function NotificationBell() {
 
     const init = async () => {
       await fetchNotifications();
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!authUser?.id) return;
 
       channel = supabase
-        .channel(`notif-bell-${user.id}`)
+        .channel(`notif-bell-${authUser.id}`)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
             table: 'notifications',
-            filter: `user_id=eq.${user.id}`,
+            filter: `user_id=eq.${authUser.id}`,
           },
           (payload) => {
             setNotifications((prev) => [payload.new as Notification, ...prev]);
@@ -81,7 +80,7 @@ export default function NotificationBell() {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [fetchNotifications, supabase]);
+  }, [fetchNotifications, supabase, authUser?.id]);
 
   const markAsRead = async (id: string) => {
     const { error } = await (supabase as any)
@@ -96,13 +95,12 @@ export default function NotificationBell() {
   };
 
   const markAllAsRead = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!authUser?.id) return;
 
     const { error } = await (supabase as any)
       .from('notifications')
       .update({ is_read: true })
-      .eq('user_id', user.id)
+      .eq('user_id', authUser.id)
       .neq('is_read', true);
 
     if (!error) {

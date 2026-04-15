@@ -19,6 +19,7 @@ interface TicketListItemProps {
   assignedTo?: string;
   assigneePhotoUrl?: string | null;
   photoUrl?: string;
+  escalationChain?: { name: string; avatar?: string | null }[];
   onPress: () => void;
 }
 
@@ -45,7 +46,8 @@ function formatTimeAgo(dateStr: string): string {
 
 export default function TicketListItem({
   id, title, status, priority, ticketNumber,
-  createdAt, assignedTo, assigneePhotoUrl, photoUrl, onPress,
+  createdAt, assignedTo, assigneePhotoUrl, photoUrl,
+  escalationChain, onPress,
 }: TicketListItemProps) {
   const [timeAgo, setTimeAgo] = useState(() => formatTimeAgo(createdAt));
   const isClosed = ['resolved', 'closed'].includes(status);
@@ -87,6 +89,12 @@ export default function TicketListItem({
                 {priority?.toUpperCase()}
               </Text>
             </View>
+            {escalationChain && escalationChain.length > 0 && (
+              <View style={styles.escalatedBadge}>
+                <Ionicons name="arrow-up" size={10} color="#FFF" />
+                <Text style={styles.escalatedText}>ESCALATED</Text>
+              </View>
+            )}
           </View>
 
           {assignedTo && (
@@ -104,6 +112,35 @@ export default function TicketListItem({
             </View>
           )}
         </View>
+
+        {/* Escalation chain: avatars with arrows */}
+        {escalationChain && escalationChain.length > 0 && (
+          <View style={styles.escalationChain}>
+            <Text style={styles.escalatedLabel}>Escalated to:</Text>
+            <View style={styles.escalationChainRow}>
+              {escalationChain.map((person, i) => {
+                const initials = person.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+                const isLast = i === escalationChain.length - 1;
+                return (
+                  <React.Fragment key={i}>
+                    <View style={[styles.escAvatar, { borderColor: isLast ? '#FCA5A5' : '#E2E8F0' }]}>
+                      {person.avatar ? (
+                        <Image source={{ uri: person.avatar }} style={styles.escAvatarImg} />
+                      ) : (
+                        <View style={[styles.escInitials, { backgroundColor: isLast ? '#FEE2E2' : '#F1F5F9' }]}>
+                          <Text style={[styles.escInitialsText, { color: isLast ? '#DC2626' : '#64748B' }]}>
+                            {initials}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    {!isLast && <Ionicons name="arrow-forward" size={10} color="#FCA5A5" style={{ marginHorizontal: 2 }} />}
+                  </React.Fragment>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Chevron */}
@@ -225,6 +262,62 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#64748B',
+  },
+  escalatedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  escalatedText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFF',
+    letterSpacing: 0.3,
+  },
+  escalationChain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  escalatedLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#F87171',
+  },
+  escalationChainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    flex: 1,
+  },
+  escAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  escAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  escInitials: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  escInitialsText: {
+    fontSize: 8,
+    fontWeight: '700',
   },
   chevron: {
     justifyContent: 'center',

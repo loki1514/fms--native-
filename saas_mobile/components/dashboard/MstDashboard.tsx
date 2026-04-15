@@ -14,17 +14,37 @@ import {
   StatusBar,
   Alert,
   Pressable,
+  Dimensions,
+  Platform,
 } from 'react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  runOnJS,
+  interpolate,
+  Extrapolate
+} from 'react-native-reanimated';
+import { 
+  Gesture, 
+  GestureDetector, 
+  GestureHandlerRootView 
+} from 'react-native-gesture-handler';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createClient } from '../../utils/supabase/client';
+import { WEB_API_BASE } from '../../utils/api/mobileApi';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
 import TicketCard from '../shared/TicketCard';
 import SignOutModal from '../ui/SignOutModal';
 import Skeleton from '../ui/Skeleton';
 import CreateTicketModal from '../shared/CreateTicketModal';
+import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
+import { LoggersMenu } from '../shared/LoggersMenu';
 
 // Types
 type Tab = 'dashboard' | 'requests' | 'profile';
@@ -66,6 +86,41 @@ interface Ticket {
   }[];
 }
 
+// ─── Fuzzy Search Helper ──────────────────────────────────────────────────────
+/**
+ * Matches text against a query using:
+ * 1. Exact substring (case-insensitive)
+ * 2. Word prefix: query word matches the start of any word in the text
+ * 3. Subsequence: all query chars appear in order (non-consecutive) in text
+ */
+function fuzzyMatch(text: string, query: string): boolean {
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+
+  // 1. Exact substring
+  if (lower.includes(q)) return true;
+
+  // 2. Word prefix match: "cle" matches "Cleaning" because "Cle" is a prefix of "Cleaning"
+  const textWords = lower.split(/\s+/);
+  const queryWords = q.split(/\s+/);
+  for (const qw of queryWords) {
+    if (qw.length < 2) continue; // skip single-char words
+    const match = textWords.some(word => word.startsWith(qw));
+    if (match) return true;
+  }
+
+  // 3. Subsequence: all chars of query appear in order (non-consecutive) in text
+  let ti = 0;
+  for (const ch of q) {
+    const idx = lower.indexOf(ch, ti);
+    if (idx === -1) return false;
+    ti = idx + 1;
+  }
+  return true;
+}
+
+// ─── Component Props ─────────────────────────────────────────────────────────
 interface MstDashboardProps {
   propertyId: string;
 }
@@ -77,7 +132,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const { colors, isDark, theme } = useTheme();
 
   // State
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [property, setProperty] = useState<Property | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -96,9 +151,14 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const [editDescription, setEditDescription] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [showLoggersMenu, setShowLoggersMenu] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [statsData, setStatsData] = useState({ urgent: 0, rate: 0 });
+  
+  // Shift Management State
+  const [isMstCheckedIn, setIsMstCheckedIn] = useState(false);
+  const [activeShiftId, setActiveShiftId] = useState<string | null>(null);
+  const [isCheckingInOut, setIsCheckingInOut] = useState(false);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -107,8 +167,111 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
       fetchPropertyDetails();
       fetchTickets();
       fetchUserRole();
+      fetchShiftStatus();
     }
   }, [propertyId, user?.id]);
+
+  // Sync tab from URL
+  const { tab } = useLocalSearchParams<{ tab: string }>();
+  useEffect(() => {
+    if (tab === 'requests') {
+      setActiveTab('requests');
+    } else if (tab === 'overview') {
+      setActiveTab('overview');
+    }
+  }, [tab]);
+
+  const fetchShiftStatus = async () => {
+    if (!user?.id || !propertyId) return;
+    try {
+      // 1. Get status from resolver_stats
+      const { data: rsData }: any = await supabase
+        .from('resolver_stats')
+        .select('is_checked_in')
+        .eq('user_id', user.id)
+        .eq('property_id', propertyId)
+        .single();
+
+      if (rsData) {
+        setIsMstCheckedIn(rsData.is_checked_in);
+      }
+
+      // 2. Get active shift log if any
+      const { data: shiftData }: any = await supabase
+        .from('shift_logs')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('property_id', propertyId)
+        .eq('status', 'active')
+        .order('check_in_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (shiftData) {
+        setActiveShiftId(shiftData.id);
+        setIsMstCheckedIn(true); // Sync with logs
+      }
+    } catch (error) {
+      console.error('Error fetching shift status:', error);
+    }
+  };
+
+  const toggleMstShift = async () => {
+    if (!user?.id || !propertyId || isCheckingInOut) return;
+    
+    setIsCheckingInOut(true);
+    const newStatus = !isMstCheckedIn;
+
+    try {
+      if (newStatus) {
+        // --- CHECK IN ---
+        const { data: newShift, error: shiftErr }: any = await (supabase
+          .from('shift_logs') as any)
+          .insert({
+            user_id: user.id,
+            property_id: propertyId,
+            status: 'active',
+            check_in_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (shiftErr) throw shiftErr;
+        setActiveShiftId(newShift.id);
+      } else {
+        // --- CHECK OUT ---
+        if (activeShiftId) {
+          const { error: shiftErr } = await (supabase
+            .from('shift_logs') as any)
+            .update({
+              status: 'completed',
+              check_out_at: new Date().toISOString()
+            })
+            .eq('id', activeShiftId);
+
+          if (shiftErr) throw shiftErr;
+        }
+        setActiveShiftId(null);
+      }
+
+      // Update resolver_stats for load balancing
+      const { error: rsErr } = await (supabase
+        .from('resolver_stats') as any)
+        .update({ is_checked_in: newStatus })
+        .eq('user_id', user.id)
+        .eq('property_id', propertyId);
+
+      if (rsErr) throw rsErr;
+
+      setIsMstCheckedIn(newStatus);
+      Alert.alert('Shift Updated', `You are now ${newStatus ? 'ON DUTY' : 'OFF DUTY'}.`);
+    } catch (error: any) {
+      console.error('Shift toggle error:', error);
+      Alert.alert('Error', error.message || 'Failed to update shift status');
+    } finally {
+      setIsCheckingInOut(false);
+    }
+  };
 
   const fetchUserRole = async () => {
     if (!user) return;
@@ -143,16 +306,24 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         ticket_escalation_logs(from_level, to_level, escalated_at, from_employee:users!from_employee_id(full_name, user_photo_url), to_employee:users!to_employee_id(full_name, user_photo_url))
       `)
       .eq('property_id', propertyId)
-      .eq('internal', false)
+
       .order('created_at', { ascending: false }) as any);
 
     if (error) {
       console.error('Error fetching tickets:', error);
     } else {
-      const active = (data || []).filter((t: any) => !['resolved', 'closed'].includes(t.status));
-      const completed = (data || []).filter((t: any) => ['resolved', 'closed'].includes(t.status));
+      const tickets = data || [];
+      const active = tickets.filter((t: any) => !['resolved', 'closed'].includes(t.status));
+      const completed = tickets.filter((t: any) => ['resolved', 'closed'].includes(t.status));
+      const urgentCount = active.filter((t: any) => t.priority === 'urgent' || t.priority === 'high').length;
+      const completionRate = tickets.length > 0 ? Math.round((completed.length / tickets.length) * 100) : 0;
+      
       setIncomingTickets(active);
       setCompletedTickets(completed);
+      setStatsData({
+        urgent: urgentCount,
+        rate: completionRate
+      });
     }
     setIsFetching(false);
   };
@@ -203,21 +374,19 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
   const filteredIncomingTickets = useMemo(() => {
     if (!searchQuery) return incomingTickets;
-    const query = searchQuery.toLowerCase();
     return incomingTickets.filter(t =>
-      t.title.toLowerCase().includes(query) ||
-      t.ticket_number.toLowerCase().includes(query) ||
-      t.description?.toLowerCase().includes(query)
+      fuzzyMatch(t.title, searchQuery) ||
+      fuzzyMatch(t.ticket_number, searchQuery) ||
+      fuzzyMatch(t.description ?? '', searchQuery)
     );
   }, [incomingTickets, searchQuery]);
 
   const filteredCompletedTickets = useMemo(() => {
     if (!searchQuery) return completedTickets;
-    const query = searchQuery.toLowerCase();
     return completedTickets.filter(t =>
-      t.title.toLowerCase().includes(query) ||
-      t.ticket_number.toLowerCase().includes(query) ||
-      t.description?.toLowerCase().includes(query)
+      fuzzyMatch(t.title, searchQuery) ||
+      fuzzyMatch(t.ticket_number, searchQuery) ||
+      fuzzyMatch(t.description ?? '', searchQuery)
     );
   }, [completedTickets, searchQuery]);
 
@@ -225,6 +394,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const activeCount = incomingTickets.filter(t =>
     t.status === 'in_progress' || t.status === 'assigned' || t.status === 'open'
   ).length;
+  const completedCount = completedTickets.length;
 
   // ---- Get User Initials ----
   function getInitials(name: string): string {
@@ -236,18 +406,18 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const DRAWER_ITEMS: DrawerItem[] = [
     { label: 'Overview',       icon: 'grid-outline',          tab: 'dashboard' },
     { label: 'Requests',      icon: 'ticket-outline',        tab: 'requests' },
-    { label: 'Live Flow Map', icon: 'git-network-outline',   action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/flow-map'); } },
+    { label: 'Live Flow Map', icon: 'git-network-outline',   action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/flow-map' as any); } },
   ];
 
   const DRAWER_OPERATIONS_ITEMS: DrawerItem[] = [
-    { label: 'Visitors',           icon: 'people-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/visitors'); } },
-    { label: 'Diesel Logger',      icon: 'water-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/diesel'); } },
-    { label: 'Electricity Logger',icon: 'flash-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/electricity'); } },
-    { label: 'Checklists',         icon: 'checkbox-outline',    action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/checklist'); } },
+    { label: 'Visitors',           icon: 'people-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/visitors' as any); } },
+    { label: 'Diesel Logger',      icon: 'water-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/diesel' as any); } },
+    { label: 'Electricity Logger',icon: 'flash-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/electricity' as any); } },
+    { label: 'Checklists',         icon: 'checkbox-outline',    action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/checklist' as any); } },
   ];
 
   const DRAWER_SYSTEM_ITEMS: DrawerItem[] = [
-    { label: 'Settings',  icon: 'settings-outline', action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/settings'); } },
+    { label: 'Settings',  icon: 'settings-outline', action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/settings' as any); } },
     { label: 'Profile',   icon: 'person-outline',  action: () => { setActiveTab('profile'); setDrawerOpen(false); } },
   ];
 
@@ -403,35 +573,72 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Maintenance Dashboard</Text>
-        <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-          {property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST'}
-        </Text>
+      <View style={[styles.header, { backgroundColor: colors.surface, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.headerSubtitle, { color: colors.textPrimary, textTransform: 'uppercase' }]}>
+            {property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST'}
+          </Text>
+        </View>
+        
+        <TouchableOpacity 
+          style={[
+            styles.shiftToggle, 
+            { backgroundColor: isMstCheckedIn ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', borderColor: isMstCheckedIn ? '#10B981' : '#EF4444' }
+          ]}
+          onPress={toggleMstShift}
+          disabled={isCheckingInOut}
+          activeOpacity={0.7}
+        >
+          {isCheckingInOut ? (
+            <ActivityIndicator size="small" color={isMstCheckedIn ? '#10B981' : '#EF4444'} />
+          ) : (
+            <>
+              <View style={[styles.statusDot, { backgroundColor: isMstCheckedIn ? '#10B981' : '#EF4444' }]} />
+              <Text style={[styles.shiftToggleText, { color: isMstCheckedIn ? '#10B981' : '#EF4444' }]}>
+                {isMstCheckedIn ? 'ON DUTY' : 'OFF DUTY'}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Stats Cards */}
       <View style={styles.statsContainer}>
         <TouchableOpacity 
-          style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[styles.glassStatCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC', borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }]}
           onPress={() => setRequestFilter('all')}
         >
-          <Text style={[styles.statNumber, { color: colors.textPrimary }]}>{totalTickets}</Text>
+          <Text style={[styles.statNumber, { color: colors.primary }]}>{totalTickets}</Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total</Text>
+          <View style={styles.statDetailRow}>
+            <Ionicons name="trending-up" size={10} color={colors.textTertiary} />
+            <Text style={styles.statDetailText}>Active View</Text>
+          </View>
         </TouchableOpacity>
+
         <TouchableOpacity 
-          style={[styles.statCard, styles.activeStatCard, { backgroundColor: isDark ? 'rgba(59,130,246,0.1)' : '#EFF6FF', borderColor: colors.primary }]}
+          style={[styles.glassStatCard, { backgroundColor: isDark ? 'rgba(59,130,246,0.08)' : '#EFF6FF', borderColor: isDark ? 'rgba(59,130,246,0.2)' : '#BFDBFE' }]}
           onPress={() => setRequestFilter('active')}
         >
-          <Text style={[styles.statNumber, styles.activeStatNumber, { color: colors.primary }]}>{activeCount}</Text>
+          <Text style={[styles.statNumber, { color: '#3B82F6' }]}>{activeCount}</Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Active</Text>
+          {statsData.urgent > 0 && (
+             <View style={styles.statDetailRow}>
+                <View style={[styles.urgentDot, { backgroundColor: '#EF4444' }]} />
+                <Text style={[styles.statDetailText, { color: '#EF4444' }]}>{statsData.urgent} Priority</Text>
+             </View>
+          )}
         </TouchableOpacity>
+
         <TouchableOpacity 
-          style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[styles.glassStatCard, { backgroundColor: isDark ? 'rgba(16,185,129,0.08)' : '#ECFDF5', borderColor: isDark ? 'rgba(16,185,129,0.2)' : '#A7F3D0' }]}
           onPress={() => setRequestFilter('completed')}
         >
-          <Text style={[styles.statNumber, styles.completedStatNumber, { color: colors.success }]}>{completedTickets.length}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Completed</Text>
+          <Text style={[styles.statNumber, { color: colors.success }]}>{completedTickets.length}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Done</Text>
+          <View style={styles.statDetailRow}>
+             <Text style={[styles.statDetailText, { color: colors.success }]}>{statsData.rate}% Rate</Text>
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -454,8 +661,19 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Property Requests */}
       <View style={[styles.section, { backgroundColor: colors.background }]}>
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Property Requests</Text>
-        <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>All requests for this property</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <View>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Property Requests</Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, marginBottom: 0 }]}>All requests for this property</Text>
+          </View>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+            onPress={() => setActiveTab('requests')}
+          >
+            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>View All</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
         
         {isFetching ? (
           <View style={styles.skeletonContainer}>
@@ -470,54 +688,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
           </View>
         ) : (
           <View style={styles.ticketsList}>
-            {filteredIncomingTickets
-              .sort((a, b) => {
-                if (a.assigned_to === user?.id && b.assigned_to !== user?.id) return -1;
-                if (a.assigned_to !== user?.id && b.assigned_to === user?.id) return 1;
-                return 0;
-              })
-              .map((ticket) => (
-                <TicketCard
-                  key={ticket.id}
-                  id={ticket.id}
-                  title={ticket.title}
-                  priority={(ticket.priority?.toUpperCase() as any) || 'MEDIUM'}
-                  status={
-                    ['closed', 'resolved'].includes(ticket.status) ? 'COMPLETED' :
-                    ticket.status === 'in_progress' ? 'IN_PROGRESS' :
-                    ticket.assigned_to ? 'ASSIGNED' : 'OPEN'
-                  }
-                  ticketNumber={ticket.ticket_number}
-                  createdAt={ticket.created_at}
-                  assignedTo={ticket.assignee?.full_name || 'Unassigned'}
-                  assigneePhotoUrl={ticket.assignee?.user_photo_url}
-                  photoUrl={ticket.photo_before_url}
-                  materialsOrdered={(ticket as any).materials_ordered}
-                  escalationChain={(() => {
-                    const logs = ticket.ticket_escalation_logs;
-                    if (!logs || logs.length === 0) return undefined;
-                    const sorted = [...logs].sort((a, b) => 
-                      new Date(a.escalated_at).getTime() - new Date(b.escalated_at).getTime()
-                    );
-                    const chain: { name: string; avatar?: string | null }[] = [];
-                    sorted.forEach((log, i) => {
-                      if (i === 0 && log.from_employee?.full_name) {
-                        chain.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url });
-                      }
-                      if (log.to_employee?.full_name) {
-                        chain.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url });
-                      }
-                    });
-                    return chain.length > 0 ? chain : undefined;
-                  })()}
-                  onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
-                  onEdit={() => {
-                    setEditingTicket(ticket);
-                    setEditTitle(ticket.title);
-                    setEditDescription(ticket.description);
-                  }}
-                />
-              ))}
+            <MstShuffleStack tickets={filteredIncomingTickets} user={user} propertyId={propertyId} onEdit={setEditingTicket} />
           </View>
         )}
       </View>
@@ -531,25 +702,45 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
     >
       {/* Filter Tabs */}
       <View style={[styles.filterContainer, { backgroundColor: colors.background }]}>
-        {(['all', 'active', 'completed'] as const).map((filter) => (
-          <TouchableOpacity
-            key={filter}
-            style={[
-              styles.filterTab, 
-              { backgroundColor: colors.surface, borderColor: colors.border },
-              requestFilter === filter && { backgroundColor: colors.primary, borderColor: colors.primary }
-            ]}
-            onPress={() => setRequestFilter(filter)}
-          >
-            <Text style={[
-              styles.filterTabText, 
-              { color: colors.textSecondary },
-              requestFilter === filter && { color: '#FFF' }
-            ]}>
-              {filter.charAt(0).toUpperCase() + filter.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {([
+          { key: 'all' as const, label: 'All', count: totalTickets },
+          { key: 'active' as const, label: 'Active', count: activeCount },
+          { key: 'completed' as const, label: 'Completed', count: completedCount },
+        ]).map(({ key, label, count }) => {
+          const isActive = requestFilter === key;
+          return (
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.filterTab,
+                { 
+                  backgroundColor: colors.surface, 
+                  borderColor: colors.border,
+                },
+                isActive && { 
+                  backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.08)', 
+                  borderColor: colors.primary 
+                }
+              ]}
+              onPress={() => setRequestFilter(key)}
+            >
+              <Text style={[
+                styles.filterTabText,
+                { color: colors.textSecondary },
+                isActive && { color: colors.primary }
+              ]}>
+                {label}
+              </Text>
+              <Text style={[
+                styles.filterTabCount,
+                { color: colors.textTertiary },
+                isActive && { color: colors.primary, fontWeight: '700' }
+              ]}>
+                {count}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Tickets List */}
@@ -679,7 +870,8 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
 
       {/* Mobile Sidebar Drawer */}
       {drawerOpen && <MstSidebar themeVal={theme} />}
@@ -696,24 +888,18 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         </TouchableOpacity>
         <Text style={[styles.topNavTitle, { 
           color: colors.textPrimary, 
-          fontFamily: 'PressStart2P',
-          fontSize: 11,
-          letterSpacing: 0.5,
-          fontWeight: '400',
+          fontFamily: 'NDot57',
+          fontSize: 14,
+          letterSpacing: 2,
+          fontWeight: '800',
           lineHeight: 18,
+          textTransform: 'uppercase'
         }]}>
-          {property?.name || 'Head Office'}
+          Autopilot
         </Text>
 
         {/* Top Right Actions */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            style={[styles.bellButton, { marginRight: 8 }]}
-            onPress={() => router.push('/property/' + propertyId + '/stock/scan')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="qr-code-outline" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.bellButton}
             onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
@@ -726,54 +912,22 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Main Content */}
       <View style={{ flex: 1 }}>
-        {activeTab === 'dashboard' && renderDashboardTab()}
+        {activeTab === 'overview' && renderDashboardTab()}
         {activeTab === 'requests' && renderRequestsTab()}
-        {activeTab === 'profile' && renderProfileTab()}
       </View>
 
-      {/* Bottom Navigation */}
-      <View style={[styles.bottomNav, { 
-        backgroundColor: colors.surface, 
-        borderTopColor: colors.border,
-        paddingBottom: Math.max(insets.bottom, 12)
-      }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('dashboard')}>
-          <View style={[styles.navIconWrapper, activeTab === 'dashboard' && { backgroundColor: isDark ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
-            <Ionicons name={activeTab === 'dashboard' ? 'grid' : 'grid-outline'} size={22} color={activeTab === 'dashboard' ? colors.primary : colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: activeTab === 'dashboard' ? colors.primary : colors.textTertiary }]}>OVERVIEW</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('requests')}>
-          <View style={[styles.navIconWrapper, activeTab === 'requests' && { backgroundColor: isDark ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
-            <Ionicons name={activeTab === 'requests' ? 'ticket' : 'ticket-outline'} size={22} color={activeTab === 'requests' ? colors.primary : colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: activeTab === 'requests' ? colors.primary : colors.textTertiary }]}>REQUESTS</Text>
-        </TouchableOpacity>
+      <AppBottomNav 
+        activeTab={activeTab}
+        propertyId={propertyId}
+        onLoggersPress={() => setShowLoggersMenu(true)}
+        onCreateRequestPress={() => setShowCreateModal(true)}
+      />
 
-        <TouchableOpacity 
-          style={styles.navItemCenter} 
-          onPress={() => setShowCreateModal(true)}
-        >
-          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
-            <Ionicons name="add" size={32} color="#FFF" />
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => setShowLoggersMenu(true)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="options" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>LOGGERS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => setShowMoreMenu(true)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>MORE</Text>
-        </TouchableOpacity>
-      </View>
+      <LoggersMenu 
+        visible={showLoggersMenu}
+        onClose={() => setShowLoggersMenu(false)}
+        propertyId={propertyId}
+      />
 
       {/* Sign Out Modal */}
       <SignOutModal
@@ -790,43 +944,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         propertyId={propertyId}
       />
 
-      {/* Loggers Modal */}
-      <Modal visible={showLoggersMenu} transparent animationType="fade" onRequestClose={() => setShowLoggersMenu(false)}>
-        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowLoggersMenu(false)}>
-          <View style={[styles.menuContent, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.menuTitle, { color: colors.textPrimary }]}>Loggers</Text>
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/electricity` as any); }}>
-              <Ionicons name="flash-outline" size={20} color={colors.primary} />
-              <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Electricity Logger</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/diesel` as any); }}>
-              <Ionicons name="water-outline" size={20} color={colors.primary} />
-              <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Diesel Logger</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
-      {/* More Modal */}
-      <Modal visible={showMoreMenu} transparent animationType="fade" onRequestClose={() => setShowMoreMenu(false)}>
-        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowMoreMenu(false)}>
-          <View style={[styles.menuContent, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.menuTitle, { color: colors.textPrimary }]}>More Options</Text>
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowMoreMenu(false); setActiveTab('visitors'); }}>
-              <Ionicons name="people-outline" size={20} color={colors.primary} />
-              <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Visitors</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowMoreMenu(false); setActiveTab('profile'); }}>
-              <Ionicons name="person-outline" size={20} color={colors.primary} />
-              <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>Profile & Settings</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: colors.border }]} onPress={() => { setShowMoreMenu(false); setShowSignOutModal(true); }}>
-              <Ionicons name="log-out-outline" size={20} color="#F43F5E" />
-              <Text style={[styles.menuItemText, { color: '#F43F5E' }]}>Sign Out</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
       {/* Edit Ticket Modal */}
       <Modal
@@ -886,9 +1004,175 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
           </View>
         </View>
       </Modal>
+      </View>
+  );
+}
+
+// ---- MST Shuffle Card Container ----
+function MstShuffleStack({ tickets, user, propertyId, onEdit }: { tickets: Ticket[]; user: any; propertyId: string; onEdit: (t: Ticket) => void }) {
+  const router = useRouter();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const translateX = useSharedValue(0);
+
+  const displayTickets = useMemo(() => {
+    const total = tickets.length;
+    if (total === 0) return [];
+    
+    // Prioritize tickets assigned to the current user
+    const sorted = [...tickets].sort((a, b) => {
+        if (a.assigned_to === user?.id && b.assigned_to !== user?.id) return -1;
+        if (a.assigned_to !== user?.id && b.assigned_to === user?.id) return 1;
+        return 0;
+    });
+
+    const items = [];
+    const count = Math.min(4, total); // Show up to 4 cards for a richer stack
+    for(let i = 0; i < count; i++) {
+        items.push(sorted[(currentIndex + i) % total]);
+    }
+    return items;
+  }, [tickets, currentIndex, user?.id]);
+
+  const handleSwipe = () => {
+    translateX.value = 0;
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  return (
+    <View style={mstStyles.stackContainer}>
+      {displayTickets.map((ticket, i) => (
+        <AnimatedTicketCard 
+          key={ticket.id}
+          ticket={ticket}
+          index={i}
+          total={displayTickets.length}
+          translateX={translateX}
+          onSwipe={handleSwipe}
+          user={user}
+          propertyId={propertyId}
+          onEdit={onEdit}
+        />
+      )).reverse()}
     </View>
   );
 }
+
+function AnimatedTicketCard({ 
+  ticket, index, total, translateX, onSwipe, user, propertyId, onEdit 
+}: { 
+  ticket: Ticket; index: number; total: number; translateX: any; onSwipe: () => void; user: any; propertyId: string; onEdit: (t: Ticket) => void;
+}) {
+  const router = useRouter();
+  const isTop = index === 0;
+
+  const animatedStyle = useAnimatedStyle(() => {
+    if (isTop) {
+      return {
+        transform: [
+          { translateX: translateX.value },
+          { rotate: `${interpolate(translateX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-8, 0, 8], Extrapolate.CLAMP)}deg` }
+        ],
+        zIndex: total,
+      };
+    }
+
+    // Keep cards solid to avoid seeing text from cards behind
+    const stackScale = interpolate(Math.abs(translateX.value), [0, 150], [1 - (index * 0.06), 1 - ((index - 1) * 0.06)], Extrapolate.CLAMP);
+    const stackTranslateY = interpolate(Math.abs(translateX.value), [0, 150], [index * -12, (index - 1) * -12], Extrapolate.CLAMP);
+
+    return {
+      transform: [
+        { scale: stackScale }, 
+        { translateY: stackTranslateY }
+      ],
+      zIndex: total - index,
+    };
+  });
+
+  const pan = Gesture.Pan()
+    .enabled(isTop)
+    .minDistance(5)
+    .shouldCancelWhenOutside(true)
+    .onUpdate((e) => { 
+        translateX.value = e.translationX; 
+    })
+    .onEnd((e) => {
+      if (Math.abs(e.translationX) > 100) {
+        const dest = e.translationX > 0 ? SCREEN_WIDTH : -SCREEN_WIDTH;
+        translateX.value = withSpring(dest, { velocity: e.velocityX, damping: 20, stiffness: 90 }, () => { 
+            runOnJS(onSwipe)(); 
+        });
+      } else {
+        translateX.value = withSpring(0, { damping: 15, stiffness: 120 });
+      }
+    });
+
+  const escalationChain = useMemo(() => {
+    const logs = ticket.ticket_escalation_logs;
+    if (!logs || logs.length === 0) return undefined;
+    const sorted = [...logs].sort((a, b) => new Date(a.escalated_at).getTime() - new Date(b.escalated_at).getTime());
+    const chain: { name: string; avatar?: string | null }[] = [];
+    sorted.forEach((log, i) => {
+      if (i === 0 && log.from_employee?.full_name) chain.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url });
+      if (log.to_employee?.full_name) chain.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url });
+    });
+    return chain.length > 0 ? chain : undefined;
+  }, [ticket.ticket_escalation_logs]);
+
+  return (
+    <GestureDetector gesture={pan}>
+      <Animated.View style={[
+        mstStyles.animatedWrapper, 
+        animatedStyle,
+        Platform.OS === 'web' && { touchAction: 'none' } as any
+      ]}>
+        <TicketCard
+          id={ticket.id}
+          title={ticket.title}
+          priority={(ticket.priority?.toUpperCase() as any) || 'MEDIUM'}
+          status={
+            ['closed', 'resolved'].includes(ticket.status) ? 'COMPLETED' :
+            ticket.status === 'in_progress' ? 'IN_PROGRESS' :
+            ticket.assigned_to ? 'ASSIGNED' : 'OPEN'
+          }
+          ticketNumber={ticket.ticket_number || `TKT-${ticket.id.slice(0,8)}`}
+          createdAt={ticket.created_at}
+          assignedTo={ticket.assignee?.full_name || 'Unassigned'}
+          assigneePhotoUrl={ticket.assignee?.user_photo_url}
+          photoUrl={ticket.photo_before_url}
+          materialsOrdered={(ticket as any).materials_ordered}
+          escalationChain={escalationChain}
+          onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+          onEdit={() => onEdit(ticket)}
+          compact={true}
+          style={{ height: 190 }} // Reduced further from bottom
+        />
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+const mstStyles = StyleSheet.create({
+  stackContainer: {
+    height: 220, // Reduced to match new card height + offset
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  animatedWrapper: {
+    position: 'absolute',
+    width: SCREEN_WIDTH - 40,
+    height: 190, // Tighter fit for the bottom
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -1138,9 +1422,11 @@ const styles = StyleSheet.create({
     color: '#1A2332',
   },
   headerSubtitle: {
+    fontFamily: 'NDot57',
     fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
+    color: '#1A2332',
+    marginTop: 0,
+    letterSpacing: 1.5,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -1173,28 +1459,84 @@ const styles = StyleSheet.create({
     color: '#10B981',
   },
   statLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
     color: '#64748B',
-    marginTop: 4,
+    marginTop: 2,
     textTransform: 'uppercase',
   },
+  glassStatCard: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#94A3B8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  statDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  statDetailText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  urgentDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFF',
     marginHorizontal: 20,
     marginBottom: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 100,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  shiftToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 100,
+    borderWidth: 1.5,
+    gap: 6,
+    minWidth: 110,
+    justifyContent: 'center',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  shiftToggleText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 14,
     fontSize: 15,
+    fontWeight: '500',
     color: '#1A2332',
   },
   section: {
@@ -1236,23 +1578,29 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterTab: {
-    flex: 1,
-    paddingVertical: 10,
+    flexDirection: 'row',
+    paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 10,
+    borderRadius: 100,
     backgroundColor: '#FFF',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
     alignItems: 'center',
+    gap: 6,
   },
   filterTabActive: {
     backgroundColor: '#3B82F6',
     borderColor: '#3B82F6',
   },
   filterTabText: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#64748B',
+  },
+  filterTabCount: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#94A3B8',
   },
   filterTabTextActive: {
     color: '#FFF',

@@ -1219,11 +1219,11 @@ export default function VisitorsScreen() {
           <Text style={[styles.navText, { color: colors.textTertiary }]}>LOGGERS</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => Alert.alert('More', 'More menu coming soon')}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/profile`)}>
           <View style={styles.navIconWrapper}>
-            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textTertiary} />
+            <Ionicons name="person-outline" size={22} color={colors.textTertiary} />
           </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>MORE</Text>
+          <Text style={[styles.navText, { color: colors.textTertiary }]}>PROFILE</Text>
         </TouchableOpacity>
       </View>
 

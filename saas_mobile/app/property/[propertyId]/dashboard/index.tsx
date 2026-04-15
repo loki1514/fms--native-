@@ -12,6 +12,20 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  withTiming, 
+  runOnJS,
+  interpolate,
+  Extrapolate
+} from 'react-native-reanimated';
+import { 
+  Gesture, 
+  GestureDetector, 
+  GestureHandlerRootView 
+} from 'react-native-gesture-handler';
 
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
@@ -55,6 +69,15 @@ interface DashboardStats {
   vendorCommission: number;
   vendorCount: number;
   recentTickets: any[];
+  dieselStats: {
+    totalHoursToday: number;
+    avgFuelLevel: number;
+    activeGens: number;
+  };
+  checklistStats: {
+    doneToday: number;
+    pendingToday: number;
+  };
 }
 
 const TIME_FILTERS: { value: TimePeriod; label: string }[] = [
@@ -213,29 +236,204 @@ function PropertyCard({
   );
 }
 
-// ---- Recent Tickets ----
+// ---- Recent Tickets Shuffle Stack ----
+function TicketCard({ 
+  ticket, 
+  index, 
+  total, 
+  translateX, 
+  onSwipeIndex 
+}: { 
+  ticket: any; 
+  index: number; 
+  total: number;
+  translateX: any;
+  onSwipeIndex: (idx: number) => void;
+}) {
+  const { theme } = useTheme();
+  const colors = Colors[theme];
+  const router = useRouter();
+  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+
+  const isTop = index === 0;
+  
+  const animatedStyle = useAnimatedStyle(() => {
+    // Stack effect: only the top card swipes,others scale and shift
+    if (isTop) {
+      return {
+        transform: [
+          { translateX: translateX.value },
+          { rotate: `${interpolate(translateX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-10, 0, 10], Extrapolate.CLAMP)}deg` }
+        ],
+        zIndex: total,
+      };
+    }
+
+    // Cards behind
+    const stackScale = interpolate(Math.abs(translateX.value), [0, 100], [1 - (index * 0.05), 1 - ((index - 1) * 0.05)], Extrapolate.CLAMP);
+    const stackTranslateY = interpolate(Math.abs(translateX.value), [0, 100], [index * -15, (index - 1) * -15], Extrapolate.CLAMP);
+    const stackOpacity = interpolate(Math.abs(translateX.value), [0, 100], [0.8 - (index * 0.2), 0.8 - ((index - 1) * 0.2)], Extrapolate.CLAMP);
+
+    return {
+      transform: [
+        { scale: stackScale },
+        { translateY: stackTranslateY }
+      ],
+      opacity: stackOpacity,
+      zIndex: total - index,
+    };
+  });
+
+  const pan = Gesture.Pan()
+    .enabled(isTop)
+    .onUpdate((e) => {
+      translateX.value = e.translationX;
+    })
+    .onEnd((e) => {
+      if (Math.abs(e.translationX) > 120) {
+        // Swipe away
+        const dest = e.translationX > 0 ? SCREEN_WIDTH : -SCREEN_WIDTH;
+        translateX.value = withSpring(dest, {}, () => {
+          runOnJS(onSwipeIndex)(index);
+        });
+      } else {
+        translateX.value = withSpring(0);
+      }
+    });
+
+  const getInitials = (name: string) => {
+    if (!name) return '??';
+    const parts = name.split(' ');
+    return (parts[0]?.[0] || '') + (parts[1]?.[0] || '');
+  };
+
+  const priorityColor = ticket.priority === 'urgent' || ticket.priority === 'high' ? '#EF4444' : '#64748B';
+  const statusColor = ticket.status === 'resolved' || ticket.status === 'closed' ? '#10B981' : '#3B82F6';
+
+  const getTimeRemaining = (dueDate: string) => {
+    if (!dueDate) return 'Not set';
+    const total = Date.parse(dueDate) - Date.now();
+    if (total <= 0) return 'Overdue';
+    
+    const days = Math.floor(total / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((total / (1000 * 60 * 60)) % 24);
+    const mins = Math.floor((total / 1000 / 60) % 60);
+    
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m left`;
+  };
+
+  return (
+    <GestureDetector gesture={pan}>
+      <Animated.View style={[styles.shuffleCard, animatedStyle, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.cardTopRow}>
+          <View style={[styles.avatarCircle, { backgroundColor: colors.primary + '20' }]}>
+            <Text style={[styles.avatarText, { color: colors.primary }]}>{getInitials(ticket.assigned_to_user?.full_name || 'Unassigned')}</Text>
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.cardTicketId}>{ticket.ticket_id || `TKT-${ticket.id.slice(0, 8)}`}</Text>
+            <Text style={styles.cardTicketDate}>{new Date(ticket.created_at).toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
+          </View>
+        </View>
+
+        <View style={styles.badgeRow}>
+          <View style={[styles.badge, { backgroundColor: priorityColor + '15' }]}>
+            <Text style={[styles.badgeText, { color: priorityColor }]}>{String(ticket.priority || 'NORMAL').toUpperCase()}</Text>
+          </View>
+          <View style={[styles.badge, { backgroundColor: statusColor + '15' }]}>
+            <Text style={[styles.badgeText, { color: statusColor }]}>{String(ticket.status || 'OPEN').replace('_', ' ').toUpperCase()}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.cardDesc} numberOfLines={2}>
+          {ticket.title || 'No description provided'}
+        </Text>
+        
+        {ticket.assigned_to_user && (
+          <Text style={styles.assigneeText}>Assignee: {ticket.assigned_to_user.full_name}</Text>
+        )}
+
+        <View style={styles.cardFooter}>
+          <View style={styles.slaCol}>
+            <Text style={styles.slaLabel}>Time Remaining</Text>
+            <View style={styles.slaRow}>
+              <Clock size={12} color="#F59E0B" />
+              <Text style={styles.slaValue}>{getTimeRemaining(ticket.due_date)}</Text> 
+            </View>
+          </View>
+          <View style={styles.typeCol}>
+             <Text style={styles.slaLabel}>Category</Text>
+             <Text style={styles.typeValue} numberOfLines={1}>{ticket.category || 'General'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardActions}>
+          <TouchableOpacity 
+            style={[styles.cardBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.push(`/property/${propertyId}/tickets/${ticket.id}`)}
+          >
+            <Text style={styles.cardBtnText}>View Details</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.cardBtn, { backgroundColor: '#F1F5F9' }]}>
+            <Text style={[styles.cardBtnText, { color: '#64748B' }]}>Update Progress</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
 function RecentTicketsCard({ tickets }: { tickets: any[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const translateX = useSharedValue(0);
+
+  // We only show a few at a time for the stack
+  const displayTickets = useMemo(() => {
+    if (tickets.length === 0) return [];
+    // Slice from current index, but we want to show 3 cards
+    const start = currentIndex % tickets.length;
+    const items = [];
+    for(let i=0; i<Math.min(3, tickets.length); i++) {
+        items.push(tickets[(start + i) % tickets.length]);
+    }
+    return items;
+  }, [tickets, currentIndex]);
+
+  const handleSwipe = (idx: number) => {
+    translateX.value = 0;
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  if (tickets.length === 0) {
+    return (
+      <View style={styles.recentTicketsCard}>
+        <Text style={styles.cardTitle}>Recent Tickets</Text>
+        <Text style={styles.noDataText}>No recent tickets.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.recentTicketsCard}>
-      <Text style={styles.cardTitle}>Recent Tickets</Text>
-      <View style={styles.ticketsList}>
-        {tickets.length === 0 ? (
-          <Text style={styles.noDataText}>No recent tickets.</Text>
-        ) : (
-          tickets.map((t, idx) => (
-            <View key={t.id ?? idx} style={styles.ticketRow}>
-              <View style={styles.ticketInfo}>
-                <Text style={styles.ticketTitle} numberOfLines={1}>{t.title}</Text>
-                <Text style={styles.ticketStatus}>
-                  {String(t.status ?? '').replace('_', ' ')}
-                </Text>
-              </View>
-              <Text style={styles.ticketDate}>
-                {new Date(t.created_at).toLocaleDateString()}
-              </Text>
-            </View>
-          ))
-        )}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <Text style={styles.cardTitle}>Your Current Requests</Text>
+        <TouchableOpacity>
+           <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8' }}>View All {'>'}</Text>
+        </TouchableOpacity>
+      </View>
+      
+      <View style={styles.stackContainer}>
+        {displayTickets.map((t, i) => (
+           <TicketCard 
+             key={t.id} 
+             ticket={t} 
+             index={i} 
+             total={displayTickets.length} 
+             translateX={translateX}
+             onSwipeIndex={handleSwipe}
+           />
+        )).reverse()}
       </View>
     </View>
   );
@@ -284,6 +482,55 @@ function ModuleSummaryCard({
   );
 }
 
+// ---- Diesel Summary Card ----
+function DieselSummaryCard({ totalHours, avgFuel }: { totalHours: number; avgFuel: number }) {
+  return (
+    <View style={styles.dieselCard}>
+      <Text style={styles.cardTitle}>Diesel Logger</Text>
+      <View style={styles.dieselRow}>
+        <View style={styles.dieselMetric}>
+          <Clock size={16} color="#64748B" />
+          <Text style={styles.dieselLabel}>Runtime Today</Text>
+          <Text style={styles.dieselValue}>{totalHours.toFixed(1)} hrs</Text>
+        </View>
+        <View style={styles.dieselDivider} />
+        <View style={styles.dieselMetric}>
+          <Package size={16} color="#64748B" />
+          <Text style={styles.dieselLabel}>Avg Fuel Level</Text>
+          <Text style={styles.dieselValue}>{Math.round(avgFuel)}%</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ---- Checklist Summary Card ----
+function ChecklistSummaryCard({ done, pending }: { done: number; pending: number }) {
+  const total = done + pending;
+  const progress = total > 0 ? (done / total) * 100 : 0;
+
+  return (
+    <View style={styles.checklistSummaryCard}>
+      <Text style={styles.cardTitle}>Daily Checklists</Text>
+      <View style={styles.chkRow}>
+        <View style={styles.chkProgressWrap}>
+           <Svg width={60} height={60} style={{ transform: [{ rotate: '-90deg' }] }}>
+              <Circle cx={30} cy={30} r={26} stroke="#F1F5F9" strokeWidth={6} fill="none" />
+              <Circle cx={30} cy={30} r={26} stroke="#3B82F6" strokeWidth={6} fill="none" strokeDasharray={`${2 * Math.PI * 26}`} strokeDashoffset={`${2 * Math.PI * 26 * (1 - progress / 100)}`} strokeLinecap="round" />
+           </Svg>
+           <View style={styles.chkProgressCenter}>
+              <Text style={styles.chkProgressText}>{Math.round(progress)}%</Text>
+           </View>
+        </View>
+        <View style={{ flex: 1, marginLeft: 16 }}>
+           <Text style={styles.chkStatsText}><Text style={{ fontWeight: '700', color: '#1A2332' }}>{done} Done</Text> out of {total}</Text>
+           <Text style={styles.chkPendingText}>{pending} slots pending or missed</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ---- Vendor Revenue Card ----
 function VendorRevenueCard({ revenue, commission, count }: { revenue: number; commission: number; count: number }) {
   return (
@@ -300,6 +547,14 @@ function VendorRevenueCard({ revenue, commission, count }: { revenue: number; co
 
 // ---- Main Dashboard Screen ----
 export default function DashboardScreen() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <DashboardInner />
+    </GestureHandlerRootView>
+  );
+}
+
+function DashboardInner() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const router = useRouter();
   const { membership, signOut } = useAuth();
@@ -318,17 +573,24 @@ export default function DashboardScreen() {
     vendorCommission: 0,
     vendorCount: 0,
     recentTickets: [],
+    dieselStats: { totalHoursToday: 0, avgFuelLevel: 0, activeGens: 0 },
+    checklistStats: { doneToday: 0, pendingToday: 0 },
   });
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [validationEnabled, setValidationEnabled] = useState(false);
 
-  // Property info
   const propertyInfo = useMemo(() => {
-    if (!membership) return { name: '', code: '' };
+    if (!membership) return { name: '', code: '', role: '' };
     const prop = membership.properties?.find((p) => p.id === propertyId);
-    return { name: prop?.name ?? '', code: prop?.code ?? '' };
+    return { 
+      name: prop?.name ?? '', 
+      code: prop?.code ?? '',
+      role: (prop as any)?.role ?? '' // Derive role from property link metadata
+    };
   }, [membership, propertyId]);
+
+  const isTenantRole = propertyInfo.role === 'tenant' || propertyInfo.role === 'super_tenant';
 
   const periodLabel = timePeriod === 'today' ? 'Today' : timePeriod === 'month' ? 'Month' : 'All';
 
@@ -353,6 +615,7 @@ export default function DashboardScreen() {
       // Tickets
       const makeTicketQuery = () => {
         let q = supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId);
+        if (isTenantRole) q = q.eq('internal', false);
         if (dateFilter) q = q.gte('created_at', dateFilter);
         return q;
       };
@@ -369,14 +632,16 @@ export default function DashboardScreen() {
         elecRes,
       ] = await Promise.all([
         makeTicketQuery(),
-        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('status', ['open', 'blocked', 'client_raised']).gte('created_at', dateFilter ?? '2000-01-01'),
-        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('status', ['assigned', 'in_progress', 'paused', 'work_started']).gte('created_at', dateFilter ?? '2000-01-01'),
-        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('status', ['resolved', 'closed', 'satisfied', 'pending_validation']).gte('created_at', dateFilter ?? '2000-01-01'),
-        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).eq('status', 'pending_validation').gte('created_at', dateFilter ?? '2000-01-01'),
-        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('priority', ['urgent', 'high', 'critical']).not('status', 'in', '("resolved","closed","satisfied")').gte('created_at', dateFilter ?? '2000-01-01'),
-        supabase.from('tickets').select('id, title, status, created_at').eq('property_id', propertyId).order('created_at', { ascending: false }).limit(5),
+        supabase.from('tickets').select('id', { count: 'exact', head: true }).filter('property_id', 'eq', propertyId).filter('status', 'in', '("open","blocked","client_raised")').filter('created_at', 'gte', dateFilter ?? '2000-01-01').filter('internal', 'in', isTenantRole ? '(false)' : '(true,false)'),
+        supabase.from('tickets').select('id', { count: 'exact', head: true }).filter('property_id', 'eq', propertyId).filter('status', 'in', '("assigned","in_progress","paused","work_started")').filter('created_at', 'gte', dateFilter ?? '2000-01-01').filter('internal', 'in', isTenantRole ? '(false)' : '(true,false)'),
+        supabase.from('tickets').select('id', { count: 'exact', head: true }).filter('property_id', 'eq', propertyId).filter('status', 'in', '("resolved","closed","satisfied","pending_validation")').filter('created_at', 'gte', dateFilter ?? '2000-01-01').filter('internal', 'in', isTenantRole ? '(false)' : '(true,false)'),
+        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).eq('status', 'pending_validation').gte('created_at', dateFilter ?? '2000-01-01').filter('internal', 'in', isTenantRole ? '(false)' : '(true,false)'),
+        supabase.from('tickets').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).in('priority', ['urgent', 'high', 'critical']).not('status', 'in', '("resolved","closed","satisfied")').gte('created_at', dateFilter ?? '2000-01-01').filter('internal', 'in', isTenantRole ? '(false)' : '(true,false)'),
+        supabase.from('tickets').select('id, title, status, created_at, priority, description, ticket_id, due_date, internal, assigned_to_user:assigned_to(full_name)').eq('property_id', propertyId).filter('internal', 'in', isTenantRole ? '(false)' : '(true,false)').order('created_at', { ascending: false }).limit(5),
         supabase.from('property_features').select('is_enabled').eq('property_id', propertyId).eq('feature_key', 'ticket_validation').maybeSingle() as any,
         supabase.from('electricity_readings').select('computed_units, reading_date').eq('property_id', propertyId).gte('reading_date', monthStart),
+        supabase.from('diesel_readings').select('opening_hours, closing_hours, closing_diesel_level').eq('property_id', propertyId).gte('reading_date', today),
+        supabase.from('sop_completions').select('id', { count: 'exact', head: true }).eq('property_id', propertyId).gte('completion_date', today),
       ]);
 
       // Electricity
@@ -409,6 +674,15 @@ export default function DashboardScreen() {
         vendorCommission: 0,
         vendorCount: vendorsRes.count ?? 0,
         recentTickets: recentRes.data ?? [],
+        dieselStats: {
+          totalHoursToday: (recentRes as any)[3]?.data?.reduce((acc: number, r: any) => acc + (Math.max(0, (r.closing_hours || 0) - (r.opening_hours || 0))), 0) ?? 0,
+          avgFuelLevel: (recentRes as any)[3]?.data?.length > 0 ? (recentRes as any)[3]?.data?.reduce((acc: number, r: any) => acc + (r.closing_diesel_level || 0), 0) / (recentRes as any)[3]?.data?.length : 0,
+          activeGens: (recentRes as any)[3]?.data?.length ?? 0,
+        },
+        checklistStats: {
+            doneToday: (recentRes as any)[4]?.count ?? 0,
+            pendingToday: 0, // Simplified: needs target count logic
+        }
       });
       setValidationEnabled(validationRes.data?.is_enabled ?? false);
     } catch (err) {
@@ -612,6 +886,8 @@ export default function DashboardScreen() {
         {/* Right Column */}
         <View style={styles.rightColumn}>
           <RecentTicketsCard tickets={stats.recentTickets} />
+          <DieselSummaryCard totalHours={stats.dieselStats.totalHoursToday} avgFuel={stats.dieselStats.avgFuelLevel} />
+          <ChecklistSummaryCard done={stats.checklistStats.doneToday} pending={stats.checklistStats.pendingToday || 4} />
           <ModuleSummaryCard
             tickets={stats.ticketStats.total}
             visitors={stats.visitorsToday}
@@ -1039,5 +1315,212 @@ const styles = StyleSheet.create({
   moduleBoxValue: {
     fontFamily: 'Poppins-Bold',
     fontSize: 22,
+  },
+  // Shuffle Cards
+  stackContainer: {
+    height: 360,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
+  },
+  shuffleCard: {
+    position: 'absolute',
+    width: SCREEN_WIDTH - 64,
+    height: 330,
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    elevation: 5,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 16,
+  },
+  cardTicketId: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
+    color: '#1A2332',
+  },
+  cardTicketDate: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  cardDesc: {
+    fontFamily: 'Urbanist-SemiBold',
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#1A2332',
+    marginBottom: 8,
+  },
+  assigneeText: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 16,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 12,
+    marginBottom: 16,
+  },
+  slaCol: {
+    flex: 1,
+  },
+  slaLabel: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 9,
+    textTransform: 'uppercase',
+    color: '#94A3B8',
+    marginBottom: 4,
+  },
+  slaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  slaValue: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 13,
+    color: '#F59E0B',
+  },
+  typeCol: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  typeValue: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 13,
+    color: '#1A2332',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cardBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardBtnText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
+  // Diesel Card
+  dieselCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  dieselRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  dieselMetric: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  dieselLabel: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 10,
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  dieselValue: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 16,
+    color: '#1A2332',
+    marginTop: 2,
+  },
+  dieselDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#F1F5F9',
+  },
+  // Checklist Card
+  checklistSummaryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  chkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  chkProgressWrap: {
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chkProgressCenter: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chkProgressText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 12,
+    color: '#1A2332',
+  },
+  chkStatsText: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 14,
+    color: '#64748B',
+  },
+  chkPendingText: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
   },
 });
