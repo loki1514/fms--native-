@@ -7,7 +7,7 @@
  * Pipeline: expo-av recording → send audio to backend → Whisper → full pipeline → TTS → expo-speech
  */
 
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { supabase } from '@/utils/supabase/client';
 import { VoiceContext } from './openaiService';
@@ -94,7 +94,7 @@ export class OpenAINativeRealtimeService {
 
     try {
       // Send audio directly to backend — Whisper runs server-side with the API key
-      const audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+      const audioBase64 = await new File(uri).base64();
       const result = await this.callBackend(audioBase64, uri);
 
       const transcript = result.transcript ?? '';

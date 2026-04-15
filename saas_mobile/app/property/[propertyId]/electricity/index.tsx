@@ -13,13 +13,18 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@/context';
+import { useTheme, useAuth } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
+import { AppBottomNav } from '@/components/shared/AppBottomNav';
+import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import {
   Zap,
   ChevronDown,
@@ -27,7 +32,9 @@ import {
   Clock,
   TrendingUp,
   Trash2,
+  CalendarDays,
 } from 'lucide-react-native';
+import { Calendar } from 'react-native-calendars';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +65,8 @@ interface GridTariff {
   id: string;
   rate_per_unit: number;
   utility_provider?: string;
+  effective_from?: string;
+  effective_to?: string | null;
 }
 
 // ─── Period Selector ──────────────────────────────────────────────────────────
@@ -235,15 +244,7 @@ function MeterCard({
         </View>
         <View style={[styles.readingDivider, { backgroundColor: colors.border }]} />
         <View style={styles.readingItem}>
-          <Text style={[styles.readingLabel, { color: colors.textTertiary }]}>Current</Text>
-          <Text style={[styles.readingValue, { color: colors.text }]}>
-            {current.toFixed(0)}
-          </Text>
-          <Text style={[styles.readingUnit, { color: colors.textTertiary }]}>kVAh</Text>
-        </View>
-        <View style={[styles.readingDivider, { backgroundColor: colors.border }]} />
-        <View style={styles.readingItem}>
-          <Text style={[styles.readingLabel, { color: colors.textTertiary }]}>Units</Text>
+          <Text style={[styles.readingLabel, { color: colors.textTertiary }]}>Consumed</Text>
           <Text style={[styles.readingValue, { color: colors.primary }]}>
             {units.toFixed(1)}
           </Text>
@@ -296,6 +297,7 @@ function LogReadingModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMeterPicker, setShowMeterPicker] = useState(false);
   const [previousClosings, setPreviousClosings] = useState<Record<string, number>>({});
+  const [ceilingReadings, setCeilingReadings] = useState<Record<string, number | null>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const today = new Date().toISOString().split('T')[0];
@@ -303,6 +305,8 @@ function LogReadingModal({
 
   const selectedMeter = meters.find(m => m.id === selectedMeterId);
   const opening = previousClosings[selectedMeterId] ?? selectedMeter?.last_reading ?? 0;
+  const ceiling = ceilingReadings[selectedMeterId] ?? null;
+
   const units = (() => {
     const c = parseFloat(closingReading);
     if (isNaN(c) || !closingReading) return null;
@@ -329,25 +333,39 @@ function LogReadingModal({
   }, [visible, meters, initialMeterId]);
 
   useEffect(() => {
-    if (!visible) return;
-    const load = async () => {
-      const closings: Record<string, number> = {};
-      await Promise.all(meters.map(async (m) => {
-        const { data } = await supabase
-          .from('electricity_readings')
-          .select('closing_reading')
-          .eq('property_id', propertyId)
-          .eq('meter_id', m.id)
-          .order('reading_date', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        closings[m.id] = (data as any)?.closing_reading ?? m.last_reading ?? 0;
-      }));
-      setPreviousClosings(closings);
+    if (!visible || !selectedMeterId) return;
+    const loadBounds = async () => {
+      // 1. Fetch latest reading BEFORE or ON this date (but excluding current entry if we had its ID, which we don't yet)
+      const { data: beforeData } = await (supabase
+        .from('electricity_readings')
+        .select('closing_reading')
+        .eq('property_id', propertyId)
+        .eq('meter_id', selectedMeterId)
+        .lt('reading_date', readingDate)
+        .order('reading_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle() as any);
+      
+      const openVal = beforeData?.closing_reading ?? selectedMeter?.last_reading ?? 0;
+      setPreviousClosings(prev => ({ ...prev, [selectedMeterId]: openVal }));
+
+      // 2. Fetch earliest reading AFTER this date
+      const { data: afterData } = await (supabase
+        .from('electricity_readings')
+        .select('closing_reading')
+        .eq('property_id', propertyId)
+        .eq('meter_id', selectedMeterId)
+        .gt('reading_date', readingDate)
+        .order('reading_date', { ascending: true })
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle() as any);
+      
+      setCeilingReadings(prev => ({ ...prev, [selectedMeterId]: afterData?.closing_reading ?? null }));
     };
-    load();
-  }, [visible, meters, propertyId]);
+    loadBounds();
+  }, [visible, selectedMeterId, readingDate, propertyId]);
 
   // Reset on close
   useEffect(() => {
@@ -364,24 +382,38 @@ function LogReadingModal({
       return;
     }
     const c = parseFloat(closingReading);
-    if (c <= opening) {
-      Alert.alert('Invalid Reading', 'Closing reading must be greater than opening reading.');
+    // Only enforce closing > opening for today's entry — past readings can be lower
+    // (meter reset, correction, manual adjustment). For past dates, only ceiling applies.
+    if (readingDate === today && c <= opening) {
+      Alert.alert('Invalid Reading', `Closing reading must be greater than opening reading (${opening.toFixed(2)}).`);
+      return;
+    }
+    if (ceiling !== null && c > ceiling) {
+      Alert.alert('Invalid Reading', `Reading cannot be greater than a future reading recorded (${ceiling.toFixed(2)}). To record this, you must first correct or delete future entries.`);
       return;
     }
     setIsSubmitting(true);
     try {
-      const readingDateToUse = readingDate;
+      // Fetch active multiplier for this meter and reading date via RPC
+      const { data: multData }: any = await (supabase.rpc as any)('get_active_multiplier', {
+        p_meter_id: selectedMeterId,
+        p_date: readingDate,
+      });
 
-      // Insert directly via Supabase
+      const rawUnits = c - opening;
+      const multiplierValue = multData?.[0]?.multiplier_value ?? 1;
+      const finalUnits = rawUnits * multiplierValue;
+
       const { error } = await (supabase.from('electricity_readings') as any)
         .insert({
           property_id: propertyId,
           meter_id: selectedMeterId,
-          reading_date: readingDateToUse,
+          reading_date: readingDate,
           opening_reading: opening,
           closing_reading: c,
-          computed_units: c - opening,
-          final_units: c - opening,
+          final_units: finalUnits,
+          multiplier_id: multData?.[0]?.id || null,
+          multiplier_value_used: multiplierValue,
           notes: notes || null,
         });
 
@@ -616,6 +648,490 @@ function RecentReadingsList({
   );
 }
 
+// ─── Tariff Modal ────────────────────────────────────────────────────────────
+
+interface TariffModalProps {
+  visible: boolean;
+  onClose: () => void;
+  propertyId: string;
+  colors: any;
+  onTariffChange: () => void;
+}
+
+interface StoredTariff {
+  id: string;
+  rate_per_unit: number;
+  utility_provider?: string;
+  effective_from: string;
+  effective_to?: string | null;
+  created_at?: string;
+}
+
+function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: TariffModalProps) {
+  const [rate, setRate] = useState('');
+  const [provider, setProvider] = useState('');
+  const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().split('T')[0]);
+  const [tariffs, setTariffs] = useState<StoredTariff[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const fetchTariffs = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/grid-tariffs`);
+      if (!res.ok) throw new Error('Failed to load tariffs');
+      const data = await res.json();
+      setTariffs(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      console.error('Error fetching tariffs:', e);
+      Alert.alert('Error', 'Failed to load tariffs');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (visible) fetchTariffs();
+  }, [visible]);
+
+  const handleSubmit = async () => {
+    if (!rate) { setError('Rate is required'); return; }
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/grid-tariffs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rate_per_unit: parseFloat(rate),
+          utility_provider: provider || null,
+          effective_from: effectiveFrom,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to save tariff');
+      }
+
+      setRate('');
+      setProvider('');
+      await fetchTariffs();
+      await onTariffChange();
+    } catch (e: any) {
+      setError(e.message || 'Failed to save tariff');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    Alert.alert('Delete Tariff', 'Are you sure? This will clear cost calculations for readings in this period.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setDeletingId(id);
+          try {
+            const res = await fetch(`/api/properties/${propertyId}/grid-tariffs?id=${id}`, {
+              method: 'DELETE',
+            });
+
+            if (!res.ok) {
+              const errData = await res.json();
+              throw new Error(errData.error || 'Failed to delete tariff');
+            }
+            await fetchTariffs();
+            await onTariffChange();
+          } catch (e: any) {
+            Alert.alert('Delete Failed', e.message || 'Could not delete tariff');
+          } finally {
+            setDeletingId(null);
+          }
+        },
+      },
+    ]);
+  };
+
+  const today = new Date().toISOString().split('T')[0];
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={[styles.tariffModalContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.tariffModalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Zap size={20} color={colors.primary} />
+            <Text style={[styles.tariffModalTitle, { color: colors.text }]}>Grid Tariff</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <X size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+          {/* Add Tariff Form */}
+          <View style={[styles.tariffForm, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.tariffFormTitle, { color: colors.text }]}>Update Tariff Rate</Text>
+            {error && (
+              <View style={styles.tariffError}>
+                <Text style={styles.tariffErrorText}>{error}</Text>
+              </View>
+            )}
+            <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>Rate per kVAh</Text>
+            <TextInput
+              style={[styles.tariffInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+              value={rate}
+              onChangeText={setRate}
+              placeholder="e.g. 8.50"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="decimal-pad"
+            />
+            <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>Utility Provider (Optional)</Text>
+            <TextInput
+              style={[styles.tariffInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+              value={provider}
+              onChangeText={setProvider}
+              placeholder="e.g. Tata Power"
+              placeholderTextColor={colors.textTertiary}
+            />
+            <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>Effective From</Text>
+            <TouchableOpacity
+              style={[styles.tariffInput, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={{ color: colors.text, fontFamily: 'Urbanist-Regular', fontSize: 15 }}>
+                {new Date(effectiveFrom + 'T00:00:00').toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </Text>
+              <CalendarDays size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tariffSubmitBtn, { backgroundColor: colors.primary }]}
+              onPress={handleSubmit}
+              disabled={isSubmitting || !rate}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.tariffSubmitBtnText}>Update Rate</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Tariff History */}
+          <Text style={[styles.tariffHistoryTitle, { color: colors.text }]}>Tariff History</Text>
+          {isLoading ? (
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+          ) : tariffs.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingTop: 40, gap: 8 }}>
+              <Zap size={36} color={colors.textTertiary} />
+              <Text style={{ color: colors.textSecondary, fontSize: 14 }}>No tariffs configured</Text>
+            </View>
+          ) : (
+            tariffs.map((tariff, idx) => {
+              const isActive = !tariff.effective_to && tariff.effective_from <= today;
+              return (
+                <View key={tariff.id} style={[styles.tariffHistoryRow, { backgroundColor: colors.card, borderColor: isActive ? colors.primary : colors.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={[styles.tariffRateText, { color: colors.text }]}>${tariff.rate_per_unit}</Text>
+                      {isActive && (
+                        <View style={[styles.tariffActiveBadge, { backgroundColor: '#10B981' }]}>
+                          <Text style={styles.tariffActiveBadgeText}>Active</Text>
+                        </View>
+                      )}
+                    </View>
+                    {tariff.utility_provider && (
+                      <Text style={[styles.tariffProvider, { color: colors.textSecondary }]}>{tariff.utility_provider}</Text>
+                    )}
+                    <Text style={[styles.tariffDateRange, { color: colors.textTertiary }]}>
+                      From: {new Date(tariff.effective_from).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {tariff.effective_to ? ` · To: ${new Date(tariff.effective_to).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={{ padding: 8 }}
+                    onPress={() => handleDelete(tariff.id)}
+                    disabled={deletingId === tariff.id}
+                  >
+                    {deletingId === tariff.id ? (
+                      <ActivityIndicator size={16} color="#EF4444" />
+                    ) : (
+                      <Trash2 size={16} color="#EF4444" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+      </View>
+
+      {/* Calendar Date Picker Modal */}
+      <Modal visible={showDatePicker} transparent animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={1}
+          onPress={() => setShowDatePicker(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={[styles.calendarModalContent, { backgroundColor: colors.card }]}>
+            <View style={[styles.calendarModalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.calendarModalTitle, { color: colors.text }]}>Select Date</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                <X size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Calendar
+              current={effectiveFrom}
+              onDayPress={(day: any) => {
+                setEffectiveFrom(day.dateString);
+                setShowDatePicker(false);
+              }}
+              markedDates={{
+                [effectiveFrom]: { selected: true, selectedColor: colors.primary },
+              }}
+              theme={{
+                backgroundColor: colors.card,
+                calendarBackground: colors.card,
+                textSectionTitleColor: colors.textSecondary,
+                selectedDayBackgroundColor: colors.primary,
+                selectedDayTextColor: '#ffffff',
+                todayTextColor: colors.primary,
+                dayTextColor: colors.text,
+                textDisabledColor: colors.textTertiary,
+                arrowColor: colors.primary,
+                monthTextColor: colors.text,
+                textMonthFontFamily: 'Poppins-Bold',
+                textDayFontFamily: 'Urbanist-Regular',
+              }}
+              style={{ borderRadius: 12 }}
+            />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </Modal>
+  );
+}
+
+// ─── Meter Config Modal ──────────────────────────────────────────────────────
+
+interface MeterConfigModalProps {
+  visible: boolean;
+  onClose: () => void;
+  propertyId: string;
+  colors: any;
+  onSuccess: () => void;
+}
+
+const METER_TYPES = [
+  { label: 'Main Grid', value: 'main' },
+  { label: 'Generator', value: 'generator' },
+  { label: 'Solar', value: 'solar' },
+  { label: 'Sub Meter', value: 'sub' },
+];
+
+function MeterConfigModal({ visible, onClose, propertyId, colors, onSuccess }: MeterConfigModalProps) {
+  const { user: authUser } = useAuth();
+  const [name, setName] = useState('');
+  const [meterNumber, setMeterNumber] = useState('');
+  const [meterType, setMeterType] = useState('main');
+  const [lastReading, setLastReading] = useState('0');
+  const [ctPrimary, setCtPrimary] = useState('200');
+  const [ctSecondary, setCtSecondary] = useState('5');
+  const [ptPrimary, setPtPrimary] = useState('11000');
+  const [ptSecondary, setPtSecondary] = useState('110');
+  const [meterConstant, setMeterConstant] = useState('1');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showMultiplier, setShowMultiplier] = useState(false);
+
+  const computedMultiplier = () => {
+    const cP = parseFloat(ctPrimary) || 0;
+    const cS = parseFloat(ctSecondary) || 1;
+    const pP = parseFloat(ptPrimary) || 0;
+    const pS = parseFloat(ptSecondary) || 1;
+    const mC = parseFloat(meterConstant) || 0;
+    const ct = cP / (cS || 1);
+    const pt = pP / (pS || 1);
+    return ct * pt * mC;
+  };
+
+  useEffect(() => {
+    if (!visible) {
+      setName(''); setMeterNumber(''); setMeterType('main');
+      setLastReading('0'); setCtPrimary('200'); setCtSecondary('5');
+      setPtPrimary('11000'); setPtSecondary('110'); setMeterConstant('1');
+      setError(null); setShowMultiplier(false);
+    }
+  }, [visible]);
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { setError('Meter name is required'); return; }
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      // Create meter
+      const { data: meter, error: meterErr } = await (supabase
+        .from('electricity_meters')
+        .insert({
+          property_id: propertyId,
+          name: name.trim(),
+          meter_number: meterNumber.trim() || null,
+          meter_type: meterType,
+          last_reading: parseFloat(lastReading) || 0,
+          status: 'active',
+        } as any)
+        .select()
+        .single()) as any;
+      if (meterErr) throw meterErr;
+
+      // Create initial multiplier
+      const multValue = computedMultiplier();
+      const { error: multErr } = await (supabase
+        .from('meter_multipliers')
+        .insert({
+          meter_id: meter.id,
+          ct_ratio_primary: parseFloat(ctPrimary) || 0,
+          ct_ratio_secondary: parseFloat(ctSecondary) || 0,
+          pt_ratio_primary: parseFloat(ptPrimary) || 0,
+          pt_ratio_secondary: parseFloat(ptSecondary) || 0,
+          meter_constant: parseFloat(meterConstant) || 0,
+          multiplier_value: multValue,
+          effective_from: new Date().toISOString().split('T')[0],
+          created_by: authUser?.id,
+        } as any));
+      if (multErr) console.error('[MeterConfig] Multiplier insert failed:', multErr.message);
+
+      await onSuccess();
+    } catch (e: any) {
+      setError(e.message || 'Failed to add meter');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const numInput = (val: string, setter: (v: string) => void) => (
+    <TextInput
+      style={[styles.tariffInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+      value={val}
+      onChangeText={setter}
+      placeholder="0"
+      placeholderTextColor={colors.textTertiary}
+      keyboardType="numeric"
+    />
+  );
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={[styles.tariffModalContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.tariffModalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Zap size={20} color={colors.primary} />
+            <Text style={[styles.tariffModalTitle, { color: colors.text }]}>Add Meter</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <X size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+          {error && (
+            <View style={[styles.tariffError, { marginBottom: 12 }]}>
+              <Text style={styles.tariffErrorText}>{error}</Text>
+            </View>
+          )}
+
+          {/* Basic Info */}
+          <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>Meter Name *</Text>
+          <TextInput
+            style={[styles.tariffInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Main Grid Meter"
+            placeholderTextColor={colors.textTertiary}
+          />
+          <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>Meter Number (Optional)</Text>
+          <TextInput
+            style={[styles.tariffInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+            value={meterNumber}
+            onChangeText={setMeterNumber}
+            placeholder="e.g. MTR-001"
+            placeholderTextColor={colors.textTertiary}
+          />
+          <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>Meter Type</Text>
+          <View style={styles.meterTypeRow}>
+            {METER_TYPES.map(t => (
+              <TouchableOpacity
+                key={t.value}
+                style={[styles.meterTypeBtn, meterType === t.value && { backgroundColor: colors.primary }]}
+                onPress={() => setMeterType(t.value)}
+              >
+                <Text style={[styles.meterTypeBtnText, meterType === t.value && { color: '#FFF' }]}>{t.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>Starting Reading</Text>
+          {numInput(lastReading, setLastReading)}
+
+          {/* Multiplier Toggle */}
+          <TouchableOpacity
+            style={[styles.tariffForm, { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => setShowMultiplier(!showMultiplier)}
+          >
+            <View>
+              <Text style={{ fontSize: 15, fontFamily: 'Poppins-Bold', color: colors.text }}>CT/PT Multiplier</Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                Current: {computedMultiplier().toFixed(0)}x
+              </Text>
+            </View>
+            <Ionicons name={showMultiplier ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          {showMultiplier && (
+            <View style={[styles.tariffForm, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 8 }]}>
+              <View style={styles.multiplierGrid}>
+                <View style={styles.multiplierField}>
+                  <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>CT Primary</Text>
+                  {numInput(ctPrimary, setCtPrimary)}
+                </View>
+                <View style={styles.multiplierField}>
+                  <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>CT Secondary</Text>
+                  {numInput(ctSecondary, setCtSecondary)}
+                </View>
+                <View style={styles.multiplierField}>
+                  <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>PT Primary</Text>
+                  {numInput(ptPrimary, setPtPrimary)}
+                </View>
+                <View style={styles.multiplierField}>
+                  <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>PT Secondary</Text>
+                  {numInput(ptSecondary, setPtSecondary)}
+                </View>
+              </View>
+              <Text style={[styles.tariffFieldLabel, { color: colors.textSecondary }]}>Meter Constant</Text>
+              {numInput(meterConstant, setMeterConstant)}
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.tariffSubmitBtn, { backgroundColor: colors.primary, marginTop: 20 }]}
+            onPress={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Text style={styles.tariffSubmitBtnText}>Add Meter</Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
 function formatRelative(dateStr: string): string {
@@ -632,9 +1148,10 @@ function formatRelative(dateStr: string): string {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ElectricityScreen() {
-  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const { propertyId, mode } = useLocalSearchParams<{ propertyId: string, mode?: string }>();
   const router = useRouter();
   const { theme } = useTheme();
+  const { user: authUser } = useAuth();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
 
@@ -652,6 +1169,8 @@ export default function ElectricityScreen() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyReadings, setHistoryReadings] = useState<ElectricityReading[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showTariffModal, setShowTariffModal] = useState(false);
+  const [showMeterModal, setShowMeterModal] = useState(false);
 
   const handleDeleteReading = async (id: string) => {
     Alert.alert('Delete Reading', 'Are you sure you want to delete this reading entry?', [
@@ -662,18 +1181,16 @@ export default function ElectricityScreen() {
         onPress: async () => {
           setDeletingId(id);
           try {
-            // Get reading to find meter_id
             const reading = readings.find(r => r.id === id);
             if (!reading) throw new Error('Reading not found');
 
-            // Delete the reading
             const { error: deleteError } = await (supabase
               .from('electricity_readings')
               .delete()
               .eq('id', id) as any);
             if (deleteError) throw deleteError;
 
-            // Update meter last_reading to previous reading
+            // Recalibrate meter last_reading
             const { data: remaining } = await (supabase
               .from('electricity_readings')
               .select('closing_reading')
@@ -688,9 +1205,7 @@ export default function ElectricityScreen() {
               .update({ last_reading: remaining?.closing_reading ?? 0 })
               .eq('id', reading.meter_id);
 
-            // Refresh data
             await fetchData();
-            // Also refresh history if modal is open
             if (showHistoryModal) fetchHistoryReadings();
             setReadings(prev => prev.filter(r => r.id !== id));
           } catch (e: any) {
@@ -720,6 +1235,11 @@ export default function ElectricityScreen() {
       setIsLoadingHistory(false);
     }
   };
+
+  useEffect(() => {
+    if (mode === 'history') setShowHistoryModal(true);
+    if (mode === 'tariffs') setShowTariffModal(true);
+  }, [mode]);
 
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
@@ -759,7 +1279,23 @@ export default function ElectricityScreen() {
       const today = new Date().toISOString().split('T')[0];
       fetch(`/api/properties/${propertyId}/grid-tariffs?date=${today}`)
         .then(res => res.ok ? res.json() : null)
-        .then(t => { if (t) setActiveTariff(t); })
+        .then(t => {
+          if (t && Object.keys(t).length > 0) {
+            setActiveTariff(t);
+          } else {
+            // Fallback: fetch all and find active
+            return fetch(`/api/properties/${propertyId}/grid-tariffs`)
+              .then(r => r.ok ? r.json() : null)
+              .then(all => {
+                if (Array.isArray(all) && all.length > 0) {
+                  const active = all.find((tariff: any) =>
+                    !tariff.effective_to && tariff.effective_from <= today
+                  ) || all[0];
+                  setActiveTariff(active);
+                }
+              });
+          }
+        })
         .catch(() => {});
     } catch (e) {
       console.error('Electricity fetch error:', e);
@@ -869,6 +1405,21 @@ export default function ElectricityScreen() {
         {tariffRate > 0 && (
           <Text style={styles.tariffInfo}>Tariff: ${tariffRate.toFixed(4)}/kVAh</Text>
         )}
+        {/* Action Buttons Row */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => { fetchHistoryReadings(); setShowHistoryModal(true); }}>
+            <Ionicons name="time-outline" size={15} color="rgba(255,255,255,0.9)" />
+            <Text style={styles.actionBtnText}>History</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => setShowTariffModal(true)}>
+            <Ionicons name="receipt-outline" size={15} color="rgba(255,255,255,0.9)" />
+            <Text style={styles.actionBtnText}>Tariff</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => setShowMeterModal(true)}>
+            <Ionicons name="flash-outline" size={15} color="rgba(255,255,255,0.9)" />
+            <Text style={styles.actionBtnText}>Add Meter</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {isLoading ? (
@@ -914,20 +1465,24 @@ export default function ElectricityScreen() {
             </View>
           )}
 
-          {/* Recent Readings */}
-          <RecentReadingsList
-            readings={filteredReadings}
-            meters={meters}
-            colors={colors}
-            onDelete={handleDeleteReading}
-            deletingId={deletingId}
-          />
+          {/* Recent Readings Button */}
           {readings.length > 0 && (
             <TouchableOpacity
-              style={[styles.viewHistoryBtn]}
+              style={[styles.recentReadingsBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => { fetchHistoryReadings(); setShowHistoryModal(true); }}
             >
-              <Text style={[styles.viewHistoryBtnText, { color: colors.primary }]}>View Full History</Text>
+              <View style={styles.recentReadingsBtnLeft}>
+                <Clock size={18} color={colors.primary} />
+                <Text style={[styles.recentReadingsBtnText, { color: colors.text }]}>
+                  Recent Readings
+                </Text>
+              </View>
+              <View style={[styles.recentReadingsBtnBadge, { backgroundColor: colors.primary + '15' }]}>
+                <Text style={[styles.recentReadingsBtnBadgeText, { color: colors.primary }]}>
+                  {readings.length}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
 
@@ -992,49 +1547,17 @@ export default function ElectricityScreen() {
         </View>
       </Modal>
 
-      {/* Bottom Navigation */}
-      <View style={[styles.bottomNav, { 
-        backgroundColor: colors.surface, 
-        borderTopColor: colors.border,
-        paddingBottom: Math.max(insets.bottom, 12)
-      }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="grid-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>OVERVIEW</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="ticket-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>REQUESTS</Text>
-        </TouchableOpacity>
+      <AppBottomNav 
+        activeTab="loggers"
+        propertyId={propertyId!}
+        onLoggersPress={() => setShowLoggersMenu(true)}
+      />
 
-        <TouchableOpacity 
-          style={styles.navItemCenter} 
-          onPress={() => { Alert.alert('Create Request', 'Please go back to the dashboard to create new requests.'); }}
-        >
-          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
-            <Ionicons name="add" size={32} color="#FFF" />
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => setShowLoggersMenu(true)}>
-          <View style={[styles.navIconWrapper, { backgroundColor: theme === 'dark' ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
-            <Ionicons name="options" size={22} color={colors.primary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.primary }]}>LOGGERS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => Alert.alert('More', 'More menu coming soon')}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>MORE</Text>
-        </TouchableOpacity>
-      </View>
+      <LoggersMenu
+        visible={showLoggersMenu}
+        onClose={() => setShowLoggersMenu(false)}
+        propertyId={propertyId!}
+      />
 
       {showSheet && (
         <LogReadingModal
@@ -1050,6 +1573,53 @@ export default function ElectricityScreen() {
           initialMeterId={selectedMeterForLogging}
         />
       )}
+
+      {/* Tariff Modal */}
+      <TariffModal
+        visible={showTariffModal}
+        onClose={() => setShowTariffModal(false)}
+        propertyId={propertyId!}
+        colors={colors}
+        onTariffChange={async () => {
+          const today = new Date().toISOString().split('T')[0];
+          try {
+            // Try fetching active tariff by date first
+            const res = await fetch(`/api/properties/${propertyId}/grid-tariffs?date=${today}`);
+            if (res.ok) {
+              const t = await res.json();
+              if (t && Object.keys(t).length > 0) {
+                setActiveTariff(t);
+                return;
+              }
+            }
+            // Fallback: fetch all and find active one
+            const allRes = await fetch(`/api/properties/${propertyId}/grid-tariffs`);
+            if (allRes.ok) {
+              const all = await allRes.json();
+              if (Array.isArray(all) && all.length > 0) {
+                const active = all.find((tariff: any) =>
+                  !tariff.effective_to && tariff.effective_from <= today
+                ) || all[0];
+                setActiveTariff(active);
+              }
+            }
+          } catch (e) {
+            console.error('Error refreshing tariff:', e);
+          }
+        }}
+      />
+
+      {/* Meter Config Modal */}
+      <MeterConfigModal
+        visible={showMeterModal}
+        onClose={() => setShowMeterModal(false)}
+        propertyId={propertyId!}
+        colors={colors}
+        onSuccess={async () => {
+          setShowMeterModal(false);
+          await fetchData();
+        }}
+      />
 
       {/* Loggers Modal */}
       <Modal visible={showLoggersMenu} transparent animationType="fade" onRequestClose={() => setShowLoggersMenu(false)}>
@@ -1097,6 +1667,9 @@ const styles = StyleSheet.create({
   analyticsBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 'auto' },
   analyticsBtnText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: 'rgba(255,255,255,0.9)' },
   tariffInfo: { fontSize: 11, fontFamily: 'Urbanist-Medium', color: 'rgba(255,255,255,0.6)', marginTop: 6 },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 },
+  actionBtnText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: 'rgba(255,255,255,0.9)' },
 
   // Log FAB
   logFab: {
@@ -1165,6 +1738,38 @@ const styles = StyleSheet.create({
   emptyCard: { borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', padding: 32, alignItems: 'center', gap: 8 },
   emptyText: { fontSize: 15, fontFamily: 'Urbanist-Medium' },
   emptySubtext: { fontSize: 12, fontFamily: 'Urbanist-Regular' },
+
+  // Tariff Modal
+  tariffModalContainer: { flex: 1 },
+  tariffModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
+  tariffModalTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
+  tariffForm: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16 },
+  tariffFormTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
+  tariffFieldLabel: { fontSize: 11, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 10 },
+  tariffInput: { borderRadius: 12, borderWidth: 1, padding: 12, fontSize: 15, fontFamily: 'Urbanist-Medium', marginBottom: 4 },
+  tariffError: { backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 10, padding: 10, marginBottom: 8 },
+  tariffErrorText: { color: '#EF4444', fontSize: 12, fontFamily: 'Urbanist-Bold' },
+  tariffSubmitBtn: { borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 },
+  tariffSubmitBtnText: { color: '#FFF', fontSize: 15, fontFamily: 'Poppins-Bold' },
+  tariffHistoryTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
+  tariffHistoryRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 8 },
+  tariffRateText: { fontSize: 20, fontFamily: 'Poppins-Bold' },
+  tariffActiveBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  tariffActiveBadgeText: { color: '#FFF', fontSize: 9, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
+  tariffProvider: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  tariffDateRange: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 4 },
+
+  // Calendar modal
+  calendarModalContent: { width: SCREEN_WIDTH - 48, borderRadius: 16, overflow: 'hidden', maxHeight: 460 },
+  calendarModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
+  calendarModalTitle: { fontSize: 16, fontFamily: 'Poppins-Bold' },
+
+  // Meter Config
+  meterTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  meterTypeBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0' },
+  meterTypeBtnText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: '#64748B' },
+  multiplierGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  multiplierField: { flex: 1, minWidth: '45%' },
 
   // Bottom Sheet
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
@@ -1288,6 +1893,37 @@ const styles = StyleSheet.create({
   },
   viewHistoryBtnText: {
     fontSize: 13,
+    fontFamily: 'Poppins-Bold',
+  },
+  recentReadingsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 16,
+  },
+  recentReadingsBtnLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  recentReadingsBtnText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+  },
+  recentReadingsBtnBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 28,
+    alignItems: 'center',
+    marginRight: 4,
+  },
+  recentReadingsBtnBadgeText: {
+    fontSize: 12,
     fontFamily: 'Poppins-Bold',
   },
 

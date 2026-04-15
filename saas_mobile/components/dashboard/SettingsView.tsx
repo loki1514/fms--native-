@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/utils/supabase/client';
+import { readFileAsArrayBuffer } from '@/utils/mediaUtils';
 import * as ImagePicker from 'expo-image-picker';
 import Toast from '../ui/Toast';
 
@@ -105,11 +106,10 @@ export default function SettingsView({ onUpdate }: SettingsViewProps) {
       if (avatarUri) {
         const ext = avatarUri.split('.').pop() || 'jpg';
         const filePath = `${user.id}/profile.${ext}`;
-        const response = await fetch(avatarUri);
-        const blob = await response.blob();
+        const arrayBuffer = await readFileAsArrayBuffer(avatarUri);
 
         const { error: uploadError } = await supabase.storage
-          .from('user-photos').upload(filePath, blob, { upsert: true, contentType: `image/${ext}` });
+          .from('user-photos').upload(filePath, arrayBuffer, { upsert: true, contentType: `image/${ext}` });
         if (uploadError) throw uploadError;
 
         const { data } = supabase.storage.from('user-photos').getPublicUrl(filePath);

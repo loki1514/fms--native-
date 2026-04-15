@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Colors } from '@/constants/Colors';
 import { useVoiceRecording } from '@/hooks/voice/useVoiceRecording';
 import { ENROLLMENT_PHRASES } from '@/services/voiceEnrollment';
@@ -256,9 +257,7 @@ export default function VoiceEnrollmentScreen() {
       const chunks: string[] = [];
       for (const phrase of recorded) {
         if (!phrase.uri) continue;
-        const data = await FileSystem.readAsStringAsync(phrase.uri, {
-          encoding: 'base64' as const,
-        });
+        const data = await new File(phrase.uri).base64();
         chunks.push(data);
       }
       const combinedBase64 = chunks.join('');

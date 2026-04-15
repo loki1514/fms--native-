@@ -24,6 +24,7 @@ import TicketListItem from '@/components/tickets/TicketListItem';
 import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
 
 type StatusFilter = 'all' | 'open' | 'in_progress' | 'resolved' | 'closed';
+type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
 
 const FILTER_TABS: { key: StatusFilter; label: string }[] = [
   { key: 'all',         label: 'All' },
@@ -32,6 +33,21 @@ const FILTER_TABS: { key: StatusFilter; label: string }[] = [
   { key: 'resolved',    label: 'Resolved' },
   { key: 'closed',      label: 'Closed' },
 ];
+
+const DATE_RANGES: { key: DateRangeFilter; label: string }[] = [
+  { key: 'all',   label: 'All Time' },
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+];
+
+interface TicketEscalationLog {
+  from_level: number;
+  to_level: number | null;
+  escalated_at: string;
+  from_employee?: { full_name: string; user_photo_url?: string | null } | null;
+  to_employee?: { full_name: string; user_photo_url?: string | null } | null;
+}
 
 interface Ticket {
   id: string;
@@ -47,6 +63,7 @@ interface Ticket {
   assignee: { id: string; full_name: string; user_photo_url?: string | null } | null;
   creator:  { id: string; full_name: string } | null;
   photo_before_url?: string | null;
+  ticket_escalation_logs?: TicketEscalationLog[];
 }
 
 const PAGE_SIZE = 20;
@@ -55,7 +72,7 @@ export default function TicketsScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const router = useRouter();
   const supabase = createClient();
-  const { membership } = useAuth();
+  const { membership, user: authUser } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -65,6 +82,11 @@ export default function TicketsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [dateRange, setDateRange] = useState<DateRangeFilter>('all');
+  const [statusCounts, setStatusCounts] = useState<Record<StatusFilter, number>>({
+    all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0,
+  });
+  const [showDateFilter, setShowDateFilter] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createTitle, setCreateTitle] = useState('');
   const [createDescription, setCreateDescription] = useState('');
@@ -86,7 +108,10 @@ export default function TicketsScreen() {
       .select(`id, title, description, status, priority, ticket_number, created_at, updated_at,
                property_id, organization_id, photo_before_url,
                assignee:users!assigned_to(id, full_name, user_photo_url),
-               creator:users!raised_by(id, full_name)`)
+               creator:users!raised_by(id, full_name),
+               ticket_escalation_logs(from_level, to_level, escalated_at,
+                 from_employee:users!from_employee_id(full_name, user_photo_url),
+                 to_employee:users!to_employee_id(full_name, user_photo_url))`)
       .eq('property_id', propertyId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -99,8 +124,26 @@ export default function TicketsScreen() {
       q = q.eq('status', statusFilter);
     }
 
+    if (dateRange !== 'all') {
+      const now = new Date();
+      const end = now.toISOString().split('T')[0] + 'T23:59:59';
+      let start: string;
+      if (dateRange === 'today') {
+        start = now.toISOString().split('T')[0];
+      } else if (dateRange === 'week') {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 7);
+        start = d.toISOString().split('T')[0];
+      } else {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 30);
+        start = d.toISOString().split('T')[0];
+      }
+      q = q.gte('created_at', start).lte('created_at', end);
+    }
+
     return q;
-  }, [propertyId, statusFilter, supabase]);
+  }, [propertyId, statusFilter, dateRange, supabase]);
 
   const fetchTickets = useCallback(async (reset = false) => {
     if (!propertyId) return;
@@ -130,7 +173,12 @@ export default function TicketsScreen() {
 
   useEffect(() => {
     fetchTickets(true);
+    fetchStatusCounts();
   }, [statusFilter]);
+
+  useEffect(() => {
+    fetchStatusCounts();
+  }, [dateRange]);
 
   const loadMore = async () => {
     if (loadingMore || !hasMore || !propertyId) return;
@@ -151,6 +199,58 @@ export default function TicketsScreen() {
     }
   };
 
+  const fetchStatusCounts = async () => {
+    if (!propertyId) return;
+    try {
+      const counts: Record<StatusFilter, number> = {
+        all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0,
+      };
+
+      const getDateRange = (range: DateRangeFilter) => {
+        const now = new Date();
+        const end = now.toISOString().split('T')[0] + 'T23:59:59';
+        if (range === 'today') return { start: now.toISOString().split('T')[0], end };
+        if (range === 'week') { const d = new Date(now); d.setDate(d.getDate() - 7); return { start: d.toISOString().split('T')[0], end }; }
+        if (range === 'month') { const d = new Date(now); d.setDate(d.getDate() - 30); return { start: d.toISOString().split('T')[0], end }; }
+        return { start: '1970-01-01', end };
+      };
+      const { start, end } = getDateRange(dateRange);
+
+      const { count: allCount } = await supabase
+        .from('tickets').select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId).gte('created_at', start).lte('created_at', end) as any;
+      counts.all = allCount ?? 0;
+
+      const { count: openCount } = await supabase
+        .from('tickets').select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId).in('status', ['open', 'assigned'])
+        .gte('created_at', start).lte('created_at', end) as any;
+      counts.open = openCount ?? 0;
+
+      const { count: progressCount } = await supabase
+        .from('tickets').select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId).in('status', ['in_progress', 'paused', 'pending_validation'])
+        .gte('created_at', start).lte('created_at', end) as any;
+      counts.in_progress = progressCount ?? 0;
+
+      const { count: resolvedCount } = await supabase
+        .from('tickets').select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId).eq('status', 'resolved')
+        .gte('created_at', start).lte('created_at', end) as any;
+      counts.resolved = resolvedCount ?? 0;
+
+      const { count: closedCount } = await supabase
+        .from('tickets').select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId).eq('status', 'closed')
+        .gte('created_at', start).lte('created_at', end) as any;
+      counts.closed = closedCount ?? 0;
+
+      setStatusCounts(counts);
+    } catch (err) {
+      console.error('Error fetching status counts:', err);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchTickets(true);
@@ -161,8 +261,7 @@ export default function TicketsScreen() {
     setIsSubmitting(true);
     setCreateError(null);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData.user?.id;
+      const userId = authUser?.id;
       const { data, error } = await supabase
         .from('tickets')
         .insert({
@@ -189,6 +288,7 @@ export default function TicketsScreen() {
         setCreateCategory('');
         setCreateMedia(null);
         fetchTickets(true);
+        fetchStatusCounts();
       }, 1500);
     } catch (err: any) {
       setCreateError(err.message || 'Failed to create ticket');
@@ -207,20 +307,40 @@ export default function TicketsScreen() {
     setCreateSuccess(false);
   };
 
-  const renderTicket = ({ item }: { item: Ticket }) => (
-    <TicketListItem
-      id={item.id}
-      title={item.title}
-      status={item.status}
-      priority={item.priority ?? 'medium'}
-      ticketNumber={item.ticket_number ?? item.id.slice(0, 8).toUpperCase()}
-      createdAt={item.created_at}
-      assignedTo={item.assignee?.full_name}
-      assigneePhotoUrl={item.assignee?.user_photo_url}
-      photoUrl={item.photo_before_url ?? undefined}
-      onPress={() => router.push(`/property/${propertyId}/tickets/${item.id}`)}
-    />
-  );
+  const renderTicket = ({ item }: { item: Ticket }) => {
+    const logs = item.ticket_escalation_logs;
+    let escalationChain: { name: string; avatar?: string | null }[] | undefined;
+    if (logs && logs.length > 0) {
+      const sorted = [...logs].sort(
+        (a, b) => new Date(a.escalated_at).getTime() - new Date(b.escalated_at).getTime()
+      );
+      escalationChain = [];
+      sorted.forEach((log, i) => {
+        if (i === 0 && log.from_employee?.full_name) {
+          escalationChain!.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url ?? undefined });
+        }
+        if (log.to_employee?.full_name) {
+          escalationChain!.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url ?? undefined });
+        }
+      });
+      if (escalationChain.length === 0) escalationChain = undefined;
+    }
+    return (
+      <TicketListItem
+        id={item.id}
+        title={item.title}
+        status={item.status}
+        priority={item.priority ?? 'medium'}
+        ticketNumber={item.ticket_number ?? item.id.slice(0, 8).toUpperCase()}
+        createdAt={item.created_at}
+        assignedTo={item.assignee?.full_name}
+        assigneePhotoUrl={item.assignee?.user_photo_url}
+        photoUrl={item.photo_before_url ?? undefined}
+        escalationChain={escalationChain}
+        onPress={() => router.push(`/property/${propertyId}/tickets/${item.id}`)}
+      />
+    );
+  };
 
   const bg = isDark ? '#0F1521' : '#F5F0E8';
   const cardBg = isDark ? 'rgba(30,38,55,0.88)' : 'rgba(255,255,255,0.88)';
@@ -268,10 +388,66 @@ export default function TicketsScreen() {
                 >
                   {tab.label}
                 </Text>
+                <View style={[styles.countBadge, {
+                  backgroundColor: statusFilter === tab.key
+                    ? '#7CB9A8'
+                    : (isDark ? 'rgba(124,185,168,0.15)' : 'rgba(124,185,168,0.20)'),
+                }]}>
+                  <Text style={[styles.countBadgeText, {
+                    color: statusFilter === tab.key ? '#FFF' : '#7CB9A8',
+                  }]}>
+                    {statusCounts[tab.key]}
+                  </Text>
+                </View>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
+
+        {/* Date Range Filter */}
+        <View style={[styles.dateFilterRow, { borderBottomColor: borderColor }]}>
+          <TouchableOpacity
+            style={styles.dateFilterBtn}
+            onPress={() => setShowDateFilter(!showDateFilter)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="calendar-outline" size={15} color={textSecondary} />
+            <Text style={[styles.dateFilterLabel, { color: textSecondary }]}>
+              {DATE_RANGES.find(d => d.key === dateRange)?.label ?? 'All Time'}
+            </Text>
+            <Ionicons
+              name={showDateFilter ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={textSecondary}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Date Range Dropdown */}
+        {showDateFilter && (
+          <View style={[styles.dateFilterDropdown, { backgroundColor: cardBg, borderColor }]}>
+            {DATE_RANGES.map(opt => (
+              <TouchableOpacity
+                key={opt.key}
+                style={[
+                  styles.dateFilterOption,
+                  dateRange === opt.key && { backgroundColor: isDark ? 'rgba(124,185,168,0.12)' : 'rgba(124,185,168,0.08)' },
+                ]}
+                onPress={() => { setDateRange(opt.key); setShowDateFilter(false); }}
+              >
+                <Text style={[styles.dateFilterOptionText, {
+                  color: dateRange === opt.key ? '#7CB9A8' : textSecondary,
+                  fontWeight: dateRange === opt.key ? '700' : '500',
+                }]}>
+                  {opt.label}
+                </Text>
+                {dateRange === opt.key && (
+                  <Ionicons name="checkmark" size={16} color="#7CB9A8" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Ticket List */}
         {loading ? (
@@ -555,6 +731,55 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  countBadge: {
+    marginLeft: 6,
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  countBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  dateFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  dateFilterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  dateFilterLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dateFilterDropdown: {
+    marginHorizontal: 16,
+    marginTop: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  dateFilterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  dateFilterOptionText: {
+    fontSize: 13,
   },
   centered: {
     flex: 1,

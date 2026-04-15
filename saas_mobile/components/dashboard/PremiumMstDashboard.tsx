@@ -805,6 +805,27 @@ function PremiumSidebar({
 
 // ============ MAIN DASHBOARD ============
 
+// ─── Fuzzy Search Helper ──────────────────────────────────────────────────────
+function fuzzyMatch(text: string, query: string): boolean {
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+  if (lower.includes(q)) return true;
+  const textWords = lower.split(/\s+/);
+  const queryWords = q.split(/\s+/);
+  for (const qw of queryWords) {
+    if (qw.length < 2) continue;
+    if (textWords.some(word => word.startsWith(qw))) return true;
+  }
+  let ti = 0;
+  for (const ch of q) {
+    const idx = lower.indexOf(ch, ti);
+    if (idx === -1) return false;
+    ti = idx + 1;
+  }
+  return true;
+}
+
 export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   const { user } = useAuth();
   const { weather } = useWeather();
@@ -891,7 +912,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
         assignee:users!assigned_to(id, full_name, email, user_photo_url)
       `)
       .eq('property_id', propertyId)
-      .eq('internal', false)
+
       .order('created_at', { ascending: false })
       .limit(20) as any);
 
@@ -991,10 +1012,9 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
   const filteredTickets = useMemo(() => {
     if (!searchQuery) return tickets;
-    const q = searchQuery.toLowerCase();
     return tickets.filter(t =>
-      (t.title?.toLowerCase().includes(q) ?? false) ||
-      (t.ticket_number?.toLowerCase().includes(q) ?? false)
+      fuzzyMatch(t.title ?? '', searchQuery) ||
+      fuzzyMatch(t.ticket_number ?? '', searchQuery)
     );
   }, [tickets, searchQuery]);
 

@@ -1,6 +1,27 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+
+// ─── Fuzzy Search Helper ──────────────────────────────────────────────────────
+function fuzzyMatch(text: string, query: string): boolean {
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+  if (lower.includes(q)) return true;
+  const textWords = lower.split(/\s+/);
+  const queryWords = q.split(/\s+/);
+  for (const qw of queryWords) {
+    if (qw.length < 2) continue;
+    if (textWords.some(word => word.startsWith(qw))) return true;
+  }
+  let ti = 0;
+  for (const ch of q) {
+    const idx = lower.indexOf(ch, ti);
+    if (idx === -1) return false;
+    ti = idx + 1;
+  }
+  return true;
+}
 import {
   View,
   Text,
@@ -582,10 +603,10 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
 
   const filteredTickets = useMemo(() => {
     if (!searchQuery) return tickets;
-    const q = searchQuery.toLowerCase();
-    return tickets.filter(t => 
-      t.title.toLowerCase().includes(q) ||
-      t.ticket_number.toLowerCase().includes(q)
+    return tickets.filter(t =>
+      fuzzyMatch(t.title, searchQuery) ||
+      fuzzyMatch(t.ticket_number, searchQuery) ||
+      fuzzyMatch(t.description ?? '', searchQuery)
     );
   }, [tickets, searchQuery]);
 

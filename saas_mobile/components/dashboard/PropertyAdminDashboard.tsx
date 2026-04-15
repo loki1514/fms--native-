@@ -71,6 +71,27 @@ interface PropertyAdminDashboardProps {
   propertyId: string;
 }
 
+// ─── Fuzzy Search Helper ──────────────────────────────────────────────────────
+function fuzzyMatch(text: string, query: string): boolean {
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+  if (lower.includes(q)) return true;
+  const textWords = lower.split(/\s+/);
+  const queryWords = q.split(/\s+/);
+  for (const qw of queryWords) {
+    if (qw.length < 2) continue;
+    if (textWords.some(word => word.startsWith(qw))) return true;
+  }
+  let ti = 0;
+  for (const ch of q) {
+    const idx = lower.indexOf(ch, ti);
+    if (idx === -1) return false;
+    ti = idx + 1;
+  }
+  return true;
+}
+
 export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDashboardProps) {
   const { user, signOut, membership } = useAuth();
   const router = useRouter();
@@ -180,11 +201,10 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
     
     // Apply search filter
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
       result = result.filter(t =>
-        t.title.toLowerCase().includes(query) ||
-        t.ticket_number.toLowerCase().includes(query) ||
-        t.description?.toLowerCase().includes(query)
+        fuzzyMatch(t.title, searchQuery) ||
+        fuzzyMatch(t.ticket_number, searchQuery) ||
+        fuzzyMatch(t.description ?? '', searchQuery)
       );
     }
     

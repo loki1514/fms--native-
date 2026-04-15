@@ -1,5 +1,6 @@
 import { supabase } from '@/utils/supabase';
 import { ApiResponse } from './api/client';
+import { getCurrentUserId } from '@/utils/api/mobileApi';
 import type { SOP, SOPStep, SOPChecklistRun, StepResult } from '@/types';
 
 export const sopService = {
@@ -225,8 +226,8 @@ export const sopService = {
     propertyId: string,
   ): Promise<ApiResponse<SOPChecklistRun>> {
     try {
-      const { data: sessionUser } = await supabase.auth.getUser();
-      const startedBy = sessionUser?.user?.id;
+      // Use session-first helper to avoid null returns on Expo Go.
+      const startedBy = await getCurrentUserId();
 
       const { data: run, error }: any = await (supabase as any)
         .from('sop_completions')

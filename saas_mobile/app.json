@@ -38,7 +38,16 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for QR code scanning."
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for QR code scanning.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for video recording."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to save photos to your library.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos to your library.",
+          "isAccessMediaLocationEnabled": true
         }
       ],
       "expo-secure-store"

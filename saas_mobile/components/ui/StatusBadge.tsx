@@ -72,8 +72,6 @@ const TICKET_STATUS_VARIANT: Record<string, BadgeVariant> = {
   CLOSED: 'neutral',
   RESOLVED: 'success',
   PENDING_VALIDATION: 'purple',
-  WAITLISTED: 'neutral',
-  WAITLIST: 'neutral',
   // lowercase variants
   open: 'warning',
   assigned: 'info',
@@ -82,8 +80,6 @@ const TICKET_STATUS_VARIANT: Record<string, BadgeVariant> = {
   closed: 'neutral',
   resolved: 'success',
   pending_validation: 'purple',
-  waitlisted: 'neutral',
-  waitlist: 'neutral',
   // raw / other statuses
   blocked: 'danger',
   client_raised: 'warning',
@@ -111,8 +107,6 @@ const TICKET_DOT_COLORS: Record<string, string> = {
   blocked: '#EF4444',
   client_raised: '#F59E0B',
   pending_validation: '#7C3AED',
-  waitlisted: '#94A3B8',
-  waitlist: '#94A3B8',
 };
 
 export function TicketStatusDot({ status, size = 8 }: { status: string; size?: number }) {

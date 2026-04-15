@@ -21,15 +21,18 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import { createClient } from '@/utils/supabase/client';
-import { useTheme } from '@/context';
+import { createClientFromToken } from '@/utils/supabase/mobile-auth';
+import { useTheme, useAuth } from '@/context';
 import StatusBadge from '@/components/tickets/StatusBadge';
 import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
 import MediaActionsSheet from '@/components/shared/MediaActionsSheet';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
-import { compressImage, getStoragePath, getStoragePathForSlot } from '@/utils/mediaUtils';
+import VideoPreviewModal from '@/components/shared/VideoPreviewModal';
+import { compressImage, getStoragePath, getStoragePathForSlot, readFileAsArrayBuffer } from '@/utils/mediaUtils';
 import { WEB_API_BASE } from '@/utils/api/mobileApi';
 import * as FileSystem from 'expo-file-system';
-// @ts-ignore
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 
 interface Ticket {
@@ -38,8 +41,8 @@ interface Ticket {
   description: string;
   status: string;
   priority: string;
-  category?: string;
-  skill_group?: string;
+  category?: { name: string; code: string } | string;
+  skill_group?: { name: string; code: string } | string;
   ticket_number: string;
   created_at: string;
   updated_at: string;
@@ -57,6 +60,8 @@ interface Ticket {
   video_after_url?: string | null;
   property_id: string;
   organization_id: string;
+  /** Raw assigned_to field — the user's UUID (string). Used as fallback when relationship doesn't resolve. */
+  assigned_to?: string | null;
   assignee: { id: string; full_name: string; user_photo_url?: string | null; property_memberships?: { role: string; property_id: string }[] } | null;
   creator:  { id: string; full_name: string; email?: string; property_memberships?: { role: string; property_id: string }[] } | null;
   location?: string;
@@ -106,7 +111,6 @@ const PRIORITY_CONFIG: Record<string, { bg: string; text: string; label: string 
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   open:               ['assigned'],
-  waitlist:           ['assigned'],       // backward compat: existing DB tickets
   assigned:           ['in_progress'],
   in_progress:        ['paused', 'pending_validation', 'resolved'],
   paused:             ['in_progress'],
@@ -155,11 +159,11 @@ export default function TicketDetailScreen() {
   const router = useRouter();
   const supabase = createClient();
   const { theme } = useTheme();
+  const { user: authUser, session } = useAuth();
   const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -188,6 +192,7 @@ export default function TicketDetailScreen() {
   const [selectedMediaSlot, setSelectedMediaSlot] = useState<'before' | 'after' | null>(null);
   const [showMediaActions, setShowMediaActions] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
+  const [showVideoPreview, setShowVideoPreview] = useState(false);
   const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
 
   // Property segregation: verify ticket belongs to current property
@@ -195,13 +200,22 @@ export default function TicketDetailScreen() {
     if (!propertyId || !id) return;
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      setCurrentUser(user);
+      // Use authUser from context — this is the definitive, always-hydrated user object
+      // from AuthContext, which has the session correctly loaded via onAuthStateChange.
+      // The supabase client in utils/supabase/client.ts may not share session state with
+      // AuthContext's client on Expo Go (separate AsyncStorage hydration), so we bypass it.
+      console.log('[fetchTicket] Auth user (from context):', authUser?.id, authUser?.email);
 
-      // Fetch ticket with property_id filter for segregation
+      // Fetch ticket with property_id filter for segregation.
+      // IMPORTANT: We fetch assigned_to as a raw column alongside the users!assigned_to
+      // relationship. On mobile (Expo Go), the PostgREST foreign-key join can silently
+      // return null even when assigned_to is populated — the raw column serves as a
+      // reliable fallback for the isAssignee check.
       const { data: ticketData, error: ticketError } = await (supabase
         .from('tickets')
-        .select(`*, assignee:users!assigned_to(id, full_name, user_photo_url, property_memberships(role, property_id)),
+        .select(`*, assigned_to,
+                         category:issue_categories(name, code), skill_group:skill_groups(name, code),
+                         assignee:users!assigned_to(id, full_name, user_photo_url, property_memberships(role, property_id)),
                          creator:users!raised_by(id, full_name, email, property_memberships(role, property_id))`)
         .eq('id', id)
         .eq('property_id', propertyId)
@@ -213,6 +227,39 @@ export default function TicketDetailScreen() {
         setLoading(false);
         return;
       }
+
+      // 1. Fetch current user's role for this property early for security check
+      let userRole = null;
+      if (authUser?.id) {
+        const { data: memberData } = await (supabase as any)
+          .from('property_memberships')
+          .select('role')
+          .eq('user_id', authUser.id)
+          .eq('property_id', propertyId)
+          .eq('is_active', true)
+          .single();
+        userRole = memberData?.role ?? null;
+        setCurrentUserRole(userRole);
+      }
+
+      // 2. Internal Ticket Security Guard
+      const isTenant = userRole === 'tenant' || userRole === 'super_tenant';
+      if (ticketData.internal && isTenant) {
+        console.warn('[fetchTicket] Unauthorized access to internal ticket');
+        Alert.alert('Access Denied', 'This is an internal maintenance ticket and is not visible to tenants.');
+        router.back();
+        setLoading(false);
+        return;
+      }
+
+      // DEBUG: Log assignee resolution for web-vs-mobile comparison
+      console.log('[fetchTicket] Ticket loaded:', {
+        ticketId: ticketData.id,
+        status: ticketData.status,
+        rawAssignedTo: ticketData.assigned_to,
+        resolvedAssigneeId: ticketData.assignee?.id,
+        resolvedAssigneeName: ticketData.assignee?.full_name,
+      });
 
       // Property segregation guard
       if (ticketData.property_id !== propertyId) {
@@ -297,17 +344,6 @@ export default function TicketDetailScreen() {
         .maybeSingle();
       setValidationEnabled(featData?.is_enabled === true);
 
-      // Fetch current user's role for this property
-      if (user) {
-        const { data: memberData } = await (supabase as any)
-          .from('property_memberships')
-          .select('role')
-          .eq('user_id', user.id)
-          .eq('property_id', propertyId)
-          .eq('is_active', true)
-          .single();
-        setCurrentUserRole(memberData?.role ?? null);
-      }
 
     } catch (err) {
       console.error('[fetchTicket] Unexpected error:', err);
@@ -315,7 +351,7 @@ export default function TicketDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [propertyId, id, supabase]);
+  }, [propertyId, id, supabase, authUser]);
 
   useEffect(() => {
     fetchTicket();
@@ -427,8 +463,8 @@ export default function TicketDetailScreen() {
     if (!newComment.trim() || !id) return;
     setSendingComment(true);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData.user?.id;
+      // Use authUser from AuthContext — the definitive session source.
+      const userId = authUser?.id;
       const { data, error } = await supabase
         .from('ticket_comments')
         .insert({ ticket_id: id, comment: newComment.trim(), user_id: userId, is_internal: false } as any)
@@ -457,8 +493,7 @@ export default function TicketDetailScreen() {
 
     setShowMaterialModal(false);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const userId = authData.user?.id;
+      const userId = authUser?.id;
       const procUser = procurementUsers.find(u => u.id === selectedProcurementId);
       
       let commentText = `[MATERIAL REQUESTED]`;
@@ -585,7 +620,8 @@ export default function TicketDetailScreen() {
       await fetchTicket();
 
       // Log activity (like web app does)
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use authUser from AuthContext — the definitive session source.
+      const actingUserId = authUser?.id;
       let activityAction: string | null = null;
       if (newStatus === 'in_progress' && ticket.status === 'assigned') activityAction = 'work_started';
       else if (newStatus === 'resolved' || newStatus === 'closed') activityAction = 'completed';
@@ -593,11 +629,11 @@ export default function TicketDetailScreen() {
       else if (newStatus === 'in_progress' && ticket.status === 'paused') activityAction = 'resumed';
       else if (newStatus === 'pending_validation') activityAction = 'pending_validation';
 
-      if (activityAction && user?.id) {
+      if (activityAction && actingUserId) {
         try {
           await (supabase.from('ticket_activity_log') as any).insert({
             ticket_id: id,
-            user_id: user.id,
+            user_id: actingUserId,
             action: activityAction,
             old_value: ticket.status,
             new_value: newStatus,
@@ -623,12 +659,17 @@ export default function TicketDetailScreen() {
     setShowAssigneePicker(false);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use authUser from AuthContext — the definitive session source.
+      const actingUserId = authUser?.id;
 
       let newStatus = ticket.status;
-      if (mstId && (ticket.status === 'open' || ticket.status === 'waitlist')) {
-        newStatus = 'assigned';
-      } else if (!mstId) {
+      if (mstId) {
+        // If assigning TO someone, and current status is open/closed/resolved, move to assigned
+        if (['open', 'closed', 'resolved'].includes(ticket.status)) {
+          newStatus = 'assigned';
+        }
+      } else {
+        // If unassigning, revert to open
         newStatus = 'open';
       }
 
@@ -637,6 +678,14 @@ export default function TicketDetailScreen() {
         status: newStatus,
         assigned_at: mstId ? new Date().toISOString() : null,
       };
+
+      // If we are moving from a finished state to assigned, clear completion data
+      if (['closed', 'resolved'].includes(ticket.status) && newStatus === 'assigned') {
+        updates.resolved_at = null;
+        updates.total_paused_minutes = 0; // Reset metrics if needed
+      }
+
+      console.log('[handleReassign] Applying updates:', updates);
 
       const { error } = await (supabase.from('tickets') as any)
         .update(updates)
@@ -647,16 +696,24 @@ export default function TicketDetailScreen() {
         throw new Error(error.message);
       }
 
-      if (user?.id) {
-        const oldAssigneeId = ticket.assignee?.id || null;
+      if (actingUserId) {
+        // Use raw assigned_to as fallback for old assignee ID
+        const oldAssigneeId = ticket.assignee?.id ?? ticket.assigned_to ?? null;
+        const oldStatus = ticket.status;
+        
         let action = 'assigned';
-        if (oldAssigneeId && mstId && oldAssigneeId !== mstId) action = 'reassigned';
+        if (oldStatus === 'closed' || oldStatus === 'resolved') {
+          action = 'reopened';
+        } else if (oldAssigneeId && mstId && String(oldAssigneeId) !== String(mstId)) {
+          action = 'reassigned';
+        }
+        
         if (!mstId) action = 'unassigned';
 
         try {
           await (supabase.from('ticket_activity_log') as any).insert({
             ticket_id: id,
-            user_id: user.id,
+            user_id: actingUserId,
             action: action,
             old_value: oldAssigneeId,
             new_value: mstId,
@@ -667,6 +724,7 @@ export default function TicketDetailScreen() {
       }
 
       await fetchTicket();
+      Alert.alert('Success', mstId ? 'Ticket assigned and reopened successfully.' : 'Ticket unassigned.');
     } catch (err) {
       console.error('[handleReassign] Error:', err);
       Alert.alert('Reassign Failed', 'Could not reassign the ticket. Please try again.');
@@ -679,54 +737,49 @@ export default function TicketDetailScreen() {
       return;
     }
 
-    if (fileType === 'video') {
-      Alert.alert('Not Supported', 'Video download is not yet supported on mobile. Please use the web app.');
-      return;
-    }
-
     try {
-      // ── Step 1: Request permission ──────────────────────────────────────────
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission Required',
-          'Please allow access to save photos to your library in Settings.',
-        );
-        return;
+      // ── Step 1: Strip Supabase transform params from URL ────────────────────
+      const cleanUrl = url.split('?')[0];
+      console.log('[handleMediaDownload] URL:', cleanUrl);
+
+      // ── Step 2: Determine file extension ───────────────────────────────────
+      const urlParts = cleanUrl.split('.');
+      const ext = (urlParts[urlParts.length - 1] || 'jpg').split('?')[0];
+      const filename = `${mediaType}_${Date.now()}.${ext}`;
+
+      console.log('[handleMediaDownload] Downloading to cache:', filename);
+
+      // ── Step 3: Download file using new File.downloadFileAsync API ───────────
+      const destFile = new File(Paths.cache, filename);
+      const downloadedFile = await File.downloadFileAsync(cleanUrl, destFile);
+      console.log('[handleMediaDownload] Downloaded:', downloadedFile.uri);
+
+      // ── Step 4: Save Directly to Library ──────────────────────────────────────
+      // Requesting with writeOnly: true avoids requiring READ_MEDIA_AUDIO permission on Android 13+
+      const { status } = await MediaLibrary.requestPermissionsAsync(true);
+      if (status === 'granted') {
+        try {
+          await MediaLibrary.saveToLibraryAsync(downloadedFile.uri);
+          Alert.alert('Success', `${fileType === 'photo' ? 'Photo' : 'Video'} saved to your library!`);
+          return;
+        } catch (saveErr) {
+          console.warn('[handleMediaDownload] MediaLibrary save failed, falling back to Sharing:', saveErr);
+        }
       }
 
-      // ── Step 2: Strip Supabase transform params from URL ────────────────────
-      // Supabase adds ?transform=... which breaks direct file downloads
-      const cleanUrl = url.split('?')[0];
-      console.log('[handleMediaDownload] Original URL:', url);
-      console.log('[handleMediaDownload] Clean URL:', cleanUrl);
-
-      // ── Step 3: Determine file extension ───────────────────────────────────
-      const urlParts = cleanUrl.split('.');
-      const lastPart = urlParts[urlParts.length - 1];
-      const ext = lastPart.split('?')[0] || 'jpg';
-      const filename = `${mediaType}_${Date.now()}.${ext}`;
-      // @ts-ignore
-      const localUri = `${FileSystem.cacheDirectory}${filename}`;
-
-      console.log('[handleMediaDownload] Downloading to:', localUri);
-
-      // ── Step 4: Download file ───────────────────────────────────────────────
-      const { uri: downloadedUri } = await FileSystem.downloadAsync(cleanUrl, localUri);
-      console.log('[handleMediaDownload] Downloaded to:', downloadedUri);
-
-      // ── Step 5: Save to photo library ──────────────────────────────────────
-      const asset = await MediaLibrary.createAssetAsync(downloadedUri);
-      console.log('[handleMediaDownload] Saved as asset:', asset.id);
-
-      Alert.alert('Downloaded', 'Photo saved to your photo library.');
+      // ── Step 5: Fallback to Sharing ──────────────────────────────────────────
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(downloadedFile.uri);
+      } else {
+        Alert.alert('Error', 'Unable to save or share this file.');
+      }
     } catch (err: any) {
       console.error('[handleMediaDownload] Error:', err);
-      // Provide a more helpful error message
-      const errorMessage = err?.message || 'Unknown error';
-      if (errorMessage.includes('network') || errorMessage.includes('ENOTFOUND')) {
+      const errorMessage = err?.message || String(err);
+      if (errorMessage.includes('network') || errorMessage.includes('ENOTFOUND') || errorMessage.includes('UnableToDownload')) {
         Alert.alert('Network Error', 'Could not reach the server. Please check your connection and try again.');
-      } else if (errorMessage.includes('403') || errorMessage.includes('401')) {
+      } else if (errorMessage.includes('403') || errorMessage.includes('401') || errorMessage.includes('permission')) {
         Alert.alert('Access Denied', 'The file may no longer be publicly accessible.');
       } else {
         Alert.alert('Download Failed', `Could not download the photo. ${errorMessage}`);
@@ -743,19 +796,19 @@ export default function TicketDetailScreen() {
       const isImage = media.type === 'image';
       const newExtension = isImage ? 'jpg' : 'mp4';
       const newBucket = isImage ? 'ticket_photos' : 'ticket_videos';
-      const newPath = getStoragePath(id as string, mediaUploadType, newExtension);
+      const newPath = getStoragePath(propertyId as string, id as string, mediaUploadType, newExtension);
 
       // ── Step 1: Delete the old file from storage (if any) ──────────────────
       const oldPhotoUrl = mediaUploadType === 'before' ? ticket?.photo_before_url : ticket?.photo_after_url;
       const oldVideoUrl = mediaUploadType === 'before' ? ticket?.video_before_url : ticket?.video_after_url;
 
       if (oldPhotoUrl) {
-        const oldPath = getStoragePathForSlot(id as string, mediaUploadType, true);
+        const oldPath = getStoragePathForSlot(propertyId as string, id as string, mediaUploadType, true);
         console.log('[handleMediaUpload] Deleting old photo:', oldPath);
         await supabase.storage.from('ticket_photos').remove([oldPath]);
       }
       if (oldVideoUrl) {
-        const oldPath = getStoragePathForSlot(id as string, mediaUploadType, false);
+        const oldPath = getStoragePathForSlot(propertyId as string, id as string, mediaUploadType, false);
         console.log('[handleMediaUpload] Deleting old video:', oldPath);
         await supabase.storage.from('ticket_videos').remove([oldPath]);
       }
@@ -767,14 +820,18 @@ export default function TicketDetailScreen() {
         finalUri = await compressImage(media.uri);
       }
 
-      // ── Step 3: Upload new file (overwrites at the same path) ─────────────────
-      console.log('[handleMediaUpload] Uploading to:', newPath, 'bucket:', newBucket);
-      const response = await fetch(finalUri);
-      const blob = await response.blob();
+      // ── Step 3: Upload new file (overwrites at the same path) ────────────
+      // Use an explicit Bearer token client to ensure RLS compliance in Expo Go
+      const authClient = session?.access_token 
+        ? createClientFromToken(session.access_token)
+        : supabase;
 
-      const { error: uploadError } = await supabase.storage
+      console.log('[handleMediaUpload] Final upload attempt — Bucket:', newBucket, 'Path:', newPath);
+      const arrayBuffer = await readFileAsArrayBuffer(finalUri);
+
+      const { error: uploadError } = await authClient.storage
         .from(newBucket)
-        .upload(newPath, blob, {
+        .upload(newPath, arrayBuffer, {
           contentType: isImage ? 'image/jpeg' : 'video/mp4',
           cacheControl: '3600',
           upsert: true,
@@ -783,7 +840,7 @@ export default function TicketDetailScreen() {
       if (uploadError) throw uploadError;
 
       // ── Step 4: Get public URL and strip Supabase transform params ───────────
-      const { data: { publicUrl: rawUrl } } = supabase.storage
+      const { data: { publicUrl: rawUrl } } = authClient.storage
         .from(newBucket)
         .getPublicUrl(newPath);
 
@@ -847,7 +904,45 @@ export default function TicketDetailScreen() {
   };
 
   const pCfg = ticket ? (PRIORITY_CONFIG[ticket.priority?.toLowerCase()] ?? PRIORITY_CONFIG.low) : PRIORITY_CONFIG.low;
-  const isAssignee = currentUser && ticket?.assignee?.id === currentUser.id;
+
+  // isAssignee: true when the current user is the ticket's assignee.
+  // We check BOTH the resolved assignee relationship (ticket.assignee.id) AND the raw
+  // assigned_to column. The relationship query can silently fail on mobile (PostgREST
+  // FK join blocked by RLS or not resolved in time), while the raw column is always
+  // returned directly from the tickets table.
+  // isAssignee: true when the current user is the ticket's assignee.
+  // We check BOTH the resolved assignee relationship (ticket.assignee.id) AND the raw
+  // assigned_to column. The relationship query can silently fail on mobile (PostgREST
+  // FK join blocked by RLS or not resolved in time), while the raw column is always
+  // returned directly from the tickets table.
+  // authUser comes from AuthContext and is the definitive source of truth for the
+  // current session on both web and Expo Go.
+  const isMSTUser = currentUserRole === 'mst' || currentUserRole === 'property_mst' || currentUserRole === 'property_admin';
+
+  const isAssignee = Boolean(
+    authUser?.id &&
+    (
+      ticket?.assignee?.id === authUser.id ||
+      // Normalise both sides to strings for comparison (assigned_to may be stored as
+      // a string or as an integer cast from a UUID)
+      String(ticket?.assigned_to ?? '') === String(authUser.id) ||
+      ticket?.assigned_to === authUser.id
+    )
+  );
+
+  const canOperateOnTicket = isAssignee || isMSTUser;
+
+  // DEBUG: Log isAssignee resolution every render
+  if (__DEV__ && ticket) {
+    console.log('[TicketDetail] isAssignee check:', {
+      authUserId: authUser?.id,
+      assigneeRelId: ticket.assignee?.id,
+      rawAssignedTo: ticket.assigned_to,
+      isAssignee,
+      status: ticket.status,
+    });
+  }
+
   const isTenant = currentUserRole === 'client';
   const bg = isDark ? '#0F1521' : '#F8FAFC';
   const cardBg = isDark ? '#1E2633' : '#FFFFFF';
@@ -1022,13 +1117,21 @@ export default function TicketDetailScreen() {
               <View style={[styles.priorityBadge, { backgroundColor: pCfg.bg }]}>
                 <Text style={[styles.priorityText, { color: pCfg.text }]}>{pCfg.label}</Text>
               </View>
-              {ticket.category && (
-                <View style={[styles.categoryBadge, { backgroundColor: isDark ? '#1E2633' : '#F1F5F9' }]}>
-                  <Text style={[styles.categoryText, { color: textSecondary }]}>
-                    {ticket.category}
-                  </Text>
-                </View>
-              )}
+              {(() => {
+                const cat = ticket.category;
+                if (!cat) return null;
+                const name = typeof cat === 'string' ? cat : cat.name;
+                // Filter out generic/unwanted category codes
+                const skipCodes = ['premium', 'standard', 'basic', 'n/a', 'other', 'washroom hygiene'];
+                if (skipCodes.includes(name.toLowerCase())) return null;
+                return (
+                  <View style={[styles.categoryBadge, { backgroundColor: isDark ? '#1E2633' : '#F1F5F9' }]}>
+                    <Text style={[styles.categoryText, { color: textSecondary }]}>
+                      {name}
+                    </Text>
+                  </View>
+                );
+              })()}
               {ticket.work_paused && (
                 <View style={[styles.pausedBadge, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
                   <Ionicons name="pause" size={10} color="#F59E0B" />
@@ -1038,13 +1141,13 @@ export default function TicketDetailScreen() {
             </View>
           </View>
 
-          {/* Assignee Actions */}
-          {isAssignee && ticket.status !== 'resolved' && (
+          {/* Actions Section — Accessible to all roles for reassignment/management */}
+          {(canOperateOnTicket || isTenant) && ticket.status !== 'resolved' && (
             <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
-              <Text style={[styles.sectionTitle, { color: textPrimary }]}>My Actions</Text>
+              <Text style={[styles.sectionTitle, { color: textPrimary }]}>Ticket Actions</Text>
               <View style={styles.primaryActionRow}>
-                {/* Start Work */}
-                {(ticket.status === 'assigned' || ticket.status === 'open') && (
+                {/* Start Work — Only for the assigned technician */}
+                {isAssignee && (ticket.status === 'assigned' || ticket.status === 'open') && (
                   <TouchableOpacity
                     style={[styles.primaryBlockBtn, { backgroundColor: '#3B82F6', flex: 1 }]}
                     onPress={() => handleUpdateStatus('in_progress')}
@@ -1058,8 +1161,8 @@ export default function TicketDetailScreen() {
                     <Text style={styles.primaryBlockBtnText}>Start Work</Text>
                   </TouchableOpacity>
                 )}
-                {/* Complete / Send for Validation */}
-                {ticket.status === 'in_progress' && (
+                {/* Complete / Send for Validation — Only for the assigned technician */}
+                {isAssignee && ticket.status === 'in_progress' && (
                   <TouchableOpacity
                     style={[styles.primaryBlockBtn, { backgroundColor: validationEnabled ? '#8B5CF6' : '#10B981', flex: 1 }]}
                     onPress={() => handleUpdateStatus(validationEnabled ? 'pending_validation' : 'closed')}
@@ -1212,9 +1315,13 @@ export default function TicketDetailScreen() {
             <Text style={[styles.sectionTitle, { color: textPrimary }]}>Ticket Information</Text>
             
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
-              <Text style={{ color: textSecondary, fontSize: 14 }}>Category</Text>
+              <Text style={{ color: textSecondary, fontSize: 14 }}>Department</Text>
               <Text style={{ color: textPrimary, fontSize: 14, fontWeight: '500' }}>
-                {ticket.category || (ticket.skill_group ? ticket.skill_group.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A')}
+                {ticket.skill_group
+                  ? (typeof ticket.skill_group === 'string'
+                      ? ticket.skill_group.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+                      : ticket.skill_group.name)
+                  : 'N/A'}
               </Text>
             </View>
 
@@ -1293,7 +1400,7 @@ export default function TicketDetailScreen() {
 
                 {/* 2. Activity Log Events */}
                 {activities.map((act, idx) => {
-                  const isReassign = act.action?.includes('reassign') || act.action === 'assigned';
+                  const isReassign = act.action?.includes('reassign') || act.action === 'assigned' || act.action === 'reopened';
                   const isStart = act.action === 'work_started' || act.action === 'in_progress';
                   const isComplete = act.action === 'completed' || act.action === 'resolved' || act.action === 'closed';
                   const isPause = act.action === 'paused' || act.action === 'pause_work';
@@ -1307,9 +1414,14 @@ export default function TicketDetailScreen() {
                   let actionLabel = act.action?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) ?? 'Event';
 
                   if (isReassign) {
-                    iconName = 'swap-horizontal';
                     dotColor = '#3B82F6';
-                    actionLabel = act.action === 'assigned' ? 'Ticket Assigned' : 'Ticket Reassigned';
+                    if (act.action === 'reopened') {
+                      iconName = 'refresh-circle';
+                      actionLabel = 'Ticket Reopened';
+                    } else {
+                      iconName = 'swap-horizontal';
+                      actionLabel = act.action === 'assigned' ? 'Ticket Assigned' : 'Ticket Reassigned';
+                    }
                   } else if (isStart) {
                     iconName = 'play-circle';
                     dotColor = '#F59E0B';
@@ -1672,7 +1784,7 @@ export default function TicketDetailScreen() {
                   ...comments.map(c => ({ ...c, type: 'comment' as const }))
                 ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
                  .map(event => {
-                    const isMe = currentUser && event.user_id === currentUser.id;
+                    const isMe = Boolean(authUser?.id && event.user_id === authUser.id);
                     return (
                       <View key={`com_${event.id}`} style={[styles.chatRow, isMe ? styles.chatRowRight : styles.chatRowLeft]}>
                         {!isMe && (
@@ -1797,11 +1909,11 @@ export default function TicketDetailScreen() {
           <Text style={[styles.navText, { color: textTertiary }]}>LOGGERS</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => Alert.alert('More', 'More menu coming soon')}>
+        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/profile`)}>
           <View style={styles.navIconWrapper}>
-            <Ionicons name="ellipsis-horizontal" size={22} color={textTertiary} />
+            <Ionicons name="person-outline" size={22} color={textTertiary} />
           </View>
-          <Text style={[styles.navText, { color: textTertiary }]}>MORE</Text>
+          <Text style={[styles.navText, { color: textTertiary }]}>PROFILE</Text>
         </TouchableOpacity>
       </View>
 
@@ -1841,7 +1953,7 @@ export default function TicketDetailScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
           style={styles.modalOverlay}
         >
-          <View style={[styles.pickerCard, { backgroundColor: isDark ? '#1E2633' : '#FFF', borderColor, width: '90%', padding: 24, borderRadius: 24 }]}>
+          <View style={[styles.pickerCard, { backgroundColor: isDark ? '#1E2633' : '#FFF', borderColor, width: '96%', padding: 20, borderRadius: 28, maxHeight: '90%' }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Ionicons name="cube-outline" size={24} color="#69D2A4" />
@@ -1937,7 +2049,7 @@ export default function TicketDetailScreen() {
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={{ maxHeight: 300, marginBottom: 16 }}>
+            <ScrollView style={{ maxHeight: 450, marginBottom: 16 }} showsVerticalScrollIndicator={false}>
               {materialItems.map((item, index) => (
                 <View key={index} style={{ 
                   borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 20, 
@@ -2072,17 +2184,54 @@ export default function TicketDetailScreen() {
       />
 
       {/* Loggers Modal */}
-      <Modal visible={showLoggersMenu} transparent animationType="fade" onRequestClose={() => setShowLoggersMenu(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowLoggersMenu(false)}>
-          <View style={{ backgroundColor: cardBg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: textPrimary, marginBottom: 16 }}>Loggers</Text>
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: borderColor }} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/electricity` as any); }}>
-              <Ionicons name="flash-outline" size={20} color={primary} />
-              <Text style={{ fontSize: 16, fontWeight: '600', color: textPrimary }}>Electricity Logger</Text>
+      <Modal visible={showLoggersMenu} transparent animationType="slide" onRequestClose={() => setShowLoggersMenu(false)}>
+        <TouchableOpacity 
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} 
+          activeOpacity={1} 
+          onPress={() => setShowLoggersMenu(false)}
+        >
+          <View style={{ 
+            backgroundColor: cardBg, 
+            borderTopLeftRadius: 32, 
+            borderTopRightRadius: 32, 
+            padding: 24, 
+            paddingBottom: Math.max(insets.bottom, 40),
+            width: '100%',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 12,
+            elevation: 20
+          }}>
+            <View style={{ width: 40, height: 4, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
+            <Text style={{ fontSize: 20, fontWeight: '800', color: textPrimary, marginBottom: 20 }}>Utility Loggers</Text>
+            
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 18, gap: 14, borderBottomWidth: 1, borderBottomColor: borderColor }} 
+              onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/electricity` as any); }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(245,158,11,0.1)', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="flash" size={20} color="#F59E0B" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: textPrimary }}>Electricity Logger</Text>
+                <Text style={{ fontSize: 12, color: textSecondary }}>Log power consumption & meter readings</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={textTertiary} />
             </TouchableOpacity>
-            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: borderColor }} onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/diesel` as any); }}>
-              <Ionicons name="water-outline" size={20} color={primary} />
-              <Text style={{ fontSize: 16, fontWeight: '600', color: textPrimary }}>Diesel Logger</Text>
+
+            <TouchableOpacity 
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 18, gap: 14 }} 
+              onPress={() => { setShowLoggersMenu(false); router.push(`/property/${propertyId}/diesel` as any); }}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(59,130,246,0.1)', justifyContent: 'center', alignItems: 'center' }}>
+                <Ionicons name="water" size={20} color="#3B82F6" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: textPrimary }}>Diesel Logger</Text>
+                <Text style={{ fontSize: 12, color: textSecondary }}>Log fuel refills & generator levels</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={textTertiary} />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -2100,8 +2249,9 @@ export default function TicketDetailScreen() {
               if (fileType === 'photo' && url) {
                 setPreviewMediaUrl(url);
                 setShowImagePreview(true);
-              } else {
-                Alert.alert('Preview', 'Video preview is not available on mobile yet. Please use the web app.');
+              } else if (fileType === 'video' && url) {
+                setPreviewMediaUrl(url);
+                setShowVideoPreview(true);
               }
             }}
             onReplace={() => {
@@ -2129,6 +2279,12 @@ export default function TicketDetailScreen() {
         onClose={() => setShowImagePreview(false)}
         imageUrl={previewMediaUrl}
         title={`${selectedMediaSlot === 'before' ? 'Before' : 'After'} Photo`}
+      />
+
+      <VideoPreviewModal
+        visible={showVideoPreview}
+        onClose={() => setShowVideoPreview(false)}
+        videoUrl={previewMediaUrl}
       />
     </View>
   );
