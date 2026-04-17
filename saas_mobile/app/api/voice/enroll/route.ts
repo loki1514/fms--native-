@@ -261,3 +261,6 @@ export async function POST(request: Request) {
 export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
+
+// Placeholder default export — HTTP method exports handle routing
+export default function GET(_request: Request) { return null; }

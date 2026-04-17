@@ -22,6 +22,8 @@ import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
 import { AppBottomNav } from '@/components/shared/AppBottomNav';
 import { LoggersMenu } from '@/components/shared/LoggersMenu';
+import GeneratorConfigModal from '@/components/diesel/GeneratorConfigModal';
+import DGTariffModal from '@/components/diesel/DGTariffModal';
 import {
   Fuel,
   ChevronDown,
@@ -31,6 +33,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Trash2,
+  Zap,
 } from 'lucide-react-native';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -236,20 +239,27 @@ function GeneratorCard({
   generator,
   lastClosing,
   latestReading,
+  periodHours,
+  periodConsumption,
   colors,
   onPress,
+  onEdit,
 }: {
   generator: Generator;
   lastClosing: LastClosing | null;
   latestReading: DieselReading | null;
+  periodHours: number;
+  periodConsumption: number;
   colors: typeof Colors.light;
   onPress: () => void;
+  onEdit: () => void;
 }) {
   const statusColor =
     generator.status === 'active' ? colors.success :
     generator.status === 'inactive' ? colors.error : colors.textTertiary;
 
   const fuelLevel = latestReading?.closing_diesel_level ?? lastClosing?.diesel ?? 0;
+  const kwhReading = latestReading?.closing_kwh ?? lastClosing?.kwh ?? 0;
   const tankCapacity = generator.tank_capacity_litres ?? 1000;
   const lastReadingTime = latestReading?.created_at
     ? formatRelative(latestReading.created_at)
@@ -274,6 +284,9 @@ function GeneratorCard({
           <View style={[styles.genStatusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.genStatusText, { color: statusColor }]}>{statusLabel}</Text>
         </View>
+        <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="create-outline" size={18} color={colors.textTertiary} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.genCardFuel}>
@@ -292,7 +305,13 @@ function GeneratorCard({
         <View style={styles.genCardFooterItem}>
           <TrendingUp size={12} color={colors.textTertiary} />
           <Text style={[styles.genCardFooterText, { color: colors.textTertiary }]}>
-            {latestReading ? `${(latestReading.closing_hours - latestReading.opening_hours).toFixed(1)}h` : '-'}
+            {periodHours > 0 ? `${periodHours.toFixed(1)}h` : '-'}
+          </Text>
+        </View>
+        <View style={styles.genCardFooterItem}>
+          <Zap size={12} color={colors.textTertiary} />
+          <Text style={[styles.genCardFooterText, { color: colors.textTertiary }]}>
+            {periodConsumption > 0 ? `${periodConsumption.toFixed(0)} L` : '-'}
           </Text>
         </View>
         <ArrowRight size={14} color={colors.textTertiary} />
@@ -322,6 +341,7 @@ function LogReadingModal({
 }) {
   const [selectedGenId, setSelectedGenId] = useState<string>('');
   const [closingHours, setClosingHours] = useState('');
+  const [closingKwh, setClosingKwh] = useState('');
   const [closingDiesel, setClosingDiesel] = useState('');
   const [dieselAdded, setDieselAdded] = useState('');
   const [notes, setNotes] = useState('');
@@ -406,6 +426,7 @@ function LogReadingModal({
   useEffect(() => {
     if (!visible) {
       setClosingHours('');
+      setClosingKwh('');
       setClosingDiesel('');
       setDieselAdded('');
       setNotes('');
@@ -430,6 +451,7 @@ function LogReadingModal({
     }
     const o = opening;
     const cH = parseFloat(closingHours);
+    const cK = parseFloat(closingKwh) || 0;
     const cD = parseFloat(closingDiesel);
     const added = parseFloat(dieselAdded) || 0;
     const ceiling = ceilings[selectedGenId] ?? { hours: null, diesel: null };
@@ -453,7 +475,7 @@ function LogReadingModal({
           opening_hours: o.hours,
           closing_hours: cH,
           opening_kwh: o.kwh,
-          closing_kwh: o.kwh,
+          closing_kwh: cK,
           opening_diesel_level: o.diesel,
           closing_diesel_level: cD,
           diesel_added_litres: added,
@@ -469,6 +491,7 @@ function LogReadingModal({
         .update({
           initial_run_hours: cH,
           initial_diesel_level: cD,
+          initial_kwh_reading: cK,
         })
         .eq('id', selectedGenId);
 
@@ -579,6 +602,17 @@ function LogReadingModal({
                 value={closingHours}
                 onChangeText={setClosingHours}
                 placeholder="e.g. 125.5"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="decimal-pad"
+              />
+
+              {/* KWH Reading */}
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Current kWh Reading</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                value={closingKwh}
+                onChangeText={setClosingKwh}
+                placeholder="e.g. 5040"
                 placeholderTextColor={colors.textTertiary}
                 keyboardType="decimal-pad"
               />
@@ -755,6 +789,9 @@ export default function DieselScreen() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyReadings, setHistoryReadings] = useState<DieselReading[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showGenConfigModal, setShowGenConfigModal] = useState(false);
+  const [editingGenerator, setEditingGenerator] = useState<Generator | undefined>(undefined);
+  const [showTariffModal, setShowTariffModal] = useState(false);
 
   const handleDeleteReading = async (id: string) => {
     Alert.alert('Delete Reading', 'Are you sure you want to delete this reading entry?', [
@@ -894,6 +931,18 @@ export default function DieselScreen() {
     if (!latestPerGen[r.generator_id]) latestPerGen[r.generator_id] = r;
   });
 
+  const periodGenStats = useMemo(() => {
+    const stats: Record<string, { hours: number, consumption: number }> = {};
+    generators.forEach(g => { stats[g.id] = { hours: 0, consumption: 0 }; });
+    filteredReadings.forEach(r => {
+      if (stats[r.generator_id]) {
+        stats[r.generator_id].hours += (r.closing_hours - r.opening_hours);
+        stats[r.generator_id].consumption += (r.computed_consumed_litres ?? 0);
+      }
+    });
+    return stats;
+  }, [filteredReadings, generators]);
+
   const latestGenReadings = useMemo(() => {
     const result: Record<string, DieselReading> = {};
     readings.forEach(r => {
@@ -933,6 +982,20 @@ export default function DieselScreen() {
             activeOpacity={0.7}
           >
             <Ionicons name="qr-code-outline" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.bellButton, { marginRight: 4 }]}
+            onPress={() => { setEditingGenerator(undefined); setShowGenConfigModal(true); }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add-circle-outline" size={26} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.bellButton, { marginRight: 4 }]}
+            onPress={() => setShowTariffModal(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="cash-outline" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.bellButton}
@@ -1015,11 +1078,14 @@ export default function DieselScreen() {
                   generator={gen}
                   lastClosing={lastClosings[gen.id] ?? null}
                   latestReading={latestGenReadings[gen.id] ?? null}
+                  periodHours={periodGenStats[gen.id]?.hours ?? 0}
+                  periodConsumption={periodGenStats[gen.id]?.consumption ?? 0}
                   colors={colors}
                   onPress={() => {
                     setSelectedGenForLogging(gen.id);
                     setShowSheet(true);
                   }}
+                  onEdit={() => { setEditingGenerator(gen); setShowGenConfigModal(true); }}
                 />
               ))}
             </View>
@@ -1128,6 +1194,20 @@ export default function DieselScreen() {
         />
       )}
 
+      <GeneratorConfigModal
+        visible={showGenConfigModal}
+        onClose={() => { setShowGenConfigModal(false); setEditingGenerator(undefined); }}
+        onSuccess={fetchData}
+        propertyId={propertyId!}
+        existingGenerator={editingGenerator}
+      />
+
+      <DGTariffModal
+        visible={showTariffModal}
+        onClose={() => setShowTariffModal(false)}
+        propertyId={propertyId!}
+        generators={generators}
+      />
 
     </View>
   );

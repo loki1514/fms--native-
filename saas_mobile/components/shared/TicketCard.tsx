@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,12 @@ import {
   StyleSheet,
   ViewStyle,
   Share,
+  Platform,
 } from 'react-native';
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '@/context';
 import { getPriorityConfig, getStatusConfig } from '@/utils/StatusColors';
 
@@ -36,13 +38,18 @@ export interface TicketCardProps {
   onReject?: () => void;
   style?: ViewStyle;
   compact?: boolean;
+  glass?: boolean;
+  blurIntensity?: number;
+  blurContent?: boolean;
+  raisedByName?: string;
 }
 
-export default function TicketCard({
+const TicketCard = memo(function TicketCard({
   id, title, priority, status, ticketNumber, createdAt,
   assignedTo, assigneePhotoUrl, photoUrl, propertyName,
   materialsOrdered, escalationChain, raisedByTenant,
-  onClick, onEdit, onDelete, onShare, onValidate, onReject, style, compact,
+  onClick, onEdit, onDelete, onShare, onValidate, onReject, style, compact, glass,
+  blurIntensity = 40, blurContent = false, raisedByName,
 }: TicketCardProps) {
   const dateObj = new Date(createdAt);
   const dateStr = dateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -119,8 +126,12 @@ export default function TicketCard({
       style={[
         styles.card,
         {
-          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0',
+          backgroundColor: glass 
+            ? (isDark ? 'rgba(30, 41, 59, 0.55)' : 'rgba(255, 255, 255, 0.75)')
+            : (isDark ? '#1E293B' : '#FFFFFF'),
+          borderColor: glass
+            ? (isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.05)')
+            : (isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0'),
           padding: compact ? 12 : 16, 
           gap: compact ? 8 : 12,
         },
@@ -131,20 +142,43 @@ export default function TicketCard({
       onPress={onClick}
       activeOpacity={0.7}
     >
+      {glass && Platform.OS === 'ios' && (
+        <BlurView
+          intensity={blurIntensity}
+          tint={isDark ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       {/* Header */}
       <View style={[styles.headerRow, { gap: compact ? 8 : 12 }]}>
         {photoUrl && (
           <Image source={{ uri: photoUrl }} style={[styles.thumbnail, compact && { width: 44, height: 44 }]} />
         )}
-        <Text style={[styles.title, { color: colors.textPrimary }, compact && { fontSize: 14, lineHeight: 18 }]} numberOfLines={compact ? 1 : 2}>{title}</Text>
+        <Text style={[styles.title, { color: colors.textPrimary, fontWeight: '700' }, compact && { fontSize: 14, lineHeight: 18 }]} numberOfLines={compact ? 1 : 2}>{title}</Text>
         <View style={styles.topActions}>
           {onEdit && (
-            <TouchableOpacity style={[styles.topIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }, compact && { width: 26, height: 26 }]} onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="create-outline" size={compact ? 14 : 16} color={colors.textSecondary} />
+            <TouchableOpacity 
+              style={[
+                styles.topIconBtn, 
+                { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)' }, 
+                compact && { width: 28, height: 28 }
+              ]} 
+              onPress={onEdit} 
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="create-outline" size={compact ? 14 : 16} color="#6366F1" />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={[styles.topIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }, compact && { width: 26, height: 26 }]} onPress={handleShare} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="share-outline" size={compact ? 14 : 16} color={colors.textSecondary} />
+          <TouchableOpacity 
+            style={[
+              styles.topIconBtn, 
+              { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)' }, 
+              compact && { width: 28, height: 28 }
+            ]} 
+            onPress={handleShare} 
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="share-outline" size={compact ? 14 : 16} color="#6366F1" />
           </TouchableOpacity>
         </View>
       </View>
@@ -170,6 +204,14 @@ export default function TicketCard({
           </View>
         )}
       </View>
+
+      {/* Raised By */}
+      {raisedByName && (
+        <View style={[styles.assigneeRow, { gap: compact ? 4 : 6, marginBottom: compact ? 2 : 4 }]}>
+          <Text style={[styles.assigneeLabel, { color: colors.textSecondary }, compact && { fontSize: 11 }]}>Raised By:</Text>
+          <Text style={[styles.assigneeName, { color: colors.textPrimary, fontWeight: '700' }, compact && { fontSize: 12 }]} numberOfLines={1}>{raisedByName}</Text>
+        </View>
+      )}
 
       {/* Assignee */}
       {assignedTo && status !== 'OPEN' && (
@@ -212,18 +254,18 @@ export default function TicketCard({
       )}
 
       {/* Footer */}
-      <View style={[styles.footer, { borderTopColor: colors.border, paddingTop: compact ? 10 : 12 }]}>
-        <View>
-          <Text style={[styles.metaText, { color: colors.textSecondary }, compact && { fontSize: 9 }]}>{ticketNumber} • {dateStr}</Text>
+      <View style={[styles.footer, { borderTopColor: colors.border, paddingTop: compact ? 8 : 10 }]}>
+        <View style={styles.footerLeft}>
+          <Text style={[styles.metaText, { color: colors.textSecondary, fontWeight: '700' }, compact && { fontSize: 9, marginBottom: 0 }]}>{ticketNumber} • {dateStr}</Text>
           <View style={styles.timerRow}>
-            <Ionicons name="timer-outline" size={compact ? 10 : 12} color={timerColor} />
+            <Ionicons name="timer-outline" size={compact ? 9 : 11} color={timerColor} />
             <Text style={[styles.timerText, { color: timerColor }, compact && { fontSize: 9 }]}>
               {isClosed ? `Closed` : formatElapsed(elapsedSec)}
             </Text>
           </View>
         </View>
-        <TouchableOpacity style={[styles.viewBtn, compact && { paddingHorizontal: 12, paddingVertical: 6 }]} onPress={onClick}>
-          <Text style={[styles.viewBtnText, compact && { fontSize: 11 }]}>View</Text>
+        <TouchableOpacity style={[styles.viewBtn, compact && { paddingHorizontal: 10, paddingVertical: 5 }]} onPress={onClick}>
+          <Text style={[styles.viewBtnText, compact && { fontSize: 10 }]}>View</Text>
         </TouchableOpacity>
       </View>
 
@@ -244,9 +286,24 @@ export default function TicketCard({
           )}
         </View>
       )}
+      <View 
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill, 
+          { borderRadius: 16, overflow: 'hidden', opacity: blurContent ? 1 : 0 }
+        ]}
+      >
+        {Platform.OS === 'ios' ? (
+          <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.85)' }]} />
+        )}
+      </View>
     </TouchableOpacity>
   );
-}
+});
+
+export default TicketCard;
 
 const styles = StyleSheet.create({
   card: {
@@ -260,7 +317,7 @@ const styles = StyleSheet.create({
   },
   headerRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   thumbnail: { width: 56, height: 56, borderRadius: 12 },
-  title: { flex: 1, fontSize: 15, fontWeight: '600', lineHeight: 20 },
+  title: { flex: 1, fontSize: 15, fontWeight: '700', lineHeight: 20 },
   topActions: { flexDirection: 'row', gap: 6, marginLeft: 4 },
   topIconBtn: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -276,11 +333,12 @@ const styles = StyleSheet.create({
   escalatedLabel: { fontSize: 10, fontWeight: '600', color: '#EF4444', textTransform: 'uppercase', letterSpacing: 0.5, marginRight: 4 },
   escalationCircle: { width: 24, height: 24, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   escalationInitials: { fontSize: 8, fontWeight: '700' },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 12, borderTopWidth: 1 },
-  metaText: { fontSize: 10, marginBottom: 4 },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTopWidth: 1 },
+  footerLeft: { flex: 1 },
+  metaText: { fontSize: 10, marginBottom: 1 },
   timerRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  timerText: { fontSize: 10, fontWeight: '900' },
-  viewBtn: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#708F96', borderRadius: 10 },
+  timerText: { fontSize: 10, fontWeight: '700' },
+  viewBtn: { paddingHorizontal: 14, paddingVertical: 7, backgroundColor: '#708F96', borderRadius: 10 },
   viewBtnText: { fontSize: 12, fontWeight: '700', color: '#FFF' },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 8 },
   iconBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(100,116,139,0.08)', justifyContent: 'center', alignItems: 'center' },

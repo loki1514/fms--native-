@@ -16,6 +16,7 @@ import {
   Pressable,
   Dimensions,
   Platform,
+  Image,
 } from 'react-native';
 import Animated, { 
   useSharedValue, 
@@ -23,28 +24,55 @@ import Animated, {
   withSpring, 
   runOnJS,
   interpolate,
-  Extrapolate
+  Extrapolate,
+  useDerivedValue
 } from 'react-native-reanimated';
 import { 
   Gesture, 
   GestureDetector, 
   GestureHandlerRootView 
 } from 'react-native-gesture-handler';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createClient } from '../../utils/supabase/client';
-import { WEB_API_BASE } from '../../utils/api/mobileApi';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
 import TicketCard from '../shared/TicketCard';
 import SignOutModal from '../ui/SignOutModal';
-import Skeleton from '../ui/Skeleton';
 import CreateTicketModal from '../shared/CreateTicketModal';
 import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
 import { LoggersMenu } from '../shared/LoggersMenu';
+import { TicketShuffleStack } from '../shared/TicketShuffleStack';
+import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
+
+// ---- Dotted Background Pattern ----
+const DottedBackground = ({ color, isDark }: { color?: string; isDark: boolean }) => {
+  const dotColor = color || (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)');
+  return (
+    <View style={StyleSheet.absoluteFill}>
+       <Svg width="100%" height="100%">
+        <Defs>
+          <Pattern
+            id="dotPattern"
+            x="0"
+            y="0"
+            width="20"
+            height="20"
+            patternUnits="userSpaceOnUse"
+          >
+            <Circle cx="2" cy="2" r="1.2" fill={dotColor} />
+          </Pattern>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#dotPattern)" />
+      </Svg>
+    </View>
+  );
+};
 
 // Types
 type Tab = 'dashboard' | 'requests' | 'profile';
@@ -72,6 +100,9 @@ interface Ticket {
     full_name: string;
     email: string;
     user_photo_url?: string | null;
+  } | null;
+  creator?: {
+    full_name: string;
   } | null;
   photo_before_url?: string;
   raised_by?: string;
@@ -303,6 +334,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
       .select(`
         *,
         assignee:users!assigned_to(id, full_name, email, user_photo_url),
+        creator:users!raised_by(id, full_name),
         ticket_escalation_logs(from_level, to_level, escalated_at, from_employee:users!from_employee_id(full_name, user_photo_url), to_employee:users!to_employee_id(full_name, user_photo_url))
       `)
       .eq('property_id', propertyId)
@@ -404,7 +436,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   // ---- Drawer Nav Items ----
   type DrawerItem = { label: string; icon: keyof typeof Ionicons.glyphMap; tab?: Tab; action?: () => void };
   const DRAWER_ITEMS: DrawerItem[] = [
-    { label: 'Overview',       icon: 'grid-outline',          tab: 'dashboard' },
+    { label: 'Overview',       icon: 'grid-outline',          tab: 'overview' },
     { label: 'Requests',      icon: 'ticket-outline',        tab: 'requests' },
     { label: 'Live Flow Map', icon: 'git-network-outline',   action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/flow-map' as any); } },
   ];
@@ -418,7 +450,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
   const DRAWER_SYSTEM_ITEMS: DrawerItem[] = [
     { label: 'Settings',  icon: 'settings-outline', action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/settings' as any); } },
-    { label: 'Profile',   icon: 'person-outline',  action: () => { setActiveTab('profile'); setDrawerOpen(false); } },
+    { label: 'Profile',   icon: 'person-outline',  action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/profile' as any); } },
   ];
 
   // ---- MstSidebar Drawer ----
@@ -449,10 +481,10 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
           {/* Header */}
           <View style={[styles.drawerHeader, { borderBottomColor: borderColor, paddingTop: Math.max(insets.top, 16) }]}>
             <View style={styles.drawerLogoRow}>
-              <View style={[styles.drawerLogoIcon, { backgroundColor: primary }]}>
-                <Ionicons name="navigate-outline" size={20} color="#FFF" />
-              </View>
-              <Text style={[styles.drawerAppName, { color: textPrimary }]}>Autopilot</Text>
+              <Image 
+                source={require('../../assets/images/autopilot-logo-new.png')} 
+                style={{ height: 52, width: 220, resizeMode: 'stretch', marginLeft: -4 }} 
+              />
             </View>
             <TouchableOpacity style={styles.drawerCloseBtn} onPress={() => setDrawerOpen(false)}>
               <Ionicons name="close" size={22} color={textSecondary} />
@@ -568,131 +600,150 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   }
 
   const renderDashboardTab = () => (
-    <ScrollView 
-      style={[styles.tabContent, { backgroundColor: colors.background }]}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+    <LinearGradient 
+      colors={isDark ? ['#0F172A', '#1E293B'] : ['#FFFFFF', '#F9FBFF']}
+      style={styles.tabContent}
     >
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.headerSubtitle, { color: colors.textPrimary, textTransform: 'uppercase' }]}>
-            {property?.name || 'Property'} • MST: {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST'}
+      <DottedBackground isDark={isDark} />
+      <ScrollView 
+        style={{ flex: 1 }}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
+        {/* High-Fidelity Header Row */}
+        <View style={mstStyles.premiumHeader}>
+          <Text style={[mstStyles.headerContext, { color: colors.textSecondary }]}>
+            {(property?.name || 'HEAD OFFICE').toUpperCase()} • MST: {(user?.user_metadata?.full_name || 'MST HO').toUpperCase()}
           </Text>
-        </View>
-        
-        <TouchableOpacity 
-          style={[
-            styles.shiftToggle, 
-            { backgroundColor: isMstCheckedIn ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', borderColor: isMstCheckedIn ? '#10B981' : '#EF4444' }
-          ]}
-          onPress={toggleMstShift}
-          disabled={isCheckingInOut}
-          activeOpacity={0.7}
-        >
-          {isCheckingInOut ? (
-            <ActivityIndicator size="small" color={isMstCheckedIn ? '#10B981' : '#EF4444'} />
-          ) : (
-            <>
-              <View style={[styles.statusDot, { backgroundColor: isMstCheckedIn ? '#10B981' : '#EF4444' }]} />
-              <Text style={[styles.shiftToggleText, { color: isMstCheckedIn ? '#10B981' : '#EF4444' }]}>
-                {isMstCheckedIn ? 'ON DUTY' : 'OFF DUTY'}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
 
-      {/* Stats Cards */}
-      <View style={styles.statsContainer}>
-        <TouchableOpacity 
-          style={[styles.glassStatCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC', borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }]}
-          onPress={() => setRequestFilter('all')}
-        >
-          <Text style={[styles.statNumber, { color: colors.primary }]}>{totalTickets}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total</Text>
-          <View style={styles.statDetailRow}>
-            <Ionicons name="trending-up" size={10} color={colors.textTertiary} />
-            <Text style={styles.statDetailText}>Active View</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.glassStatCard, { backgroundColor: isDark ? 'rgba(59,130,246,0.08)' : '#EFF6FF', borderColor: isDark ? 'rgba(59,130,246,0.2)' : '#BFDBFE' }]}
-          onPress={() => setRequestFilter('active')}
-        >
-          <Text style={[styles.statNumber, { color: '#3B82F6' }]}>{activeCount}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Active</Text>
-          {statsData.urgent > 0 && (
-             <View style={styles.statDetailRow}>
-                <View style={[styles.urgentDot, { backgroundColor: '#EF4444' }]} />
-                <Text style={[styles.statDetailText, { color: '#EF4444' }]}>{statsData.urgent} Priority</Text>
-             </View>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.glassStatCard, { backgroundColor: isDark ? 'rgba(16,185,129,0.08)' : '#ECFDF5', borderColor: isDark ? 'rgba(16,185,129,0.2)' : '#A7F3D0' }]}
-          onPress={() => setRequestFilter('completed')}
-        >
-          <Text style={[styles.statNumber, { color: colors.success }]}>{completedTickets.length}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Done</Text>
-          <View style={styles.statDetailRow}>
-             <Text style={[styles.statDetailText, { color: colors.success }]}>{statsData.rate}% Rate</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Search */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Ionicons name="search" size={20} color={colors.textTertiary} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.textPrimary }]}
-          placeholder="Search requests..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholderTextColor={colors.textTertiary}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Property Requests */}
-      <View style={[styles.section, { backgroundColor: colors.background }]}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <View>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Property Requests</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary, marginBottom: 0 }]}>All requests for this property</Text>
-          </View>
           <TouchableOpacity 
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-            onPress={() => setActiveTab('requests')}
+            style={[
+              mstStyles.premiumShiftToggle, 
+              { 
+                backgroundColor: isMstCheckedIn ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)', 
+                borderColor: isMstCheckedIn ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)' 
+              }
+            ]}
+            onPress={toggleMstShift}
+            disabled={isCheckingInOut}
           >
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>View All</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+            {isCheckingInOut ? (
+              <ActivityIndicator size="small" color={isMstCheckedIn ? '#10B981' : '#EF4444'} />
+            ) : (
+              <>
+                <View style={[mstStyles.statusDot, { backgroundColor: isMstCheckedIn ? '#10B981' : '#EF4444' }]} />
+                <Text style={[mstStyles.shiftToggleText, { color: isMstCheckedIn ? '#10B981' : '#EF4444' }]}>
+                  {isMstCheckedIn ? 'ON DUTY' : 'OFF DUTY'}
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
-        
-        {isFetching ? (
-          <View style={styles.skeletonContainer}>
-            {[1, 2, 3].map(i => (
-              <Skeleton key={i} height={120} borderRadius={16} style={styles.skeletonCard} />
-            ))}
+
+        {/* Statistics Grid - Squared Glass Cards */}
+        <View style={mstStyles.premiumStatsGrid}>
+          {/* Total Card */}
+          <TouchableOpacity 
+            style={[mstStyles.squareGlassCard, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)', borderColor: isDark ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.25)', borderWidth: 1.5 }]}
+            onPress={() => setRequestFilter('all')}
+          >
+            {Platform.OS === 'ios' && <BlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+            <View style={mstStyles.squareCardContent}>
+              <Text style={[mstStyles.squareStatNumber, { color: isDark ? '#A5B4FC' : '#6366F1' }]}>{totalTickets}</Text>
+              <Text style={[mstStyles.squareStatLabel, { color: isDark ? '#A5B4FC' : '#6366F1', opacity: 0.8 }]}>TOTAL</Text>
+              <View style={mstStyles.squareStatAction}>
+                <Ionicons name="layers-outline" size={10} color={isDark ? '#A5B4FC' : '#6366F1'} />
+                <Text style={[mstStyles.squareStatActionText, { color: isDark ? '#A5B4FC' : '#6366F1' }]}>All Tasks</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* Active Card */}
+          <TouchableOpacity 
+            style={[mstStyles.squareGlassCard, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)' }]}
+            onPress={() => setRequestFilter('active')}
+          >
+            {Platform.OS === 'ios' && <BlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+            <View style={mstStyles.squareCardContent}>
+              <Text style={[mstStyles.squareStatNumber, { color: '#3B82F6' }]}>{activeCount}</Text>
+              <Text style={[mstStyles.squareStatLabel, { color: colors.textSecondary }]}>ACTIVE</Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Done Card */}
+          <TouchableOpacity 
+            style={[mstStyles.squareGlassCard, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)' }]}
+            onPress={() => setRequestFilter('completed')}
+          >
+            {Platform.OS === 'ios' && <BlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+            <View style={mstStyles.squareCardContent}>
+              <Text style={[mstStyles.squareStatNumber, { color: '#10B981' }]}>{completedCount}</Text>
+              <Text style={[mstStyles.squareStatLabel, { color: colors.textSecondary }]}>DONE</Text>
+              <Text style={[mstStyles.squareStatActionText, { color: '#10B981' }]}>{Math.round((completedCount/Math.max(1, totalTickets))*100)}% Rate</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Search Bar */}
+        <View style={mstStyles.searchContainer}>
+          <View style={[mstStyles.searchBar, { backgroundColor: isDark ? 'rgba(30, 41, 59, 0.8)' : '#FFF', borderColor: colors.border }]}>
+            <Ionicons name="search-outline" size={20} color={colors.textSecondary} />
+            <TextInput 
+              placeholder="Search requests..."
+              placeholderTextColor={colors.textSecondary}
+              style={[mstStyles.searchInput, { color: colors.textPrimary }]}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
           </View>
-        ) : filteredIncomingTickets.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="clipboard-outline" size={48} color="#CBD5E1" />
-            <Text style={styles.emptyStateText}>No requests found</Text>
+        </View>
+
+        {/* Property Requests Header */}
+        <View style={mstStyles.requestsHeaderRow}>
+          <View>
+            <Text style={[mstStyles.requestsTitle, { color: colors.textPrimary }]}>Property Requests</Text>
+            <Text style={[mstStyles.requestsSubtitle, { color: colors.textSecondary }]}>All requests for this property</Text>
           </View>
-        ) : (
-          <View style={styles.ticketsList}>
-            <MstShuffleStack tickets={filteredIncomingTickets} user={user} propertyId={propertyId} onEdit={setEditingTicket} />
-          </View>
-        )}
-      </View>
-    </ScrollView>
+          <TouchableOpacity onPress={() => setActiveTab('requests')} style={mstStyles.viewAllBtn}>
+            <Text style={mstStyles.viewAllText}>View All</Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Shuffled Stack Section */}
+        <View style={[mstStyles.stackSection, { height: 320, justifyContent: 'center' }]}>
+          <TicketShuffleStack tickets={incomingTickets} user={user} propertyId={propertyId} onEdit={(t) => {
+            setEditingTicket(t as any);
+            setEditTitle(t.title);
+            setEditDescription(t.description || '');
+          }} />
+        </View>
+
+        {/* Recent Completed List */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 12 }]}>Recently Resolved</Text>
+          {completedTickets.slice(0, 3).map(ticket => (
+            <TicketCard 
+              key={ticket.id}
+              id={ticket.id}
+              title={ticket.title}
+              priority={ticket.priority as any}
+              status="COMPLETED"
+              ticketNumber={ticket.ticket_number}
+              createdAt={ticket.created_at}
+              onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+              style={{ marginBottom: 12 }}
+            />
+          ))}
+          {completedTickets.length === 0 && (
+            <View style={[styles.emptyState, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F1F5F9', borderRadius: 20 }]}>
+              <Ionicons name="checkmark-circle-outline" size={40} color={colors.textSecondary} />
+              <Text style={styles.emptyStateText}>No resolved tickets yet</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </LinearGradient>
   );
 
   const renderRequestsTab = () => (
@@ -745,30 +796,47 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Tickets List */}
       <View style={[styles.ticketsList, { backgroundColor: colors.background, paddingHorizontal: 20 }]}>
-        {(requestFilter === 'all' || requestFilter === 'active') && filteredIncomingTickets.map((ticket) => (
-          <TicketCard
-            key={ticket.id}
-            id={ticket.id}
-            title={ticket.title}
-            priority={(ticket.priority?.toUpperCase() as any) || 'MEDIUM'}
-            status={
-              ticket.status === 'in_progress' ? 'IN_PROGRESS' :
-              ticket.assigned_to ? 'ASSIGNED' : 'OPEN'
-            }
-            ticketNumber={ticket.ticket_number}
-            createdAt={ticket.created_at}
-            assignedTo={ticket.assignee?.full_name || 'Unassigned'}
-            assigneePhotoUrl={ticket.assignee?.user_photo_url}
-            photoUrl={ticket.photo_before_url}
-            materialsOrdered={(ticket as any).materials_ordered}
-            onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
-            onEdit={() => {
-              setEditingTicket(ticket);
-              setEditTitle(ticket.title);
-              setEditDescription(ticket.description);
-            }}
-          />
-        ))}
+        {(requestFilter === 'all' || requestFilter === 'active') && filteredIncomingTickets.map((ticket) => {
+          // Calculate escalation chain
+          const logs = ticket.ticket_escalation_logs;
+          let escalationChain = undefined;
+          if (logs && logs.length > 0) {
+            const sorted = [...logs].sort((a, b) => new Date(a.escalated_at).getTime() - new Date(b.escalated_at).getTime());
+            const chain = [];
+            sorted.forEach((log, i) => {
+              if (i === 0 && log.from_employee?.full_name) chain.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url });
+              if (log.to_employee?.full_name) chain.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url });
+            });
+            if (chain.length > 0) escalationChain = chain;
+          }
+
+          return (
+            <TicketCard
+              key={ticket.id}
+              id={ticket.id}
+              title={ticket.title}
+              priority={(ticket.priority?.toUpperCase() as any) || 'MEDIUM'}
+              status={
+                ticket.status === 'in_progress' ? 'IN_PROGRESS' :
+                ticket.assigned_to ? 'ASSIGNED' : 'OPEN'
+              }
+              ticketNumber={ticket.ticket_number}
+              createdAt={ticket.created_at}
+              assignedTo={ticket.assignee?.full_name || 'Unassigned'}
+              assigneePhotoUrl={ticket.assignee?.user_photo_url}
+              photoUrl={ticket.photo_before_url}
+              materialsOrdered={(ticket as any).materials_ordered}
+              raisedByName={ticket.creator?.full_name || 'Anonymous'}
+              escalationChain={escalationChain}
+              onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+              onEdit={() => {
+                setEditingTicket(ticket);
+                setEditTitle(ticket.title);
+                setEditDescription(ticket.description);
+              }}
+            />
+          );
+        })}
         {(requestFilter === 'all' || requestFilter === 'completed') && filteredCompletedTickets.map((ticket) => (
           <TicketCard
             key={ticket.id}
@@ -782,6 +850,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             assigneePhotoUrl={ticket.assignee?.user_photo_url}
             photoUrl={ticket.photo_before_url}
             materialsOrdered={(ticket as any).materials_ordered}
+            raisedByName={ticket.creator?.full_name || 'Anonymous'}
             onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
           />
         ))}
@@ -886,17 +955,10 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         <TouchableOpacity onPress={() => setDrawerOpen(true)} activeOpacity={0.7}>
           <Ionicons name="menu-outline" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={[styles.topNavTitle, { 
-          color: colors.textPrimary, 
-          fontFamily: 'NDot57',
-          fontSize: 14,
-          letterSpacing: 2,
-          fontWeight: '800',
-          lineHeight: 18,
-          textTransform: 'uppercase'
-        }]}>
-          Autopilot
-        </Text>
+        <Image 
+          source={require('../../assets/images/autopilot-logo-new.png')} 
+          style={{ height: 48, width: 200, resizeMode: 'stretch' }}
+        />
 
         {/* Top Right Actions */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1004,157 +1066,13 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
           </View>
         </View>
       </Modal>
-      </View>
-  );
-}
-
-// ---- MST Shuffle Card Container ----
-function MstShuffleStack({ tickets, user, propertyId, onEdit }: { tickets: Ticket[]; user: any; propertyId: string; onEdit: (t: Ticket) => void }) {
-  const router = useRouter();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const translateX = useSharedValue(0);
-
-  const displayTickets = useMemo(() => {
-    const total = tickets.length;
-    if (total === 0) return [];
-    
-    // Prioritize tickets assigned to the current user
-    const sorted = [...tickets].sort((a, b) => {
-        if (a.assigned_to === user?.id && b.assigned_to !== user?.id) return -1;
-        if (a.assigned_to !== user?.id && b.assigned_to === user?.id) return 1;
-        return 0;
-    });
-
-    const items = [];
-    const count = Math.min(4, total); // Show up to 4 cards for a richer stack
-    for(let i = 0; i < count; i++) {
-        items.push(sorted[(currentIndex + i) % total]);
-    }
-    return items;
-  }, [tickets, currentIndex, user?.id]);
-
-  const handleSwipe = () => {
-    translateX.value = 0;
-    setCurrentIndex(prev => prev + 1);
-  };
-
-  return (
-    <View style={mstStyles.stackContainer}>
-      {displayTickets.map((ticket, i) => (
-        <AnimatedTicketCard 
-          key={ticket.id}
-          ticket={ticket}
-          index={i}
-          total={displayTickets.length}
-          translateX={translateX}
-          onSwipe={handleSwipe}
-          user={user}
-          propertyId={propertyId}
-          onEdit={onEdit}
-        />
-      )).reverse()}
     </View>
-  );
-}
-
-function AnimatedTicketCard({ 
-  ticket, index, total, translateX, onSwipe, user, propertyId, onEdit 
-}: { 
-  ticket: Ticket; index: number; total: number; translateX: any; onSwipe: () => void; user: any; propertyId: string; onEdit: (t: Ticket) => void;
-}) {
-  const router = useRouter();
-  const isTop = index === 0;
-
-  const animatedStyle = useAnimatedStyle(() => {
-    if (isTop) {
-      return {
-        transform: [
-          { translateX: translateX.value },
-          { rotate: `${interpolate(translateX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-8, 0, 8], Extrapolate.CLAMP)}deg` }
-        ],
-        zIndex: total,
-      };
-    }
-
-    // Keep cards solid to avoid seeing text from cards behind
-    const stackScale = interpolate(Math.abs(translateX.value), [0, 150], [1 - (index * 0.06), 1 - ((index - 1) * 0.06)], Extrapolate.CLAMP);
-    const stackTranslateY = interpolate(Math.abs(translateX.value), [0, 150], [index * -12, (index - 1) * -12], Extrapolate.CLAMP);
-
-    return {
-      transform: [
-        { scale: stackScale }, 
-        { translateY: stackTranslateY }
-      ],
-      zIndex: total - index,
-    };
-  });
-
-  const pan = Gesture.Pan()
-    .enabled(isTop)
-    .minDistance(5)
-    .shouldCancelWhenOutside(true)
-    .onUpdate((e) => { 
-        translateX.value = e.translationX; 
-    })
-    .onEnd((e) => {
-      if (Math.abs(e.translationX) > 100) {
-        const dest = e.translationX > 0 ? SCREEN_WIDTH : -SCREEN_WIDTH;
-        translateX.value = withSpring(dest, { velocity: e.velocityX, damping: 20, stiffness: 90 }, () => { 
-            runOnJS(onSwipe)(); 
-        });
-      } else {
-        translateX.value = withSpring(0, { damping: 15, stiffness: 120 });
-      }
-    });
-
-  const escalationChain = useMemo(() => {
-    const logs = ticket.ticket_escalation_logs;
-    if (!logs || logs.length === 0) return undefined;
-    const sorted = [...logs].sort((a, b) => new Date(a.escalated_at).getTime() - new Date(b.escalated_at).getTime());
-    const chain: { name: string; avatar?: string | null }[] = [];
-    sorted.forEach((log, i) => {
-      if (i === 0 && log.from_employee?.full_name) chain.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url });
-      if (log.to_employee?.full_name) chain.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url });
-    });
-    return chain.length > 0 ? chain : undefined;
-  }, [ticket.ticket_escalation_logs]);
-
-  return (
-    <GestureDetector gesture={pan}>
-      <Animated.View style={[
-        mstStyles.animatedWrapper, 
-        animatedStyle,
-        Platform.OS === 'web' && { touchAction: 'none' } as any
-      ]}>
-        <TicketCard
-          id={ticket.id}
-          title={ticket.title}
-          priority={(ticket.priority?.toUpperCase() as any) || 'MEDIUM'}
-          status={
-            ['closed', 'resolved'].includes(ticket.status) ? 'COMPLETED' :
-            ticket.status === 'in_progress' ? 'IN_PROGRESS' :
-            ticket.assigned_to ? 'ASSIGNED' : 'OPEN'
-          }
-          ticketNumber={ticket.ticket_number || `TKT-${ticket.id.slice(0,8)}`}
-          createdAt={ticket.created_at}
-          assignedTo={ticket.assignee?.full_name || 'Unassigned'}
-          assigneePhotoUrl={ticket.assignee?.user_photo_url}
-          photoUrl={ticket.photo_before_url}
-          materialsOrdered={(ticket as any).materials_ordered}
-          escalationChain={escalationChain}
-          onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
-          onEdit={() => onEdit(ticket)}
-          compact={true}
-          style={{ height: 190 }} // Reduced further from bottom
-        />
-      </Animated.View>
-    </GestureDetector>
   );
 }
 
 const mstStyles = StyleSheet.create({
   stackContainer: {
-    height: 220, // Reduced to match new card height + offset
+    height: 320, 
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 20,
@@ -1163,14 +1081,142 @@ const mstStyles = StyleSheet.create({
   animatedWrapper: {
     position: 'absolute',
     width: SCREEN_WIDTH - 40,
-    height: 190, // Tighter fit for the bottom
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 4,
     borderRadius: 16,
+  },
+
+  // Premium Dashboard Sections
+  premiumHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 15,
+  },
+  headerContext: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    flex: 1,
+  },
+  premiumShiftToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  shiftToggleText: {
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  
+  premiumStatsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  squareGlassCard: {
+    flex: 1,
+    aspectRatio: 1,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
     overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  squareCardContent: {
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  squareStatNumber: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  squareStatLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  squareStatAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  squareStatActionText: {
+    fontSize: 9,
+    fontWeight: '600',
+  },
+
+  searchContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 22,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 99,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 14,
+    fontWeight: '500',
+    padding: 0, // Remove native padding
+  },
+
+  requestsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 2,
+  },
+  requestsTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  requestsSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
   },
 });
 
@@ -1412,9 +1458,99 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 20,
-    backgroundColor: '#FFF',
-    marginBottom: 12,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    marginBottom: 10,
+  },
+  propertySelectWrapper: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  propertyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 6,
+    paddingRight: 12,
+    borderRadius: 99,
+    borderWidth: 1,
+  },
+  propertyAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  propertyPillInfo: {
+    justifyContent: 'center',
+  },
+  propertyPillName: {
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 14,
+  },
+  propertyPillRole: {
+    fontSize: 9,
+    fontWeight: '600',
+    lineHeight: 10,
+    opacity: 0.7,
+  },
+  notificationIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 1.5,
+    borderColor: '#FFF',
+  },
+  titleArea: {
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  welcomeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'Urbanist-Medium',
+  },
+  nameText: {
+    fontSize: 26,
+    fontWeight: '900',
+    fontFamily: 'Poppins-Bold',
+    letterSpacing: -0.5,
+  },
+  stackSection: {
+    marginBottom: 10,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+    marginBottom: 4,
+  },
+  statIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   headerTitle: {
     fontSize: 24,

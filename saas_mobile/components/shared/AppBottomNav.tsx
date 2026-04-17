@@ -1,25 +1,31 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 
-export type TabKey = 'overview' | 'requests' | 'loggers' | 'profile';
+export type TabKey = 'overview' | 'requests' | 'loggers' | 'profile' | 'stock';
 
 interface AppBottomNavProps {
   activeTab: TabKey;
   propertyId: string;
   onLoggersPress: () => void;
   onCreateRequestPress?: () => void;
+  /** Base route prefix for navigation (default: '/mst') */
+  baseRoute?: string;
+  /** Show Loggers button (MST/Electricity/Diesel) or Stock button (Staff). Default: true (Loggers) */
+  showLoggers?: boolean;
 }
 
-export function AppBottomNav({ 
-  activeTab, 
-  propertyId, 
+export function AppBottomNav({
+  activeTab,
+  propertyId,
   onLoggersPress,
-  onCreateRequestPress 
+  onCreateRequestPress,
+  baseRoute = '/mst',
+  showLoggers = true,
 }: AppBottomNavProps) {
   const router = useRouter();
   const { theme } = useTheme();
@@ -30,84 +36,110 @@ export function AppBottomNav({
   const navigate = (tab: TabKey) => {
     switch (tab) {
       case 'overview':
-        router.push(`/property/${propertyId}/mst` as any);
+        router.push(`/property/${propertyId}${baseRoute}` as any);
         break;
       case 'requests':
-        // If we are already on MstDashboard, we might want to just set a filter, 
-        // but for consistency across screens, we'll navigate to MST with a param or just to MST
-        router.push(`/property/${propertyId}/mst?tab=requests` as any);
+        router.push(`/property/${propertyId}${baseRoute}?tab=requests` as any);
         break;
       case 'profile':
         router.push(`/property/${propertyId}/profile` as any);
         break;
+      case 'stock':
+        router.push(`/property/${propertyId}/stock` as any);
+        break;
     }
   };
 
+  const activeColor = colors.primary;
+  const inactiveColor = isDark ? colors.textTertiary : colors.textSecondary;
+
   const NavItem = ({ tab, icon, label }: { tab: TabKey; icon: keyof typeof Ionicons.glyphMap; label: string }) => {
     const isActive = activeTab === tab;
-    // Premium Blue for active, Slate for inactive
-    const activeColor = '#3B82F6'; 
-    const inactiveColor = isDark ? '#94A3B8' : '#64748B';
-
     return (
-      <TouchableOpacity 
-        style={styles.navItem} 
+      <TouchableOpacity
+        style={styles.navItem}
         onPress={() => tab === 'loggers' ? onLoggersPress() : navigate(tab)}
         activeOpacity={0.7}
       >
-        <View style={[
-          styles.navIconWrapper, 
-          isActive && { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' }
-        ]}>
-          <Ionicons 
-            name={isActive ? (icon.replace('-outline', '') as any) : icon} 
-            size={24} 
-            color={isActive ? activeColor : inactiveColor} 
+        <View style={[styles.navIconWrapper, isActive && { backgroundColor: colors.primary + '1A' }]}>
+          <Ionicons
+            name={isActive ? (icon.replace('-outline', '') as any) : icon}
+            size={24}
+            color={isActive ? activeColor : inactiveColor}
           />
         </View>
-        <Text style={[
-          styles.navText, 
-          { color: isActive ? activeColor : inactiveColor }
-        ]}>
+        <Text style={[styles.navText, { color: isActive ? activeColor : inactiveColor }]}>
           {label}
         </Text>
       </TouchableOpacity>
     );
   };
 
+  // Determine the 4th nav item: Loggers (MST) or Stock (Staff)
+  const FourthNav = () => {
+    if (showLoggers) {
+      return (
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={onLoggersPress}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.navIconWrapper]}>
+            <Ionicons name="options-outline" size={24} color={inactiveColor} />
+          </View>
+          <Text style={[styles.navText, { color: inactiveColor }]}>LOGGERS</Text>
+        </TouchableOpacity>
+      );
+    }
+    // Stock button for Staff/SoftService roles
+    const isStockActive = activeTab === 'stock';
+    return (
+      <TouchableOpacity
+        style={styles.navItem}
+        onPress={() => navigate('stock')}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.navIconWrapper, isStockActive && { backgroundColor: colors.primary + '1A' }]}>
+          <Ionicons
+            name={isStockActive ? 'cube' : 'cube-outline'}
+            size={24}
+            color={isStockActive ? activeColor : inactiveColor}
+          />
+        </View>
+        <Text style={[styles.navText, { color: isStockActive ? activeColor : inactiveColor }]}>STOCK</Text>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={[
-      styles.bottomNav, 
-      { 
-        backgroundColor: isDark ? '#1A2332' : '#FFF', 
-        borderTopColor: isDark ? 'rgba(255,255,255,0.1)' : '#E2E8F0',
+      styles.bottomNav,
+      {
+        backgroundColor: colors.surface,
+        borderTopColor: colors.border,
         paddingBottom: Math.max(insets.bottom, 16)
       }
     ]}>
       <NavItem tab="overview" icon="grid-outline" label="OVERVIEW" />
       <NavItem tab="requests" icon="ticket-outline" label="REQUESTS" />
-      
-      <TouchableOpacity 
-        style={styles.navItemCenter} 
+
+      <TouchableOpacity
+        style={styles.navItemCenter}
         onPress={() => {
           if (onCreateRequestPress) {
             onCreateRequestPress();
           } else {
-            // Default behavior if not on MST dashboard
-            router.push(`/property/${propertyId}/mst` as any);
-            // We can't easily trigger the modal from here if we are navigating, 
-            // so we'll just go home or show an alert
-            Alert.alert('New Request', 'To create a new request, please use the "+" button on the main dashboard.');
+            Alert.alert('New Request', 'Use the "+" button on the dashboard.');
           }
         }}
         activeOpacity={0.8}
       >
-        <View style={styles.centerFab}>
-          <Ionicons name="add" size={32} color="#FFF" />
+        <View style={[styles.centerFab, { backgroundColor: colors.primary, shadowColor: colors.primary, borderColor: colors.surface }]}>
+          <Ionicons name="add" size={32} color={colors.surface} />
         </View>
       </TouchableOpacity>
 
-      <NavItem tab="loggers" icon="options-outline" label="LOGGERS" />
+      <FourthNav />
       <NavItem tab="profile" icon="person-outline" label="PROFILE" />
     </View>
   );
@@ -151,16 +183,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -30, // Lift it up
-    shadowColor: '#3B82F6',
+    marginTop: -30,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 10,
     elevation: 8,
     borderWidth: 4,
-    borderColor: '#FFF',
   },
 });

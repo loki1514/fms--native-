@@ -311,11 +311,20 @@ export default function DieselAnalyticsScreen() {
       setGenerators((gensRes.data as any) || []);
       setReadings((readingsRes.data as any) || []);
 
-      const today = new Date().toISOString().split('T')[0];
-      const tariffRes = await fetch(`/api/properties/${propertyId}/dg-tariffs?date=${today}`);
-      if (tariffRes.ok) {
-        const tData = await tariffRes.json();
-        if (tData) setTariffs({ [tData.id]: tData.cost_per_litre });
+      const todayStr = new Date().toISOString().split('T')[0];
+      // Fetch active tariffs for all generators in property
+      const { data: allTariffs, error: tariffErr } = await supabase
+        .from('dg_tariffs')
+        .select('*')
+        .in('generator_id', (gensRes.data as any[] || []).map(g => g.id))
+        .is('effective_to', null);
+
+      if (!tariffErr && allTariffs) {
+        const tariffMap: Record<string, number> = {};
+        allTariffs.forEach((t: any) => {
+          tariffMap[t.generator_id] = t.cost_per_litre;
+        });
+        setTariffs(tariffMap);
       }
     } catch (e) {
       console.error('Diesel analytics fetch error:', e);
@@ -442,8 +451,8 @@ export default function DieselAnalyticsScreen() {
             />
             <SummaryCard
               label="Est. Cost"
-              value={estimatedCost > 0 ? `$${estimatedCost.toFixed(0)}` : '-'}
-              unit={avgTariff > 0 ? `@ $${avgTariff.toFixed(2)}/L` : ''}
+              value={estimatedCost > 0 ? `₹${estimatedCost.toFixed(0)}` : '-'}
+              unit={avgTariff > 0 ? `@ ₹${avgTariff.toFixed(2)}/L` : ''}
               icon={<DollarSign size={18} color={colors.success} />}
               color={colors.success}
             />
