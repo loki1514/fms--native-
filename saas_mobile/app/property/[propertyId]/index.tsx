@@ -42,7 +42,17 @@ export default function PropertyIndex() {
     return <Redirect href={`/property/${propertyId}/mst`} />;
   }
 
+  // Route org_super_admin / org_admin to the Apple Weather Super Admin dashboard
   if (['org_admin', 'org_super_admin', 'owner', 'super_tenant'].includes(orgRole)) {
+    const orgId = membership.org_id;
+    if (orgId) {
+      return <Redirect href={`/org/${orgId}`} />;
+    }
+    // Fallback if no org_id — use first property's org (last resort)
+    const firstProperty = membership.properties?.[0];
+    if (firstProperty) {
+      return <Redirect href={`/org/${propertyId}`} />;
+    }
     return <Redirect href={`/property/${propertyId}/tenant`} />;
   }
 

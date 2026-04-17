@@ -73,7 +73,7 @@ export default function RootLayout() {
     'Urbanist-Bold': require('../assets/fonts/Urbanist.ttf'),
     // Pixel/dot-matrix font for property brand names (Nothing OS style)
     'PressStart2P': require('../assets/fonts/PressStart2P.ttf'),
-    'NDot57': require('../assets/fonts/NDot57.ttf'),
+    // 'NDot57': require('../assets/fonts/NDot57.ttf'), // not yet in assets
   });
 
   useEffect(() => {
