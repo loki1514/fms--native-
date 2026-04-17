@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Property Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        #root { 
+            width: 393px; 
+            height: 852px; 
+            position: relative;
+            background: linear-gradient(180deg, #4A90D9 0%, #5BA3E8 30%, #87CEEB 60%, #B8D4E8 100%);
+            border-radius: 50px;
+            overflow: hidden;
+            box-shadow: 0 0 0 12px #1a1a1a, 0 0 0 14px #333;
+        }
+
+        /* Animated Clouds */
+        @keyframes cloudFloat1 {
+            0% { transform: translateX(-200px); }
+            100% { transform: translateX(450px); }
+        }
+        @keyframes cloudFloat2 {
+            0% { transform: translateX(400px); }
+            100% { transform: translateX(-250px); }
+        }
+        @keyframes cloudFloat3 {
+            0% { transform: translateX(-150px); }
+            100% { transform: translateX(500px); }
+        }
+        @keyframes cloudFloat4 {
+            0% { transform: translateX(350px); }
+            100% { transform: translateX(-200px); }
+        }
+
+        .cloud {
+            position: absolute;
+            opacity: 0.7;
+            filter: blur(1px);
+        }
+        .cloud1 {
+            top: 5%;
+            animation: cloudFloat1 35s linear infinite;
+        }
+        .cloud2 {
+            top: 15%;
+            animation: cloudFloat2 28s linear infinite;
+        }
+        .cloud3 {
+            top: 25%;
+            animation: cloudFloat3 22s linear infinite;
+        }
+        .cloud4 {
+            top: 8%;
+            animation: cloudFloat4 40s linear infinite;
+        }
+
+        /* Glass Card */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Orb Animations */
+        @keyframes orbPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes rotationReverse {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(-360deg); }
+        }
+        @keyframes roundness {
+            0%, 60%, 100% { filter: contrast(15); }
+            20%, 40% { filter: contrast(3); }
+        }
+        @keyframes colorize {
+            0%, 100% { filter: hue-rotate(0deg); }
+            20% { filter: hue-rotate(-30deg); }
+            40% { filter: hue-rotate(-60deg); }
+            60% { filter: hue-rotate(-90deg); }
+            80% { filter: hue-rotate(-45deg); }
+        }
+
+        .orb-container {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: orbPulse 2s ease-in-out infinite, colorize 6s ease-in-out infinite;
+            box-shadow: 0 0 15px rgba(255, 191, 72, 0.5), 0 10px 25px rgba(190, 74, 29, 0.3);
+        }
+        .orb-container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border-top: 1px solid #ffbf48;
+            border-bottom: 1px solid #be4a1d;
+            background: linear-gradient(180deg, rgba(255, 191, 72, 0.25), rgba(190, 74, 29, 0.3));
+        }
+        .orb-svg {
+            position: absolute;
+            width: 56px;
+            height: 56px;
+        }
+        .orb-svg #clipping {
+            animation: roundness 1s linear infinite;
+        }
+        .orb-svg polygon {
+            filter: blur(3px);
+        }
+        .orb-svg polygon:nth-child(2) {
+            transform-origin: 50% 50%;
+            animation: rotationReverse 2s linear infinite;
+        }
+        .orb-svg polygon:nth-child(3) {
+            transform-origin: 50% 60%;
+            animation: rotation 2s linear infinite;
+            animation-delay: -0.67s;
+        }
+        .orb-svg polygon:nth-child(4) {
+            transform-origin: 40% 40%;
+            animation: rotationReverse 2s linear infinite;
+        }
+        .orb-svg polygon:nth-child(5) {
+            transform-origin: 40% 40%;
+            animation: rotationReverse 2s linear infinite;
+            animation-delay: -1s;
+        }
+        .orb-svg polygon:nth-child(6) {
+            transform-origin: 60% 40%;
+            animation: rotation 2s linear infinite;
+        }
+        .orb-svg polygon:nth-child(7) {
+            transform-origin: 60% 40%;
+            animation: rotation 2s linear infinite;
+            animation-delay: -1.33s;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // ==================== ANIMATED CLOUDS ====================
+        const AnimatedClouds = () => (
+            <>
+                <div className="cloud cloud1">
+                    <svg width="180" height="80" viewBox="0 0 180 80" style={{ opacity: 0.8 }}>
+                        <ellipse cx="60" cy="50" rx="50" ry="25" fill="rgba(255,255,255,0.9)"/>
+                        <ellipse cx="100" cy="45" rx="55" ry="30" fill="rgba(255,255,255,0.85)"/>
+                        <ellipse cx="140" cy="50" rx="40" ry="22" fill="rgba(255,255,255,0.8)"/>
+                    </svg>
+                </div>
+                <div className="cloud cloud2">
+                    <svg width="150" height="70" viewBox="0 0 150 70" style={{ opacity: 0.6 }}>
+                        <ellipse cx="45" cy="45" rx="40" ry="22" fill="rgba(255,255,255,0.85)"/>
+                        <ellipse cx="85" cy="40" rx="45" ry="25" fill="rgba(255,255,255,0.8)"/>
+                        <ellipse cx="120" cy="45" rx="30" ry="18" fill="rgba(255,255,255,0.75)"/>
+                    </svg>
+                </div>
+                <div className="cloud cloud3">
+                    <svg width="120" height="55" viewBox="0 0 120 55" style={{ opacity: 0.5 }}>
+                        <ellipse cx="35" cy="35" rx="30" ry="18" fill="rgba(255,255,255,0.8)"/>
+                        <ellipse cx="70" cy="32" rx="35" ry="20" fill="rgba(255,255,255,0.75)"/>
+                        <ellipse cx="100" cy="35" rx="22" ry="15" fill="rgba(255,255,255,0.7)"/>
+                    </svg>
+                </div>
+                <div className="cloud cloud4">
+                    <svg width="200" height="90" viewBox="0 0 200 90" style={{ opacity: 0.4 }}>
+                        <ellipse cx="70" cy="55" rx="55" ry="28" fill="rgba(255,255,255,0.75)"/>
+                        <ellipse cx="120" cy="50" rx="60" ry="32" fill="rgba(255,255,255,0.7)"/>
+                        <ellipse cx="165" cy="55" rx="45" ry="25" fill="rgba(255,255,255,0.65)"/>
+                    </svg>
+                </div>
+            </>
+        );
+
+        // ==================== SVG ICONS ====================
+        const Icons = {
+            Menu: ({size=20, color='#fff'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+                    <path d="M3 12h18M3 6h18M3 18h18"/>
+                </svg>
+            ),
+            Bell: ({size=20, color='#fff'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+            ),
+            Search: ({size=18, color='rgba(255,255,255,0.6)'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                </svg>
+            ),
+            Home: ({size=22, color='#fff'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                    <path d="M9 22V12h6v10"/>
+                </svg>
+            ),
+            Building: ({size=22, color='rgba(255,255,255,0.5)'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+                    <path d="M3 21h18"/>
+                    <path d="M5 21V7l8-4 8 4v14"/>
+                    <path d="M9 21v-6h6v6"/>
+                </svg>
+            ),
+            Chart: ({size=22, color='rgba(255,255,255,0.5)'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+                    <path d="M18 20V10M12 20V4M6 20v-6"/>
+                </svg>
+            ),
+            User: ({size=22, color='rgba(255,255,255,0.5)'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                </svg>
+            ),
+            Sun: ({size=28, color='#FFD700'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+                    <circle cx="12" cy="12" r="5" fill={color} fillOpacity="0.3"/>
+                    <circle cx="12" cy="12" r="5"/>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+            ),
+            ArrowRight: ({size=16, color='rgba(255,255,255,0.5)'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            ),
+            Check: ({size=16, color='#4CAF50'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            ),
+            Clock: ({size=16, color='#F5A623'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+            ),
+            Alert: ({size=16, color='#FF3B30'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            ),
+            Wrench: ({size=18, color='#fff'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+                </svg>
+            ),
+            Package: ({size=18, color='#fff'}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+                    <line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/>
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12"/>
+                </svg>
+            ),
+        };
+
+        // ==================== ORIGINAL ORB ====================
+        const OriginalOrb = () => (
+            <div className="orb-container">
+                <svg className="orb-svg" viewBox="0 0 100 100">
+                    <defs>
+                        <mask id="clipping">
+                            <polygon points="0,0 100,0 100,100 0,100" fill="black" />
+                            <polygon points="25,25 75,25 50,75" fill="white" />
+                            <polygon points="50,25 75,75 25,75" fill="white" />
+                            <polygon points="35,35 65,35 50,65" fill="white" />
+                            <polygon points="35,35 65,35 50,65" fill="white" />
+                            <polygon points="35,35 65,35 50,65" fill="white" />
+                            <polygon points="35,35 65,35 50,65" fill="white" />
+                        </mask>
+                    </defs>
+                    <rect x="0" y="0" width="100" height="100" fill="url(#orbGradient)" mask="url(#clipping)" />
+                    <linearGradient id="orbGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="30%" stopColor="#ffbf48" />
+                        <stop offset="70%" stopColor="#be4a1d" />
+                    </linearGradient>
+                </svg>
+            </div>
+        );
+
+        // ==================== STATUS DOT ====================
+        const StatusDot = ({ status }) => {
+            const colors = {
+                good: '#34C759',
+                warning: '#FF9500',
+                critical: '#FF3B30'
+            };
+            return (
+                <div style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: colors[status] || colors.good
+                }} />
+            );
+        };
+
+        // ==================== HEADER ====================
+        const Header = () => (
+            <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '16px'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <button style={{ 
+                        width: '36px', 
+                        height: '36px', 
+                        borderRadius: '12px', 
+                        background: 'rgba(255,255,255,0.1)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        border: 'none',
+                        backdropFilter: 'blur(10px)'
+                    }}>
+                        <Icons.Menu size={18} />
+                    </button>
+                    <div>
+                        <div style={{ fontSize: '28px', fontWeight: '300', color: '#fff', letterSpacing: '-0.5px' }}>
+                            Hello Harsh
+                        </div>
+                        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>
+                            16th April, 2026
+                        </div>
+                    </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '6px',
+                        background: 'rgba(255,255,255,0.1)',
+                        padding: '6px 12px',
+                        borderRadius: '20px',
+                        backdropFilter: 'blur(10px)'
+                    }}>
+                        <Icons.Sun size={22} />
+                        <span style={{ fontSize: '16px', fontWeight: '400', color: '#fff' }}>29°</span>
+                    </div>
+                    <button style={{ 
+                        width: '36px', 
+                        height: '36px', 
+                        borderRadius: '12px', 
+                        background: 'rgba(255,255,255,0.1)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        border: 'none',
+                        backdropFilter: 'blur(10px)',
+                        position: 'relative'
+                    }}>
+                        <Icons.Bell size={18} />
+                        <div style={{ 
+                            position: 'absolute', 
+                            top: '8px', 
+                            right: '8px', 
+                            width: '8px', 
+                            height: '8px', 
+                            background: '#FF3B30', 
+                            borderRadius: '50%' 
+                        }} />
+                    </button>
+                </div>
+            </div>
+        );
+
+        // ==================== SEARCH BAR ====================
+        const SearchBar = () => (
+            <div style={{ marginBottom: '20px' }}>
+                <div className="glass-card" style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 14px',
+                    height: '42px',
+                }}>
+                    <Icons.Search size={18} />
+                    <input 
+                        type="text"
+                        placeholder="Search"
+                        style={{
+                            flex: 1,
+                            marginLeft: '10px',
+                            fontSize: '16px',
+                            color: '#fff',
+                            border: 'none',
+                            outline: 'none',
+                            background: 'transparent',
+                            fontFamily: 'inherit',
+                            fontWeight: '400'
+                        }}
+                    />
+                </div>
+            </div>
+        );
+
+        // ==================== TICKET CARDS ====================
+        const TicketCards = () => (
+            <div style={{ marginBottom: '16px' }}>
+                <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    marginBottom: '12px'
+                }}>
+                    <span style={{ fontSize: '15px', fontWeight: '500', color: 'rgba(255,255,255,0.7)' }}>
+                        Tickets
+                    </span>
+                    <button style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '4px',
+                        background: 'none',
+                        border: 'none',
+                        color: 'rgba(255,255,255,0.5)',
+                        fontSize: '13px'
+                    }}>
+                        See All <Icons.ArrowRight size={14} />
+                    </button>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    {[
+                        { count: 41, label: 'Open', status: 'critical' },
+                        { count: 34, label: 'In Progress', status: 'warning' },
+                        { count: 354, label: 'Resolved', status: 'good' },
+                    ].map((ticket, i) => (
+                        <div key={i} className="glass-card" style={{ 
+                            flex: 1,
+                            padding: '14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center'
+                        }}>
+                            <StatusDot status={ticket.status} />
+                            <span style={{ 
+                                fontSize: '28px', 
+                                fontWeight: '300', 
+                                color: '#fff',
+                                marginTop: '8px',
+                                marginBottom: '4px'
+                            }}>{ticket.count}</span>
+                            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
+                                {ticket.label}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+
+        // ==================== CHECKLIST & PPM ROW ====================
+        const ChecklistRow = () => (
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+                {/* Checklist */}
+                <div className="glass-card" style={{ 
+                    flex: 1,
+                    padding: '14px',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                        <Icons.Check size={16} color="#34C759" />
+                        <span style={{ fontSize: '13px', fontWeight: '500', color: 'rgba(255,255,255,0.7)' }}>
+                            Checklist
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                        <span style={{ fontSize: '32px', fontWeight: '300', color: '#fff' }}>7</span>
+                        <span style={{ fontSize: '16px', color: 'rgba(255,255,255,0.4)' }}>/ 100</span>
+                    </div>
+                    <div style={{ 
+                        marginTop: '10px',
+                        height: '4px',
+                        background: 'rgba(255,255,255,0.1)',
+                        borderRadius: '2px',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            width: '7%',
+                            height: '100%',
+                            background: '#34C759',
+                            borderRadius: '2px'
+                        }} />
+                    </div>
+                </div>
+
+                {/* PPM */}
+                <div className="glass-card" style={{ 
+                    flex: 1.5,
+                    padding: '14px',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <Icons.Wrench size={16} />
+                        <span style={{ fontSize: '13px', fontWeight: '500', color: 'rgba(255,255,255,0.7)' }}>
+                            PPM Scheduled
+                        </span>
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#FF9500', marginBottom: '4px' }}>
+                        17th April
+                    </div>
+                    <div style={{ fontSize: '15px', color: '#fff', marginBottom: '6px' }}>
+                        VRF/AC Service
+                    </div>
+                    <div style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                    }}>
+                        <StatusDot status="warning" />
+                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>Pending</span>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // ==================== DSR CARD ====================
+        const DSRCard = () => (
+            <div className="glass-card" style={{ 
+                padding: '16px',
+                marginBottom: '16px'
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                    <Icons.Package size={18} />
+                    <span style={{ fontSize: '15px', fontWeight: '500', color: 'rgba(255,255,255,0.7)' }}>
+                        Daily Stock Consumption
+                    </span>
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px' }}>
+                    <div>
+                        <span style={{ fontSize: '36px', fontWeight: '300', color: '#fff' }}>05</span>
+                        <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginLeft: '4px' }}>
+                            Items
+                        </span>
+                    </div>
+                    <div style={{ 
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        gap: '6px',
+                        height: '50px',
+                        paddingBottom: '8px'
+                    }}>
+                        {[35, 55, 25, 70, 45].map((h, i) => (
+                            <div key={i} style={{ 
+                                flex: 1,
+                                height: `${h}%`,
+                                background: i === 3 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.2)',
+                                borderRadius: '3px',
+                            }} />
+                        ))}
+                    </div>
+                </div>
+                
+                <div style={{ 
+                    marginTop: '14px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid rgba(255,255,255,0.08)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                }}>
+                    <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>
+                        Q1A Consumption
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <StatusDot status="good" />
+                        <span style={{ fontSize: '12px', color: '#34C759' }}>+12%</span>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // ==================== BOTTOM NAV ====================
+        const BottomNav = () => (
+            <div style={{ 
+                position: 'absolute', 
+                bottom: 0, 
+                left: 0, 
+                right: 0, 
+                height: '85px', 
+                display: 'flex', 
+                justifyContent: 'space-around', 
+                alignItems: 'flex-start', 
+                paddingTop: '10px',
+                background: 'linear-gradient(180deg, transparent 0%, rgba(74,144,217,0.3) 100%)',
+                zIndex: 40 
+            }}>
+                <button style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'none', border: 'none', gap: '4px', paddingTop: '6px', flex: 1 }}>
+                    <Icons.Home size={24} color="#fff" />
+                </button>
+                
+                <button style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'none', border: 'none', gap: '4px', paddingTop: '6px', flex: 1 }}>
+                    <Icons.Building size={24} />
+                </button>
+                
+                {/* ORB */}
+                <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    marginTop: '-15px',
+                    width: '70px'
+                }}>
+                    <OriginalOrb />
+                </div>
+                
+                <button style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'none', border: 'none', gap: '4px', paddingTop: '6px', flex: 1 }}>
+                    <Icons.Chart size={24} />
+                </button>
+                
+                <button style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'none', border: 'none', gap: '4px', paddingTop: '6px', flex: 1 }}>
+                    <Icons.User size={24} />
+                </button>
+            </div>
+        );
+
+        // ==================== MAIN DASHBOARD ====================
+        const Dashboard = () => {
+            const [time, setTime] = useState('9:41');
+            
+            useEffect(() => {
+                const update = () => {
+                    const now = new Date();
+                    setTime(now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false }));
+                };
+                update();
+                setInterval(update, 60000);
+            }, []);
+
+            return (
+                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                    {/* Animated Clouds Background */}
+                    <AnimatedClouds />
+
+                    {/* Dynamic Island */}
+                    <div style={{ 
+                        position: 'absolute', 
+                        top: '12px', 
+                        left: '50%', 
+                        transform: 'translateX(-50%)', 
+                        width: '126px', 
+                        height: '37px', 
+                        background: '#000', 
+                        borderRadius: '20px', 
+                        zIndex: 100 
+                    }} />
+
+                    {/* Status Bar */}
+                    <div style={{ 
+                        position: 'absolute', 
+                        top: '14px', 
+                        left: '30px', 
+                        right: '30px', 
+                        display: 'flex', 
+                        justifyContent: 'space-between',
+                        zIndex: 101 
+                    }}>
+                        <span style={{ fontSize: '16px', fontWeight: '600', color: '#fff' }}>{time}</span>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                            <span style={{ fontSize: '14px' }}>📶</span>
+                            <span style={{ fontSize: '14px' }}>🔋</span>
+                        </div>
+                    </div>
+
+                    <div style={{ 
+                        height: '100%', 
+                        overflowY: 'auto', 
+                        padding: '70px 16px 100px',
+                        position: 'relative',
+                        zIndex: 10
+                    }}>
+                        <Header />
+                        <SearchBar />
+                        <TicketCards />
+                        <ChecklistRow />
+                        <DSRCard />
+                    </div>
+
+                    <BottomNav />
+                </div>
+            );
+        };
+
+        ReactDOM.render(<Dashboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>

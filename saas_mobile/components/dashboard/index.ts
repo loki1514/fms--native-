@@ -9,3 +9,11 @@ export { default as InviteMemberModal } from './InviteMemberModal';
 export { default as SettingsView } from './SettingsView';
 export { default as UserManagement } from './UserManagement';
 export { default as AnalyticsTab } from './AnalyticsTab';
+export { default as ApplePropertyDashboard } from './ApplePropertyDashboard';
+
+// Orb components (WebGL crystal orbs)
+export { default as AuraOrb } from './AuraOrb';
+export { default as FlowingOrb } from './FlowingOrb';
+export { default as FluidOrb } from './FluidOrb';
+export { default as AudioAuraOrb } from './AudioAuraOrb';
+export { default as CrystalOrbCore, type CrystalOrbCoreProps } from './CrystalOrbCore';

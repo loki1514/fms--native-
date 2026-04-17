@@ -115,7 +115,7 @@ export default function LoginScreen() {
         return ai - bi;
       })[0];
 
-      router.replace(`/org/${best.organization_id}/dashboard` as any);
+      router.replace(`/org/${best.organization_id}` as any);
       return;
     }
 
