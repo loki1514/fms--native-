@@ -12,15 +12,17 @@ import {
   ActivityIndicator,
   Image,
   Switch,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { RotatingBorder } from './RotatingBorder';
 import { createClient } from '@/utils/supabase/client';
-import { readFileAsArrayBuffer } from '@/utils/mediaUtils';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context';
 import MediaCaptureModal, { MediaFile } from './MediaCaptureModal';
-import { classifyTicket, extractFloorNumber, extractLocation } from '@/utils/ticketing/classifyTicket';
+import { createTicket } from '@/utils/api/mobileApi';
 
 interface CreateTicketModalProps {
   visible: boolean;
@@ -60,6 +62,7 @@ export default function CreateTicketModal({ visible, onClose, onSuccess, propert
   const [mentionQuery, setMentionQuery] = useState('');
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [inputLayout, setInputLayout] = useState({ width: 0, height: 0 });
   const inputRef = useRef<TextInput>(null);
 
   // ── Org ID ──
@@ -152,100 +155,32 @@ export default function CreateTicketModal({ visible, onClose, onSuccess, propert
     setClassificationInfo('Classifying with AI...');
 
     try {
-      // 1. Run hybrid classification (Rule Engine + Groq LLM) — NATIVELY
-      const classification = await classifyTicket(description.trim());
-
-      setClassificationInfo(`Classified: ${classification.skill_group} • ${classification.priority}`);
-
-      // 2. Look up category_id and skill_group_id from Supabase
-      let categoryId = null;
-      let skillGroupId = null;
-      let slaHours = 24;
-
-      if (classification.issue_code) {
-        const { data: catData } = await (supabase
-          .from('issue_categories')
-          .select('id, skill_group_id, sla_hours')
-          .eq('code', classification.issue_code)
-          .limit(1)
-          .maybeSingle() as unknown) as { data: { id: string; skill_group_id: string; sla_hours: number } | null };
-        if (catData) {
-          categoryId = catData.id;
-          skillGroupId = catData.skill_group_id;
-          slaHours = catData.sla_hours || 24;
-        }
-      }
-
-      if (!skillGroupId) {
-        const { data: sgData } = await (supabase
-          .from('skill_groups')
-          .select('id')
-          .eq('code', classification.skill_group)
-          .limit(1)
-          .maybeSingle() as unknown) as { data: { id: string } | null };
-        if (sgData) skillGroupId = sgData.id;
-      }
-
-      // 3. Insert ticket directly into Supabase
-      const ticketNumber = `TKT-${Date.now()}`;
+      // Call web API — handles Groq LLM classification server-side with GROQ_API_KEY
       const title = description.split('\n')[0].slice(0, 100) || 'Untitled Request';
+      const response = await createTicket({
+        description: description.trim(),
+        title,
+        propertyId,
+        organizationId: orgId,
+        isInternal,
+        priority: undefined,
+        assignedTo: taggedUser?.id || undefined,
+      });
 
-      const { data: ticket, error: insertErr } = await (supabase
-        .from('tickets')
-        .insert({
-          ticket_number: ticketNumber,
-          property_id: propertyId,
-          organization_id: orgId,
-          title,
-          description: description.trim(),
-          category_id: categoryId,
-          skill_group_id: skillGroupId,
-          priority: classification.priority,
-          status: taggedUser ? 'assigned' : 'open',
-          assigned_to: taggedUser?.id || null,
-          assigned_at: taggedUser ? new Date().toISOString() : null,
-          raised_by: user?.id,
-          internal: isInternal,
-          is_vague: classification.confidence === 'low',
-          sla_hours: slaHours,
-          floor_number: extractFloorNumber(description) ?? undefined,
-          location: extractLocation(description) ?? undefined,
-          issue_code: classification.issue_code,
-          skill_group_code: classification.skill_group,
-          confidence: classification.confidence,
-          secondary_category_code: classification.secondary_category_code,
-          risk_flag: classification.risk_flag,
-          llm_reasoning: classification.llm_reasoning,
-          classification_source: classification.classification_source,
-        } as any)
-        .select()
-        .single() as unknown) as { data: { id: string } | null; error: any };
-
-      if (insertErr) throw insertErr;
-
-      // 3b. Log ticket creation activity
-      const creatorId = user?.id;
-      if (ticket && creatorId) {
-        await (supabase.from('ticket_activity_log') as any).insert({
-          ticket_id: ticket.id,
-          user_id: creatorId,
-          action: 'created',
-          new_value: 'open',
-        });
-
-        // If assigned during creation, log the assignment
-        if (taggedUser?.id) {
-          await (supabase.from('ticket_activity_log') as any).insert({
-            ticket_id: ticket.id,
-            user_id: creatorId,
-            action: 'assigned',
-            new_value: taggedUser.id,
-          });
-        }
+      if (response.error) {
+        throw new Error(response.error);
       }
 
-      // 4. Upload media as before photo/video
-      if (mediaFile && ticket) {
+      const ticket = response.ticket;
+      const classification = response.classification;
+
+      // Show LLM classification result
+      const skillGroup = ticket?.skill_group_code?.replace(/_/g, ' ') || classification?.skill_group?.replace(/_/g, ' ') || 'Unknown';
+      const priority = classification?.priority || ticket?.priority || 'Medium';
+      setClassificationInfo(`Classified: ${skillGroup} • ${priority}`);
+
+      // Upload media as before photo/video (uses ticket ID from API response)
+      if (mediaFile && ticket?.id) {
         try {
           setClassificationInfo('Uploading media...');
           const isImage = mediaFile.type === 'image';
@@ -253,8 +188,8 @@ export default function CreateTicketModal({ visible, onClose, onSuccess, propert
           const bucketName = isImage ? 'ticket_photos' : 'ticket_videos';
           const path = `${propertyId}/${ticket.id}/before_${Date.now()}.${ext}`;
 
-          const response = await fetch(mediaFile.uri);
-          const blob = await response.blob();
+          const fileResponse = await fetch(mediaFile.uri);
+          const blob = await fileResponse.blob();
 
           const { error: uploadErr } = await supabase.storage
             .from(bucketName)
@@ -275,44 +210,6 @@ export default function CreateTicketModal({ visible, onClose, onSuccess, propert
           }
         } catch (mediaErr) {
           console.warn('[CreateTicket] Media upload error (ticket still created):', mediaErr);
-        }
-      }
-
-      // 5. Attach escalation hierarchy
-      if (ticket) {
-        let hierarchy: { id: string } | null = null;
-        const getHierarchy = async () => {
-          return (await (supabase
-            .from('escalation_hierarchies')
-            .select('id')
-            .eq('organization_id', orgId)
-            .eq('property_id', propertyId)
-            .eq('is_default', true)
-            .eq('is_active', true)
-            .maybeSingle() as unknown) as { data: { id: string } | null }).data;
-        };
-        hierarchy = await getHierarchy();
-
-        if (!hierarchy) {
-          const orgH = (await (supabase
-            .from('escalation_hierarchies')
-            .select('id')
-            .eq('organization_id', orgId)
-            .is('property_id', null)
-            .eq('is_default', true)
-            .eq('is_active', true)
-            .maybeSingle() as unknown) as { data: { id: string } | null }).data;
-          hierarchy = orgH ?? null;
-        }
-
-        if (hierarchy) {
-          const updatePayload: Record<string, unknown> = {
-            hierarchy_id: hierarchy.id,
-            current_escalation_level: 0,
-            escalation_last_action_at: new Date().toISOString(),
-          };
-          // @ts-expect-error Supabase client has no schema types
-          await supabase.from('tickets').update(updatePayload).eq('id', ticket.id);
         }
       }
 
@@ -400,19 +297,54 @@ export default function CreateTicketModal({ visible, onClose, onSuccess, propert
                     <Text style={[styles.fieldLabel, { color: textSecondary }]}>What's the issue?</Text>
                     <Text style={styles.hintText}>type <Text style={styles.hintAt}>@</Text> to assign</Text>
                   </View>
-                  <TextInput
-                    ref={inputRef}
-                    style={[styles.textArea, {
-                      backgroundColor: inputBg, color: textPrimary,
-                      borderColor: showMentionDropdown ? '#3B82F6' : borderColor,
-                    }]}
-                    placeholder={"Describe the issue in your own words...\nExample: Leaking tap in kitchenette, 2nd floor"}
-                    placeholderTextColor={isDark ? '#6E7681' : '#94A3B8'}
-                    multiline
-                    value={description}
-                    onChangeText={handleDescriptionChange}
-                    autoFocus
-                  />
+                  <View 
+                    onLayout={(e) => setInputLayout({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+                    style={{ borderRadius: 14, overflow: 'hidden', minHeight: 140 }}
+                  >
+                    {/* Animated Aurora Border - Only visible when typing */}
+                    <Animated.View style={[
+                      StyleSheet.absoluteFill,
+                      useAnimatedStyle(() => ({
+                        opacity: withTiming(description.length > 0 ? 1 : 0, { duration: 450 })
+                      }))
+                    ]}>
+                      {inputLayout.height > 0 && (
+                        <RotatingBorder 
+                          isDark={isDark} 
+                          width={inputLayout.width} 
+                          height={inputLayout.height} 
+                          speed={5000}
+                          borderRadius={14}
+                          borderWidth={2}
+                        />
+                      )}
+                    </Animated.View>
+
+                    {/* Content Wrapper - Inset by 2px when border is active to reveal it */}
+                    <View style={{ 
+                      flex: 1,
+                      margin: description.length > 0 ? 2 : 0,
+                      borderRadius: description.length > 0 ? 12 : 14,
+                      backgroundColor: description.length > 0 ? (isDark ? 'rgba(15,23,42,0.95)' : '#FFF') : inputBg,
+                      overflow: 'hidden'
+                    }}>
+                      <TextInput
+                        ref={inputRef}
+                        style={[styles.textArea, {
+                          backgroundColor: 'transparent',
+                          color: textPrimary,
+                          borderColor: (description.length === 0 && showMentionDropdown) ? '#3B82F6' : (description.length > 0 ? 'transparent' : borderColor),
+                          borderWidth: description.length > 0 ? 0 : 1,
+                        }]}
+                        placeholder={"Describe the issue in your own words...\nExample: Leaking tap in kitchenette, 2nd floor"}
+                        placeholderTextColor={isDark ? '#6E7681' : '#94A3B8'}
+                        multiline
+                        value={description}
+                        onChangeText={handleDescriptionChange}
+                        autoFocus
+                      />
+                    </View>
+                  </View>
 
                   {/* @Mention Dropdown */}
                   {showMentionDropdown && filteredMembers.length > 0 && (
@@ -526,6 +458,8 @@ export default function CreateTicketModal({ visible, onClose, onSuccess, propert
 }
 
 /* ─── Styles ───────────────────────────────────────────────────────────────── */
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },

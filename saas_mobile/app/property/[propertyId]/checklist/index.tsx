@@ -299,8 +299,14 @@ function computeDueStatus(
     const passedSlots = todaySlots.filter(s => s <= refDate);
     const currentSlot = passedSlots.length > 0 ? passedSlots[passedSlots.length - 1] : null;
 
-    if (!currentSlot) {
-      return { due: false, label: `Starts at ${fmt12h(startTime)}`, status: 'upcoming' };
+    const createdTime = new Date(template.created_at).getTime();
+    const intervalMs = intervalH * 3600000;
+    const currentSlotEnd = currentSlot ? currentSlot.getTime() + intervalMs : 0;
+
+    if (!currentSlot || currentSlotEnd < createdTime) {
+      if (!currentSlot) return { due: false, label: `Starts at ${fmt12h(startTime)}`, status: 'upcoming' };
+      // If the template was created AFTER this slot already finished, then it's upcoming
+      return { due: false, label: 'Waiting for next slot', status: 'upcoming' };
     }
 
     const currentSlotStr = computeCurrentSlotStart(frequency ?? '', startTime, refDate, endTime);
@@ -345,7 +351,12 @@ function computeDueStatus(
   }
 
   // Daily / weekly / monthly
-  const overnightBaselineDate = (startTime && endTime && endMins <= startMins && nowMins < endMins)
+  const [sH_d, sM_d] = (startTime || '00:00').slice(0, 5).split(':').map(Number);
+  const [eH_d, eM_d] = (endTime || '23:59').slice(0, 5).split(':').map(Number);
+  const startMins_d = sH_d * 60 + sM_d;
+  const endMins_d = eH_d * 60 + eM_d;
+
+  const overnightBaselineDate = (startTime && endTime && endMins_d <= startMins_d && nowMins < endMins_d)
     ? new Date(today.getTime() - 24 * 60 * 60 * 1000)
     : today;
   const baselineDateStr = overnightBaselineDate.toLocaleDateString('en-CA');
@@ -354,7 +365,7 @@ function computeDueStatus(
     if (frequency === 'daily' && startTime && endTime) {
       if (isWithinTimeWindow(nowMins, startTime, endTime)) return { due: true, label: 'Due now', status: 'due' };
       const [sh] = startTime.slice(0, 5).split(':').map(Number);
-      if (nowMins < sh * 60 && !(endMins <= sh * 60 && nowMins < endMins)) return { due: false, label: `Starts at ${fmt12h(startTime)}`, status: 'upcoming' };
+      if (nowMins < sh * 60 && !(endMins_d <= sh * 60 && nowMins < endMins_d)) return { due: false, label: `Starts at ${fmt12h(startTime)}`, status: 'upcoming' };
       return { due: true, label: 'Missed', status: 'missed' };
     }
     return { due: true, label: 'Not started', status: 'due' };
@@ -366,7 +377,7 @@ function computeDueStatus(
     if (startTime && endTime) {
       if (isWithinTimeWindow(nowMins, startTime, endTime)) return { due: true, label: 'Due now', status: 'due' };
       const [sh] = startTime.slice(0, 5).split(':').map(Number);
-      if (nowMins < sh * 60 && !(endMins <= sh * 60 && nowMins < endMins)) return { due: false, label: `Starts at ${fmt12h(startTime)}`, status: 'upcoming' };
+      if (nowMins < sh * 60 && !(endMins_d <= sh * 60 && nowMins < endMins_d)) return { due: false, label: `Starts at ${fmt12h(startTime)}`, status: 'upcoming' };
       return { due: true, label: 'Missed', status: 'missed' };
     }
     return { due: true, label: 'Due today', status: 'due' };
@@ -432,7 +443,12 @@ function getTemplateGaps(template: SOPTemplate, completions: SOPCompletion[], re
         }
 
         for (const slot of slots) {
-          if (slot.startTs > refDate.getTime()) continue; // Future
+          const slotTime = slot.startTs;
+          if (slotTime > refDate.getTime()) continue; // Future
+          
+          // CRITICAL: Only count as missed if the slot started AFTER the template was created
+          const createdTime = new Date(template.created_at).getTime();
+          if (slotTime < createdTime - 5 * 60000) continue; // 5 min grace
           
           // Is it currently active? (If so, it's 'Due' not 'Missed' in the gaps list)
           const currentlyActive = isWithinTimeWindow(nowMins, template.start_time, template.end_time) && 
@@ -465,7 +481,8 @@ function getTemplateGaps(template: SOPTemplate, completions: SOPCompletion[], re
 
 function formatRelative(dateStr: string): string {
   if (!dateStr) return '';
-  const d = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
+  const d = new Date(dateStr.endsWith('Z') || dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return dateStr;
   const now = new Date();
   const diff = now.getTime() - d.getTime();
   const diffDays = Math.floor(diff / 86400000);
@@ -611,6 +628,7 @@ export default function ChecklistScreen() {
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
   const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
   const [expandedCompletions, setExpandedCompletions] = useState<Record<string, SOPCompletion[]>>({});
+  const [showLoggersMenu, setShowLoggersMenu] = useState(false);
   const realtimeChannel = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // ── Permissions ──────────────────────────────────────────────────────────────
@@ -937,6 +955,7 @@ export default function ChecklistScreen() {
   };
 
   const handleStartChecklist = async (template: SOPTemplate, existingCompletion?: SOPCompletion, backfillDate?: string, backfillSlot?: string) => {
+    const now = new Date();
     if (existingCompletion && existingCompletion.status !== 'completed') {
       // Resume
       setActiveTemplate(template);
@@ -949,7 +968,6 @@ export default function ChecklistScreen() {
 
     // Time window check (only for non-backfill)
     if (!backfillDate) {
-      const now = new Date();
       const nowMins = now.getHours() * 60 + now.getMinutes();
       if (!isAdmin && template.start_time && template.end_time) {
         if (!isWithinTimeWindow(nowMins, template.start_time, template.end_time)) {
@@ -1145,7 +1163,7 @@ export default function ChecklistScreen() {
   };
 
   const uploadMedia = async (item: ChecklistItem, uri: string, type: 'photo' | 'video') => {
-    const bucket = type === 'photo' ? 'sop-photos' : 'sop-videos';
+    const bucket = type === 'photo' ? 'sop_photos' : 'sop_videos';
     const stateKey = type === 'photo' ? 'photoUploading' : 'videoUploading';
 
     setItemStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], [stateKey]: true } }));
@@ -1196,6 +1214,7 @@ export default function ChecklistScreen() {
   };
 
   const handleRemoveMedia = async (item: ChecklistItem, type: 'photo' | 'video') => {
+    const bucket = type === 'photo' ? 'sop_photos' : 'sop_videos';
     Alert.alert('Remove Media', `Delete this ${type}?`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
@@ -1212,6 +1231,12 @@ export default function ChecklistScreen() {
             .eq('id', compItem.id);
 
           if (error) throw error;
+
+          // Delete from storage
+          const filePath = (type === 'photo' ? compItem.photo_url : compItem.video_url)?.split(bucket + '/')[1];
+          if (filePath) {
+            await supabase.storage.from(bucket).remove([filePath]);
+          }
 
           setItemStates(prev => ({
             ...prev,
@@ -2162,8 +2187,8 @@ export default function ChecklistScreen() {
                             style={[styles.startBtn, { backgroundColor: '#1F2937' }]}
                             onPress={() => handleStartChecklist(m.template, undefined, m.date, m.slotTime || undefined)}
                           >
-                            <Repeat size={10} color="#FFFFFF" />
-                            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800' }}>Backfill</Text>
+                            <Repeat size={13} color="#FFFFFF" />
+                            <Text style={styles.startBtnText}>Backfill</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -2210,8 +2235,8 @@ export default function ChecklistScreen() {
                             style={[styles.startBtn, { backgroundColor: inProgress ? '#3B82F6' : colors.primary }]}
                             onPress={() => handleStartChecklist(template, inProgress)}
                           >
-                            <Play size={10} color="#FFFFFF" />
-                            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800' }}>{inProgress ? 'Resume' : 'Start'}</Text>
+                            <Play size={13} color="#FFFFFF" fill="#FFFFFF" />
+                            <Text style={styles.startBtnText}>{inProgress ? 'Resume' : 'Start'}</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -2484,7 +2509,23 @@ const styles = StyleSheet.create({
   dueBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   dueBadgeText: { fontSize: 8, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
   pausedBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: '#F1F5F9' },
-  startBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  startBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    gap: 6, 
+    paddingHorizontal: 14, 
+    paddingVertical: 8, 
+    borderRadius: 20,
+    minWidth: 85,
+  },
+  startBtnText: { 
+    color: '#FFFFFF', 
+    fontSize: 11, 
+    fontFamily: 'Poppins-Bold',
+    lineHeight: 14,
+    includeFontPadding: false,
+  },
   templateActions: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 6, borderTopWidth: 1, paddingTop: 10 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16 },
   iconActionBtn: { padding: 6 },

@@ -1117,21 +1117,6 @@ export default function TicketDetailScreen() {
               <View style={[styles.priorityBadge, { backgroundColor: pCfg.bg }]}>
                 <Text style={[styles.priorityText, { color: pCfg.text }]}>{pCfg.label}</Text>
               </View>
-              {(() => {
-                const cat = ticket.category;
-                if (!cat) return null;
-                const name = typeof cat === 'string' ? cat : cat.name;
-                // Filter out generic/unwanted category codes
-                const skipCodes = ['premium', 'standard', 'basic', 'n/a', 'other', 'washroom hygiene'];
-                if (skipCodes.includes(name.toLowerCase())) return null;
-                return (
-                  <View style={[styles.categoryBadge, { backgroundColor: isDark ? '#1E2633' : '#F1F5F9' }]}>
-                    <Text style={[styles.categoryText, { color: textSecondary }]}>
-                      {name}
-                    </Text>
-                  </View>
-                );
-              })()}
               {ticket.work_paused && (
                 <View style={[styles.pausedBadge, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
                   <Ionicons name="pause" size={10} color="#F59E0B" />

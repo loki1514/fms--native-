@@ -19,7 +19,7 @@ import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
 import { createClient } from '@/utils/supabase/client';
-import { readFileAsArrayBuffer } from '@/utils/mediaUtils';
+import { readFileAsArrayBuffer, compressImage } from '@/utils/mediaUtils';
 import { AppBottomNav } from '@/components/shared/AppBottomNav';
 import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import {
@@ -146,22 +146,23 @@ export default function ProfileScreen() {
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
       try {
-        const uriParts = uri.split('.');
-        const ext = uriParts[uriParts.length - 1] || 'jpg';
-        const filename = `${profile?.id}/${Date.now()}.${ext}`;
-        const arrayBuffer = await readFileAsArrayBuffer(uri);
+        if (!user?.id) throw new Error("Not authenticated");
+        // Compress photo locally
+        const compressedUri = await compressImage(uri);
+        const filename = `${user.id}/${Date.now()}.jpg`;
+        const arrayBuffer = await readFileAsArrayBuffer(compressedUri);
 
         const { error: uploadError } = await supabase.storage
-          .from('avatars')
+          .from('user-photos')
           .upload(filename, arrayBuffer, { contentType: 'image/jpeg' });
 
         if (uploadError) throw uploadError;
 
         const { data: urlData } = supabase.storage
-          .from('avatars')
+          .from('user-photos')
           .getPublicUrl(filename);
 
-        const publicUrl = urlData.publicUrl;
+        const publicUrl = urlData.publicUrl + '?t=' + Date.now();
         await (supabase.from('users') as any).update({ user_photo_url: publicUrl }).eq('id', profile?.id);
 
         setProfile(prev => (prev ? { ...prev, user_photo_url: publicUrl } : prev));
@@ -184,22 +185,23 @@ export default function ProfileScreen() {
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
       try {
-        const uriParts = uri.split('.');
-        const ext = uriParts[uriParts.length - 1] || 'jpg';
-        const filename = `${profile?.id}/${Date.now()}.${ext}`;
-        const arrayBuffer = await readFileAsArrayBuffer(uri);
+        if (!user?.id) throw new Error("Not authenticated");
+        // Compress photo locally
+        const compressedUri = await compressImage(uri);
+        const filename = `${user.id}/${Date.now()}.jpg`;
+        const arrayBuffer = await readFileAsArrayBuffer(compressedUri);
 
         const { error: uploadError } = await supabase.storage
-          .from('avatars')
+          .from('user-photos')
           .upload(filename, arrayBuffer, { contentType: 'image/jpeg' });
 
         if (uploadError) throw uploadError;
 
         const { data: urlData } = supabase.storage
-          .from('avatars')
+          .from('user-photos')
           .getPublicUrl(filename);
 
-        const publicUrl = urlData.publicUrl;
+        const publicUrl = urlData.publicUrl + '?t=' + Date.now();
         await (supabase.from('users') as any).update({ user_photo_url: publicUrl }).eq('id', profile?.id);
 
         setProfile(prev => (prev ? { ...prev, user_photo_url: publicUrl } : prev));
@@ -216,6 +218,12 @@ export default function ProfileScreen() {
     const prop = membership.properties.find((p) => p.id === propertyId);
     if (!prop) return 'Member';
     return prop.role.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
+  const getPropertyName = () => {
+    if (!membership || !propertyId) return 'Unknown Property';
+    const prop = membership.properties.find((p) => p.id === propertyId);
+    return prop?.name || 'Unknown Property';
   };
 
   const getInitials = () => {
@@ -307,7 +315,7 @@ export default function ProfileScreen() {
 
         {/* Basic Information */}
         <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>BASIC INFORMATION</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>INFORMATION</Text>
           
           {isEditing ? (
             <View style={styles.editFields}>
@@ -339,42 +347,29 @@ export default function ProfileScreen() {
             <View style={styles.infoList}>
               <InfoItem
                 icon={<Mail size={18} color={colors.primary} />}
-                label="Email"
+                label="Email Address"
                 value={profile?.email || 'Not set'}
               />
 
               <InfoItem
                 icon={<Phone size={18} color={colors.primary} />}
-                label="Phone"
+                label="Phone Number"
                 value={profile?.phone || 'Not set'}
+              />
+
+              <InfoItem 
+                icon={<Shield size={18} color={colors.primary} />}
+                label="Role"
+                value={getRoleDisplay()}
+              />
+              
+              <InfoItem 
+                icon={<Calendar size={18} color={colors.primary} />}
+                label="Property Name"
+                value={getPropertyName()}
               />
             </View>
           )}
-        </View>
-
-        {/* Account Information */}
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ACCOUNT</Text>
-          
-          <View style={styles.infoList}>
-            <InfoItem 
-              icon={<Shield size={18} color={colors.primary} />}
-              label="Employee ID"
-              value={profile?.employee_id || 'Not assigned'}
-            />
-            
-            <InfoItem 
-              icon={<Calendar size={18} color={colors.primary} />}
-              label="Joining Date"
-              value={profile?.joining_date 
-                ? new Date(profile.joining_date).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })
-                : 'Not set'}
-            />
-          </View>
         </View>
 
         <View style={{ height: 40 }} />

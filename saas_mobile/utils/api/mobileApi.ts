@@ -97,6 +97,12 @@ export interface TicketApiResponse {
     created_at: string;
     raised_by: string;
     assigned_to?: string;
+    skill_group_code?: string;
+    issue_code?: string;
+    confidence?: string;
+    classification_source?: string;
+    risk_flag?: string | null;
+    llm_reasoning?: string | null;
   };
   error?: string;
   classification?: {
@@ -106,6 +112,12 @@ export interface TicketApiResponse {
     isAutoClassified: boolean;
     status: string;
     assigned_to?: string;
+    priority?: string | null;
+    risk_flag?: string | null;
+    reasoning?: string | null;
+    enhancedClassification?: boolean;
+    zone?: string;
+    decisionSource?: string;
   };
 }
 
@@ -480,7 +492,24 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
     case 'security':
       return [`${basePath}/security`, `${basePath}/dashboard`, `${basePath}/tickets`, `${basePath}/profile`];
     case 'staff':
-      return [`${basePath}/staff`, `${basePath}/dashboard`, `${basePath}/tickets`, `${basePath}/profile`];
+    case 'soft_service_staff':
+    case 'soft_service_supervisor':
+    case 'soft_service_manager':
+      return [
+        `${basePath}/staff`,
+        `${basePath}/soft-service-manager`,
+        `${basePath}/stock`,
+        `${basePath}/stock/scan`,
+        `${basePath}/checklist`,
+        `${basePath}/dashboard`,
+        `${basePath}/tickets`,
+        `${basePath}/visitors`,
+        `${basePath}/diesel`,
+        `${basePath}/electricity`,
+        `${basePath}/flow-map`,
+        `${basePath}/settings`,
+        `${basePath}/profile`,
+      ];
     case 'mst':
       return [
         `${basePath}/mst`,
@@ -528,6 +557,10 @@ export function getRoleDefaultPath(role: string, propertyId: string): string {
       return `${basePath}/security`;
     case 'staff':
       return `${basePath}/staff`;
+    case 'soft_service_staff':
+    case 'soft_service_supervisor':
+    case 'soft_service_manager':
+      return `${basePath}/soft-service-manager`;
     case 'mst':
       return `${basePath}/mst`;
     case 'vendor':

@@ -1,11 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface LoggersMenuProps {
   visible: boolean;
@@ -17,76 +15,80 @@ export function LoggersMenu({ visible, onClose, propertyId }: LoggersMenuProps) 
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
-  const isDark = theme === 'dark';
 
   const menuItems = [
     {
       title: 'Electricity Logger',
-      icon: 'flash', // Use non-outline for "selected" feel
-      color: '#F59E0B',
+      icon: 'flash' as const,
+      bgColor: 'rgba(245,158,11,0.1)',
+      iconColor: '#F59E0B',
+      description: 'Log power consumption & meter readings',
       route: `/property/${propertyId}/electricity`,
-      description: 'Meter readings & tariffs'
     },
     {
       title: 'Diesel Logger',
-      icon: 'water',
-      color: '#EF4444',
+      icon: 'water' as const,
+      bgColor: 'rgba(59,130,246,0.1)',
+      iconColor: '#3B82F6',
+      description: 'Log fuel refills & generator levels',
       route: `/property/${propertyId}/diesel`,
-      description: 'Fuel levels & consumption'
     },
-    {
-      title: 'Checklists (SOP)',
-      icon: 'checkbox',
-      color: '#10B981',
-      route: `/property/${propertyId}/checklist`,
-      description: 'Maintenance schedules'
-    }
   ];
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={onClose}
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <View style={[
-          styles.menuContainer,
-          { backgroundColor: isDark ? '#1F2937' : '#FFF' }
-        ]}>
+        <View
+          style={[
+            styles.menuContainer,
+            {
+              backgroundColor: colors.card,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingBottom: 40,
+            },
+          ]}
+        >
+          {/* Drag handle */}
+          <View style={styles.handle} />
+
+          {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, { color: isDark ? '#FFF' : '#1A2332' }]}>Maintenance Loggers</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Utility Loggers</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color={isDark ? '#94A3B8' : '#64748B'} />
+              <Ionicons name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.itemsGrid}>
-            {menuItems.map((item, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[
-                  styles.menuItem,
-                  { borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }
-                ]}
-                onPress={() => {
-                  onClose();
-                  router.push(item.route as any);
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.iconContainer, { backgroundColor: item.color + '15' }]}>
-                  <Ionicons name={item.icon as any} size={24} color={item.color} />
-                </View>
-                <View style={styles.itemContent}>
-                  <Text style={[styles.itemTitle, { color: isDark ? '#FFF' : '#1A2332' }]}>{item.title}</Text>
-                  <Text style={[styles.itemDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>{item.description}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={isDark ? '#4B5563' : '#CBD5E1'} />
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* Items */}
+          {menuItems.map((item) => (
+            <TouchableOpacity
+              key={item.title}
+              style={[
+                styles.menuItem,
+                { borderBottomColor: colors.border },
+              ]}
+              onPress={() => {
+                onClose();
+                router.push(item.route as any);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.iconWrap, { backgroundColor: item.bgColor }]}>
+                <Ionicons name={item.icon} size={20} color={item.iconColor} />
+              </View>
+              <View style={styles.itemContent}>
+                <Text style={[styles.itemTitle, { color: colors.text }]}>{item.title}</Text>
+                <Text style={[styles.itemDesc, { color: colors.textSecondary }]}>{item.description}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </TouchableOpacity>
+          ))}
         </View>
       </Pressable>
     </Modal>
@@ -96,20 +98,20 @@ export function LoggersMenu({ visible, onClose, propertyId }: LoggersMenuProps) 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
-    padding: 16,
-    paddingBottom: 100, // Show above bottom nav
   },
   menuContainer: {
-    borderRadius: 24,
     padding: 20,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    paddingTop: 12,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   header: {
     flexDirection: 'row',
@@ -118,27 +120,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
-    letterSpacing: -0.5,
   },
   closeBtn: {
     padding: 4,
   },
-  itemsGrid: {
-    gap: 12,
-  },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 12,
+    paddingVertical: 16,
+    gap: 14,
+    borderBottomWidth: 1,
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
+  iconWrap: {
+    width: 44,
+    height: 44,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -147,7 +144,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   itemTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
   },
   itemDesc: {

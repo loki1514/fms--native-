@@ -13,7 +13,7 @@ import Animated, {
 import { Image } from 'react-native';
 
 // Logo image — the pilot logo with tagline
-const LOGO_SOURCE = require('../../2-removebg-preview.png');
+const LOGO_SOURCE = require('../../assets/images/autopilot-logo-new.png');
 
 interface AnimatedLogoProps {
   size?: 'sm' | 'md' | 'lg';

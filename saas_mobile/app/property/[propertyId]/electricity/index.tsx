@@ -192,22 +192,22 @@ function CustomDatePicker({
 function MeterCard({
   meter,
   latestReading,
-  previousClosing,
+  units,
+  cost,
   tariffRate,
   colors,
   onPress,
 }: {
   meter: ElectricityMeter;
   latestReading: ElectricityReading | null;
-  previousClosing: number;
+  units: number;
+  cost: number;
   tariffRate: number;
   colors: typeof Colors.light;
   onPress?: () => void;
 }) {
   const current = latestReading?.closing_reading ?? meter.last_reading ?? 0;
-  const opening = latestReading?.opening_reading ?? previousClosing;
-  const units = latestReading?.final_units ?? latestReading?.computed_units ?? (current - opening > 0 ? current - opening : 0);
-  const cost = units * tariffRate;
+  // Cost and units now passed from parent as period-aware values
 
   return (
     <TouchableOpacity activeOpacity={onPress ? 0.7 : 1} onPress={onPress}>
@@ -238,7 +238,7 @@ function MeterCard({
         <View style={styles.readingItem}>
           <Text style={[styles.readingLabel, { color: colors.textTertiary }]}>Previous</Text>
           <Text style={[styles.readingValue, { color: colors.textSecondary }]}>
-            {opening.toFixed(0)}
+            {latestReading?.opening_reading?.toFixed(0) ?? meter.last_reading?.toFixed(0) ?? '0'}
           </Text>
           <Text style={[styles.readingUnit, { color: colors.textTertiary }]}>kVAh</Text>
         </View>
@@ -257,13 +257,13 @@ function MeterCard({
         <View style={styles.costItem}>
           <Text style={[styles.costLabel, { color: colors.textTertiary }]}>Tariff</Text>
           <Text style={[styles.costValue, { color: colors.text }]}>
-            {tariffRate > 0 ? `$${tariffRate.toFixed(4)}/kVAh` : 'N/A'}
+            {tariffRate > 0 ? `₹${tariffRate.toFixed(2)}/kVAh` : 'N/A'}
           </Text>
         </View>
         <View style={styles.costItem}>
           <Text style={[styles.costLabel, { color: colors.textTertiary }]}>Est. Cost</Text>
           <Text style={[styles.costValue, { color: colors.success }]}>
-            {cost > 0 ? `$${cost.toFixed(2)}` : '-'}
+            {cost > 0 ? `₹${cost.toFixed(2)}` : '-'}
           </Text>
         </View>
       </View>
@@ -282,6 +282,7 @@ function LogReadingModal({
   colors,
   onSuccess,
   initialMeterId,
+  readings,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -290,22 +291,41 @@ function LogReadingModal({
   colors: typeof Colors.light;
   onSuccess: () => void;
   initialMeterId?: string | null;
+  readings: ElectricityReading[];
 }) {
   const [selectedMeterId, setSelectedMeterId] = useState<string>('');
   const [closingReading, setClosingReading] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMeterPicker, setShowMeterPicker] = useState(false);
-  const [previousClosings, setPreviousClosings] = useState<Record<string, number>>({});
-  const [ceilingReadings, setCeilingReadings] = useState<Record<string, number | null>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const today = new Date().toISOString().split('T')[0];
   const [readingDate, setReadingDate] = useState<string>(today);
 
   const selectedMeter = meters.find(m => m.id === selectedMeterId);
-  const opening = previousClosings[selectedMeterId] ?? selectedMeter?.last_reading ?? 0;
-  const ceiling = ceilingReadings[selectedMeterId] ?? null;
+
+  // Derive opening and ceiling from parent readings — no separate Supabase query, no race condition
+  const { opening, ceiling } = useMemo(() => {
+    if (!selectedMeterId) return { opening: 0, ceiling: null as number | null };
+    const meterReadings = readings
+      .filter(r => r.meter_id === selectedMeterId)
+      .sort((a, b) => {
+        const dateA = a.reading_date || '';
+        const dateB = b.reading_date || '';
+        if (dateA !== dateB) return dateA < dateB ? 1 : -1;
+        return a.created_at < b.created_at ? 1 : -1;
+      });
+
+    // Opening: most recent reading BEFORE selected date → its closing
+    const before = meterReadings.find(r => (r.reading_date || '') < readingDate);
+    const after = meterReadings.find(r => (r.reading_date || '') > readingDate);
+
+    const openVal = before?.closing_reading ?? selectedMeter?.last_reading ?? 0;
+    const ceilVal = after?.closing_reading ?? null;
+
+    return { opening: openVal, ceiling: ceilVal };
+  }, [selectedMeterId, readings, readingDate, selectedMeter]);
 
   const units = (() => {
     const c = parseFloat(closingReading);
@@ -332,40 +352,6 @@ function LogReadingModal({
     }
   }, [visible, meters, initialMeterId]);
 
-  useEffect(() => {
-    if (!visible || !selectedMeterId) return;
-    const loadBounds = async () => {
-      // 1. Fetch latest reading BEFORE or ON this date (but excluding current entry if we had its ID, which we don't yet)
-      const { data: beforeData } = await (supabase
-        .from('electricity_readings')
-        .select('closing_reading')
-        .eq('property_id', propertyId)
-        .eq('meter_id', selectedMeterId)
-        .lt('reading_date', readingDate)
-        .order('reading_date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle() as any);
-      
-      const openVal = beforeData?.closing_reading ?? selectedMeter?.last_reading ?? 0;
-      setPreviousClosings(prev => ({ ...prev, [selectedMeterId]: openVal }));
-
-      // 2. Fetch earliest reading AFTER this date
-      const { data: afterData } = await (supabase
-        .from('electricity_readings')
-        .select('closing_reading')
-        .eq('property_id', propertyId)
-        .eq('meter_id', selectedMeterId)
-        .gt('reading_date', readingDate)
-        .order('reading_date', { ascending: true })
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle() as any);
-      
-      setCeilingReadings(prev => ({ ...prev, [selectedMeterId]: afterData?.closing_reading ?? null }));
-    };
-    loadBounds();
-  }, [visible, selectedMeterId, readingDate, propertyId]);
 
   // Reset on close
   useEffect(() => {
@@ -668,6 +654,7 @@ interface StoredTariff {
 }
 
 function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: TariffModalProps) {
+  const { user: authUser } = useAuth();
   const [rate, setRate] = useState('');
   const [provider, setProvider] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState(new Date().toISOString().split('T')[0]);
@@ -681,10 +668,14 @@ function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: T
   const fetchTariffs = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/properties/${propertyId}/grid-tariffs`);
-      if (!res.ok) throw new Error('Failed to load tariffs');
-      const data = await res.json();
-      setTariffs(Array.isArray(data) ? data : []);
+      const { data, error: fetchErr } = await supabase
+        .from('grid_tariffs')
+        .select('*')
+        .eq('property_id', propertyId)
+        .order('effective_from', { ascending: false }) as any;
+      
+      if (fetchErr) throw fetchErr;
+      setTariffs(data || []);
     } catch (e: any) {
       console.error('Error fetching tariffs:', e);
       Alert.alert('Error', 'Failed to load tariffs');
@@ -702,20 +693,32 @@ function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: T
     setIsSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`/api/properties/${propertyId}/grid-tariffs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rate_per_unit: parseFloat(rate),
-          utility_provider: provider || null,
-          effective_from: effectiveFrom,
-        }),
-      });
+      const rateVal = parseFloat(rate);
+      const dayBefore = new Date(effectiveFrom);
+      dayBefore.setDate(dayBefore.getDate() - 1);
+      const dayBeforeStr = dayBefore.toISOString().split('T')[0];
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to save tariff');
-      }
+      // Close existing active tariff
+      await supabase
+        .from('grid_tariffs')
+        .update({ effective_to: dayBeforeStr } as any)
+        .eq('property_id', propertyId)
+        .is('effective_to', null)
+        .lt('effective_from', effectiveFrom);
+
+      // Insert new tariff
+      const { error: insertErr } = await supabase
+        .from('grid_tariffs')
+        .insert({
+          property_id: propertyId,
+          rate_per_unit: rateVal,
+          utility_provider: provider || null,
+          unit_type: 'kVAh',
+          effective_from: effectiveFrom,
+          created_by: authUser?.id
+        } as any);
+
+      if (insertErr) throw insertErr;
 
       setRate('');
       setProvider('');
@@ -737,14 +740,24 @@ function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: T
         onPress: async () => {
           setDeletingId(id);
           try {
-            const res = await fetch(`/api/properties/${propertyId}/grid-tariffs?id=${id}`, {
-              method: 'DELETE',
-            });
+            // 1. Reset readings
+            await supabase
+              .from('electricity_readings')
+              .update({
+                tariff_id: null,
+                tariff_rate_used: null,
+                computed_cost: 0
+              } as any)
+              .eq('tariff_id', id);
 
-            if (!res.ok) {
-              const errData = await res.json();
-              throw new Error(errData.error || 'Failed to delete tariff');
-            }
+            // 2. Delete tariff
+            const { error: delErr } = await supabase
+              .from('grid_tariffs')
+              .delete()
+              .eq('id', id);
+
+            if (delErr) throw delErr;
+
             await fetchTariffs();
             await onTariffChange();
           } catch (e: any) {
@@ -837,7 +850,7 @@ function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: T
                 <View key={tariff.id} style={[styles.tariffHistoryRow, { backgroundColor: colors.card, borderColor: isActive ? colors.primary : colors.border }]}>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={[styles.tariffRateText, { color: colors.text }]}>${tariff.rate_per_unit}</Text>
+                      <Text style={[styles.tariffRateText, { color: colors.text }]}>₹{tariff.rate_per_unit.toFixed(2)}</Text>
                       {isActive && (
                         <View style={[styles.tariffActiveBadge, { backgroundColor: '#10B981' }]}>
                           <Text style={styles.tariffActiveBadgeText}>Active</Text>
@@ -1276,27 +1289,31 @@ export default function ElectricityScreen() {
       setPreviousClosings(closings);
 
       // Fetch active tariff (non-blocking — don't block loading)
-      const today = new Date().toISOString().split('T')[0];
-      fetch(`/api/properties/${propertyId}/grid-tariffs?date=${today}`)
-        .then(res => res.ok ? res.json() : null)
-        .then(t => {
-          if (t && Object.keys(t).length > 0) {
-            setActiveTariff(t);
-          } else {
-            // Fallback: fetch all and find active
-            return fetch(`/api/properties/${propertyId}/grid-tariffs`)
-              .then(r => r.ok ? r.json() : null)
-              .then(all => {
-                if (Array.isArray(all) && all.length > 0) {
-                  const active = all.find((tariff: any) =>
-                    !tariff.effective_to && tariff.effective_from <= today
-                  ) || all[0];
-                  setActiveTariff(active);
-                }
-              });
-          }
-        })
-        .catch(() => {});
+      // Fetch active tariff (non-blocking)
+      const todayStr = new Date().toISOString().split('T')[0];
+      supabase.rpc('get_active_grid_tariff', {
+        p_property_id: propertyId,
+        p_date: todayStr
+      }).then(({ data: rpcData }) => {
+        if (rpcData && (rpcData as any[]).length > 0) {
+          setActiveTariff((rpcData as any[])[0]);
+        } else {
+          // Fallback fetch all
+          return supabase
+            .from('grid_tariffs')
+            .select('*')
+            .eq('property_id', propertyId)
+            .order('effective_from', { ascending: false })
+            .then(({ data: allData }) => {
+              if (allData && allData.length > 0) {
+                const active = allData.find((t: any) => 
+                  !t.effective_to && t.effective_from <= todayStr
+                ) || allData[0];
+                setActiveTariff(active);
+              }
+            });
+        }
+      }).catch(err => console.error('Tariff fetch error:', err));
     } catch (e) {
       console.error('Electricity fetch error:', e);
     } finally {
@@ -1330,6 +1347,21 @@ export default function ElectricityScreen() {
   const tariffRate = activeTariff?.rate_per_unit ?? 0;
   const totalCost = totalUnits * tariffRate;
 
+  const periodMeterStats = useMemo(() => {
+    const stats: Record<string, { units: number, cost: number }> = {};
+    meters.forEach(m => { stats[m.id] = { units: 0, cost: 0 }; });
+    filteredReadings.forEach(r => {
+      if (stats[r.meter_id]) {
+        const u = r.final_units ?? r.computed_units ?? 0;
+        stats[r.meter_id].units += u;
+        // Simplified cost calculation using active tariff. 
+        // Real logic might need to check tariff history if readings span multiple tariffs.
+        stats[r.meter_id].cost += u * tariffRate;
+      }
+    });
+    return stats;
+  }, [filteredReadings, meters, tariffRate]);
+
   const latestGenReadings = useMemo(() => {
     const result: Record<string, ElectricityReading> = {};
     readings.forEach(r => {
@@ -1353,13 +1385,6 @@ export default function ElectricityScreen() {
         </TouchableOpacity>
         <Text style={[styles.topNavTitle, { color: colors.textPrimary }]}>Electricity Logger</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            style={[styles.bellButton, { marginRight: 8 }]}
-            onPress={() => router.push('/property/' + propertyId + '/stock/scan' as any)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="qr-code-outline" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.bellButton}
             onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
@@ -1398,12 +1423,12 @@ export default function ElectricityScreen() {
           <View style={styles.quickStat}>
             <TrendingUp size={12} color="rgba(255,255,255,0.7)" />
             <Text style={styles.quickStatText}>
-              {totalCost > 0 ? `$${totalCost.toFixed(2)}` : '-'}
+              {totalCost > 0 ? `₹${totalCost.toFixed(2)}` : '-'}
             </Text>
           </View>
         </View>
         {tariffRate > 0 && (
-          <Text style={styles.tariffInfo}>Tariff: ${tariffRate.toFixed(4)}/kVAh</Text>
+          <Text style={styles.tariffInfo}>Tariff: ₹${tariffRate.toFixed(2)}/kVAh</Text>
         )}
         {/* Action Buttons Row */}
         <View style={styles.actionRow}>
@@ -1453,7 +1478,8 @@ export default function ElectricityScreen() {
                   key={m.id}
                   meter={m}
                   latestReading={latestGenReadings[m.id] ?? null}
-                  previousClosing={previousClosings[m.id] ?? m.last_reading ?? 0}
+                  units={periodMeterStats[m.id]?.units ?? 0}
+                  cost={periodMeterStats[m.id]?.cost ?? 0}
                   tariffRate={tariffRate}
                   colors={colors}
                   onPress={() => {
@@ -1571,6 +1597,7 @@ export default function ElectricityScreen() {
           colors={colors}
           onSuccess={fetchData}
           initialMeterId={selectedMeterForLogging}
+          readings={readings}
         />
       )}
 
@@ -1581,27 +1608,26 @@ export default function ElectricityScreen() {
         propertyId={propertyId!}
         colors={colors}
         onTariffChange={async () => {
-          const today = new Date().toISOString().split('T')[0];
+          const todayStr = new Date().toISOString().split('T')[0];
           try {
-            // Try fetching active tariff by date first
-            const res = await fetch(`/api/properties/${propertyId}/grid-tariffs?date=${today}`);
-            if (res.ok) {
-              const t = await res.json();
-              if (t && Object.keys(t).length > 0) {
-                setActiveTariff(t);
-                return;
-              }
+            const { data: rpcData } = await supabase.rpc('get_active_grid_tariff', {
+              p_property_id: propertyId,
+              p_date: todayStr
+            });
+            if (rpcData && (rpcData as any[]).length > 0) {
+              setActiveTariff((rpcData as any[])[0]);
+              return;
             }
-            // Fallback: fetch all and find active one
-            const allRes = await fetch(`/api/properties/${propertyId}/grid-tariffs`);
-            if (allRes.ok) {
-              const all = await allRes.json();
-              if (Array.isArray(all) && all.length > 0) {
-                const active = all.find((tariff: any) =>
-                  !tariff.effective_to && tariff.effective_from <= today
-                ) || all[0];
-                setActiveTariff(active);
-              }
+            const { data: allData } = await supabase
+              .from('grid_tariffs')
+              .select('*')
+              .eq('property_id', propertyId)
+              .order('effective_from', { ascending: false });
+            if (allData && allData.length > 0) {
+              const active = allData.find((t: any) => 
+                !t.effective_to && t.effective_from <= todayStr
+              ) || allData[0];
+              setActiveTariff(active);
             }
           } catch (e) {
             console.error('Error refreshing tariff:', e);
