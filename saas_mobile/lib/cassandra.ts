@@ -2,29 +2,145 @@
  * Cassandra API Client
  *
  * Thin fetch-based client with:
- *   • JWT injection from SecureStore
+ *   • Cassandra token injection via cassandraAuthService (auto-refresh + 401 retry)
  *   • Global error toasts
- *   • Base URL from env
+ *   • Base URL from EXPO_PUBLIC_CASSANDRA_API_URL env
+ *
+ * Auth flow:
+ *   1. getValidToken() — returns cached cassandra_token if valid, else exchanges
+ *   2. POST /auth/session { user_jwt: Supabase_JWT, api_key }
+ *   3. Response: { cassandra_token, expires_at } — stored in SecureStore
+ *   4. On 401: clear cache + re-exchange once, then retry
  */
 
-import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import { toast } from './toast';
+import {
+  getValidToken,
+  withTokenRetry,
+  clearToken,
+} from '@/services/cassandra/cassandraAuthService';
 
 const API_URL = (process.env.EXPO_PUBLIC_CASSANDRA_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
-async function getToken(): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    return localStorage.getItem('jwt') || null;
+// ─── Offline queue ────────────────────────────────────────────────────────────
+
+const OFFLINE_QUEUE_KEY = '@cassandra_offline_queue';
+const MAX_QUEUE_SIZE = 50;
+
+interface QueuedRequest {
+  id: string;
+  path: string;
+  options: RequestInit;
+  queuedAt: number;
+}
+
+let isOnline = true;
+let isReplaying = false;
+
+// Subscribe to network state changes once at module load
+NetInfo.addEventListener((state) => {
+  const wasOffline = !isOnline;
+  isOnline = state.isConnected ?? false;
+
+  if (wasOffline && isOnline) {
+    replayOfflineQueue().catch(() => {});
   }
-  return SecureStore.getItemAsync('jwt');
+});
+
+async function loadOfflineQueue(): Promise<QueuedRequest[]> {
+  try {
+    const raw = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveOfflineQueue(queue: QueuedRequest[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  } catch { /* non-fatal */ }
+}
+
+async function replayOfflineQueue(): Promise<void> {
+  if (isReplaying) return;
+  isReplaying = true;
+  const queue = await loadOfflineQueue();
+  if (queue.length === 0) {
+    isReplaying = false;
+    return;
+  }
+  toast.info(`Replaying ${queue.length} queued request(s)…`);
+  // Replay in order, removing successfully replayed items
+  const remaining: QueuedRequest[] = [];
+  for (const item of queue) {
+    try {
+      const res = await fetch(`${API_URL}${item.path}`, {
+        ...item.options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...((item.options.headers as Record<string, string>) || {}),
+        },
+      });
+      if (!res.ok) {
+        remaining.push(item);
+      }
+    } catch {
+      remaining.push(item);
+    }
+  }
+  await saveOfflineQueue(remaining);
+  if (remaining.length === 0) {
+    toast.success('Offline requests synced');
+  } else {
+    toast.error(`${remaining.length} request(s) still pending`);
+  }
+  isReplaying = false;
+}
+
+async function queueOfflineRequest(path: string, options: RequestInit): Promise<void> {
+  const queue = await loadOfflineQueue();
+  const newItem: QueuedRequest = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    path,
+    options,
+    queuedAt: Date.now(),
+  };
+  queue.push(newItem);
+  // Cap queue size
+  if (queue.length > MAX_QUEUE_SIZE) {
+    queue.splice(0, queue.length - MAX_QUEUE_SIZE);
+  }
+  await saveOfflineQueue(queue);
+  toast.info('Request queued — will send when back online');
 }
 
 async function fetchWithAuth(
   path: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const token = await getToken();
+  // Check online status — queue if offline (skip health check)
+  const isHealthCheck = path === '/health';
+  if (!isOnline && !isHealthCheck) {
+    await queueOfflineRequest(path, options);
+    throw new Error('queued_offline');
+  }
+
+  let token: string;
+  try {
+    token = await getValidToken();
+  } catch {
+    // Fall back to Supabase JWT for unauthenticated endpoints (e.g., /health)
+    if (Platform.OS === 'web') {
+      token = localStorage.getItem('jwt') || '';
+    } else {
+      token = ''; // No Supabase token available — unauthenticated request
+    }
+  }
+
   const url = `${API_URL}${path.startsWith('/') ? path : '/' + path}`;
 
   const headers: Record<string, string> = {
@@ -37,19 +153,47 @@ async function fetchWithAuth(
 
   const res = await fetch(url, { ...options, headers });
 
-  if (!res.ok) {
-    let detail = `HTTP ${res.status}`;
+  if (res.status === 401) {
+    // Token expired — re-exchange once and retry
     try {
-      const body = await res.json();
-      detail = body.detail || body.message || detail;
-    } catch {
-      /* ignore parse error */
+      const retryToken = await withTokenRetry(async () => {
+        // Refetch the token after clearing cache
+        return getValidToken();
+      });
+      headers['Authorization'] = `Bearer ${retryToken}`;
+      const retryRes = await fetch(url, { ...options, headers });
+      if (!retryRes.ok) {
+        const detail = await parseError(retryRes);
+        toast.error(detail);
+        throw new Error(detail);
+      }
+      return retryRes;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('exchange failed')) {
+        clearToken();
+      }
+      throw err;
     }
+  }
+
+  if (!res.ok) {
+    const detail = await parseError(res);
     toast.error(detail);
     throw new Error(detail);
   }
 
   return res;
+}
+
+async function parseError(res: Response): Promise<string> {
+  let detail = `HTTP ${res.status}`;
+  try {
+    const body = await res.json();
+    detail = body.detail || body.message || detail;
+  } catch {
+    /* ignore parse error */
+  }
+  return detail;
 }
 
 // ─── Health ────────────────────────────────────────────────────────────────
@@ -174,4 +318,38 @@ export async function opexEstimate(propertyId: string, orgId: string) {
 }
 
 // ─── Export the raw fetch helper for extensibility ─────────────────────────
-export { API_URL, fetchWithAuth, getToken };
+// ─── Memory ───────────────────────────────────────────────────────────────────
+
+export type MemoryType = 'annotation' | 'correction' | 'summary' | 'insight';
+
+export interface WriteMemoryBody {
+  org_id: string;
+  content: string;
+  memory_type: MemoryType;
+  context?: {
+    room_id?: string;
+    transcript_id?: string;
+    action_item_id?: string;
+  };
+}
+
+/**
+ * Write a memory entry to Cassandra's memory layer.
+ * Falls back gracefully when the backend endpoint is not yet implemented.
+ */
+export async function writeMemory(body: WriteMemoryBody): Promise<any> {
+  try {
+    const res = await fetchWithAuth('/api/v1/memory/write', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  } catch (err) {
+    // Backend not ready — memory write not yet implemented
+    console.warn('[Cassandra] Memory write not yet available:', err);
+    return { status: 'pending', _stub: true, body };
+  }
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+export { API_URL, fetchWithAuth };

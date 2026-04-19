@@ -153,6 +153,6 @@ const styles = StyleSheet.create({
   loadingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
   loadingText: { marginTop: 12, fontSize: 14, color: '#FFF', fontWeight: '600' },
   footer: { padding: 16, alignItems: 'center' },
-  closeBtn: { paddingHorizontal: 32, paddingVertical: 14, backgroundColor: '#7C3AED', borderRadius: 14 },
+  closeBtn: { paddingHorizontal: 32, paddingVertical: 14, backgroundColor: '#708F96', borderRadius: 14 },
   closeBtnText: { fontSize: 12, fontWeight: '900', color: '#FFF', textTransform: 'uppercase', letterSpacing: 1.5 },
 });

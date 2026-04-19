@@ -10,13 +10,14 @@ interface StatusBadgeProps {
   style?: ViewStyle;
 }
 
+// Apple system colors
 const VARIANT_COLORS: Record<BadgeVariant, { bg: string; text: string; border: string }> = {
-  success: { bg: 'rgba(16,185,129,0.08)', text: '#10B981', border: 'rgba(16,185,129,0.15)' },
-  warning: { bg: 'rgba(245,158,11,0.08)', text: '#F59E0B', border: 'rgba(245,158,11,0.15)' },
-  danger: { bg: 'rgba(239,68,68,0.08)', text: '#EF4444', border: 'rgba(239,68,68,0.15)' },
-  info: { bg: 'rgba(59,130,246,0.08)', text: '#3B82F6', border: 'rgba(59,130,246,0.15)' },
-  neutral: { bg: '#F1F5F9', text: '#64748B', border: '#E2E8F0' },
-  purple: { bg: 'rgba(124,58,237,0.08)', text: '#7C3AED', border: 'rgba(124,58,237,0.15)' },
+  success: { bg: 'rgba(52,199,89,0.10)', text: '#34C759', border: 'rgba(52,199,89,0.18)' },
+  warning: { bg: 'rgba(255,159,10,0.10)', text: '#FF9F0A', border: 'rgba(255,159,10,0.18)' },
+  danger:  { bg: 'rgba(255,59,48,0.10)',  text: '#FF3B30', border: 'rgba(255,59,48,0.18)' },
+  info:    { bg: 'rgba(41,151,255,0.10)', text: '#2997FF', border: 'rgba(41,151,255,0.18)' },
+  neutral: { bg: '#F5F5F7', text: '#6B7280', border: '#E8E8ED' },
+  purple:  { bg: 'rgba(175,82,222,0.10)', text: '#AF52DE', border: 'rgba(175,82,222,0.18)' },
 };
 
 export function StatusBadge({ label, variant = 'neutral', size = 'sm', style }: StatusBadgeProps) {
@@ -72,7 +73,6 @@ const TICKET_STATUS_VARIANT: Record<string, BadgeVariant> = {
   CLOSED: 'neutral',
   RESOLVED: 'success',
   PENDING_VALIDATION: 'purple',
-  // lowercase variants
   open: 'warning',
   assigned: 'info',
   in_progress: 'info',
@@ -80,7 +80,6 @@ const TICKET_STATUS_VARIANT: Record<string, BadgeVariant> = {
   closed: 'neutral',
   resolved: 'success',
   pending_validation: 'purple',
-  // raw / other statuses
   blocked: 'danger',
   client_raised: 'warning',
   work_started: 'info',
@@ -94,23 +93,22 @@ export function TicketStatusBadge({ status, size = 'sm', style }: { status: stri
 }
 
 // ---- Ticket Status Dot ----
-// Colored dot indicator for ticket list items (open=orange, in_progress=blue, resolved=green, closed=gray)
 const TICKET_DOT_COLORS: Record<string, string> = {
-  open: '#F59E0B',
-  assigned: '#3B82F6',
-  in_progress: '#3B82F6',
-  work_started: '#3B82F6',
-  completed: '#10B981',
-  resolved: '#10B981',
-  closed: '#94A3B8',
-  paused: '#94A3B8',
-  blocked: '#EF4444',
-  client_raised: '#F59E0B',
-  pending_validation: '#7C3AED',
+  open: '#FF9F0A',
+  assigned: '#2997FF',
+  in_progress: '#2997FF',
+  work_started: '#2997FF',
+  completed: '#34C759',
+  resolved: '#34C759',
+  closed: '#9CA3AF',
+  paused: '#9CA3AF',
+  blocked: '#FF3B30',
+  client_raised: '#FF9F0A',
+  pending_validation: '#AF52DE',
 };
 
 export function TicketStatusDot({ status, size = 8 }: { status: string; size?: number }) {
-  const color = TICKET_DOT_COLORS[status.toLowerCase()] || TICKET_DOT_COLORS[status] || '#94A3B8';
+  const color = TICKET_DOT_COLORS[status.toLowerCase()] || TICKET_DOT_COLORS[status] || '#9CA3AF';
   return (
     <View
       style={{
@@ -138,15 +136,13 @@ const styles = StyleSheet.create({
   },
   textSm: {
     fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '600',
+    letterSpacing: -0.1,
   },
   textMd: {
     fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '600',
+    letterSpacing: -0.1,
   },
 });
 

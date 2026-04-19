@@ -57,7 +57,7 @@ export function ContextBar({
                 <Ionicons
                   name={level.icon}
                   size={14}
-                  color={isLast ? '#7C3AED' : '#94A3B8'}
+                  color={isLast ? '#708F96' : '#94A3B8'}
                 />
                 <Text
                   style={[styles.crumbText, isLast && styles.crumbTextActive]}

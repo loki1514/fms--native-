@@ -13,13 +13,14 @@ export const Label: React.FC<LabelProps> = ({ children, style, disabled }) => (
 
 const styles = StyleSheet.create({
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1A2332',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1D1D1F',
     marginBottom: 6,
+    letterSpacing: -0.12,
   },
   disabled: {
-    opacity: 0.7,
+    opacity: 0.4,
   },
 });
 

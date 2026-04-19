@@ -10,6 +10,27 @@ import {
   GestureResponderEvent,
 } from 'react-native';
 
+// ---- Apple-inspired Design System — no purple, brand-aligned ----
+const COLORS = {
+  primary: '#708F96',
+  primaryDark: '#5A737A',
+  primaryLight: 'rgba(112,143,150,0.12)',
+  secondary: '#475569',
+  secondaryDark: '#334155',
+  secondaryLight: 'rgba(71,85,105,0.10)',
+  success: '#34C759',
+  successLight: 'rgba(52,199,89,0.10)',
+  warning: '#FF9F0A',
+  warningLight: 'rgba(255,159,10,0.10)',
+  error: '#FF3B30',
+  errorLight: 'rgba(255,59,48,0.10)',
+  surface: '#FFFFFF',
+  border: '#E8E8ED',
+  textPrimary: '#1D1D1F',
+  textSecondary: '#6B7280',
+  textInverse: '#FFFFFF',
+};
+
 type ButtonVariant =
   | 'primary'
   | 'secondary'
@@ -38,31 +59,6 @@ interface ButtonProps {
   rightIcon?: React.ReactNode;
 }
 
-// ---- Design System Color Palette ----
-const COLORS = {
-  primary: '#7C3AED',
-  primaryDark: '#6D28D9',
-  primaryLight: 'rgba(124,58,237,0.10)',
-  secondary: '#8B5CF6',
-  secondaryDark: '#7C3AED',
-  secondaryLight: 'rgba(139,92,246,0.10)',
-  success: '#10B981',
-  successLight: 'rgba(16,185,129,0.10)',
-  warning: '#F59E0B',
-  warningLight: 'rgba(245,158,11,0.10)',
-  error: '#EF4444',
-  errorLight: 'rgba(239,68,68,0.10)',
-  surface: '#FFFFFF',
-  surfaceLight: 'rgba(255,255,255,0.85)',
-  border: '#E2E8F0',
-  textPrimary: '#1A2332',
-  textSecondary: '#64748B',
-  textInverse: '#FFFFFF',
-  glassBg: 'rgba(255,255,255,0.75)',
-  glassBorder: 'rgba(255,255,255,0.55)',
-  shadowColor: 'rgba(124,58,237,0.08)',
-};
-
 export const Button: React.FC<ButtonProps> = ({
   variant = 'primary',
   size = 'md',
@@ -85,7 +81,7 @@ export const Button: React.FC<ButtonProps> = ({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.72}
+      activeOpacity={0.8}
       style={[
         styles.base,
         containerStyle,
@@ -121,37 +117,38 @@ function getLabelStyle(variant: ButtonVariant, size: ButtonSize): TextStyle {
   return { color: textColor, fontSize };
 }
 
+// Pill-shaped sizes — Apple style
 const SIZE_MAP: Record<ButtonSize, ViewStyle> = {
   sm: {
-    height: 36,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    minHeight: 36,
+    height: 32,
+    paddingHorizontal: 16,
+    borderRadius: 980,
+    minHeight: 32,
   },
   md: {
-    height: 44,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    minHeight: 44,
+    height: 40,
+    paddingHorizontal: 24,
+    borderRadius: 980,
+    minHeight: 40,
   },
   lg: {
-    height: 52,
-    paddingHorizontal: 28,
-    borderRadius: 14,
-    minHeight: 52,
+    height: 48,
+    paddingHorizontal: 32,
+    borderRadius: 980,
+    minHeight: 48,
   },
   xl: {
-    height: 56,
-    paddingHorizontal: 36,
-    borderRadius: 16,
-    minHeight: 56,
+    height: 52,
+    paddingHorizontal: 40,
+    borderRadius: 980,
+    minHeight: 52,
   },
   icon: {
-    height: 44,
-    width: 44,
-    borderRadius: 12,
+    height: 40,
+    width: 40,
+    borderRadius: 980,
     paddingHorizontal: 0,
-    minHeight: 44,
+    minHeight: 40,
   },
 };
 
@@ -168,31 +165,16 @@ const VARIANT_MAP: Record<ButtonVariant, ViewStyle> = {
     backgroundColor: COLORS.primary,
     borderWidth: 1,
     borderColor: COLORS.primaryDark,
-    shadowColor: COLORS.shadowColor,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 3,
   },
   secondary: {
     backgroundColor: COLORS.secondary,
     borderWidth: 1,
     borderColor: COLORS.secondaryDark,
-    shadowColor: COLORS.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
   },
   solid: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
-    shadowColor: 'rgba(0,0,0,0.06)',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
   },
   outline: {
     backgroundColor: 'transparent',
@@ -211,31 +193,16 @@ const VARIANT_MAP: Record<ButtonVariant, ViewStyle> = {
     backgroundColor: COLORS.success,
     borderWidth: 1,
     borderColor: COLORS.success,
-    shadowColor: 'rgba(16,185,129,0.10)',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
   },
   warning: {
     backgroundColor: COLORS.warning,
     borderWidth: 1,
     borderColor: COLORS.warning,
-    shadowColor: 'rgba(245,158,11,0.10)',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
   },
   danger: {
     backgroundColor: COLORS.error,
     borderWidth: 1,
     borderColor: COLORS.error,
-    shadowColor: 'rgba(239,68,68,0.10)',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 2,
   },
   link: {
     backgroundColor: 'transparent',
@@ -266,7 +233,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   iconLeft: {
     marginRight: 8,

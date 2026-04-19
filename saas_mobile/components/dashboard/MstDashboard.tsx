@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -159,6 +159,13 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const [isMstCheckedIn, setIsMstCheckedIn] = useState(false);
   const [activeShiftId, setActiveShiftId] = useState<string | null>(null);
   const [isCheckingInOut, setIsCheckingInOut] = useState(false);
+
+  // Shared ticker — one interval drives all TicketCard elapsed timers
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -431,7 +438,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
     const primary = '#708F96';
 
     const handleItemPress = (item: DrawerItem) => {
-      if (item.tab) setActiveTab(item.tab);
+      if (item.tab) setActiveTab(item.tab as TabKey);
       else if (item.action) item.action();
       setDrawerOpen(false);
     };
@@ -688,7 +695,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
           </View>
         ) : (
           <View style={styles.ticketsList}>
-            <MstShuffleStack tickets={filteredIncomingTickets} user={user} propertyId={propertyId} onEdit={setEditingTicket} />
+            <MstShuffleStack tickets={filteredIncomingTickets} user={user} propertyId={propertyId} onEdit={setEditingTicket} tick={tick} />
           </View>
         )}
       </View>
@@ -767,6 +774,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
               setEditTitle(ticket.title);
               setEditDescription(ticket.description);
             }}
+            tick={tick}
           />
         ))}
         {(requestFilter === 'all' || requestFilter === 'completed') && filteredCompletedTickets.map((ticket) => (
@@ -783,6 +791,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             photoUrl={ticket.photo_before_url}
             materialsOrdered={(ticket as any).materials_ordered}
             onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+            tick={tick}
           />
         ))}
         {((requestFilter === 'active' && filteredIncomingTickets.length === 0) ||
@@ -1009,7 +1018,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 }
 
 // ---- MST Shuffle Card Container ----
-function MstShuffleStack({ tickets, user, propertyId, onEdit }: { tickets: Ticket[]; user: any; propertyId: string; onEdit: (t: Ticket) => void }) {
+function MstShuffleStack({ tickets, user, propertyId, onEdit, tick }: { tickets: Ticket[]; user: any; propertyId: string; onEdit: (t: Ticket) => void; tick: number }) {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const translateX = useSharedValue(0);
@@ -1051,16 +1060,17 @@ function MstShuffleStack({ tickets, user, propertyId, onEdit }: { tickets: Ticke
           user={user}
           propertyId={propertyId}
           onEdit={onEdit}
+          tick={tick}
         />
       )).reverse()}
     </View>
   );
 }
 
-function AnimatedTicketCard({ 
-  ticket, index, total, translateX, onSwipe, user, propertyId, onEdit 
-}: { 
-  ticket: Ticket; index: number; total: number; translateX: any; onSwipe: () => void; user: any; propertyId: string; onEdit: (t: Ticket) => void;
+function AnimatedTicketCard({
+  ticket, index, total, translateX, onSwipe, user, propertyId, onEdit, tick
+}: {
+  ticket: Ticket; index: number; total: number; translateX: any; onSwipe: () => void; user: any; propertyId: string; onEdit: (t: Ticket) => void; tick: number;
 }) {
   const router = useRouter();
   const isTop = index === 0;
@@ -1145,6 +1155,7 @@ function AnimatedTicketCard({
           onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
           onEdit={() => onEdit(ticket)}
           compact={true}
+          tick={tick}
           style={{ height: 190 }} // Reduced further from bottom
         />
       </Animated.View>

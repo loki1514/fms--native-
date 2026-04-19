@@ -1,44 +1,53 @@
-// MST Dashboard Design System Color Palette
-// Matches web app design tokens as the single source of truth
+// Autopilot Mobile Design System
+// Apple-inspired, luxurious, blends with light & dark mode
+// Primary brand: #708F96 preserved
 
-// ---- Primary Brand ----
-const PRIMARY = '#708F96';       // Muted Sky Blue / Teal — brand actions, active states
+// ============================================================
+// Core Palette
+// ============================================================
+
+// ---- Primary Brand (PRESERVED) ----
+const PRIMARY = '#708F96';       // Slate Blue-Green — brand actions, active states
 const PRIMARY_LIGHT = '#8AA5AC';
 const PRIMARY_DARK = '#5A737A';
-const SECONDARY = '#AA895F';    // Warm Sand/Gold
+
+// ---- New Secondary (replaces gold/wheat) ----
+const SECONDARY = '#475569';     // Slate grey — luxurious, works in both modes
+const SECONDARY_LIGHT = '#64748B';
+const SECONDARY_DARK = '#334155';
 
 // ---- Light Theme ----
-const lightText = '#1A2332';
-const lightBackground = '#FAFBFC';
+const lightText = '#1D1D1F';     // Apple near-black
+const lightBackground = '#F8FAFC';
 const lightSurface = '#FFFFFF';
 const lightCard = '#FFFFFF';
-const lightBorder = '#E2E8F0';
+const lightBorder = '#E8E8ED';   // Apple border
 
 // ---- Dark Theme ----
 const darkText = '#E6EBEE';
-const darkBackground = '#0B1214';
-const darkSurface = '#121A1D';
-const darkCard = '#121A1D';
-const darkBorder = '#242E31';
+const darkBackground = '#0F172A';  // Ink charcoal — richer than before
+const darkSurface = '#1C1C1E';     // Apple-style dark surface
+const darkCard = '#1C1C1E';
+const darkBorder = '#38383A';      // Apple dark border
 
-// ---- Status Colors ----
-const SUCCESS = '#10B981';       // Emerald
-const WARNING = '#F59E0B';       // Amber
-const ERROR = '#EF4444';         // Red
-const INFO = '#3B82F6';          // Blue
+// ---- Apple System Status Colors ----
+const SUCCESS = '#34C759';
+const WARNING = '#FF9F0A';
+const ERROR = '#FF3B30';
+const INFO = '#2997FF';
 
 // ---- Energy Utilities ----
-const UTILITY_GRID = '#F59E0B';  // Amber — Grid/Electricity
-const UTILITY_DIESEL = '#10B981'; // Emerald — DG/Diesel
+const UTILITY_GRID = '#FF9F0A';
+const UTILITY_DIESEL = '#34C759';
 
 // ---- Priority Colors ----
-const PRIORITY_URGENT = '#EF4444';
+const PRIORITY_URGENT = '#FF3B30';
 const PRIORITY_HIGH = '#708F96';
-const PRIORITY_MEDIUM = '#F59E0B';
+const PRIORITY_MEDIUM = '#FF9F0A';
 const PRIORITY_LOW = '#94A3B8';
 
 // ============================================================
-// Colors — theme-aware object (light / dark)
+// Colors — theme-aware object
 // ============================================================
 export const Colors = {
   light: {
@@ -56,39 +65,40 @@ export const Colors = {
     primaryLight: PRIMARY_LIGHT,
     primaryDark: PRIMARY_DARK,
     secondary: SECONDARY,
-    secondaryLight: '#C4A882',
-    // Semantic status
+    secondaryLight: SECONDARY_LIGHT,
+    secondaryDark: SECONDARY_DARK,
+    // Semantic status — Apple system colors
     success: SUCCESS,
-    successBg: 'rgba(16,185,129,0.12)',
-    successBorder: 'rgba(16,185,129,0.25)',
+    successBg: 'rgba(52,199,89,0.10)',
+    successBorder: 'rgba(52,199,89,0.20)',
     warning: WARNING,
-    warningBg: 'rgba(245,158,11,0.12)',
-    warningBorder: 'rgba(245,158,11,0.25)',
+    warningBg: 'rgba(255,159,10,0.10)',
+    warningBorder: 'rgba(255,159,10,0.20)',
     error: ERROR,
-    errorBg: 'rgba(239,68,68,0.12)',
-    errorBorder: 'rgba(239,68,68,0.25)',
+    errorBg: 'rgba(255,59,48,0.10)',
+    errorBorder: 'rgba(255,59,48,0.20)',
     info: INFO,
-    infoBg: 'rgba(59,130,246,0.12)',
-    infoBorder: 'rgba(59,130,246,0.25)',
+    infoBg: 'rgba(41,151,255,0.10)',
+    infoBorder: 'rgba(41,151,255,0.20)',
     // UI Surfaces
     border: lightBorder,
     card: lightCard,
     surface: lightSurface,
-    // Text hierarchy
-    textPrimary: 'rgba(26,35,50,0.92)',
-    textSecondary: 'rgba(26,35,50,0.62)',
-    textTertiary: 'rgba(26,35,50,0.42)',
-    textMuted: 'rgba(26,35,50,0.42)',
-    // Glassmorphism
-    glassBg: 'rgba(255,255,255,0.55)',
-    glassBorder: 'rgba(255,255,255,0.35)',
+    // Text hierarchy — Apple-style
+    textPrimary: '#1D1D1F',
+    textSecondary: '#6B7280',
+    textTertiary: '#86868B',
+    textMuted: '#9CA3AF',
+    // Glass — more transparent
+    glassBg: 'rgba(255,255,255,0.72)',
+    glassBorder: 'rgba(255,255,255,0.20)',
     // Priority colors
     priorityUrgent: PRIORITY_URGENT,
-    priorityUrgentBg: 'rgba(239,68,68,0.10)',
+    priorityUrgentBg: 'rgba(255,59,48,0.10)',
     priorityHigh: PRIORITY_HIGH,
     priorityHighBg: 'rgba(112,143,150,0.12)',
     priorityMedium: PRIORITY_MEDIUM,
-    priorityMediumBg: 'rgba(245,158,11,0.10)',
+    priorityMediumBg: 'rgba(255,159,10,0.10)',
     priorityLow: PRIORITY_LOW,
     priorityLowBg: 'rgba(148,163,184,0.12)',
     // Energy utilities
@@ -98,14 +108,14 @@ export const Colors = {
     sidebar: '#F8FAFC',
     sidebarActive: PRIMARY,
     sidebarActiveText: '#FFFFFF',
-    sidebarInactive: 'rgba(26,35,50,0.62)',
+    sidebarInactive: '#6B7280',
     // Surface overlays
     surfaceElevated: 'rgba(255,255,255,0.95)',
     surfaceOverlay: 'rgba(250,251,252,0.95)',
-    // Shadows
-    shadowColor: 'rgba(0,0,0,0.08)',
+    // Shadows — Apple subtle
+    shadowColor: 'rgba(0,0,0,0.06)',
     // Dividers
-    divider: 'rgba(226,232,240,0.60)',
+    divider: 'rgba(232,232,237,0.60)',
   },
   dark: {
     // Core text & background
@@ -113,7 +123,7 @@ export const Colors = {
     background: darkBackground,
     tint: PRIMARY_LIGHT,
     // Tab bar
-    tabIconDefault: '#6E7681',
+    tabIconDefault: '#6B7280',
     tabIconSelected: PRIMARY_LIGHT,
     tabBarBackground: darkSurface,
     tabBarBorder: darkBorder,
@@ -122,39 +132,40 @@ export const Colors = {
     primaryLight: PRIMARY_LIGHT,
     primaryDark: PRIMARY_DARK,
     secondary: SECONDARY,
-    secondaryLight: '#C4A882',
-    // Semantic status
+    secondaryLight: SECONDARY_LIGHT,
+    secondaryDark: SECONDARY_DARK,
+    // Semantic status — Apple system colors (same in dark)
     success: SUCCESS,
-    successBg: 'rgba(16,185,129,0.15)',
-    successBorder: 'rgba(16,185,129,0.30)',
+    successBg: 'rgba(52,199,89,0.15)',
+    successBorder: 'rgba(52,199,89,0.25)',
     warning: WARNING,
-    warningBg: 'rgba(245,158,11,0.15)',
-    warningBorder: 'rgba(245,158,11,0.30)',
+    warningBg: 'rgba(255,159,10,0.15)',
+    warningBorder: 'rgba(255,159,10,0.25)',
     error: ERROR,
-    errorBg: 'rgba(239,68,68,0.15)',
-    errorBorder: 'rgba(239,68,68,0.30)',
+    errorBg: 'rgba(255,59,48,0.15)',
+    errorBorder: 'rgba(255,59,48,0.25)',
     info: INFO,
-    infoBg: 'rgba(59,130,246,0.15)',
-    infoBorder: 'rgba(59,130,246,0.30)',
+    infoBg: 'rgba(41,151,255,0.15)',
+    infoBorder: 'rgba(41,151,255,0.25)',
     // UI Surfaces
     border: darkBorder,
     card: darkCard,
     surface: darkSurface,
     // Text hierarchy
     textPrimary: 'rgba(230,235,238,0.95)',
-    textSecondary: 'rgba(230,235,238,0.75)',
-    textTertiary: 'rgba(230,235,238,0.55)',
-    textMuted: 'rgba(230,235,238,0.55)',
-    // Glassmorphism
-    glassBg: 'rgba(20,26,34,0.55)',
+    textSecondary: 'rgba(230,235,238,0.70)',
+    textTertiary: 'rgba(230,235,238,0.50)',
+    textMuted: 'rgba(230,235,238,0.40)',
+    // Glass — dark mode transparent
+    glassBg: 'rgba(30,30,30,0.72)',
     glassBorder: 'rgba(255,255,255,0.08)',
     // Priority colors
     priorityUrgent: PRIORITY_URGENT,
-    priorityUrgentBg: 'rgba(239,68,68,0.15)',
+    priorityUrgentBg: 'rgba(255,59,48,0.15)',
     priorityHigh: PRIORITY_HIGH,
     priorityHighBg: 'rgba(112,143,150,0.15)',
     priorityMedium: PRIORITY_MEDIUM,
-    priorityMediumBg: 'rgba(245,158,11,0.15)',
+    priorityMediumBg: 'rgba(255,159,10,0.15)',
     priorityLow: PRIORITY_LOW,
     priorityLowBg: 'rgba(148,163,184,0.12)',
     // Energy utilities
@@ -164,26 +175,30 @@ export const Colors = {
     sidebar: '#151B2B',
     sidebarActive: PRIMARY,
     sidebarActiveText: '#FFFFFF',
-    sidebarInactive: 'rgba(230,235,238,0.75)',
+    sidebarInactive: 'rgba(230,235,238,0.70)',
     // Surface overlays
-    surfaceElevated: 'rgba(18,26,29,0.95)',
-    surfaceOverlay: 'rgba(11,18,20,0.95)',
+    surfaceElevated: 'rgba(28,28,30,0.95)',
+    surfaceOverlay: 'rgba(15,23,42,0.95)',
     // Shadows
-    shadowColor: 'rgba(0,0,0,0.35)',
+    shadowColor: 'rgba(0,0,0,0.30)',
     // Dividers
-    divider: 'rgba(36,46,49,0.60)',
+    divider: 'rgba(56,56,58,0.60)',
   },
 };
 
 // ============================================================
-// DesignTokens — raw values for direct use across the app
+// DesignTokens — raw values for direct use
 // ============================================================
 export const DesignTokens = {
-  // ---- Primary Brand ----
+  // ---- Primary Brand (PRESERVED) ----
   primary: PRIMARY,
   primaryLight: PRIMARY_LIGHT,
   primaryDark: PRIMARY_DARK,
+
+  // ---- New Secondary ----
   secondary: SECONDARY,
+  secondaryLight: SECONDARY_LIGHT,
+  secondaryDark: SECONDARY_DARK,
 
   // ---- Status ----
   success: SUCCESS,
@@ -215,21 +230,21 @@ export const DesignTokens = {
   darkBorder: darkBorder,
   darkText: darkText,
 
-  // ---- Glass Effects ----
-  glassBgLight: 'rgba(255,255,255,0.55)',
-  glassBorderLight: 'rgba(255,255,255,0.35)',
-  glassBgDark: 'rgba(20,26,34,0.55)',
+  // ---- Glass Effects (more transparent) ----
+  glassBgLight: 'rgba(255,255,255,0.72)',
+  glassBorderLight: 'rgba(255,255,255,0.20)',
+  glassBgDark: 'rgba(30,30,30,0.72)',
   glassBorderDark: 'rgba(255,255,255,0.08)',
 
   // ---- Card Surface ----
   cardSurfaceLight: 'linear-gradient(135deg, rgba(255,255,255,0.85), rgba(245,247,249,0.75))',
-  cardRadius: 20,
+  cardRadius: 22,      // Apple Weather-style large radius
   cardShadow: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 1,
-    shadowRadius: 40,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
   },
 
   // ---- Sidebar ----
@@ -238,61 +253,63 @@ export const DesignTokens = {
   sidebarActive: PRIMARY,
   sidebarActiveText: '#FFFFFF',
 
-  // ---- Spacing (8px system) ----
+  // ---- Spacing (Apple-inspired) ----
   spacing: {
     xs: 4,
     sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
-    xxl: 40,
-    xxxl: 48,
-    huge: 64,
+    md: 12,
+    lg: 16,
+    xl: 20,
+    xxl: 24,
+    xxxl: 32,
+    huge: 48,
   },
 
-  // ---- Shadows ----
+  // ---- Shadows (Apple subtle) ----
   shadowSm: {
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
+    shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1,
   },
   shadowMd: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   shadowLg: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 1,
-    shadowRadius: 15,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   shadowXl: {
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 1,
-    shadowRadius: 25,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10,
+    shadowRadius: 24,
+    elevation: 6,
   },
 
   // ---- Typography ----
   fontDisplay: 'Poppins',
   fontBody: 'Urbanist',
-  h1: { fontSize: 28, fontWeight: '600' as const, letterSpacing: -0.5 },
-  h2: { fontSize: 22, fontWeight: '600' as const, letterSpacing: -0.3 },
-  h3: { fontSize: 18, fontWeight: '500' as const },
+  h1: { fontSize: 34, fontWeight: '700' as const, letterSpacing: -0.4 },
+  h2: { fontSize: 28, fontWeight: '600' as const, letterSpacing: -0.3 },
+  h3: { fontSize: 22, fontWeight: '600' as const, letterSpacing: -0.2 },
+  body: { fontSize: 17, fontWeight: '400' as const, letterSpacing: -0.2 },
+  caption: { fontSize: 13, fontWeight: '400' as const, letterSpacing: -0.1 },
 
   // ---- Layout ----
   cardPadding: 20,
-  sectionGap: 24,
-  cardGap: 16,
+  sectionGap: 16,
+  cardGap: 12,
   contentPadding: 16,
-  badgeRadius: 16,
+  badgeRadius: 999,
 };
 
 export default Colors;

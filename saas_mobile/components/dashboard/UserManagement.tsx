@@ -102,7 +102,7 @@ export default function UserManagement({ orgId }: { orgId: string }) {
 
       {/* User list */}
       {isLoading ? (
-        <View style={styles.emptyState}><ActivityIndicator size="small" color="#7C3AED" /></View>
+        <View style={styles.emptyState}><ActivityIndicator size="small" color="#708F96" /></View>
       ) : filteredUsers.length === 0 ? (
         <View style={styles.emptyState}><Text style={styles.emptyText}>No members found.</Text></View>
       ) : (
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#F1F5F9',
   },
   avatarCircle: {
-    width: 40, height: 40, borderRadius: 12, backgroundColor: '#7C3AED',
+    width: 40, height: 40, borderRadius: 12, backgroundColor: '#708F96',
     justifyContent: 'center', alignItems: 'center',
   },
   avatarText: { fontSize: 13, fontWeight: '700', color: '#FFF' },

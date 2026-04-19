@@ -152,7 +152,7 @@ export default function SettingsView({ onUpdate }: SettingsViewProps) {
   };
 
   if (isLoading) {
-    return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#7C3AED" /></View>;
+    return <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#708F96" /></View>;
   }
 
   return (
@@ -164,7 +164,7 @@ export default function SettingsView({ onUpdate }: SettingsViewProps) {
       {/* Profile Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="person-outline" size={18} color="#7C3AED" />
+          <Ionicons name="person-outline" size={18} color="#708F96" />
           <Text style={styles.sectionTitle}>Profile Information</Text>
         </View>
 
@@ -212,7 +212,7 @@ export default function SettingsView({ onUpdate }: SettingsViewProps) {
       {/* Roles Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Ionicons name="shield-outline" size={18} color="#7C3AED" />
+          <Ionicons name="shield-outline" size={18} color="#708F96" />
           <Text style={styles.sectionTitle}>Account Roles</Text>
         </View>
 
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   avatarContainer: { alignSelf: 'center', marginBottom: 20, position: 'relative' },
   avatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 4, borderColor: '#F1F5F9' },
   avatarPlaceholder: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#F8FAFC', justifyContent: 'center', alignItems: 'center', borderWidth: 4, borderColor: '#F1F5F9' },
-  cameraBadge: { position: 'absolute', bottom: 0, right: -4, width: 28, height: 28, borderRadius: 14, backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
+  cameraBadge: { position: 'absolute', bottom: 0, right: -4, width: 28, height: 28, borderRadius: 14, backgroundColor: '#708F96', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
   fieldGroup: { marginBottom: 14 },
   label: { fontSize: 13, fontWeight: '600', color: '#475569', marginBottom: 6 },
   input: { height: 44, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 14, fontSize: 14, fontWeight: '500', color: '#1A2332' },
@@ -272,6 +272,6 @@ const styles = StyleSheet.create({
   roleEntity: { fontSize: 13, fontWeight: '700', color: '#1A2332' },
   roleBadge: { paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#E2E8F0', borderRadius: 999 },
   roleBadgeText: { fontSize: 10, fontWeight: '700', color: '#475569', textTransform: 'uppercase' },
-  saveBtn: { backgroundColor: '#7C3AED', borderRadius: 12, height: 48, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
+  saveBtn: { backgroundColor: '#708F96', borderRadius: 12, height: 48, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
   saveBtnText: { fontSize: 15, fontWeight: '600', color: '#FFF' },
 });

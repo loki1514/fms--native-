@@ -17,14 +17,20 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '@/stores/appStore';
-import { healthCheck, API_URL } from '@/lib/cassandra';
+import { useAuth } from '@/hooks/useAuth';
+import { healthCheck, getDashboard, getOnboardingState, API_URL } from '@/lib/cassandra';
 import { Colors, Gradients, Typography, Spacing, OrbState } from '@/constants/cassandra-theme';
-import ParticleOrb from '@/components/dashboard/ParticleOrb';
+import SidekickFace, { type FaceState } from '@/components/dashboard/SidekickFace';
+import SidekickChat from '@/components/dashboard/SidekickChat';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
+import { toast } from '@/lib/toast';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -38,24 +44,6 @@ const ConnectionPill = () => {
     </View>
   );
 };
-
-// ─── Dock Button ───────────────────────────────────────────────────────────
-const DockButton = ({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: string;
-  label: string;
-  onPress: () => void;
-}) => (
-  <TouchableOpacity style={styles.dockItem} onPress={onPress} activeOpacity={0.7}>
-    <View style={styles.dockIconBox}>
-      <Text style={styles.dockIcon}>{icon}</Text>
-    </View>
-    <Text style={styles.dockLabel}>{label}</Text>
-  </TouchableOpacity>
-);
 
 // ─── Hint Text ─────────────────────────────────────────────────────────────
 const OrbHint = () => {
@@ -86,9 +74,13 @@ const OrbHint = () => {
 // ─── Main Screen ───────────────────────────────────────────────────────────
 export default function CassandraHomeScreen() {
   const insets = useSafeAreaInsets();
-  const { orbState, setOrbState, setIsConnected, setActiveModal, setTranscript } = useAppStore();
+  const { membership } = useAuth();
+  const { orbState, setOrbState, setIsConnected, setActiveModal, setLastTickets } = useAppStore();
   const [orbScale] = useState(new Animated.Value(1));
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [isLoadingDock, setIsLoadingDock] = useState(false);
+
+  const orgId = membership?.org_id ?? '';
 
   // Health check on mount
   useEffect(() => {
@@ -96,6 +88,45 @@ export default function CassandraHomeScreen() {
       .then((ok) => setIsConnected(ok))
       .catch(() => setIsConnected(false));
   }, []);
+
+  // ─── Dock button handlers ────────────────────────────────────────────────
+  const handleDashboardPress = async () => {
+    if (!orgId) return;
+    setIsLoadingDock(true);
+    setOrbState('processing');
+    try {
+      const data = await getDashboard(orgId, '7d');
+      setLastTickets(data?.recent_tickets ?? []);
+      setActiveModal('dashboard');
+    } catch (err) {
+      toast.error('Could not load dashboard.');
+    } finally {
+      setIsLoadingDock(false);
+      setOrbState('idle');
+    }
+  };
+
+  const handleTeamPress = async () => {
+    if (!orgId) return;
+    setIsLoadingDock(true);
+    try {
+      const data = await getOnboardingState(orgId);
+      // Store team data in appStore for the users modal to render
+      setActiveModal('users');
+    } catch {
+      toast.error('Could not load team data.');
+    } finally {
+      setIsLoadingDock(false);
+    }
+  };
+
+  const handleFilesPress = () => {
+    setActiveModal('files');
+  };
+
+  const handleChatPress = () => {
+    setActiveModal('chat');
+  };
 
   // Orb breathing animation (idle)
   useEffect(() => {
@@ -152,34 +183,91 @@ export default function CassandraHomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Center: Orb */}
-      <View style={styles.orbContainer}>
-        <TouchableOpacity
-          onPress={handleOrbPress}
-          activeOpacity={0.9}
-          style={styles.orbTouch}
-        >
-          <Animated.View style={{ transform: [{ scale: orbScale }] }}>
-            <ParticleOrb size={120} />
-          </Animated.View>
-        </TouchableOpacity>
+      {/* Orb section + chat card — flex column filling middle */}
+      <View style={styles.orbSection}>
+        {/* SidekickFace + suggested prompts */}
+        <View style={styles.orbContainer}>
+          <TouchableOpacity
+            onPress={handleOrbPress}
+            activeOpacity={0.9}
+            style={styles.orbTouch}
+          >
+            <Animated.View style={{ transform: [{ scale: orbScale }] }}>
+              <SidekickFace size={96} state="idle" />
+            </Animated.View>
+          </TouchableOpacity>
 
-        <OrbHint />
+          <OrbHint />
+
+          {/* Suggested prompt chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.promptChips}
+          >
+            {[
+              'Show critical tickets',
+              'Energy spike today?',
+              'Daily summary',
+              'Property health',
+              'Open checklists',
+            ].map((prompt, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.promptChip}
+                onPress={() => {}}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="sparkles" size={11} color="rgba(167,139,250,0.9)" />
+                <Text style={styles.promptChipText}>{prompt}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* SidekickChat glass card */}
+        <View style={styles.chatCard}>
+          <SidekickChat open={true} onClose={() => setActiveModal('chat')} />
+        </View>
       </View>
 
       {/* Bottom dock */}
       <View style={[styles.dock, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
-        <DockButton icon="📊" label="Dashboard" onPress={() => setActiveModal('dashboard')} />
-        <DockButton icon="💬" label="Chat" onPress={() => setActiveModal('chat')} />
-        <DockButton icon="👥" label="Team" onPress={() => setActiveModal('users')} />
-        <DockButton icon="📁" label="Files" onPress={() => setActiveModal('files')} />
+        <TouchableOpacity style={styles.dockItem} onPress={handleDashboardPress} activeOpacity={0.7} disabled={isLoadingDock}>
+          <View style={styles.dockIconBox}>
+            {isLoadingDock ? <ActivityIndicator size="small" color={Colors.textPrimary} /> : <Text style={styles.dockIcon}>📊</Text>}
+          </View>
+          <Text style={styles.dockLabel}>Dashboard</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dockItem} onPress={handleChatPress} activeOpacity={0.7}>
+          <View style={styles.dockIconBox}>
+            <Text style={styles.dockIcon}>💬</Text>
+          </View>
+          <Text style={styles.dockLabel}>Chat</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dockItem} onPress={handleTeamPress} activeOpacity={0.7} disabled={isLoadingDock}>
+          <View style={styles.dockIconBox}>
+            <Text style={styles.dockIcon}>👥</Text>
+          </View>
+          <Text style={styles.dockLabel}>Team</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dockItem} onPress={handleFilesPress} activeOpacity={0.7}>
+          <View style={styles.dockIconBox}>
+            <Text style={styles.dockIcon}>📁</Text>
+          </View>
+          <Text style={styles.dockLabel}>Files</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Debug info */}
       <Text style={styles.debug}>API: {API_URL}</Text>
 
       {/* Cassandra Session Modal */}
-      <CassandraSessionModal visible={sessionOpen} onClose={() => setSessionOpen(false)} />
+      <CassandraSessionModal
+        visible={sessionOpen}
+        onClose={() => setSessionOpen(false)}
+        orgId={orgId}
+      />
     </View>
   );
 }
@@ -187,7 +275,10 @@ export default function CassandraHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.bgDeep,
+    backgroundColor: '#F0F2F6',
+  },
+  orbSection: {
+    flex: 1,
   },
   ambientGlow: {
     position: 'absolute',
@@ -196,7 +287,7 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
     borderRadius: 150,
-    opacity: 0.6,
+    opacity: 0.5,
   },
   topBar: {
     flexDirection: 'row',
@@ -209,7 +300,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -243,18 +334,17 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   orbContainer: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -40,
+    justifyContent: 'flex-start',
+    paddingTop: 24,
   },
   orbTouch: {
-    padding: 20,
+    padding: 12,
   },
   hintBox: {
-    marginTop: Spacing.lg,
+    marginTop: Spacing.sm,
     paddingHorizontal: Spacing.xl,
-    minHeight: 60,
+    minHeight: 40,
     alignItems: 'center',
   },
   hint: {
@@ -267,15 +357,48 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
   },
+  promptChips: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+  },
+  promptChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(167,139,250,0.12)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.25)',
+  },
+  promptChipText: {
+    ...Typography.caption,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+  },
+  chatCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+    borderBottomWidth: 0,
+    overflow: 'hidden',
+  },
   dock: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'flex-start',
     paddingTop: Spacing.md,
     paddingHorizontal: Spacing.md,
-    backgroundColor: 'rgba(11,15,25,0.80)',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: Colors.borderGlass,
+    borderTopColor: 'rgba(0,0,0,0.08)',
     backdropFilter: 'blur(12px)',
   },
   dockItem: {

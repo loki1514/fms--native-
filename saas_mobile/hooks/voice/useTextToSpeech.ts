@@ -1,7 +1,15 @@
 'use client';
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
-import * as Speech from 'expo-speech';
+
+let Speech: typeof import('expo-speech') | null = null;
+if (Platform.OS !== 'web') {
+  try {
+    Speech = require('expo-speech');
+  } catch {
+    Speech = null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Text-to-Speech Hook
@@ -25,7 +33,7 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (Platform.OS !== 'web') {
+      if (Platform.OS !== 'web' && Speech) {
         Speech.stop();
       }
     };
@@ -39,7 +47,7 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
-    } else {
+    } else if (Speech) {
       Speech.stop();
     }
     setIsSpeaking(false);
@@ -59,6 +67,10 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
       webFallbackSpeak(text);
     } else {
       // Native: use expo-speech
+      if (!Speech) {
+        setError('Speech module not available');
+        return;
+      }
       try {
         setIsSpeaking(true);
         await Speech.speak(text, {
@@ -66,7 +78,7 @@ export function useTextToSpeech(): UseTextToSpeechReturn {
           pitch: 1.0,
           rate: 1.0,
           onDone: () => setIsSpeaking(false),
-          onError: (e) => {
+          onError: (e: any) => {
             setIsSpeaking(false);
             setError(e ? String(e) : 'Speech synthesis failed');
           },

@@ -66,7 +66,7 @@ export default function PropertySelectionView({ propertyIds, onSelect }: Propert
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.iconCircle}>
-          <Ionicons name="business-outline" size={32} color="#7C3AED" />
+          <Ionicons name="business-outline" size={32} color="#708F96" />
         </View>
         <Text style={styles.title}>Select Location</Text>
         <Text style={styles.subtitle}>
@@ -88,7 +88,7 @@ export default function PropertySelectionView({ propertyIds, onSelect }: Propert
               activeOpacity={0.7}
             >
               <View style={styles.propertyIcon}>
-                <Ionicons name="business" size={20} color="#7C3AED" />
+                <Ionicons name="business" size={20} color="#708F96" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.propertyName}>{item.name}</Text>

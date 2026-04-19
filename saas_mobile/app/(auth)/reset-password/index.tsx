@@ -125,7 +125,7 @@ export default function ResetPasswordScreen() {
             /* Form */
             <>
               <View style={styles.iconCircle}>
-                <Ionicons name="key-outline" size={28} color="#7C3AED" />
+                <Ionicons name="key-outline" size={28} color="#708F96" />
               </View>
               <Text style={styles.title}>Set New Password</Text>
               <Text style={styles.subtitle}>
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   },
   submitRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   submitText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
-  linkText: { fontSize: 14, fontWeight: '600', color: '#7C3AED' },
+  linkText: { fontSize: 14, fontWeight: '600', color: '#708F96' },
   backLink: { fontSize: 12, color: '#94A3B8' },
   successContainer: { alignItems: 'center', paddingVertical: 16 },
   successIcon: {

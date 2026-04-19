@@ -68,7 +68,7 @@ export default function AnalyticsTab() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7C3AED" />
+        <ActivityIndicator size="large" color="#708F96" />
         <Text style={styles.loadingText}>Analyzing Engagement Data...</Text>
       </View>
     );

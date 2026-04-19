@@ -9,8 +9,13 @@ import {
   Alert,
   SafeAreaView,
 } from 'react-native';
-// @ts-ignore
-import * as Clipboard from 'expo-clipboard';
+// Lazy import expo-clipboard — may not be installed
+let Clipboard: any;
+try {
+  Clipboard = require('expo-clipboard');
+} catch (e) {
+  Clipboard = null;
+}
 import { Ionicons } from '@expo/vector-icons';
 import { Linking } from 'react-native';
 
@@ -64,7 +69,9 @@ export default function ShareModal({ isOpen, onClose, ticketId, ticketNumber, ti
   const shareText = `Ticket ${ticketNumber}: ${title}`;
 
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(shareUrl);
+    if (Clipboard?.setStringAsync) {
+      await Clipboard.setStringAsync(shareUrl);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -150,7 +157,7 @@ const styles = StyleSheet.create({
   closeBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: '#F9FAFB', borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', marginTop: 16 },
   linkText: { flex: 1, fontSize: 11, color: '#6B7280', fontFamily: 'monospace' },
-  copyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: '#7C3AED' },
+  copyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: '#708F96' },
   copyBtnCopied: { backgroundColor: '#10B981' },
   copyBtnText: { fontSize: 11, fontWeight: '700', color: '#FFF' },
   platformGrid: { flexDirection: 'row', gap: 12, marginTop: 16 },

@@ -548,14 +548,17 @@ export default function MasterAdminDashboard() {
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       {weather && <AuroraBackground colors={weather.auroraColors} />}
 
-      {/* Top Navigation */}
+      {/* Top Navigation — clean, floating style */}
       <View style={styles.topNav}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.topNavTitle}>Master Control</Text>
           <Text style={styles.topNavSubtitle}>System Administration</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowSignOutModal(true)}>
-          <Ionicons name="log-out-outline" size={24} color="rgba(255,255,255,0.40)" />
+        <TouchableOpacity
+          style={styles.topNavButton}
+          onPress={() => setShowSignOutModal(true)}
+        >
+          <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.60)" />
         </TouchableOpacity>
       </View>
 
@@ -706,16 +709,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
+  },
+  topNavButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   topNavTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     fontFamily: 'Poppins-Bold',
+    letterSpacing: -0.5,
   },
   topNavSubtitle: {
     fontSize: 13,

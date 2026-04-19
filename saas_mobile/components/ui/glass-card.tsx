@@ -9,16 +9,16 @@ interface GlassCardProps {
 
 const INTENSITY_MAP = {
   low: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.40)',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   medium: {
-    backgroundColor: 'rgba(2,6,23,0.4)',
-    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    borderColor: 'rgba(255,255,255,0.20)',
   },
   high: {
-    backgroundColor: 'rgba(2,6,23,0.6)',
-    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    borderColor: 'rgba(255,255,255,0.30)',
   },
 };
 
@@ -43,13 +43,13 @@ export function GlassCard({ children, style, intensity = 'medium' }: GlassCardPr
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 4,
+    borderRadius: 22,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowColor: 'rgba(0,0,0,0.06)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 2,
   },
 });
 

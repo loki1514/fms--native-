@@ -17,6 +17,7 @@ export interface ToastProps {
   duration?: number;
 }
 
+// Apple system icons & colors
 const ICON_MAP = {
   success: 'checkmark-circle' as const,
   error: 'alert-circle' as const,
@@ -24,9 +25,9 @@ const ICON_MAP = {
 };
 
 const ICON_COLOR_MAP = {
-  success: '#10B981',
-  error: '#F43F5E',
-  info: '#3B82F6',
+  success: '#34C759',
+  error: '#FF3B30',
+  info: '#2997FF',
 };
 
 const TITLE_MAP = {
@@ -96,7 +97,7 @@ export const Toast: React.FC<ToastProps> = ({
       <View style={styles.content}>
         <Ionicons
           name={ICON_MAP[type]}
-          size={24}
+          size={22}
           color={ICON_COLOR_MAP[type]}
         />
         <View style={styles.textContainer}>
@@ -105,7 +106,7 @@ export const Toast: React.FC<ToastProps> = ({
         </View>
         {onClose && (
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Ionicons name="close" size={18} color="#94A3B8" />
+            <Ionicons name="close" size={16} color="#9CA3AF" />
           </TouchableOpacity>
         )}
       </View>
@@ -127,34 +128,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 11,
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    borderColor: '#E8E8ED',
+    shadowColor: 'rgba(0,0,0,0.08)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    elevation: 4,
   },
   textContainer: {
     flex: 1,
   },
   title: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#1A2332',
-    letterSpacing: -0.3,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1D1D1F',
+    letterSpacing: -0.1,
   },
   message: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#6B7280',
     marginTop: 2,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: -0.1,
   },
   closeButton: {
     padding: 4,

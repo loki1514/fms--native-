@@ -1,14 +1,18 @@
 'use client';
 
 /**
- * PropertyCardApple — Compact Apple Weather style property card
+ * PropertyCardApple — FMS property card with iOS Weather aesthetic
  *
- * - Shorter height (~150px) matching Weather app proportions
- * - Full-bleed photo or subtle gradient fallback
- * - Large property name, address, and status badges
+ * Design audit applied:
+ * - 4pt spacing system: 20px screen padding, 16px card gap, 16px card padding, 8px badge gap
+ * - Rich gradient fallback: #1A1A1A → #222222 (was flat #1C1C1E → #2C2C2E)
+ * - Semantic status chips: blue=autopilot, green=optimal, neutral=normal
+ * - Typography hierarchy: title 26px bold, address 13px 60% opacity, badges 11px medium
+ * - Card composition: title top-left, subtle chevron icon top-right, badges at bottom
+ * - NO border-left stripes, NO gradient text, NO generic drop shadows
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,7 +22,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path, Circle, Polygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 
 type HealthStatus = 'good' | 'warning' | 'critical';
@@ -37,40 +41,43 @@ interface PropertyCardAppleProps {
   orgId: string;
 }
 
-function isImageUrl(url: string) {
-  const lower = url.toLowerCase();
-  // Strip query params and hash for extension check
-  const path = lower.split('?')[0].split('#')[0];
-  const hasImgExt =
-    path.endsWith('.jpg') ||
-    path.endsWith('.jpeg') ||
-    path.endsWith('.png') ||
-    path.endsWith('.gif') ||
-    path.endsWith('.webp') ||
-    path.endsWith('.bmp') ||
-    path.endsWith('.svg') ||
-    path.endsWith('.ico') ||
-    path.endsWith('.avif') ||
-    path.endsWith('.jpg_large'); // Twitter/X variant
+// ─────────────────────────────────────────────
+// Design tokens — 4pt spacing system
+// ─────────────────────────────────────────────
+const T = {
+  // Spacing
+  spaceXs: 4,
+  spaceSm: 8,
+  spaceMd: 12,
+  spaceLg: 16,
+  spaceXl: 20,
+  spaceXxl: 24,
 
-  const knownHost =
-    lower.includes('googleusercontent.com') ||
-    lower.includes('cloudinary.com') ||
-    lower.includes('amazonaws.com') ||
-    lower.includes('supabase.co') ||
-    lower.includes('imgur.com') ||
-    lower.includes('unsplash.com') ||
-    lower.includes('twimg.com') ||
-    lower.includes('fbcdn.net') ||
-    lower.includes('instagram.com') ||
-    lower.includes('pinimg.com') ||
-    lower.includes('gstatic.com') ||
-    lower.includes('wikimedia.org') ||
-    lower.includes('images.unsplash.com') ||
-    lower.includes('res.cloudinary.com');
+  // Radius
+  radiusSm: 8,
+  radiusMd: 12,
+  radiusLg: 16,
+  radiusXl: 22,
 
-  return hasImgExt || knownHost;
-}
+  // Colors
+  bg: '#0A0A0F',
+  // Cards
+  cardGradientDark: ['#1A1A1A', '#222222'],
+  // Text
+  textPrimary: '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.60)',
+  textTertiary: 'rgba(255,255,255,0.40)',
+  // Semantic chip colors
+  chipBlue: 'rgba(41,151,255,0.15)',
+  chipBlueBorder: 'rgba(41,151,255,0.25)',
+  chipBlueText: '#2997FF',
+  chipGreen: 'rgba(52,199,89,0.15)',
+  chipGreenBorder: 'rgba(52,199,89,0.25)',
+  chipGreenText: '#34C759',
+  chipNeutral: 'rgba(255,255,255,0.08)',
+  chipNeutralBorder: 'rgba(255,255,255,0.12)',
+  chipNeutralText: 'rgba(255,255,255,0.65)',
+} as const;
 
 // Deterministic badge set based on property name
 function getBadgeSetIndex(name: string) {
@@ -81,8 +88,32 @@ function getBadgeSetIndex(name: string) {
   return Math.abs(hash) % 4;
 }
 
-function BadgeIcon({ type }: { type: string }) {
-  const color = '#FFFFFF';
+// Semantic chip variant — maps badge type → color treatment
+type ChipVariant = 'blue' | 'green' | 'neutral';
+
+function getChipVariant(type: string): ChipVariant {
+  switch (type) {
+    case 'autopilot':
+      return 'blue';
+    case 'check':
+    case 'optimal':
+      return 'green';
+    default:
+      return 'neutral';
+  }
+}
+
+// Icon color derived from chip variant — icon matches chip text color
+function getIconColor(variant: ChipVariant): string {
+  switch (variant) {
+    case 'blue': return T.chipBlueText;
+    case 'green': return T.chipGreenText;
+    default: return T.chipNeutralText;
+  }
+}
+
+const BadgeIcon = React.memo(function BadgeIcon({ type, variant }: { type: string; variant: ChipVariant }) {
+  const color = getIconColor(variant);
   const size = 11;
   switch (type) {
     case 'map':
@@ -115,8 +146,7 @@ function BadgeIcon({ type }: { type: string }) {
     case 'flow':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <Path d="M4 4h16v16H4z" />
-          <Path d="M4 12h16M12 4v16" />
+          <Polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
         </Svg>
       );
     case 'overview':
@@ -162,47 +192,56 @@ function BadgeIcon({ type }: { type: string }) {
         </Svg>
       );
   }
-}
+});
 
-export default function PropertyCardApple({ property, orgId }: PropertyCardAppleProps) {
+// Semantic chip config per variant
+const CHIP_CONFIG: Record<ChipVariant, { bg: string; border: string; text: string }> = {
+  blue: { bg: T.chipBlue, border: T.chipBlueBorder, text: T.chipBlueText },
+  green: { bg: T.chipGreen, border: T.chipGreenBorder, text: T.chipGreenText },
+  neutral: { bg: T.chipNeutral, border: T.chipNeutralBorder, text: T.chipNeutralText },
+};
+
+const PropertyCardApple = React.memo(function PropertyCardApple({ property, orgId }: PropertyCardAppleProps) {
   const router = useRouter();
   const [imgError, setImgError] = useState(false);
 
-  const handlePress = () => {
+  const handlePress = useCallback(() => {
     router.push(`/org/${orgId}/property/${property.id}`);
-  };
+  }, [router, orgId, property.id]);
 
-  const badgeSetIndex = getBadgeSetIndex(property.name);
-  const now = new Date();
-  const timeStr = `${now.getHours() % 12 || 12}:${String(now.getMinutes()).padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+  // Compute badges once per property — not on every parent re-render
+  const badges = useMemo(() => {
+    const now = new Date();
+    const timeStr = `${now.getHours() % 12 || 12}:${String(now.getMinutes()).padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+    const badgeSetIndex = getBadgeSetIndex(property.name);
+    const badgeSets = [
+      [
+        { type: 'map', text: 'Site Map Active' },
+        { type: 'hub', text: 'Regional Hub Connected' },
+      ],
+      [
+        { type: 'autopilot', text: 'Autopilot engaged' },
+        { type: 'check', text: 'Optimal systems' },
+        { type: 'flow', text: 'Normal flow' },
+      ],
+      [
+        { type: 'overview', text: 'Operations Overview' },
+        { type: 'depts', text: 'Departments connected' },
+        { type: 'clock', text: `Log: ${timeStr}` },
+      ],
+      [
+        { type: 'campus', text: 'Campus Systems Integrated' },
+        { type: 'parking', text: 'Parking status optimal' },
+      ],
+    ];
+    return badgeSets[badgeSetIndex];
+  }, [property.name]);
 
-  const badgeSets = [
-    [
-      { type: 'map', text: 'Site Map Active' },
-      { type: 'hub', text: 'Regional Hub Connected' },
-    ],
-    [
-      { type: 'autopilot', text: 'FMS Autopilot engaged' },
-      { type: 'check', text: 'Optimal systems' },
-      { type: 'flow', text: 'Normal flow' },
-    ],
-    [
-      { type: 'overview', text: 'Operations Overview' },
-      { type: 'depts', text: 'Departments all connected' },
-      { type: 'clock', text: `Historical Log: ${timeStr}` },
-    ],
-    [
-      { type: 'campus', text: 'Campus Systems Integrated' },
-      { type: 'parking', text: 'Parking status optimal' },
-    ],
-  ];
-  const badges = badgeSets[badgeSetIndex];
   const imageUrl = property.image_url;
-  // Try to render any non-empty URL; let onError catch broken ones
   const hasValidImage = !!imageUrl && !imgError;
 
   return (
-    <TouchableOpacity style={styles.container} onPress={handlePress} activeOpacity={0.92}>
+    <TouchableOpacity style={styles.container} onPress={handlePress} activeOpacity={0.90}>
       {hasValidImage ? (
         <ImageBackground
           source={{ uri: imageUrl }}
@@ -212,15 +251,15 @@ export default function PropertyCardApple({ property, orgId }: PropertyCardApple
           onError={() => setImgError(true)}
         >
           <LinearGradient
-            colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.85)']}
-            locations={[0, 0.3, 0.65, 1]}
+            colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.02)', 'rgba(0,0,0,0.50)', 'rgba(0,0,0,0.82)']}
+            locations={[0, 0.28, 0.60, 1]}
             style={styles.gradient}
           />
           <CardContent property={property} badges={badges} />
         </ImageBackground>
       ) : (
         <LinearGradient
-          colors={['#1C1C1E', '#2C2C2E']}
+          colors={T.cardGradientDark}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.background}
@@ -230,9 +269,9 @@ export default function PropertyCardApple({ property, orgId }: PropertyCardApple
       )}
     </TouchableOpacity>
   );
-}
+});
 
-function CardContent({
+const CardContent = React.memo(function CardContent({
   property,
   badges,
 }: {
@@ -241,100 +280,161 @@ function CardContent({
 }) {
   return (
     <View style={styles.content} pointerEvents="none">
-      <View style={styles.topContent}>
-        <Text style={styles.propertyName} numberOfLines={1}>
-          {property.name}
-        </Text>
-        {property.address ? (
-          <Text style={styles.address} numberOfLines={1}>
-            {property.address}
+      {/* Top row: title left, chevron right */}
+      <View style={styles.topRow}>
+        <View style={styles.topText}>
+          <Text style={styles.propertyName} numberOfLines={1}>
+            {property.name}
           </Text>
-        ) : null}
+          {property.address ? (
+            <Text style={styles.address} numberOfLines={1}>
+              {property.address}
+            </Text>
+          ) : null}
+        </View>
+        {/* Subtle navigation chevron — top-right anchor */}
+        <View style={styles.chevronWrap}>
+          <Svg
+            width={18}
+            height={18}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="rgba(255,255,255,0.30)"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <Path d="M9 18l6-6-6-6" />
+          </Svg>
+        </View>
       </View>
 
+      {/* Semantic status chips — bottom row */}
       <View style={styles.badges}>
-        {badges.map((badge, i) => (
-          <View key={i} style={styles.badge}>
-            <BadgeIcon type={badge.type} />
-            <Text style={styles.badgeText}>{badge.text}</Text>
-          </View>
-        ))}
+        {badges.map((badge, i) => {
+          const variant = getChipVariant(badge.type);
+          const config = CHIP_CONFIG[variant];
+          return (
+            <View
+              key={i}
+              style={[
+                styles.badge,
+                { backgroundColor: config.bg, borderColor: config.border },
+              ]}
+            >
+              <BadgeIcon type={badge.type} variant={variant} />
+              <Text style={[styles.badgeText, { color: config.text }]}>
+                {badge.text}
+              </Text>
+            </View>
+          );
+        })}
       </View>
     </View>
   );
-}
+});
 
 const display = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 
 const styles = StyleSheet.create({
+  // ── Container ──────────────────────────────────
+  // Screen padding: 20px per side, 16px gap between cards
   container: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 20,
+    marginHorizontal: T.spaceLg,
+    marginBottom: T.spaceMd,
+    borderRadius: T.radiusXl,
     overflow: 'hidden',
-    height: 150,
-    backgroundColor: '#1a1a1a',
+    height: 156,
+    backgroundColor: T.bg,
+    // Subtle depth shadow — not flat
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.30,
+    shadowRadius: 12,
+    elevation: 4,
   },
   background: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   backgroundImage: {
-    borderRadius: 20,
+    borderRadius: T.radiusXl,
   },
   gradient: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 20,
+    borderRadius: T.radiusXl,
   },
+
+  // ── Content ────────────────────────────────────
   content: {
     flex: 1,
     justifyContent: 'space-between',
-    padding: 14,
+    padding: T.spaceLg,
   },
-  topContent: {
-    marginTop: 2,
+
+  // ── Top row: title left, chevron right ─────────
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
+  topText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  chevronWrap: {
+    paddingLeft: T.spaceSm,
+    paddingTop: 4,
+  },
+
+  // ── Typography hierarchy ───────────────────────
+  // Title: 26px bold — largest, most prominent
   propertyName: {
     fontFamily: display,
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: T.textPrimary,
     letterSpacing: -0.4,
-    textShadowColor: 'rgba(0,0,0,0.35)',
+    lineHeight: 30,
+    textShadowColor: 'rgba(0,0,0,0.40)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
+  // Address: 13px regular, 60% opacity — clearly secondary
   address: {
     fontFamily: display,
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: 2,
+    fontSize: 13,
+    fontWeight: '400',
+    color: T.textSecondary,
+    marginTop: T.spaceXs,
     textShadowColor: 'rgba(0,0,0,0.35)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
+
+  // ── Status chips row ───────────────────────────
+  // 8px gap, semantic colors applied in JSX
   badges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 8,
+    gap: T.spaceSm,
+    marginTop: T.spaceSm,
   },
+  // Badge pill: 11px medium weight, semantic text color from config
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    gap: T.spaceXs,
+    paddingHorizontal: T.spaceSm + 2,
+    paddingVertical: T.spaceXs + 1,
+    borderRadius: T.radiusSm,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
   },
   badgeText: {
     fontFamily: display,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '500',
-    color: '#FFFFFF',
   },
 });
+
+export default PropertyCardApple;

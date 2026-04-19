@@ -173,6 +173,6 @@ const styles = StyleSheet.create({
   buttonRow: { flexDirection: 'row', gap: 12, marginTop: 8 },
   cancelBtn: { flex: 1, height: 48, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' },
   cancelText: { fontSize: 14, fontWeight: '700', color: '#475569' },
-  submitBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center' },
+  submitBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: '#708F96', justifyContent: 'center', alignItems: 'center' },
   submitText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
 });

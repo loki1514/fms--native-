@@ -10,7 +10,7 @@
  *   • Native (iOS/Android): react-native-webview
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 
 let WebView: any;
@@ -107,8 +107,38 @@ const ORB_HTML =
 
 const RENDER_SIZE = 200;
 
-export default function ParticleOrb({ size = 90 }: { size?: number }) {
-  const scale = size / RENDER_SIZE;
+// Inner WebView — memoized so it never re-creates on parent re-renders
+const OrbWebView = React.memo(function OrbWebView({ size, scale }: { size: number; scale: number }) {
+  return (
+    <View
+      style={[
+        styles.clipper,
+        { width: size, height: size, borderRadius: size / 2 },
+      ]}
+    >
+      <View
+        style={{
+          width: RENDER_SIZE,
+          height: RENDER_SIZE,
+          transform: [{ scale }],
+          transformOrigin: 'top left',
+        }}
+      >
+        <WebView
+          source={{ html: ORB_HTML }}
+          style={{ width: RENDER_SIZE, height: RENDER_SIZE, backgroundColor: 'transparent' }}
+          scrollEnabled={false}
+          pointerEvents="none"
+          opaque={false}
+          androidLayerType="hardware"
+        />
+      </View>
+    </View>
+  );
+});
+
+export default React.memo(function ParticleOrb({ size = 90 }: { size?: number }) {
+  const scale = useMemo(() => size / RENDER_SIZE, [size]);
 
   // ─── Web: iframe scaled with CSS transform ───────────────────────────────
   if (Platform.OS === 'web') {
@@ -139,33 +169,8 @@ export default function ParticleOrb({ size = 90 }: { size?: number }) {
   }
 
   // ─── Native: WebView inside a scaled wrapper ─────────────────────────────
-  return (
-    <View
-      style={[
-        styles.clipper,
-        { width: size, height: size, borderRadius: size / 2 },
-      ]}
-    >
-      <View
-        style={{
-          width: RENDER_SIZE,
-          height: RENDER_SIZE,
-          transform: [{ scale }],
-          transformOrigin: 'top left',
-        }}
-      >
-        <WebView
-          source={{ html: ORB_HTML }}
-          style={{ width: RENDER_SIZE, height: RENDER_SIZE, backgroundColor: 'transparent' }}
-          scrollEnabled={false}
-          pointerEvents="none"
-          opaque={false}
-          androidLayerType="hardware"
-        />
-      </View>
-    </View>
-  );
-}
+  return <OrbWebView size={size} scale={scale} />;
+});
 
 const styles = StyleSheet.create({
   clipper: {

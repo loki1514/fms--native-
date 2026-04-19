@@ -12,7 +12,7 @@ export default function PropertyIndex() {
   if (isLoading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#667eea" />
+        <ActivityIndicator size="large" color="#708F96" />
       </View>
     );
   }

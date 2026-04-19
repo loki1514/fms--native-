@@ -161,9 +161,9 @@ export default function InviteMemberModal({ isOpen, onClose, orgId, orgName, pro
                 <Text style={styles.label}>Target Property</Text>
                 {properties.map(p => (
                   <TouchableOpacity key={p.id} style={[styles.propItem, selectedPropertyId === p.id && styles.propItemActive]} onPress={() => setSelectedPropertyId(p.id)}>
-                    <Ionicons name="business-outline" size={16} color={selectedPropertyId === p.id ? '#7C3AED' : '#94A3B8'} />
-                    <Text style={[styles.propText, selectedPropertyId === p.id && { color: '#7C3AED', fontWeight: '700' }]}>{p.name}</Text>
-                    {selectedPropertyId === p.id && <Ionicons name="checkmark-circle" size={18} color="#7C3AED" />}
+                    <Ionicons name="business-outline" size={16} color={selectedPropertyId === p.id ? '#708F96' : '#94A3B8'} />
+                    <Text style={[styles.propText, selectedPropertyId === p.id && { color: '#708F96', fontWeight: '700' }]}>{p.name}</Text>
+                    {selectedPropertyId === p.id && <Ionicons name="checkmark-circle" size={18} color="#708F96" />}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -178,7 +178,7 @@ export default function InviteMemberModal({ isOpen, onClose, orgId, orgName, pro
                   return (
                     <TouchableOpacity key={skill.code} style={[styles.skillItem, isSelected && styles.skillItemActive]} onPress={() => toggleSkill(skill.code)}>
                       <View style={styles.skillLeft}>
-                        <View style={[styles.skillIcon, isSelected && { backgroundColor: '#7C3AED' }]}>
+                        <View style={[styles.skillIcon, isSelected && { backgroundColor: '#708F96' }]}>
                           <Ionicons name={skill.icon} size={16} color={isSelected ? '#FFF' : '#94A3B8'} />
                         </View>
                         <Text style={[styles.skillText, isSelected && { color: '#FFF' }]}>{skill.label}</Text>
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   modal: { backgroundColor: '#FFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '90%', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 32 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  headerIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#7C3AED', justifyContent: 'center', alignItems: 'center' },
+  headerIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#708F96', justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '900', color: '#1A2332' },
   headerSub: { fontSize: 13, color: '#94A3B8' },
   closeBtn: { padding: 8 },
@@ -218,14 +218,14 @@ const styles = StyleSheet.create({
   eyeBtn: { position: 'absolute', right: 16, top: 14 },
   chipRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   roleChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9' },
-  roleChipActive: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  roleChipActive: { backgroundColor: '#708F96', borderColor: '#708F96' },
   roleChipText: { fontSize: 12, fontWeight: '700', color: '#64748B' },
   roleChipTextActive: { color: '#FFF' },
   propItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', marginBottom: 6 },
-  propItemActive: { borderColor: '#7C3AED', backgroundColor: 'rgba(124,58,237,0.04)' },
+  propItemActive: { borderColor: '#708F96', backgroundColor: 'rgba(124,58,237,0.04)' },
   propText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#64748B' },
   skillItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#F1F5F9', backgroundColor: '#F8FAFC', marginBottom: 6 },
-  skillItemActive: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
+  skillItemActive: { backgroundColor: '#708F96', borderColor: '#708F96' },
   skillLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   skillIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   skillText: { fontSize: 13, fontWeight: '700', color: '#64748B' },
@@ -233,6 +233,6 @@ const styles = StyleSheet.create({
   checkboxActive: { backgroundColor: '#10B981', borderColor: '#10B981' },
   errorBox: { backgroundColor: 'rgba(244,63,94,0.08)', borderWidth: 1, borderColor: 'rgba(244,63,94,0.2)', borderRadius: 16, padding: 16, marginBottom: 16 },
   errorText: { fontSize: 13, fontWeight: '700', color: '#F43F5E' },
-  submitBtn: { backgroundColor: '#7C3AED', borderRadius: 16, height: 56, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
+  submitBtn: { backgroundColor: '#708F96', borderRadius: 16, height: 56, justifyContent: 'center', alignItems: 'center', marginTop: 8 },
   submitText: { fontSize: 16, fontWeight: '900', color: '#FFF' },
 });

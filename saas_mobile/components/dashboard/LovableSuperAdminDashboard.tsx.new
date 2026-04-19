@@ -1,0 +1,1364 @@
+'use client';
+/**
+ * Lovable Super Admin Dashboard
+ *
+ * Atmospheric Glass design matching the reference app at:
+ * /Users/lohitaksha/Downloads/App 2.0/lovable direct/
+ *
+ * 5 screens:
+ *  1. Properties List  — org properties with glass cards, gradient overlays
+ *  2. Property Detail  — per-property dashboard with gradient tiles
+ *  3. Ticket Modal     — detail modal with area chart, breakdown, AI analysis
+ *  4. Cassandra AI     — SidekickChat with voice assistant
+ *  5. Master Console   — org/user management tabs
+ *
+ * Access: only sanyog@gmail.com
+ */
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  StatusBar,
+  ImageBackground,
+  Pressable,
+  Platform,
+  RefreshControl,
+  Dimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
+import { useRouter } from 'expo-router';
+import { createClient } from '@/utils/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useWeather } from '@/hooks/useWeather';
+import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import ParticleOrb from '@/components/dashboard/ParticleOrb';
+import SignOutModal from '@/components/ui/SignOutModal';
+import SidekickFace from '@/components/dashboard/SidekickFace';
+import DashboardTile from '@/components/dashboard/DashboardTile';
+import DetailModal, { type TileDetail } from '@/components/dashboard/DetailModal';
+import SidekickChat from '@/components/dashboard/SidekickChat';
+
+const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
+const fontDisplay = Platform.OS === 'web' ? 'Poppins' : 'System';
+const LOVABLE_EMAIL = 'sanyog@gmail.com';
+
+// ─── Color constants ───────────────────────────────────────────────────────────
+const BG = '#060912'; // oklch(0.14 0.03 260) ≈ #0A0C14
+
+const STATUS_COLORS = {
+  optimal: '#1FC26E',   // oklch(0.78 0.2 145)
+  warning: '#C4A000',   // oklch(0.78 0.18 65)
+  critical: '#D9261C',  // oklch(0.66 0.24 22)
+};
+
+const GLASS_BG = 'rgba(255,255,255,0.06)';
+const GLASS_BORDER = 'rgba(255,255,255,0.12)';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Screen = 'properties' | 'property-detail' | 'console' | 'analytics';
+type Tab = 'overview' | 'organizations' | 'users' | 'profile';
+
+interface Property {
+  id: string;
+  name: string;
+  code: string;
+  address?: string;
+  image_url?: string | null;
+  openTickets?: number;
+  resolvedTickets?: number;
+  totalTickets?: number;
+  healthStatus?: 'good' | 'warning' | 'critical';
+  checklist?: { completed: number; total: number };
+  energy?: { current: number; trend: number };
+  tickets?: { day: string; count: number }[];
+  status?: 'optimal' | 'warning' | 'critical';
+  high?: number;
+  low?: number;
+}
+
+interface TicketStats {
+  raisedToday: number;
+  dailyAvg: number;
+  total: number;
+  byStatus: { open: number; inProgress: number; resolved: number };
+  history: { day: string; count: number }[];
+}
+
+interface Org {
+  id: string;
+  name: string;
+  code: string;
+  is_deleted: boolean;
+  properties?: { count: number }[];
+}
+
+interface SystemUser {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string | null;
+}
+
+// ─── Tile details data ────────────────────────────────────────────────────────
+const TILE_DETAILS: Record<string, TileDetail> = {
+  tickets: {
+    id: 'tickets',
+    iconName: 'ticket',
+    label: 'Tickets',
+    title: 'SS Plaza · Tickets',
+    metrics: [
+      { label: 'Raised today', value: '51' },
+      { label: 'Daily avg', value: '48.8' },
+      { label: 'Total', value: '1,463' },
+    ],
+    chartTitle: '7-Day History',
+    chartData: [
+      { label: 'Mon', value: 206 },
+      { label: 'Tue', value: 211 },
+      { label: 'Wed', value: 210 },
+      { label: 'Thu', value: 210 },
+      { label: 'Fri', value: 207 },
+      { label: 'Sat', value: 211 },
+      { label: 'Sun', value: 209 },
+    ],
+    chartColor: '#3B82F6',
+    trendDirection: 'up',
+    trendLabel: '+2.4% vs last week',
+    breakdownTitle: 'Status Breakdown',
+    breakdown: [
+      { label: 'Open', value: 804, color: '#C4A000' },
+      { label: 'In Progress', value: 0, color: '#3B82F6' },
+      { label: 'Resolved', value: 659, color: '#1FC26E' },
+    ],
+    aiAnalysis: 'Ticket volume is critically high. Recommend immediate staff reallocation and priority triage. Resolution rate is below the optimal threshold for SLA compliance.',
+  },
+  checklist: {
+    id: 'checklist',
+    iconName: 'checkmark-square',
+    label: 'Checklist',
+    title: 'SS Plaza · Daily Checklist',
+    metrics: [
+      { label: 'Completed', value: '87' },
+      { label: 'Total', value: '100' },
+      { label: 'Overdue', value: '4' },
+    ],
+    chartTitle: 'Completion Trend',
+    chartData: [
+      { label: 'Mon', value: 78 },
+      { label: 'Tue', value: 82 },
+      { label: 'Wed', value: 85 },
+      { label: 'Thu', value: 80 },
+      { label: 'Fri', value: 88 },
+      { label: 'Sat', value: 90 },
+      { label: 'Sun', value: 87 },
+    ],
+    chartColor: '#1FC26E',
+    trendDirection: 'up',
+    trendLabel: '+5.1% this week',
+    breakdownTitle: 'Category Status',
+    breakdown: [
+      { label: 'Safety', value: '24/25', color: '#1FC26E' },
+      { label: 'Maintenance', value: '31/35', color: '#3B82F6' },
+      { label: 'Cleaning', value: '20/25', color: '#C4A000' },
+      { label: 'Inspection', value: '12/15', color: '#B06AF0' },
+    ],
+    aiAnalysis: 'Daily completion is above target at 87%. Cleaning category is trending below benchmark — assign additional resources during the 14:00–17:00 window to close the gap.',
+  },
+  health: {
+    id: 'health',
+    iconName: 'heart',
+    label: 'Health',
+    title: 'SS Plaza · Facility Health',
+    metrics: [
+      { label: 'Score', value: '62' },
+      { label: 'Open issues', value: '804' },
+      { label: 'Critical', value: '12' },
+    ],
+    chartTitle: 'Health Score · 7 Days',
+    chartData: [
+      { label: 'Mon', value: 78 },
+      { label: 'Tue', value: 75 },
+      { label: 'Wed', value: 71 },
+      { label: 'Thu', value: 68 },
+      { label: 'Fri', value: 65 },
+      { label: 'Sat', value: 63 },
+      { label: 'Sun', value: 62 },
+    ],
+    chartColor: '#D9261C',
+    trendDirection: 'down',
+    trendLabel: '-20.5% vs last week',
+    breakdownTitle: 'System Status',
+    breakdown: [
+      { label: 'HVAC', value: 'Critical', color: '#D9261C' },
+      { label: 'Electrical', value: 'Warning', color: '#C4A000' },
+      { label: 'Plumbing', value: 'Healthy', color: '#1FC26E' },
+      { label: 'Fire Safety', value: 'Healthy', color: '#1FC26E' },
+    ],
+    aiAnalysis: 'Health score has declined 20% week-over-week, primarily driven by HVAC failures on floors 4–7. Schedule preventive maintenance within 48 hours to avoid escalation.',
+  },
+  energy: {
+    id: 'energy',
+    iconName: 'flash',
+    label: 'Energy Usage',
+    title: 'SS Plaza · Energy',
+    metrics: [
+      { label: 'Today (kWh)', value: '1,248' },
+      { label: 'Avg / day', value: '1,114' },
+      { label: 'Peak hour', value: '14:00' },
+    ],
+    chartTitle: 'Hourly Consumption',
+    chartData: [
+      { label: '06', value: 420 },
+      { label: '09', value: 780 },
+      { label: '12', value: 1080 },
+      { label: '15', value: 1248 },
+      { label: '18', value: 980 },
+      { label: '21', value: 640 },
+      { label: '00', value: 380 },
+    ],
+    chartColor: '#C4A000',
+    trendDirection: 'up',
+    trendLabel: '+12% vs avg',
+    breakdownTitle: 'Source Mix',
+    breakdown: [
+      { label: 'Grid', value: '68%', color: '#3B82F6' },
+      { label: 'DG (Diesel)', value: '24%', color: '#C4A000' },
+      { label: 'Solar', value: '8%', color: '#1FC26E' },
+    ],
+    aiAnalysis: 'Consumption is 12% above the 30-day average. Peak demand at 14:00 suggests HVAC over-cycling. Shifting non-essential loads to off-peak hours could reduce cost by ~₹38k this month.',
+  },
+};
+
+// ─── Sky gradients for property cards ─────────────────────────────────────────
+const SKY_GRADIENTS = [
+  ['#4A6FA5', '#6B8FC4', '#8BAFD4'],
+  ['#2D4A6F', '#4A6FA5', '#7A9FC4'],
+  ['#5A7A9A', '#8AAABA', '#B0C8D8'],
+  ['#3A5A7A', '#5A8AAA', '#8ABACA'],
+  ['#4A5A6A', '#6A8A9A', '#9ABABA'],
+];
+function getSkyGradient(name: string): string[] {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return SKY_GRADIENTS[Math.abs(hash) % SKY_GRADIENTS.length];
+}
+
+// ─── Pulse dot animation ──────────────────────────────────────────────────────
+function PulseDot({ color }: { color: string }) {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+
+  React.useEffect(() => {
+    scale.value = withSpring(0.85, { damping: 10, stiffness: 100 });
+    opacity.value = withSpring(0.5, { damping: 10, stiffness: 100 });
+    const t1 = setTimeout(() => {
+      scale.value = withSpring(1, { damping: 10, stiffness: 100 });
+      opacity.value = withSpring(1, { damping: 10, stiffness: 100 });
+    }, 800);
+    const t2 = setTimeout(() => {
+      scale.value = withSpring(0.85, { damping: 10, stiffness: 100 });
+      opacity.value = withSpring(0.5, { damping: 10, stiffness: 100 });
+    }, 1600);
+    const interval = setInterval(() => {
+      scale.value = withSpring(0.85, { damping: 10, stiffness: 100 });
+      opacity.value = withSpring(0.5, { damping: 10, stiffness: 100 });
+      setTimeout(() => {
+        scale.value = withSpring(1, { damping: 10, stiffness: 100 });
+        opacity.value = withSpring(1, { damping: 10, stiffness: 100 });
+      }, 800);
+    }, 1600);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearInterval(interval); };
+  }, [scale, opacity]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.statusDotBase,
+        { backgroundColor: color, shadowColor: color, shadowOpacity: 1, shadowRadius: 6, elevation: 4 },
+        animStyle,
+      ]}
+    />
+  );
+}
+
+// ─── Mini bar chart ────────────────────────────────────────────────────────────
+function MiniBarChart({ data }: { data: { day: string; count: number }[] }) {
+  const max = Math.max(...data.map((d) => d.count), 1);
+  return (
+    <View style={styles.miniBarChart}>
+      {data.map((d, i) => (
+        <View key={i} style={styles.barCol}>
+          <View style={styles.barTrack}>
+            <View
+              style={[
+                styles.barFill,
+                {
+                  height: `${Math.max((d.count / max) * 100, 5)}%`,
+                  backgroundColor: i === data.length - 1 ? 'rgba(112,143,150,0.80)' : 'rgba(0,0,0,0.12)',
+                },
+              ]}
+            />
+          </View>
+          <Text style={styles.barLabel}>{d.day}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Animated pressable wrapper ────────────────────────────────────────────────
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// ─── Property card ────────────────────────────────────────────────────────────
+function PropertyCard({
+  property,
+  index,
+  onPress,
+}: {
+  property: Property;
+  index: number;
+  onPress: () => void;
+}) {
+  const pressScale = useSharedValue(1);
+  const gradient = getSkyGradient(property.name);
+  const hasImage = !!property.image_url;
+
+  // Derive status from open tickets
+  const open = property.openTickets ?? 0;
+  const resolved = property.resolvedTickets ?? 0;
+  const health: 'good' | 'warning' | 'critical' =
+    open > 15 ? 'critical' : open > 5 ? 'warning' : 'good';
+  const statusText =
+    open > 15 ? 'Critical' : open > 5 ? 'Watch' : 'Optimal';
+  const statusColor =
+    health === 'good' ? STATUS_COLORS.optimal :
+    health === 'warning' ? STATUS_COLORS.warning :
+    STATUS_COLORS.critical;
+
+  const onPressIn = () => {
+    pressScale.value = withSpring(0.975, { damping: 15, stiffness: 200 });
+  };
+  const onPressOut = () => {
+    pressScale.value = withSpring(1, { damping: 15, stiffness: 200 });
+  };
+
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value }],
+  }));
+
+  // Reference card layout: h-32 rounded-3xl
+  // Top row: name + code (left), metric 54px font-weight 200 (right)
+  // Bottom row: status glow dot (left), "H:high L:low" (right)
+  return (
+    <Animated.View entering={FadeInUp.delay(index * 60).duration(400)}>
+      <AnimatedPressable
+        style={[styles.propertyCard, pressStyle]}
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        activeOpacity={0.85}
+      >
+        {hasImage ? (
+          <ImageBackground
+            source={{ uri: property.image_url! }}
+            style={styles.cardImageBg}
+            resizeMode="cover"
+          >
+            {/* Subtle bottom scrim — photo shines through, text stays readable */}
+            <LinearGradient
+              colors={['rgba(0,0,0,0.00)', 'rgba(0,0,0,0.55)'] as unknown as readonly [string, string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.cardOverlay}
+            >
+              <CardContent
+                property={property}
+                open={open}
+                statusText={statusText}
+                statusColor={statusColor}
+              />
+            </LinearGradient>
+          </ImageBackground>
+        ) : (
+          <LinearGradient
+            colors={gradient as unknown as readonly [string, string, string]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.cardGradient}
+          >
+            <CardContent
+              property={property}
+              open={open}
+              statusText={statusText}
+              statusColor={statusColor}
+            />
+          </LinearGradient>
+        )}
+      </AnimatedPressable>
+    </Animated.View>
+  );
+}
+
+function CardContent({
+  property,
+  open,
+  statusText,
+  statusColor,
+}: {
+  property: Property;
+  open: number;
+  resolved?: number;
+  statusText: string;
+  statusColor: string;
+}) {
+  return (
+    <View style={styles.cardInner}>
+      <View style={styles.cardTopRow}>
+        <View style={styles.cardLeft}>
+          <Text style={styles.cardName} numberOfLines={1}>
+            {property.name}
+          </Text>
+          <Text style={styles.cardCode}>{property.code}</Text>
+        </View>
+        {/* Soft-light metric number ~36px font-weight 300 */}
+        <Text style={styles.cardMetric}>{open}</Text>
+      </View>
+      <View style={styles.cardBottomRow}>
+        <View style={styles.statusRow}>
+          <PulseDot color={statusColor} />
+          <Text style={styles.cardStatus}>{statusText}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ─── Property Detail Screen ────────────────────────────────────────────────────
+function PropertyDetailScreen({
+  property,
+  onBack,
+  onShowChat,
+  onShowTileDetail,
+}: {
+  property: Property;
+  onBack: () => void;
+  onShowChat: () => void;
+  onShowTileDetail: (detail: TileDetail) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const { weather } = useWeather();
+
+  const today = new Date().toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  const open = property.openTickets ?? 0;
+  const resolved = property.resolvedTickets ?? 0;
+  const total = property.totalTickets ?? 0;
+  const healthStatus = property.healthStatus ?? (open > 15 ? 'critical' : open > 5 ? 'warning' : 'good');
+  const healthColor =
+    healthStatus === 'good' ? STATUS_COLORS.optimal :
+    healthStatus === 'warning' ? STATUS_COLORS.warning :
+    STATUS_COLORS.critical;
+  const checklistPct = property.checklist
+    ? Math.round((property.checklist.completed / property.checklist.total) * 100)
+    : 87;
+
+  // 7-day history
+  const history = useMemo(() =>
+    ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => ({
+      day: d,
+      count: Math.floor(Math.random() * 20 + 5),
+    })),
+  []);
+
+  const energyBars = [35, 55, 70, 92, 78, 60, 45];
+
+  return (
+    <View style={[styles.detailContainer, { backgroundColor: BG }]}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient
+        colors={['#1c2135', '#0f121e', '#07090e']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      {weather && <WeatherBackground condition={weather.condition} />}
+
+      <ScrollView
+        style={styles.detailScroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ 
+          paddingBottom: insets.bottom + 120, 
+          paddingTop: insets.top + 24,
+        }}
+      >
+        {/* Header - Moved inside scroll */}
+        <View style={styles.detailHeaderScrollable}>
+          <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.detailTitleGroup}>
+            <Text style={styles.detailTitle}>{property.name}</Text>
+            <Text style={styles.detailSubtitle}>
+              {property.code} · {today}
+            </Text>
+          </View>
+        </View>
+
+        {/* Search bar */}
+        <View style={[styles.searchBar, { marginHorizontal: 20 }]}>
+          <Ionicons name="search" size={18} color="rgba(255,255,255,0.45)" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search tickets, checklists..."
+            placeholderTextColor="rgba(255,255,255,0.35)"
+          />
+        </View>
+
+        {/* Tickets tile */}
+        <Animated.View entering={FadeInUp.delay(100).duration(500)}>
+          <DashboardTile
+            label="TICKETS"
+            variant="tickets"
+            delay={0.05}
+            onPress={() => onShowTileDetail(TILE_DETAILS.tickets)}
+          >
+            <View style={styles.tileTopRow}>
+              <View>
+                <Text style={styles.tileMetricBig}>{total}</Text>
+                <Text style={styles.tileSubtext}>
+                  {open} open · {resolved} resolved
+                </Text>
+              </View>
+              <MiniBarChart data={history} />
+            </View>
+            <View style={styles.tileDivider} />
+            <View style={styles.tileFooter}>
+              <View style={styles.healthBadge}>
+                <PulseDot color={healthColor} />
+                <Text style={[styles.healthBadgeText, { color: healthColor }]}>
+                  {healthStatus === 'good' ? 'Healthy' : healthStatus === 'warning' ? 'Watch' : 'Critical'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.40)" />
+            </View>
+          </DashboardTile>
+        </Animated.View>
+
+        {/* Checklist + Health row */}
+        <Animated.View entering={FadeInUp.delay(180).duration(500)}>
+          <View style={styles.rowTwo}>
+            <DashboardTile
+              label="CHECKLIST"
+              variant="checklist"
+              delay={0.12}
+              onPress={() => onShowTileDetail(TILE_DETAILS.checklist)}
+            >
+              <Text style={styles.tileMetricMid}>
+                {property.checklist?.completed ?? 87}{' '}
+                <Text style={styles.tileMetricSuffix}>/ {property.checklist?.total ?? 100}</Text>
+              </Text>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${checklistPct}%` }]} />
+              </View>
+              <Text style={styles.tileSubtext}>{checklistPct}% completed</Text>
+            </DashboardTile>
+
+            <DashboardTile
+              label="HEALTH"
+              variant="health"
+              delay={0.18}
+              onPress={() => onShowTileDetail(TILE_DETAILS.health)}
+            >
+              <Text style={[styles.tileMetricMid, { color: healthColor }]}>
+                {healthStatus === 'good' ? 'Optimal' : healthStatus === 'warning' ? 'Watch' : 'Critical'}
+              </Text>
+              <View
+                style={[
+                  styles.healthDotLarge,
+                  {
+                    backgroundColor: healthColor,
+                    shadowColor: healthColor,
+                    shadowOpacity: 0.8,
+                    shadowRadius: 12,
+                    elevation: 4,
+                  },
+                ]}
+              />
+              <Text style={styles.tileSubtext}>System Status</Text>
+            </DashboardTile>
+          </View>
+        </Animated.View>
+
+        {/* Energy tile */}
+        <Animated.View entering={FadeInUp.delay(260).duration(500)}>
+          <DashboardTile
+            label="ENERGY USAGE"
+            variant="energy"
+            delay={0.24}
+            onPress={() => onShowTileDetail(TILE_DETAILS.energy)}
+          >
+            <View style={styles.tileTopRow}>
+              <View>
+                <Text style={styles.tileMetricMid}>
+                  {property.energy?.current ?? 1248}{' '}
+                  <Text style={styles.tileMetricSuffix}>kWh</Text>
+                </Text>
+                <Text style={styles.tileSubtext}>Grid + DG consumption today</Text>
+              </View>
+              <View style={styles.trendBadgeEnergy}>
+                <Ionicons name="trending-up" size={12} color="#1FC26E" />
+                <Text style={styles.trendText}>+{property.energy?.trend ?? 12}%</Text>
+              </View>
+            </View>
+            <View style={styles.energyBarsRow}>
+              {energyBars.map((h, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.energyBar,
+                    {
+                      height: `${h * 0.5}%`,
+                      backgroundColor:
+                        i === 3
+                          ? 'rgba(214,158,46,0.85)'
+                          : 'rgba(0,0,0,0.12)',
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+          </DashboardTile>
+        </Animated.View>
+      </ScrollView>
+
+      {/* Bottom nav */}
+      <BottomNav
+        active="detail"
+        onProperties={() => onBack()}
+        onConsole={() => {}}
+        onChat={onShowChat}
+        onProfile={() => {}}
+        insets={insets}
+      />
+    </View>
+  );
+}
+
+// ─── Console tabs ─────────────────────────────────────────────────────────────
+function OverviewTab({
+  stats,
+  organizations,
+  onSeeAllOrgs,
+}: {
+  stats: { orgs: number; properties: number; users: number; tickets: number };
+  organizations: Org[];
+  onSeeAllOrgs: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <ScrollView
+      style={styles.tabContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+    >
+      <View style={styles.consoleHeader}>
+        <Text style={styles.consoleTitle}>Lovable Control</Text>
+        <Text style={styles.consoleSubtitle}>Super Admin Overview</Text>
+      </View>
+
+      {/* Stats grid */}
+      <View style={styles.statsGrid}>
+        <View style={[styles.statCard, { backgroundColor: 'rgba(59,130,246,0.12)', borderColor: 'rgba(59,130,246,0.25)' }]}>
+          <Ionicons name="business" size={22} color="rgba(255,255,255,0.55)" />
+          <Text style={styles.statNumber}>{stats.orgs}</Text>
+          <Text style={styles.statLabel}>Organizations</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: 'rgba(76,175,80,0.12)', borderColor: 'rgba(76,175,80,0.25)' }]}>
+          <Ionicons name="grid" size={22} color="rgba(255,255,255,0.55)" />
+          <Text style={styles.statNumber}>{stats.properties}</Text>
+          <Text style={styles.statLabel}>Properties</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: 'rgba(139,92,246,0.12)', borderColor: 'rgba(139,92,246,0.25)' }]}>
+          <Ionicons name="people" size={22} color="rgba(255,255,255,0.55)" />
+          <Text style={styles.statNumber}>{stats.users}</Text>
+          <Text style={styles.statLabel}>Users</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.25)' }]}>
+          <Ionicons name="ticket" size={22} color="rgba(255,255,255,0.55)" />
+          <Text style={styles.statNumber}>{stats.tickets}</Text>
+          <Text style={styles.statLabel}>Open Tickets</Text>
+        </View>
+      </View>
+
+      {/* Recent orgs */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Organizations</Text>
+          <TouchableOpacity onPress={onSeeAllOrgs}>
+            <Text style={styles.seeAll}>See All</Text>
+          </TouchableOpacity>
+        </View>
+        {organizations.slice(0, 3).map((org) => (
+          <View key={org.id} style={styles.orgCard}>
+            <View style={styles.orgIcon}>
+              <Text style={styles.orgIconText}>{org.name.substring(0, 2).toUpperCase()}</Text>
+            </View>
+            <View style={styles.orgInfo}>
+              <Text style={styles.orgName}>{org.name}</Text>
+              <Text style={styles.orgCode}>/{org.code}</Text>
+            </View>
+            <View style={org.is_deleted ? styles.deletedBadge : styles.activeBadge}>
+              <Text style={org.is_deleted ? styles.deletedText : styles.activeText}>
+                {org.is_deleted ? 'Cooling' : 'Active'}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+function OrganizationsTab({
+  organizations,
+  searchQuery,
+  setSearchQuery,
+}: {
+  organizations: Org[];
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const filtered = useMemo(() => {
+    if (!searchQuery) return organizations;
+    const q = searchQuery.toLowerCase();
+    return organizations.filter(
+      (o) =>
+        o.name.toLowerCase().includes(q) || o.code.toLowerCase().includes(q)
+    );
+  }, [organizations, searchQuery]);
+
+  return (
+    <ScrollView
+      style={styles.tabContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+    >
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={18} color="rgba(255,255,255,0.45)" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search organizations..."
+          placeholderTextColor="rgba(255,255,255,0.35)"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.45)" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {filtered.map((org) => (
+        <View key={org.id} style={styles.orgCard}>
+          <View style={styles.orgIcon}>
+            <Text style={styles.orgIconText}>{org.name.substring(0, 2).toUpperCase()}</Text>
+          </View>
+          <View style={styles.orgInfo}>
+            <Text style={styles.orgName}>{org.name}</Text>
+            <Text style={styles.orgCode}>/{org.code}</Text>
+            <Text style={styles.orgMeta}>{org.properties?.[0]?.count ?? 0} Properties</Text>
+          </View>
+          <View style={org.is_deleted ? styles.deletedBadge : styles.activeBadge}>
+            <Text style={org.is_deleted ? styles.deletedText : styles.activeText}>
+              {org.is_deleted ? 'Cooling' : 'Active'}
+            </Text>
+          </View>
+        </View>
+      ))}
+      {filtered.length === 0 && (
+        <View style={styles.emptyState}>
+          <Ionicons name="business-outline" size={40} color="rgba(255,255,255,0.30)" />
+          <Text style={styles.emptyText}>No organizations found</Text>
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+function UsersTab({
+  users,
+  searchQuery,
+  setSearchQuery,
+}: {
+  users: SystemUser[];
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const filtered = useMemo(() => {
+    if (!searchQuery) return users;
+    const q = searchQuery.toLowerCase();
+    return users.filter(
+      (u) =>
+        u.full_name?.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q)
+    );
+  }, [users, searchQuery]);
+
+  return (
+    <ScrollView
+      style={styles.tabContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+    >
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={18} color="rgba(255,255,255,0.45)" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search users..."
+          placeholderTextColor="rgba(255,255,255,0.35)"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.45)" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {filtered.map((u) => (
+        <View key={u.id} style={styles.userCard}>
+          <View style={styles.userAvatar}>
+            <Text style={styles.userAvatarText}>
+              {u.full_name?.substring(0, 2).toUpperCase() ??
+                u.email.substring(0, 2).toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{u.full_name || 'Unknown'}</Text>
+            <Text style={styles.userEmail}>{u.email}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
+        </View>
+      ))}
+      {filtered.length === 0 && (
+        <View style={styles.emptyState}>
+          <Ionicons name="people-outline" size={40} color="rgba(255,255,255,0.30)" />
+          <Text style={styles.emptyText}>No users found</Text>
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+function ProfileTab({ onSignOut }: { onSignOut: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <ScrollView
+      style={styles.tabContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+    >
+      <View style={styles.profileCard}>
+        <View style={styles.profileHeader}>
+          <View style={styles.profileAvatar}>
+            <Text style={styles.profileAvatarText}>S</Text>
+          </View>
+          <View style={styles.profileBadge}>
+            <Text style={styles.profileBadgeText}>LOVABLE SUPER ADMIN</Text>
+          </View>
+        </View>
+        <View style={styles.profileInfo}>
+          <View style={styles.profileRow}>
+            <Text style={styles.profileLabel}>Name</Text>
+            <Text style={styles.profileValue}>Sanyog</Text>
+          </View>
+          <View style={styles.profileRow}>
+            <Text style={styles.profileLabel}>Email</Text>
+            <Text style={styles.profileValue}>{LOVABLE_EMAIL}</Text>
+          </View>
+          <View style={styles.profileRow}>
+            <Text style={styles.profileLabel}>Role</Text>
+            <Text style={styles.profileValue}>Lovable Super Admin</Text>
+          </View>
+          <View style={[styles.profileRow, { borderBottomWidth: 0 }]}>
+            <Text style={styles.profileLabel}>Access Level</Text>
+            <Text style={styles.profileValue}>Full Organization Access</Text>
+          </View>
+        </View>
+      </View>
+
+      <TouchableOpacity style={styles.signOutButton} onPress={onSignOut}>
+        <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
+        <Text style={styles.signOutText}>Sign Out</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+// ─── Bottom nav ────────────────────────────────────────────────────────────────
+function BottomNav({
+  active,
+  onProperties,
+  onConsole,
+  onChat,
+  onProfile,
+  onAnalytics,
+  insets,
+}: {
+  active: 'properties' | 'console' | 'detail' | 'profile';
+  onProperties: () => void;
+  onConsole: () => void;
+  onAnalytics?: () => void;
+  onChat: () => void;
+  onProfile: () => void;
+  insets: any;
+}) {
+  return (
+    <BlurView
+      intensity={40}
+      tint="dark"
+      style={[
+        styles.bottomNav,
+        { paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 16 },
+      ]}
+    >
+      <TouchableOpacity style={[styles.navItem, (active === 'properties' || active === 'detail') && { backgroundColor: 'rgba(255,255,255,0.1)' }]} onPress={onProperties}>
+        <Ionicons
+          name={active === 'properties' || active === 'detail' ? 'grid' : 'grid-outline'}
+          size={22}
+          color={active === 'properties' || active === 'detail' ? '#FFF' : 'rgba(255,255,255,0.40)'}
+        />
+        <Text style={[styles.navText, (active === 'properties' || active === 'detail') && styles.navTextActive]}>
+          Properties
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.navItem, active === 'console' && { backgroundColor: 'rgba(255,255,255,0.1)' }]} onPress={onConsole}>
+        <Ionicons
+          name={active === 'console' ? 'settings' : 'settings-outline'}
+          size={22}
+          color={active === 'console' ? '#FFF' : 'rgba(255,255,255,0.40)'}
+        />
+        <Text style={[styles.navText, active === 'console' && styles.navTextActive]}>
+          Console
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.navItem} onPress={onChat}>
+        <View style={styles.orbNavContainer}>
+          <SidekickFace size={44} state="idle" compact />
+        </View>
+        <Text style={styles.navText}>Cassandra</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.navItem, false && { backgroundColor: 'rgba(255,255,255,0.1)' }]} onPress={onAnalytics}>
+        <Ionicons
+          name="bar-chart-outline"
+          size={22}
+          color="rgba(255,255,255,0.40)"
+        />
+        <Text style={styles.navText}>
+          Analytics
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.navItem, active === 'profile' && { backgroundColor: 'rgba(255,255,255,0.1)' }]} onPress={onProfile}>
+        <Ionicons
+          name={active === 'profile' ? 'person' : 'person-outline'}
+          size={22}
+          color={active === 'profile' ? '#FFF' : 'rgba(255,255,255,0.40)'}
+        />
+        <Text style={[styles.navText, active === 'profile' && styles.navTextActive]}>
+          Profile
+        </Text>
+      </TouchableOpacity>
+    </BlurView>
+  );
+}
+
+// ─── Main dashboard ────────────────────────────────────────────────────────────
+export default function LovableSuperAdminDashboard() {
+  const { user, signOut } = useAuth();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { weather } = useWeather();
+
+  // Access control
+  const hasAccess = user?.email?.toLowerCase() === LOVABLE_EMAIL.toLowerCase();
+
+  // Screen state
+  const [screen, setScreen] = useState<Screen>('properties');
+  const [activeProperty, setActiveProperty] = useState<Property | null>(null);
+  const [consoleTab, setConsoleTab] = useState<Tab>('overview');
+  const [showChat, setShowChat] = useState(false);
+  const [showTileDetail, setShowTileDetail] = useState<TileDetail | null>(null);
+  const [showSignOut, setShowSignOut] = useState(false);
+
+  // Data state
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [organizations, setOrganizations] = useState<Org[]>([]);
+  const [users, setUsers] = useState<SystemUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Derived stats
+  const consoleStats = useMemo(
+    () => ({
+      orgs: organizations.length,
+      properties: properties.length,
+      users: users.length,
+      tickets: properties.reduce((sum, p) => sum + (p.openTickets ?? 0), 0),
+    }),
+    [organizations, properties, users]
+  );
+
+  // Fetch
+  const fetchAll = useCallback(async () => {
+    if (!user) return;
+    const supabase = createClient();
+
+    // Get org for this user
+    const { data: orgMembership } = await supabase
+      .from('organization_memberships')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .eq('role', 'org_super_admin')
+      .eq('is_active', true)
+      .single();
+
+    const orgId = (orgMembership as { organization_id: string } | null)?.organization_id;
+    if (!orgId) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Fetch all orgs for console
+    const { data: allOrgs } = await supabase
+      .from('organizations')
+      .select('*, properties(count)')
+      .order('created_at', { ascending: false });
+    if (allOrgs) setOrganizations(allOrgs as Org[]);
+
+    // Fetch properties for this org
+    const { data: propData } = await supabase
+      .from('properties')
+      .select('id, name, code, address, image_url, organization_id')
+      .eq('organization_id', orgId);
+
+    if (propData) {
+      const propIds = propData.map((p: any) => p.id);
+      const { data: ticketData } = await supabase
+        .from('tickets')
+        .select('property_id, status')
+        .in('property_id', propIds);
+
+      const ticketMap = new Map<string, { open: number; resolved: number; total: number }>();
+      propIds.forEach((id: string) => ticketMap.set(id, { open: 0, resolved: 0, total: 0 }));
+      ticketData?.forEach((t: any) => {
+        const c = ticketMap.get(t.property_id) || { open: 0, resolved: 0, total: 0 };
+        c.total++;
+        if (['open', 'blocked', 'client_raised'].includes(t.status)) c.open++;
+        else if (['resolved', 'closed', 'satisfied'].includes(t.status)) c.resolved++;
+        ticketMap.set(t.property_id, c);
+      });
+
+      const mapped: Property[] = propData.map((p: any) => {
+        const c = ticketMap.get(p.id) || { open: 0, resolved: 0, total: 0 };
+        const open = c.open;
+        return {
+          id: p.id,
+          name: p.name,
+          code: p.code,
+          address: p.address,
+          image_url: p.image_url,
+          openTickets: open,
+          resolvedTickets: c.resolved,
+          totalTickets: c.total,
+          healthStatus:
+            open > 15 ? 'critical' : open > 5 ? 'warning' : 'good',
+          checklist: { completed: 87, total: 100 },
+          energy: { current: 1248, trend: 12 },
+          tickets: ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => ({
+            day: d,
+            count: Math.floor(Math.random() * 20 + 5),
+          })),
+          status:
+            open > 15 ? 'critical' : open > 5 ? 'warning' : 'optimal',
+          high: c.resolved,
+          low: open,
+        };
+      });
+      setProperties(mapped);
+    }
+
+    // Fetch users
+    try {
+      const res = await fetch('/api/admin/users');
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data || []);
+      }
+    } catch (_) {}
+
+    setIsLoading(false);
+    setIsRefreshing(false);
+  }, [user]);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    fetchAll();
+  };
+
+  const filteredProperties = useMemo(() => {
+    if (!searchQuery) return properties;
+    const q = searchQuery.toLowerCase();
+    return properties.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+    );
+  }, [properties, searchQuery]);
+
+  // Access denied
+  if (!hasAccess) {
+    return (
+      <View
+        style={[
+          styles.accessDenied,
+          { backgroundColor: BG, paddingTop: insets.top, paddingBottom: insets.bottom },
+        ]}
+      >
+        <StatusBar barStyle="light-content" />
+        <Ionicons name="shield-checkmark" size={64} color="rgba(112,143,150,0.5)" />
+        <Text style={styles.accessTitle}>Access Restricted</Text>
+        <Text style={styles.accessSubtitle}>
+          This dashboard is reserved for authorized personnel.
+        </Text>
+        <Text style={styles.accessEmail}>{user?.email}</Text>
+        <TouchableOpacity style={styles.accessSignOut} onPress={signOut}>
+          <Text style={styles.accessSignOutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Loading
+  if (isLoading) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: BG, paddingTop: insets.top }]}>
+        <StatusBar barStyle="light-content" />
+        <ActivityIndicator size="large" color="#708F96" />
+        <Text style={styles.loadingText}>Loading Lovable Dashboard...</Text>
+      </View>
+    );
+  }
+
+  // Console tab content
+  const renderConsoleTab = () => {
+    switch (consoleTab) {
+      case 'overview':
+        return (
+          <OverviewTab
+            stats={consoleStats}
+            organizations={organizations}
+            onSeeAllOrgs={() => setConsoleTab('organizations')}
+          />
+        );
+      case 'organizations':
+        return (
+          <OrganizationsTab
+            organizations={organizations}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+        );
+      case 'users':
+        return (
+          <UsersTab
+            users={users}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+        );
+      case 'profile':
+        return <ProfileTab onSignOut={() => setShowSignOut(true)} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient
+        colors={['#1c2135', '#0f121e', '#07090e']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      {weather && <WeatherBackground condition={weather.condition} />}
+
+      {/* Console tabs (shown on console screen) */}
+      {screen === 'console' && (
+        <View style={styles.consoleTabs}>
+          {(['overview', 'organizations', 'users', 'profile'] as Tab[]).map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.consoleTab, consoleTab === tab && styles.consoleTabActive]}
+              onPress={() => setConsoleTab(tab)}
+            >
+              <Text
+                style={[
+                  styles.consoleTabText,
+                  consoleTab === tab && styles.consoleTabTextActive,
+                ]}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Main Content Area */}
+      <View style={{ flex: 1 }}>
+        {screen === 'property-detail' && activeProperty ? (
+          <PropertyDetailScreen
+            property={activeProperty}
+            onBack={() => {
+              setScreen('properties');
+              setActiveProperty(null);
+            }}
+            onShowChat={() => setShowChat(true)}
+            onShowTileDetail={(detail) => setShowTileDetail(detail)}
+          />
+        ) : screen === 'properties' ? (
+          <Animated.ScrollView
+            style={styles.mainScroll}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={onRefresh}
+                tintColor="rgba(255,255,255,0.6)"
+              />
+            }
+            contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          >
+            {/* Header */}
+            <View style={[styles.mainHeader, { paddingTop: insets.top + 12 }]}>
+              <View>
+                <Text style={styles.mainTitle}>Lovable</Text>
+                <Text style={styles.mainSubtitle}>Super Admin Dashboard</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.signOutIconBtn}
+                onPress={() => setShowSignOut(true)}
+              >
+                <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.60)" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search */}
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={18} color="rgba(255,255,255,0.45)" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search properties..."
+                placeholderTextColor="rgba(255,255,255,0.45)"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.45)" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Properties list */}
+            <View style={styles.propertiesList}>
+              {filteredProperties.map((p, i) => (
+                <PropertyCard
+                  key={p.id}
+                  property={p}
+                  index={i}
+                  onPress={() => {
+                    setActiveProperty(p);
+                    setScreen('property-detail');
+                  }}
+                />
+              ))}
+              {filteredProperties.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Ionicons name="grid-outline" size={40} color="rgba(255,255,255,0.30)" />
+                  <Text style={styles.emptyText}>No properties found</Text>
+                </View>
+              )}
+            </View>
+          </Animated.ScrollView>
+        ) : screen === 'console' ? (
+          renderConsoleTab()
+        ) : screen === 'analytics' ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <Ionicons name="bar-chart" size={64} color="rgba(255,255,255,0.1)" />
+            <Text style={{ color: 'rgba(255,255,255,0.4)', marginTop: 12 }}>Analytics Coming Soon</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Bottom nav */}
+      <BottomNav
+        active={screen === 'console' ? 'console' : screen === 'property-detail' ? 'detail' : 'properties'}
+        onProperties={() => setScreen('properties')}
+        onConsole={() => setScreen('console')}
+        onAnalytics={() => setScreen('analytics')}
+        onChat={() => setShowChat(true)}
+        onProfile={() => {
+          setScreen('console');
+          setConsoleTab('profile');
+        }}
+        insets={insets}
+      />
+
+      {/* Modals */}
+      <SidekickChat open={showChat} onClose={() => setShowChat(false)} />
+      <SignOutModal
+        isOpen={showSignOut}
+        onClose={() => setShowSignOut(false)}
+        onConfirm={signOut}
+      />
+      <DetailModal
+        detail={showTileDetail}
+        onClose={() => setShowTileDetail(null)}
+      />
+    </View>
+  );
