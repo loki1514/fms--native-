@@ -16,6 +16,7 @@ import * as Location from 'expo-location';
 
 export type WeatherPeriod = 'morning' | 'afternoon' | 'evening' | 'night';
 export type WeatherIconType = 'sun' | 'moon' | 'partly-cloudy' | 'cloudy' | 'rainy';
+export type WeatherCondition = 'clear-day' | 'clear-night' | 'cloudy-day' | 'cloudy-night' | 'rainy' | 'dawn' | 'dusk';
 
 export interface AuroraColors {
   // Primary gradient: top → bottom
@@ -38,6 +39,7 @@ export interface WeatherData {
   greeting: string;
   greetingEmoji: string;
   weatherIcon: WeatherIconType;
+  condition: WeatherCondition;
   temperature: number | null;
   weatherDescription: string;
   locationName: string | null;
@@ -172,8 +174,15 @@ function getWeatherIcon(temperature: number | null, period: WeatherPeriod, isDay
   if (temperature > 35) return 'sun'; // Hot = clear
   if (temperature < 15) return 'cloudy';
   if (period === 'night') return 'moon';
-  if (period === 'evening') return 'partly-cloudy';
   return 'sun';
+}
+
+function getWeatherCondition(description: string, isDaylight: boolean, period: WeatherPeriod): WeatherCondition {
+  const desc = description.toLowerCase();
+  if (desc.includes('rain') || desc.includes('storm') || desc.includes('drizzle')) return 'rainy';
+  if (desc.includes('cloud') || desc.includes('overcast')) return isDaylight ? 'cloudy-day' : 'cloudy-night';
+  if (period === 'morning' || period === 'evening') return period === 'morning' ? 'dawn' : 'dusk';
+  return isDaylight ? 'clear-day' : 'clear-night';
 }
 
 async function fetchLiveTemperature(lat: number, lng: number): Promise<{ temp: number; description: string } | null> {
@@ -246,6 +255,7 @@ export function useWeather() {
       greeting,
       greetingEmoji,
       weatherIcon: getWeatherIcon(temperature, period, isDaylight),
+      condition: getWeatherCondition(weatherDescription, isDaylight, period),
       temperature,
       weatherDescription,
       locationName,

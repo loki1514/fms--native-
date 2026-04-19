@@ -6,7 +6,7 @@ import { Colors } from '@/constants/Colors';
 type Theme = 'light' | 'dark';
 
 // ThemeContext colors extend the Colors.ts design system
-// FIX: was using #7C3AED (violet) instead of brand color #708F96 (teal)
+// FIX: was using #708F96 (violet) instead of brand color #708F96 (teal)
 type ThemeColors = {
   background: string;
   surface: string;
@@ -37,7 +37,7 @@ const lightColors: ThemeColors = {
   surface: Colors.light.surface,
   surfaceElevated: Colors.light.surfaceElevated ?? '#F8FAFC',
   border: Colors.light.border,
-  primary: Colors.light.primary,      // was #7C3AED — fixed to brand #708F96
+  primary: Colors.light.primary,      // was #708F96 — fixed to brand #708F96
   primaryDark: Colors.light.primaryDark,
   secondary: Colors.light.secondary,
   textPrimary: Colors.light.textPrimary,
@@ -55,7 +55,7 @@ const darkColors: ThemeColors = {
   surface: Colors.dark.surface,
   surfaceElevated: Colors.dark.surfaceElevated ?? '#1C2128',
   border: Colors.dark.border,
-  primary: Colors.dark.primary,        // was #7C3AED — fixed to brand #708F96
+  primary: Colors.dark.primary,        // was #708F96 — fixed to brand #708F96
   primaryDark: Colors.dark.primaryDark,
   secondary: Colors.dark.secondary,
   textPrimary: Colors.dark.textPrimary,

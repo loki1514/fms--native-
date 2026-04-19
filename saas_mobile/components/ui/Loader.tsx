@@ -24,7 +24,7 @@ const ACTIVITY_SIZE: Record<LoaderSize, 'small' | 'large'> = {
   xl: 'large',
 };
 
-export default function Loader({ size = 'md', text, style, color = '#7C3AED' }: LoaderProps) {
+export default function Loader({ size = 'md', text, style, color = '#708F96' }: LoaderProps) {
   return (
     <View style={[styles.container, style]}>
       <ActivityIndicator
@@ -42,7 +42,7 @@ export function GradientLoader({ size = 'md', text }: { size?: LoaderSize; text?
     <View style={styles.container}>
       <ActivityIndicator
         size={ACTIVITY_SIZE[size]}
-        color="#7C3AED"
+        color="#708F96"
         style={{ width: SIZE_MAP[size], height: SIZE_MAP[size] }}
       />
       {text && <Text style={[styles.text, { opacity: 0.8 }]}>{text}</Text>}

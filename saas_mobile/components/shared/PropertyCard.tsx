@@ -104,5 +104,5 @@ const styles = StyleSheet.create({
     height: 44, borderRadius: 14, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9',
     justifyContent: 'center', alignItems: 'center',
   },
-  viewBtnText: { fontSize: 10, fontWeight: '900', color: '#7C3AED', textTransform: 'uppercase', letterSpacing: 1.5 },
+  viewBtnText: { fontSize: 10, fontWeight: '900', color: '#708F96', textTransform: 'uppercase', letterSpacing: 1.5 },
 });

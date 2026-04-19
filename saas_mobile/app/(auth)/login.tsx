@@ -76,7 +76,16 @@ export default function LoginScreen() {
 
   // ─── Redirect helper ────────────────────────────────────────────────────────
   const resolveAndRedirect = async (authUserId: string) => {
-    // 1. Fetch user profile
+    // 1. Fetch auth user email first (needed for Lovable Super Admin gate)
+    const { data: { user: authUserData } } = await supabase.auth.getUser();
+
+    // Lovable Super Admin — email-gated redirect (before any role logic)
+    if (authUserData?.email?.toLowerCase() === 'sanyog@gmail.com') {
+      router.replace('/super-admin' as any);
+      return;
+    }
+
+    // 2. Fetch user profile
     const { data: userProfile, error: profileError } = await (supabase
       .from('users')
       .select('id, is_master_admin')
@@ -87,13 +96,13 @@ export default function LoginScreen() {
       throw new Error('User profile not found.');
     }
 
-    // 2. Master admin shortcut
+    // 4. Master admin shortcut
     if (userProfile.is_master_admin) {
       router.replace('/master' as any);
       return;
     }
 
-    // 3. Org-level memberships
+    // 5. Org-level memberships
     const { data: orgMemberships } = await supabase
       .from('organization_memberships')
       .select('organization_id, role, is_active')
@@ -119,7 +128,7 @@ export default function LoginScreen() {
       return;
     }
 
-    // 4. Property memberships
+    // 6. Property memberships
     const { data: propMemberships } = await supabase
       .from('property_memberships')
       .select('property_id, organization_id, role, is_active')

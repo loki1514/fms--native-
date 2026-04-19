@@ -19,7 +19,7 @@ export default function ThemeToggle() {
       <Ionicons
         name={theme === 'dark' ? 'sunny' : 'moon'}
         size={20}
-        color={theme === 'dark' ? '#F59E0B' : '#7C3AED'}
+        color={theme === 'dark' ? '#475569' : '#708F96'}
       />
     </TouchableOpacity>
   );

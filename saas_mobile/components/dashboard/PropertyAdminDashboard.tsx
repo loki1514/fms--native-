@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -118,6 +118,13 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Shared ticker — one interval drives all TicketCard elapsed timers
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -339,9 +346,10 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
             assigneePhotoUrl={ticket.assignee?.user_photo_url}
             photoUrl={ticket.photo_before_url}
             onClick={() => router.push(`/tickets/${ticket.id}` as any)}
+            tick={tick}
           />
         ))}
-        
+
         {tickets.length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="clipboard-outline" size={48} color="rgba(255,255,255,0.40)" />
@@ -423,9 +431,10 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
             assigneePhotoUrl={ticket.assignee?.user_photo_url}
             photoUrl={ticket.photo_before_url}
             onClick={() => router.push(`/tickets/${ticket.id}` as any)}
+            tick={tick}
           />
         ))}
-        
+
         {filteredTickets.length === 0 && (
           <View style={styles.emptyState}>
             <Ionicons name="search-outline" size={48} color="rgba(255,255,255,0.40)" />
@@ -583,14 +592,17 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       {weather && <AuroraBackground colors={weather.auroraColors} />}
 
-      {/* Top Navigation */}
+      {/* Top Navigation — clean, floating */}
       <View style={styles.topNav}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.topNavTitle}>Property Admin</Text>
           <Text style={styles.topNavSubtitle}>{property?.name}</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowSignOutModal(true)}>
-          <Ionicons name="log-out-outline" size={24} color="rgba(255,255,255,0.40)" />
+        <TouchableOpacity
+          style={styles.topNavButton}
+          onPress={() => setShowSignOutModal(true)}
+        >
+          <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.60)" />
         </TouchableOpacity>
       </View>
 
@@ -717,16 +729,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 14,
+  },
+  topNavButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   topNavTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     fontFamily: 'Poppins-Bold',
+    letterSpacing: -0.5,
   },
   topNavSubtitle: {
     fontSize: 13,

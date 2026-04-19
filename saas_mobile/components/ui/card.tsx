@@ -15,7 +15,7 @@ export const Card: React.FC<CardProps> = ({ glass = false, children, style, pres
 
   if (pressable && onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.72}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
         {content}
       </TouchableOpacity>
     );
@@ -44,22 +44,22 @@ export const CardFooter: React.FC<{ children: React.ReactNode; style?: ViewStyle
   <View style={[styles.footer, style]}>{children}</View>
 );
 
-// Design tokens — matches web dashboard design system
+// Design tokens — Apple-inspired
 const CARD_PADDING = 20;
-const CARD_RADIUS = 16;
+const CARD_RADIUS = 22;  // Apple Weather-style large radius
 const CARD_SHADOW = {
+  shadowColor: 'rgba(0,0,0,0.06)',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 1,
+  shadowRadius: 12,
+  elevation: 2,
+};
+const GLASS_SHADOW = {
   shadowColor: 'rgba(0,0,0,0.04)',
   shadowOffset: { width: 0, height: 1 },
   shadowOpacity: 1,
-  shadowRadius: 4,
-  elevation: 1,
-};
-const GLASS_SHADOW = {
-  shadowColor: 'rgba(124,58,237,0.08)',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 1,
   shadowRadius: 8,
-  elevation: 2,
+  elevation: 1,
 };
 
 const styles = StyleSheet.create({
@@ -67,16 +67,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#E8E8ED',
     padding: CARD_PADDING,
     ...CARD_SHADOW,
     overflow: 'hidden',
   },
   glassCard: {
-    backgroundColor: 'rgba(255,255,255,0.90)',
+    backgroundColor: 'rgba(255,255,255,0.72)',
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255,255,255,0.20)',
     padding: CARD_PADDING,
     ...GLASS_SHADOW,
     overflow: 'hidden',
@@ -86,15 +86,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1A2332',
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#1D1D1F',
     letterSpacing: -0.3,
-    lineHeight: 24,
+    lineHeight: 28,
   },
   description: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#6B7280',
     lineHeight: 20,
   },
   content: {
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     marginTop: 4,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: '#E8E8ED',
   },
 });
 

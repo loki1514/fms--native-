@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -190,6 +190,13 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const [isMstCheckedIn, setIsMstCheckedIn] = useState(false);
   const [activeShiftId, setActiveShiftId] = useState<string | null>(null);
   const [isCheckingInOut, setIsCheckingInOut] = useState(false);
+
+  // Shared ticker — one interval drives all TicketCard elapsed timers
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -463,7 +470,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
     const primary = '#708F96';
 
     const handleItemPress = (item: DrawerItem) => {
-      if (item.tab) setActiveTab(item.tab);
+      if (item.tab) setActiveTab(item.tab as TabKey);
       else if (item.action) item.action();
       setDrawerOpen(false);
     };
@@ -712,11 +719,17 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
         {/* Shuffled Stack Section */}
         <View style={[mstStyles.stackSection, { height: 320, justifyContent: 'center' }]}>
-          <TicketShuffleStack tickets={incomingTickets} user={user} propertyId={propertyId} onEdit={(t) => {
-            setEditingTicket(t as any);
-            setEditTitle(t.title);
-            setEditDescription(t.description || '');
-          }} />
+          <TicketShuffleStack 
+            tickets={incomingTickets} 
+            user={user} 
+            propertyId={propertyId} 
+            tick={tick}
+            onEdit={(t) => {
+              setEditingTicket(t as any);
+              setEditTitle(t.title);
+              setEditDescription(t.description || '');
+            }} 
+          />
         </View>
 
         {/* Recent Completed List */}
@@ -731,6 +744,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
               status="COMPLETED"
               ticketNumber={ticket.ticket_number}
               createdAt={ticket.created_at}
+              tick={tick}
               onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
               style={{ marginBottom: 12 }}
             />
@@ -796,6 +810,33 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Tickets List */}
       <View style={[styles.ticketsList, { backgroundColor: colors.background, paddingHorizontal: 20 }]}>
+<<<<<<< HEAD
+        {(requestFilter === 'all' || requestFilter === 'active') && filteredIncomingTickets.map((ticket) => (
+          <TicketCard
+            key={ticket.id}
+            id={ticket.id}
+            title={ticket.title}
+            priority={(ticket.priority?.toUpperCase() as any) || 'MEDIUM'}
+            status={
+              ticket.status === 'in_progress' ? 'IN_PROGRESS' :
+              ticket.assigned_to ? 'ASSIGNED' : 'OPEN'
+            }
+            ticketNumber={ticket.ticket_number}
+            createdAt={ticket.created_at}
+            assignedTo={ticket.assignee?.full_name || 'Unassigned'}
+            assigneePhotoUrl={ticket.assignee?.user_photo_url}
+            photoUrl={ticket.photo_before_url}
+            materialsOrdered={(ticket as any).materials_ordered}
+            onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+            onEdit={() => {
+              setEditingTicket(ticket);
+              setEditTitle(ticket.title);
+              setEditDescription(ticket.description);
+            }}
+            tick={tick}
+          />
+        ))}
+=======
         {(requestFilter === 'all' || requestFilter === 'active') && filteredIncomingTickets.map((ticket) => {
           // Calculate escalation chain
           const logs = ticket.ticket_escalation_logs;
@@ -837,6 +878,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             />
           );
         })}
+>>>>>>> origin/main
         {(requestFilter === 'all' || requestFilter === 'completed') && filteredCompletedTickets.map((ticket) => (
           <TicketCard
             key={ticket.id}
@@ -852,6 +894,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             materialsOrdered={(ticket as any).materials_ordered}
             raisedByName={ticket.creator?.full_name || 'Anonymous'}
             onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+            tick={tick}
           />
         ))}
         {((requestFilter === 'active' && filteredIncomingTickets.length === 0) ||
@@ -1066,10 +1109,162 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
           </View>
         </View>
       </Modal>
+<<<<<<< HEAD
+      </View>
+  );
+}
+
+// ---- MST Shuffle Card Container ----
+function MstShuffleStack({ tickets, user, propertyId, onEdit, tick }: { tickets: Ticket[]; user: any; propertyId: string; onEdit: (t: Ticket) => void; tick: number }) {
+  const router = useRouter();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const translateX = useSharedValue(0);
+
+  const displayTickets = useMemo(() => {
+    const total = tickets.length;
+    if (total === 0) return [];
+    
+    // Prioritize tickets assigned to the current user
+    const sorted = [...tickets].sort((a, b) => {
+        if (a.assigned_to === user?.id && b.assigned_to !== user?.id) return -1;
+        if (a.assigned_to !== user?.id && b.assigned_to === user?.id) return 1;
+        return 0;
+    });
+
+    const items = [];
+    const count = Math.min(4, total); // Show up to 4 cards for a richer stack
+    for(let i = 0; i < count; i++) {
+        items.push(sorted[(currentIndex + i) % total]);
+    }
+    return items;
+  }, [tickets, currentIndex, user?.id]);
+
+  const handleSwipe = () => {
+    translateX.value = 0;
+    setCurrentIndex(prev => prev + 1);
+  };
+
+  return (
+    <View style={mstStyles.stackContainer}>
+      {displayTickets.map((ticket, i) => (
+        <AnimatedTicketCard 
+          key={ticket.id}
+          ticket={ticket}
+          index={i}
+          total={displayTickets.length}
+          translateX={translateX}
+          onSwipe={handleSwipe}
+          user={user}
+          propertyId={propertyId}
+          onEdit={onEdit}
+          tick={tick}
+        />
+      )).reverse()}
+=======
+>>>>>>> origin/main
     </View>
   );
 }
 
+<<<<<<< HEAD
+function AnimatedTicketCard({
+  ticket, index, total, translateX, onSwipe, user, propertyId, onEdit, tick
+}: {
+  ticket: Ticket; index: number; total: number; translateX: any; onSwipe: () => void; user: any; propertyId: string; onEdit: (t: Ticket) => void; tick: number;
+}) {
+  const router = useRouter();
+  const isTop = index === 0;
+
+  const animatedStyle = useAnimatedStyle(() => {
+    if (isTop) {
+      return {
+        transform: [
+          { translateX: translateX.value },
+          { rotate: `${interpolate(translateX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-8, 0, 8], Extrapolate.CLAMP)}deg` }
+        ],
+        zIndex: total,
+      };
+    }
+
+    // Keep cards solid to avoid seeing text from cards behind
+    const stackScale = interpolate(Math.abs(translateX.value), [0, 150], [1 - (index * 0.06), 1 - ((index - 1) * 0.06)], Extrapolate.CLAMP);
+    const stackTranslateY = interpolate(Math.abs(translateX.value), [0, 150], [index * -12, (index - 1) * -12], Extrapolate.CLAMP);
+
+    return {
+      transform: [
+        { scale: stackScale }, 
+        { translateY: stackTranslateY }
+      ],
+      zIndex: total - index,
+    };
+  });
+
+  const pan = Gesture.Pan()
+    .enabled(isTop)
+    .minDistance(5)
+    .shouldCancelWhenOutside(true)
+    .onUpdate((e) => { 
+        translateX.value = e.translationX; 
+    })
+    .onEnd((e) => {
+      if (Math.abs(e.translationX) > 100) {
+        const dest = e.translationX > 0 ? SCREEN_WIDTH : -SCREEN_WIDTH;
+        translateX.value = withSpring(dest, { velocity: e.velocityX, damping: 20, stiffness: 90 }, () => { 
+            runOnJS(onSwipe)(); 
+        });
+      } else {
+        translateX.value = withSpring(0, { damping: 15, stiffness: 120 });
+      }
+    });
+
+  const escalationChain = useMemo(() => {
+    const logs = ticket.ticket_escalation_logs;
+    if (!logs || logs.length === 0) return undefined;
+    const sorted = [...logs].sort((a, b) => new Date(a.escalated_at).getTime() - new Date(b.escalated_at).getTime());
+    const chain: { name: string; avatar?: string | null }[] = [];
+    sorted.forEach((log, i) => {
+      if (i === 0 && log.from_employee?.full_name) chain.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url });
+      if (log.to_employee?.full_name) chain.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url });
+    });
+    return chain.length > 0 ? chain : undefined;
+  }, [ticket.ticket_escalation_logs]);
+
+  return (
+    <GestureDetector gesture={pan}>
+      <Animated.View style={[
+        mstStyles.animatedWrapper, 
+        animatedStyle,
+        Platform.OS === 'web' && { touchAction: 'none' } as any
+      ]}>
+        <TicketCard
+          id={ticket.id}
+          title={ticket.title}
+          priority={(ticket.priority?.toUpperCase() as any) || 'MEDIUM'}
+          status={
+            ['closed', 'resolved'].includes(ticket.status) ? 'COMPLETED' :
+            ticket.status === 'in_progress' ? 'IN_PROGRESS' :
+            ticket.assigned_to ? 'ASSIGNED' : 'OPEN'
+          }
+          ticketNumber={ticket.ticket_number || `TKT-${ticket.id.slice(0,8)}`}
+          createdAt={ticket.created_at}
+          assignedTo={ticket.assignee?.full_name || 'Unassigned'}
+          assigneePhotoUrl={ticket.assignee?.user_photo_url}
+          photoUrl={ticket.photo_before_url}
+          materialsOrdered={(ticket as any).materials_ordered}
+          escalationChain={escalationChain}
+          onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
+          onEdit={() => onEdit(ticket)}
+          compact={true}
+          tick={tick}
+          style={{ height: 190 }} // Reduced further from bottom
+        />
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+=======
+>>>>>>> origin/main
 const mstStyles = StyleSheet.create({
   stackContainer: {
     height: 320, 

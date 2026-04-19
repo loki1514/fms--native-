@@ -31,7 +31,7 @@ export default function TicketSLATile({
       {/* Open Tickets */}
       <View style={styles.row}>
         <View>
-          <Text style={[styles.bigValue, { color: '#7C3AED' }]}>{openTickets}</Text>
+          <Text style={[styles.bigValue, { color: '#708F96' }]}>{openTickets}</Text>
           <Text style={styles.metric}>Open Tickets</Text>
         </View>
         <View style={styles.progressTrack}>
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F1F5F9',
     borderLeftWidth: 4,
-    borderLeftColor: '#7C3AED',
+    borderLeftColor: '#708F96',
     padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

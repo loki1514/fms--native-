@@ -12,6 +12,7 @@ import { User, Session } from '@supabase/supabase-js';
 
 import { createClient } from '@/utils/supabase/client';
 import { UserMembership, PropertyInfo } from '@/types/membership';
+import { getValidToken, clearToken } from '@/services/cassandra/cassandraAuthService';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -240,8 +241,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (event === 'SIGNED_IN' && nextSession?.user) {
         fetchMembership(nextSession.user.id);
+        // Pre-warm Cassandra token — non-fatal if it fails
+        getValidToken().catch((e) => console.warn('[Auth] Cassandra token pre-warm failed:', e));
       } else if (event === 'SIGNED_OUT') {
         setMembership(null);
+        clearToken().catch(() => {});
       }
 
       setIsLoading(false);
@@ -271,6 +275,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(enrichedUser);
 
       await fetchMembership(data.session.user.id);
+      // Pre-warm Cassandra token — non-fatal if it fails
+      getValidToken().catch((e) => console.warn('[Auth] Cassandra token pre-warm failed:', e));
 
       return { data: { user: enrichedUser, session: data.session }, error: null };
     },
@@ -302,6 +308,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }, { onConflict: 'id' });
 
         await fetchMembership(data.session.user.id);
+        // Pre-warm Cassandra token — non-fatal if it fails
+        getValidToken().catch((e) => console.warn('[Auth] Cassandra token pre-warm failed:', e));
       }
 
       return {

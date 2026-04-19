@@ -3,15 +3,14 @@
 /**
  * ApplePropertyDashboard — Per-property glass dashboard
  *
- * Design: Apple Weather / PropertyDashboard.jsx glass aesthetic
- * - Sky gradient + animated cloud background
- * - Glass cards with minimal opacity
- * - Clean numbers, status dots, progress bars
- *
- * Route: /org/[orgId]/property/[propertyId]
+ * Design: Apple Weather aesthetic
+ * - Clean sky gradient background (no clouds)
+ * - Glass cards with generous transparency
+ * - Full-width edge-to-edge cards with 22px radius
+ * - Tappable ticket cards → detail view with history, analysis
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,75 +18,31 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
   StatusBar,
   Platform,
-  Animated,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Circle, Polygon, Defs, Mask, Ellipse, Rect } from 'react-native-svg';
+import Svg, { Path, Circle, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { createClient } from '@/utils/supabase/client';
 import AppleWeatherBackground from '@/components/dashboard/AppleWeatherBackground';
 import ParticleOrb from '@/components/dashboard/ParticleOrb';
-import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 import { useWeather } from '@/hooks/useWeather';
+import { useTheme } from '@/context';
+import { AuroraBackground } from '@/components/shared/AuroraBackground';
 
+const { width: SCREEN_W } = Dimensions.get('window');
 const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 
-// ==================== ANIMATED CLOUDS ====================
-const AnimatedClouds = () => {
-  const cloud1Pos = useRef(new Animated.Value(-200)).current;
-  const cloud2Pos = useRef(new Animated.Value(400)).current;
-  const cloud3Pos = useRef(new Animated.Value(-150)).current;
-  const cloud4Pos = useRef(new Animated.Value(350)).current;
-
-  useEffect(() => {
-    Animated.loop(Animated.timing(cloud1Pos, { toValue: 450, duration: 35000, useNativeDriver: true })).start();
-    Animated.loop(Animated.timing(cloud2Pos, { toValue: -250, duration: 28000, useNativeDriver: true })).start();
-    Animated.loop(Animated.timing(cloud3Pos, { toValue: 500, duration: 22000, useNativeDriver: true })).start();
-    Animated.loop(Animated.timing(cloud4Pos, { toValue: -200, duration: 40000, useNativeDriver: true })).start();
-  }, []);
-
-  const CloudShape = ({ width, height, opacity }: { width: number; height: number; opacity: number }) => (
-    <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-      <Ellipse cx={width * 0.33} cy={height * 0.625} rx={width * 0.28} ry={height * 0.31} fill={`rgba(255,255,255,${opacity})`} />
-      <Ellipse cx={width * 0.57} cy={height * 0.56} rx={width * 0.31} ry={height * 0.375} fill={`rgba(255,255,255,${opacity - 0.05})`} />
-      <Ellipse cx={width * 0.8} cy={height * 0.625} rx={width * 0.22} ry={height * 0.275} fill={`rgba(255,255,255,${opacity - 0.1})`} />
-    </Svg>
-  );
-
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Animated.View style={[cloudStyles.cloud, { top: '5%', transform: [{ translateX: cloud1Pos }] }]}>
-        <CloudShape width={180} height={80} opacity={0.8} />
-      </Animated.View>
-      <Animated.View style={[cloudStyles.cloud, { top: '15%', transform: [{ translateX: cloud2Pos }] }]}>
-        <CloudShape width={150} height={70} opacity={0.6} />
-      </Animated.View>
-      <Animated.View style={[cloudStyles.cloud, { top: '25%', transform: [{ translateX: cloud3Pos }] }]}>
-        <CloudShape width={120} height={55} opacity={0.5} />
-      </Animated.View>
-      <Animated.View style={[cloudStyles.cloud, { top: '8%', transform: [{ translateX: cloud4Pos }] }]}>
-        <CloudShape width={200} height={90} opacity={0.4} />
-      </Animated.View>
-    </View>
-  );
-};
-
-const cloudStyles = StyleSheet.create({
-  cloud: { position: 'absolute', opacity: 0.7 },
-});
-
-// ==================== ICONS ====================
+// ---- Icons ----
 const Icons = {
   Back: ({ size = 20, color = '#fff' }: { size?: number; color?: string }) => (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <Path d="M19 12H5M12 19l-7-7 7-7" />
-    </Svg>
-  ),
-  Menu: ({ size = 20, color = '#fff' }: { size?: number; color?: string }) => (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
-      <Path d="M3 12h18M3 6h18M3 18h18" />
     </Svg>
   ),
   Bell: ({ size = 20, color = '#fff' }: { size?: number; color?: string }) => (
@@ -155,20 +110,191 @@ const Icons = {
       <Path d="M12 22.08V12" />
     </Svg>
   ),
+  Sparkles: ({ size = 18, color = '#fff' }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round">
+      <Path d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364 6.364-1.414-1.414M6.05 6.05 4.636 4.636m12.728 0-1.414 1.414M6.05 17.95l-1.414 1.414" />
+      <Circle cx="12" cy="12" r="4" />
+    </Svg>
+  ),
+  Close: ({ size = 20, color = '#fff' }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+      <Path d="M18 6 6 18M6 6l12 12" />
+    </Svg>
+  ),
+  Search: ({ size = 18, color = 'rgba(255,255,255,0.5)' }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
+      <Circle cx="11" cy="11" r="8" />
+      <Path d="m21 21-4.3-4.3" />
+    </Svg>
+  ),
 };
 
-// ==================== STATUS DOT ====================
+// ---- Status Dot ----
 const StatusDot = ({ status }: { status: 'good' | 'warning' | 'critical' }) => {
-  const colors = { good: '#34C759', warning: '#FF9500', critical: '#FF3B30' };
+  const colors = { good: '#34C759', warning: '#FF9F0A', critical: '#FF3B30' };
   return <View style={[styles.statusDot, { backgroundColor: colors[status] || colors.good }]} />;
 };
 
-// ==================== GLASS CARD ====================
-const GlassCard = ({ children, style }: { children: React.ReactNode; style?: object }) => (
-  <View style={[styles.glassCard, style]}>{children}</View>
-);
+// ---- Glass Card ----
+const GlassCard = ({ children, style, onPress }: { children: React.ReactNode; style?: object; onPress?: () => void }) => {
+  const card = <View style={[styles.glassCard, style]}>{children}</View>;
+  if (onPress) {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+        {card}
+      </TouchableOpacity>
+    );
+  }
+  return card;
+};
 
-// ==================== BOTTOM NAV ====================
+// ---- Mini Bar Chart ----
+function MiniBarChart({ data, highlightIndex = -1 }: { data: number[]; highlightIndex?: number }) {
+  const max = Math.max(...data, 1);
+  return (
+    <View style={styles.miniChart}>
+      {data.map((val, i) => (
+        <View
+          key={i}
+          style={[
+            styles.miniBar,
+            {
+              height: `${(val / max) * 100}%`,
+              backgroundColor: i === highlightIndex ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.18)',
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+// ---- Ticket Detail Modal ----
+function TicketDetailModal({
+  visible,
+  onClose,
+  propertyName,
+  openTickets,
+  resolvedTickets,
+  inProgressTickets,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  propertyName: string;
+  openTickets: number;
+  resolvedTickets: number;
+  inProgressTickets: number;
+}) {
+  const insets = useSafeAreaInsets();
+
+  // Mock 7-day history data
+  const historyData = useMemo(() => {
+    const base = Math.max(1, Math.round((openTickets + resolvedTickets) / 7));
+    return Array.from({ length: 7 }, () => Math.max(0, base + Math.floor(Math.random() * 6) - 3));
+  }, [openTickets, resolvedTickets]);
+
+  const total = openTickets + inProgressTickets + resolvedTickets;
+  const avgDaily = total > 0 ? (total / 30).toFixed(1) : '0.0';
+  const todayRaised = Math.max(0, Math.round(Number(avgDaily) + Math.random() * 3 - 1));
+
+  // AI analysis
+  const analysis = useMemo(() => {
+    if (openTickets > 20) return 'Ticket volume is critically high. Recommend immediate staff reallocation and priority triage. Resolution rate is below optimal threshold.';
+    if (openTickets > 10) return 'Elevated ticket volume detected. Consider reviewing recurring issue patterns and preventive maintenance schedules.';
+    if (resolvedTickets > openTickets * 3) return 'Excellent operational health. Resolution velocity is strong. Continue current maintenance practices.';
+    return 'Steady operations. Ticket flow is balanced. Monitor for any seasonal spikes in the coming weeks.';
+  }, [openTickets, resolvedTickets]);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
+      <View style={[styles.modalOverlay, { paddingTop: insets.top + 12 }]}>
+        <View style={styles.modalContent}>
+          {/* Modal Header */}
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{propertyName}</Text>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={onClose} activeOpacity={0.8}>
+              <Icons.Close size={20} color="#1D1D1F" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+            {/* Summary Numbers */}
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryValue}>{todayRaised}</Text>
+                <Text style={styles.summaryLabel}>Raised today</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryValue}>{avgDaily}</Text>
+                <Text style={styles.summaryLabel}>Daily avg</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryValue}>{total}</Text>
+                <Text style={styles.summaryLabel}>Total</Text>
+              </View>
+            </View>
+
+            {/* History Graph */}
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>7-Day History</Text>
+              <View style={styles.historyChart}>
+                {historyData.map((val, i) => {
+                  const max = Math.max(...historyData, 1);
+                  const height = (val / max) * 100;
+                  const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                  return (
+                    <View key={i} style={styles.historyBarCol}>
+                      <View style={styles.historyBarWrap}>
+                        <View style={[styles.historyBar, { height: `${height}%` }]} />
+                      </View>
+                      <Text style={styles.historyBarLabel}>{dayLabels[i]}</Text>
+                      <Text style={styles.historyBarValue}>{val}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Breakdown */}
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Status Breakdown</Text>
+              <View style={styles.breakdownList}>
+                <BreakdownRow label="Open" value={openTickets} color="#FF9F0A" />
+                <BreakdownRow label="In Progress" value={inProgressTickets} color="#2997FF" />
+                <BreakdownRow label="Resolved" value={resolvedTickets} color="#34C759" />
+              </View>
+            </View>
+
+            {/* AI Analysis */}
+            <View style={[styles.sectionCard, { backgroundColor: '#F5F7FA' }]}>
+              <View style={styles.aiHeader}>
+                <Icons.Sparkles size={16} color="#708F96" />
+                <Text style={styles.aiTitle}>AI Analysis</Text>
+              </View>
+              <Text style={styles.aiText}>{analysis}</Text>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function BreakdownRow({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <View style={styles.breakdownRow}>
+      <View style={styles.breakdownLeft}>
+        <View style={[styles.breakdownDot, { backgroundColor: color }]} />
+        <Text style={styles.breakdownLabel}>{label}</Text>
+      </View>
+      <Text style={[styles.breakdownValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
+// ---- Bottom Nav ----
 const BottomNav = () => {
   const insets = useSafeAreaInsets();
   return (
@@ -192,24 +318,28 @@ const BottomNav = () => {
   );
 };
 
-// ==================== MAIN DASHBOARD ====================
+// ---- Main Dashboard ----
 export default function ApplePropertyDashboard() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { weather } = useWeather();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
 
   const [propertyName, setPropertyName] = useState('Property');
+  const [propertyCode, setPropertyCode] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Metrics
   const [openTickets, setOpenTickets] = useState(0);
   const [inProgressTickets, setInProgressTickets] = useState(0);
   const [resolvedTickets, setResolvedTickets] = useState(0);
   const [checklistDone, setChecklistDone] = useState(7);
   const [checklistTotal] = useState(100);
   const [energyKwh, setEnergyKwh] = useState(1240);
+
+  const [ticketDetailOpen, setTicketDetailOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
@@ -222,7 +352,10 @@ export default function ApplePropertyDashboard() {
       .single();
 
     const property = propertyData as { name: string; code: string } | null;
-    if (property) setPropertyName(property.name);
+    if (property) {
+      setPropertyName(property.name);
+      setPropertyCode(property.code);
+    }
 
     const { count: openCount } = await supabase
       .from('tickets')
@@ -265,32 +398,38 @@ export default function ApplePropertyDashboard() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <StatusBar barStyle="light-content" />
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#0f1628' : '#F8FAFC' }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <ActivityIndicator size="large" color="#708F96" />
       </View>
     );
   }
 
-  const tickets = [
-    { count: openTickets, label: 'Open', status: openTickets > 10 ? 'critical' : openTickets > 0 ? 'warning' : 'good' as const },
-    { count: inProgressTickets, label: 'In Progress', status: inProgressTickets > 5 ? 'warning' : 'good' as const },
-    { count: resolvedTickets, label: 'Resolved', status: 'good' as const },
-  ];
-
+  const totalTickets = openTickets + inProgressTickets + resolvedTickets;
   const checklistPct = Math.round((checklistDone / checklistTotal) * 100);
+  const healthStatus: 'good' | 'warning' | 'critical' = openTickets > 20 ? 'critical' : openTickets > 10 ? 'warning' : 'good';
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={[styles.container, { backgroundColor: isDark ? '#0f1628' : '#F8FAFC' }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       {/* Background */}
-      <AppleWeatherBackground />
-      <AnimatedClouds />
+      {isDark ? <AppleWeatherBackground /> : (weather && <AuroraBackground colors={weather.auroraColors} />)}
+
+      {/* Ticket Detail Modal */}
+      <TicketDetailModal
+        visible={ticketDetailOpen}
+        onClose={() => setTicketDetailOpen(false)}
+        propertyName={propertyName}
+        openTickets={openTickets}
+        resolvedTickets={resolvedTickets}
+        inProgressTickets={inProgressTickets}
+      />
 
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 110 }]}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -300,17 +439,17 @@ export default function ApplePropertyDashboard() {
           />
         }
       >
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        {/* Header — compact, layout already handles safe area */}
+        <View style={[styles.header, { paddingTop: 12 }]}>
           <View style={styles.headerLeft}>
             <TouchableOpacity style={styles.headerButton} onPress={() => router.back()} activeOpacity={0.8}>
               <Icons.Back size={18} />
             </TouchableOpacity>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.headerTitle} numberOfLines={1}>
                 {propertyName}
               </Text>
-              <Text style={styles.headerSubtitle}>{dateStr}</Text>
+              <Text style={styles.headerSubtitle}>{propertyCode ? `${propertyCode} · ` : ''}{dateStr}</Text>
             </View>
           </View>
           <View style={styles.headerRight}>
@@ -325,84 +464,106 @@ export default function ApplePropertyDashboard() {
           </View>
         </View>
 
-        {/* Tickets */}
-        <View style={styles.ticketSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Tickets</Text>
-            <TouchableOpacity style={styles.seeAllButton} activeOpacity={0.7}>
-              <Text style={styles.seeAllText}>See All</Text>
-              <Icons.ArrowRight size={14} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.ticketRow}>
-            {tickets.map((ticket, i) => (
-              <GlassCard key={i} style={styles.ticketCard}>
-                <StatusDot status={ticket.status as 'good' | 'warning' | 'critical'} />
-                <Text style={styles.ticketCount}>{ticket.count}</Text>
-                <Text style={styles.ticketLabel}>{ticket.label}</Text>
-              </GlassCard>
-            ))}
-          </View>
+        {/* Search Bar */}
+        <View style={styles.searchBar}>
+          <Icons.Search size={16} />
+          <Text style={styles.searchPlaceholder}>Search tickets, staff...</Text>
         </View>
+
+        {/* Large Ticket Summary Card — full width, tappable */}
+        <Animated.View entering={FadeInUp.delay(100).duration(500)}>
+          <GlassCard style={styles.heroCard} onPress={() => setTicketDetailOpen(true)}>
+            <View style={styles.heroCardTop}>
+              <View>
+                <Text style={styles.heroCardLabel}>Tickets</Text>
+                <Text style={styles.heroCardValue}>{totalTickets}</Text>
+                <Text style={styles.heroCardSub}>
+                  {openTickets} open · {inProgressTickets} in progress
+                </Text>
+              </View>
+              <MiniBarChart data={[35, 55, 25, 70, 45, 60, 40]} highlightIndex={3} />
+            </View>
+            <View style={styles.heroCardBottom}>
+              <View style={styles.heroStat}>
+                <StatusDot status={healthStatus} />
+                <Text style={styles.heroStatText}>
+                  {healthStatus === 'good' ? 'Healthy' : healthStatus === 'warning' ? 'Attention needed' : 'Critical'}
+                </Text>
+              </View>
+              <View style={styles.heroArrow}>
+                <Icons.ArrowRight size={14} color="rgba(255,255,255,0.5)" />
+              </View>
+            </View>
+          </GlassCard>
+        </Animated.View>
 
         {/* Checklist & Health Row */}
         <View style={styles.rowContainer}>
-          <GlassCard style={styles.checklistCard}>
-            <View style={styles.cardHeader}>
-              <Icons.Check size={16} />
-              <Text style={styles.cardTitle}>Checklist</Text>
-            </View>
-            <View style={styles.checklistValue}>
-              <Text style={styles.checklistNumber}>{checklistDone}</Text>
-              <Text style={styles.checklistTotal}>/ {checklistTotal}</Text>
-            </View>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${checklistPct}%`, backgroundColor: '#34C759' }]} />
-            </View>
-          </GlassCard>
+          <Animated.View entering={FadeInUp.delay(200).duration(500)} style={{ flex: 1 }}>
+            <GlassCard style={styles.checklistCard}>
+              <View style={styles.cardHeader}>
+                <Icons.Check size={16} />
+                <Text style={styles.cardTitle}>Checklist</Text>
+              </View>
+              <View style={styles.checklistValue}>
+                <Text style={styles.checklistNumber}>{checklistDone}</Text>
+                <Text style={styles.checklistTotal}>/ {checklistTotal}</Text>
+              </View>
+              <View style={styles.progressBarBg}>
+                <View style={[styles.progressBarFill, { width: `${checklistPct}%`, backgroundColor: '#34C759' }]} />
+              </View>
+              <Text style={styles.checklistPct}>{checklistPct}% completed</Text>
+            </GlassCard>
+          </Animated.View>
 
-          <GlassCard style={styles.ppmCard}>
-            <View style={styles.cardHeader}>
-              <Icons.Wrench size={16} />
-              <Text style={styles.cardTitle}>Health</Text>
-            </View>
-            <Text style={styles.ppmDate}>{openTickets > 20 ? 'Critical' : openTickets > 10 ? 'Warning' : 'Optimal'}</Text>
-            <Text style={styles.ppmTask}>{openTickets} open tickets</Text>
-            <View style={styles.ppmStatus}>
-              <StatusDot status={openTickets > 20 ? 'critical' : openTickets > 10 ? 'warning' : 'good'} />
-              <Text style={styles.ppmStatusText}>Live</Text>
-            </View>
-          </GlassCard>
+          <Animated.View entering={FadeInUp.delay(250).duration(500)} style={{ flex: 1.5 }}>
+            <GlassCard style={styles.ppmCard}>
+              <View style={styles.cardHeader}>
+                <Icons.Wrench size={16} />
+                <Text style={styles.cardTitle}>Health</Text>
+              </View>
+              <Text style={[styles.ppmDate, { color: healthStatus === 'critical' ? '#FF3B30' : healthStatus === 'warning' ? '#FF9F0A' : '#34C759' }]}>
+                {openTickets > 20 ? 'Critical' : openTickets > 10 ? 'Warning' : 'Optimal'}
+              </Text>
+              <Text style={styles.ppmTask}>{openTickets} open tickets</Text>
+              <View style={styles.ppmStatus}>
+                <StatusDot status={healthStatus} />
+                <Text style={styles.ppmStatusText}>Live</Text>
+              </View>
+            </GlassCard>
+          </Animated.View>
         </View>
 
-        {/* Energy Card */}
-        <GlassCard style={styles.dsrCard}>
-          <View style={styles.dsrHeader}>
-            <Icons.Package size={18} />
-            <Text style={styles.dsrTitle}>Energy Usage</Text>
-          </View>
-          <View style={styles.dsrContent}>
-            <View>
-              <Text style={styles.dsrNumber}>{Math.floor(energyKwh / 1000)}</Text>
-              <Text style={styles.dsrUnit}>kWh</Text>
+        {/* Energy Card — full width */}
+        <Animated.View entering={FadeInUp.delay(300).duration(500)}>
+          <GlassCard style={styles.dsrCard}>
+            <View style={styles.dsrHeader}>
+              <Icons.Package size={18} />
+              <Text style={styles.dsrTitle}>Energy Usage</Text>
             </View>
-            <View style={styles.barChart}>
-              {[35, 55, 25, 70, 45].map((h, i) => (
-                <View
-                  key={i}
-                  style={[styles.bar, { height: `${h}%`, backgroundColor: i === 3 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.2)' }]}
-                />
-              ))}
+            <View style={styles.dsrContent}>
+              <View>
+                <Text style={styles.dsrNumber}>{Math.floor(energyKwh / 1000)}</Text>
+                <Text style={styles.dsrUnit}>kWh</Text>
+              </View>
+              <View style={styles.barChart}>
+                {[35, 55, 25, 70, 45].map((h, i) => (
+                  <View
+                    key={i}
+                    style={[styles.bar, { height: `${h}%`, backgroundColor: i === 3 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.2)' }]}
+                  />
+                ))}
+              </View>
             </View>
-          </View>
-          <View style={styles.dsrFooter}>
-            <Text style={styles.dsrFooterText}>Grid + DG consumption</Text>
-            <View style={styles.dsrTrend}>
-              <StatusDot status="good" />
-              <Text style={styles.dsrTrendText}>+12%</Text>
+            <View style={styles.dsrFooter}>
+              <Text style={styles.dsrFooterText}>Grid + DG consumption</Text>
+              <View style={styles.dsrTrend}>
+                <StatusDot status="good" />
+                <Text style={styles.dsrTrendText}>+12%</Text>
+              </View>
             </View>
-          </View>
-        </GlassCard>
+          </GlassCard>
+        </Animated.View>
       </ScrollView>
 
       <BottomNav />
@@ -413,25 +574,23 @@ export default function ApplePropertyDashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#4A90D9',
+    backgroundColor: '#0f1628',
   },
-
-  // Scroll
   scrollView: {
     flex: 1,
     zIndex: 10,
   },
   scrollContent: {
-    paddingTop: 8,
+    paddingTop: 0,
     paddingHorizontal: 16,
   },
 
-  // Glass Card
+  // Glass Card — updated to 12% bg / 12% border, 22px radius
   glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
 
   // Header
@@ -440,6 +599,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  searchPlaceholder: {
+    fontFamily: fontSans,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.4)',
+    letterSpacing: 0.2,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -456,7 +633,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -477,7 +654,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.10)',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
@@ -505,66 +682,91 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
 
-  // Tickets
-  ticketSection: {
-    marginBottom: 16,
+  // Hero Card — full width ticket summary
+  heroCard: {
+    padding: 20,
+    marginBottom: 20,
   },
-  sectionHeader: {
+  heroCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  heroCardLabel: {
+    fontFamily: fontSans,
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  heroCardValue: {
+    fontFamily: fontSans,
+    fontSize: 48,
+    fontWeight: '200',
+    color: '#fff',
+    letterSpacing: -1.5,
+    lineHeight: 52,
+  },
+  heroCardSub: {
+    fontFamily: fontSans,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 2,
+  },
+  heroCardBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
-  sectionTitle: {
-    fontFamily: fontSans,
-    fontSize: 15,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.85)',
-  },
-  seeAllButton: {
+  heroStat: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
-  seeAllText: {
+  heroStatText: {
     fontFamily: fontSans,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(255,255,255,0.7)',
   },
-  ticketRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  ticketCard: {
-    flex: 1,
-    padding: 14,
+  heroArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  ticketCount: {
-    fontFamily: fontSans,
-    fontSize: 28,
-    fontWeight: '300',
-    color: '#fff',
-    marginTop: 8,
-    marginBottom: 4,
+
+  // Mini Chart
+  miniChart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 5,
+    height: 50,
+    width: 80,
+    paddingBottom: 4,
   },
-  ticketLabel: {
-    fontFamily: fontSans,
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.55)',
+  miniBar: {
+    flex: 1,
+    borderRadius: 2,
   },
 
   // Row Container
   rowContainer: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
     marginBottom: 16,
   },
 
   // Checklist
   checklistCard: {
-    flex: 1,
-    padding: 14,
+    padding: 16,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -577,6 +779,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.8)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   checklistValue: {
     flexDirection: 'row',
@@ -594,6 +798,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255,255,255,0.4)',
   },
+  checklistPct: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 8,
+  },
   progressBarBg: {
     marginTop: 10,
     height: 4,
@@ -608,20 +818,19 @@ const styles = StyleSheet.create({
 
   // Health / PPM
   ppmCard: {
-    flex: 1.5,
-    padding: 14,
+    padding: 16,
   },
   ppmDate: {
     fontFamily: fontSans,
-    fontSize: 13,
-    color: '#FF9500',
+    fontSize: 18,
+    fontWeight: '600',
     marginBottom: 4,
   },
   ppmTask: {
     fontFamily: fontSans,
-    fontSize: 15,
-    color: '#fff',
-    marginBottom: 6,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 8,
   },
   ppmStatus: {
     flexDirection: 'row',
@@ -636,8 +845,8 @@ const styles = StyleSheet.create({
 
   // Energy / DSR
   dsrCard: {
-    padding: 16,
-    marginBottom: 16,
+    padding: 20,
+    marginBottom: 20,
   },
   dsrHeader: {
     flexDirection: 'row',
@@ -650,6 +859,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.8)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   dsrContent: {
     flexDirection: 'row',
@@ -705,15 +916,6 @@ const styles = StyleSheet.create({
     color: '#34C759',
   },
 
-  // Orb
-  orbWrapper: {
-    shadowColor: '#ffbf48',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 20,
-  },
-
   // Bottom Navigation
   bottomNav: {
     position: 'absolute',
@@ -724,10 +926,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'flex-start',
     paddingTop: 10,
-    backgroundColor: 'rgba(74, 144, 217, 0.25)',
+    backgroundColor: 'rgba(15, 22, 40, 0.25)',
     zIndex: 50,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
   navItem: {
     alignItems: 'center',
@@ -740,5 +942,171 @@ const styles = StyleSheet.create({
     marginTop: -15,
     width: 70,
     flex: 1,
+  },
+
+  // ---- Ticket Detail Modal ----
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '88%',
+    minHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+  modalTitle: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 22,
+    color: '#1D1D1F',
+    letterSpacing: -0.3,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F5F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalScroll: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    gap: 16,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#E8E8ED',
+  },
+  summaryValue: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 28,
+    color: '#1D1D1F',
+    letterSpacing: -0.5,
+  },
+  summaryLabel: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 12,
+    color: '#86868B',
+    marginTop: 4,
+  },
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#E8E8ED',
+    padding: 20,
+  },
+  sectionTitle: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 16,
+    color: '#1D1D1F',
+    marginBottom: 16,
+    letterSpacing: -0.2,
+  },
+  historyChart: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 120,
+    gap: 8,
+  },
+  historyBarCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  historyBarWrap: {
+    width: '100%',
+    height: 90,
+    justifyContent: 'flex-end',
+    backgroundColor: '#F5F5F7',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  historyBar: {
+    width: '100%',
+    backgroundColor: '#708F96',
+    borderRadius: 8,
+    minHeight: 4,
+  },
+  historyBarLabel: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 10,
+    color: '#86868B',
+    marginTop: 6,
+  },
+  historyBarValue: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 11,
+    color: '#1D1D1F',
+    marginTop: 2,
+  },
+  breakdownList: {
+    gap: 12,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  breakdownLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  breakdownDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  breakdownLabel: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 14,
+    color: '#1D1D1F',
+  },
+  breakdownValue: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 16,
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  aiTitle: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 14,
+    color: '#708F96',
+  },
+  aiText: {
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 14,
+    color: '#475569',
+    lineHeight: 22,
   },
 });

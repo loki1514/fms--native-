@@ -3,11 +3,22 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
+// M1 8GB — cap workers hard
+config.maxWorkers = 2;
+
 // Web support
 config.resolver.sourceExts.push('mjs');
 
 // Add support for web platform
 config.resolver.platforms = ['ios', 'android', 'web'];
+
+// Don't watch test/mock/platform-irrelevant files
+config.resolver.blockList = [
+  /node_modules\/.*\/__tests__\/.*/,
+  /node_modules\/.*\/__mocks__\/.*/,
+  /node_modules\/.*\/android\/.*/,
+  /node_modules\/.*\/ios\/Pods\/.*/,
+];
 
 // Fix @gorhom/portal broken internal imports (context vs contexts)
 const portalPackage = path.resolve(__dirname, 'node_modules/@gorhom/portal/src');

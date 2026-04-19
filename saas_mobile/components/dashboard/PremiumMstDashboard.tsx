@@ -364,7 +364,7 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
       case 'high':
         return { bg: 'rgba(249,115,22,0.15)', text: '#F97316', gradient: ['#F97316', '#FB923C'] };
       case 'medium':
-        return { bg: 'rgba(212,160,23,0.15)', text: '#D4A017', gradient: ['#D4A017', '#F59E0B'] };
+        return { bg: 'rgba(71,85,105,0.10)', text: '#475569', gradient: ['#475569', '#64748B'] };
       default:
         return { bg: 'rgba(100,116,139,0.15)', text: '#94A3B8', gradient: ['#94A3B8', '#CBD5E1'] };
     }
@@ -506,8 +506,8 @@ function PremiumLeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; in
   const getRankStyle = () => {
     switch (entry.rank) {
       case 1: return { 
-        bg: ['#FFD700', '#FFA500'] as [string, string], 
-        shadow: '#FFD70040',
+        bg: ['#708F96', '#475569'] as [string, string], 
+        shadow: '#708F9640',
         text: '#1A2332',
         icon: 'trophy'
       };
@@ -579,7 +579,7 @@ function PremiumLeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; in
               progress={Math.min(entry.score / 1000, 1)} 
               size={50} 
               strokeWidth={4}
-              color={entry.rank === 1 ? '#FFD700' : entry.rank === 2 ? '#C0C0C0' : entry.rank === 3 ? '#CD7F32' : '#708F96'}
+              color={entry.rank === 1 ? '#708F96' : entry.rank === 2 ? '#86868B' : entry.rank === 3 ? '#475569' : '#A1A1AA'}
             />
             <Text style={styles.leaderboardScore}>{entry.score.toLocaleString()}</Text>
           </View>
@@ -1053,7 +1053,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
           <TenantStatsCard
             value={stats.active}
             label="Active"
-            color="#D4A017"
+            color="#475569"
             icon="alert"
             trend="up"
           />
@@ -1238,12 +1238,12 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
           >
             <View style={styles.championHeader}>
               <Text style={styles.championLabel}>WEEKLY CHAMPION</Text>
-              <Ionicons name="star" size={20} color="#FFD700" />
+              <Ionicons name="star" size={20} color="#708F96" />
             </View>
             <View style={styles.championContent}>
               <View style={styles.championAvatar}>
                 <LinearGradient
-                  colors={['#FFD700', '#FFA500']}
+                  colors={['#708F96', '#475569']}
                   style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -1254,7 +1254,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
               </View>
               <View>
                 <Text style={[styles.championName, { color: '#FFFFFF' }]}>{leaderboard[0]?.name || 'No champion yet'}</Text>
-                <Text style={[styles.championScore, { color: '#FFD700' }]}>
+                <Text style={[styles.championScore, { color: '#708F96' }]}>
                   {leaderboard[0]?.score > 0 ? `${leaderboard[0].score.toLocaleString()} pts` : '—'}
                 </Text>
               </View>

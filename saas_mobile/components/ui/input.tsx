@@ -28,7 +28,7 @@ export const Input: React.FC<InputProps> = ({
           error && styles.inputError,
           style,
         ]}
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor="#9CA3AF"
         editable={editable}
         onFocus={(e) => {
           setIsFocused(true);
@@ -47,37 +47,36 @@ export const Input: React.FC<InputProps> = ({
 
 const styles = StyleSheet.create({
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#475569',
+    color: '#1D1D1F',
     marginBottom: 6,
-    fontFamily: 'Urbanist-Medium',
+    letterSpacing: -0.12,
   },
   input: {
     height: 44,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8E8ED',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     fontSize: 14,
-    color: '#1A2332',
+    color: '#1D1D1F',
   },
   focused: {
-    borderColor: '#7C3AED',
+    borderColor: '#0071E3',
     borderWidth: 2,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   inputError: {
-    borderColor: '#EF4444',
+    borderColor: '#FF3B30',
   },
   errorText: {
     fontSize: 12,
-    color: '#EF4444',
+    color: '#FF3B30',
     marginTop: 4,
-    fontFamily: 'Urbanist-Regular',
   },
 });
 

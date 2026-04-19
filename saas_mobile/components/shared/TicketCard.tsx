@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -38,6 +38,10 @@ export interface TicketCardProps {
   onReject?: () => void;
   style?: ViewStyle;
   compact?: boolean;
+  /** Shared ticker value from parent (incrementing counter). When provided, the card
+   *  reads this value instead of running its own setInterval — eliminating N concurrent
+   *  timers when N cards are rendered. */
+  tick?: number;
   glass?: boolean;
   blurIntensity?: number;
   blurContent?: boolean;
@@ -48,25 +52,25 @@ const TicketCard = memo(function TicketCard({
   id, title, priority, status, ticketNumber, createdAt,
   assignedTo, assigneePhotoUrl, photoUrl, propertyName,
   materialsOrdered, escalationChain, raisedByTenant,
-  onClick, onEdit, onDelete, onShare, onValidate, onReject, style, compact, glass,
-  blurIntensity = 40, blurContent = false, raisedByName,
+  onClick, onEdit, onDelete, onShare, onValidate, onReject, style, compact,
+  tick, glass, blurIntensity = 40, blurContent = false, raisedByName,
 }: TicketCardProps) {
-  const dateObj = new Date(createdAt);
+  const dateObj = useMemo(() => new Date(createdAt), [createdAt]);
   const dateStr = dateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
   const timeStr = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const handleShare = async () => {
     if (onShare) { onShare(); return; }
-    
+
     // Construct a comprehensive message
     const messageText = `🎫 Ticket: ${title}\n📋 ${ticketNumber}\n⏰ ${dateStr} ${timeStr}\n📊 Priority: ${priority} | Status: ${status.replace(/_/g, ' ')}${assignedTo ? `\n👤 Assigned: ${assignedTo}` : ''}`;
-    
+
     try {
       if (photoUrl && (await Sharing.isAvailableAsync())) {
         // Download the image to share it as a file
         const fileUri = `${FileSystem.cacheDirectory}share_${id.slice(0, 8)}.jpg`;
         const downloadResult = await File.downloadAsync(photoUrl, fileUri);
-        
+
         // Use Sharing.shareAsync for files (Expo Go compatible)
         await Sharing.shareAsync(downloadResult.uri, {
           dialogTitle: `Share Ticket ${ticketNumber}`,
@@ -88,15 +92,13 @@ const TicketCard = memo(function TicketCard({
   const isClosed = ['COMPLETED', 'CLOSED', 'RESOLVED'].includes(status?.toUpperCase() || '');
   const isCritical = priority?.toUpperCase() === 'CRITICAL' && !isClosed;
 
-  // Elapsed timer
-  const getElapsed = () => Math.floor((Date.now() - dateObj.getTime()) / 1000);
-  const [elapsedSec, setElapsedSec] = useState(getElapsed);
-
-  useEffect(() => {
-    if (isClosed) return;
-    const interval = setInterval(() => setElapsedSec(getElapsed()), 1000);
-    return () => clearInterval(interval);
-  }, [createdAt, isClosed]);
+  // Elapsed time: reads from parent's shared tick if provided, otherwise computes once.
+  // No setInterval per card — exactly ONE timer drives all cards from the parent.
+  const elapsedSec = useMemo(
+    () => Math.floor((Date.now() - dateObj.getTime()) / 1000),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tick ?? 0, dateObj]
+  );
 
   const formatElapsed = (sec: number) => {
     const d = Math.floor(sec / 86400);

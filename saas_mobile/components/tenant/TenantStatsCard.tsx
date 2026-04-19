@@ -83,7 +83,7 @@ function TrendArrow({ trend, color }: { trend: 'up' | 'down' | 'neutral'; color:
 
 function getGradientColors(color: string): [string, string] {
   switch (color) {
-    case '#D4A017':
+    case '#FF9F0A':
       return ['rgba(212,160,23,0.15)', 'rgba(212,160,23,0.03)'];
     case '#4CAF50':
       return ['rgba(76,175,80,0.15)', 'rgba(76,175,80,0.03)'];

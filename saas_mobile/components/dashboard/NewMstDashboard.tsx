@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 // ─── Fuzzy Search Helper ──────────────────────────────────────────────────────
 function fuzzyMatch(text: string, query: string): boolean {
@@ -266,7 +266,7 @@ function CollapsibleSidebar({
 }
 
 // KPI Card Component
-function KPICard({ value, label, color, delay = 0, labelColor }: { value: number; label: string; color: string; delay?: number; labelColor?: string }) {
+const KPICard = React.memo(function KPICard({ value, label, color, delay = 0, labelColor }: { value: number; label: string; color: string; delay?: number; labelColor?: string }) {
   const { theme } = useTheme();
   const textSecondary = Colors[theme].textSecondary;
   return (
@@ -275,10 +275,9 @@ function KPICard({ value, label, color, delay = 0, labelColor }: { value: number
       <Text style={[styles.kpiLabel, { color: labelColor ?? textSecondary }]}>{label}</Text>
     </Animated.View>
   );
-}
+});
 
-// Ticket Card Component
-function TicketCard({ ticket, onPress, index, onEdit, onShare }: { ticket: Ticket; onPress: () => void; index: number; onEdit?: () => void; onShare?: () => void }) {
+const TicketCard = React.memo(function TicketCard({ ticket, onPress, index, onEdit, onShare }: { ticket: Ticket; onPress: () => void; index: number; onEdit?: () => void; onShare?: () => void }) {
   const getPriorityColor = () => {
     switch (ticket.priority?.toLowerCase()) {
       case 'urgent':
@@ -287,7 +286,7 @@ function TicketCard({ ticket, onPress, index, onEdit, onShare }: { ticket: Ticke
       case 'high':
         return { bg: 'rgba(249,115,22,0.15)', text: '#F97316', border: 'rgba(249,115,22,0.25)' };
       case 'medium':
-        return { bg: 'rgba(212,160,23,0.15)', text: '#D4A017', border: 'rgba(212,160,23,0.25)' };
+        return { bg: 'rgba(71,85,105,0.10)', text: '#475569', border: 'rgba(71,85,105,0.20)' };
       default:
         return { bg: 'rgba(100,116,139,0.15)', text: '#94A3B8', border: 'rgba(100,116,139,0.25)' };
     }
@@ -368,13 +367,13 @@ function TicketCard({ ticket, onPress, index, onEdit, onShare }: { ticket: Ticke
       </TouchableOpacity>
     </Animated.View>
   );
-}
+});
 
 // Leaderboard Entry Component
-function LeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; index: number }) {
+const LeaderboardEntry = React.memo(function LeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; index: number }) {
   const getRankStyle = () => {
     switch (entry.rank) {
-      case 1: return { bg: '#FFD700', text: '#000' };
+      case 1: return { bg: '#708F96', text: '#fff' };
       case 2: return { bg: '#C0C0C0', text: '#000' };
       case 3: return { bg: '#CD7F32', text: '#fff' };
       default: return { bg: 'rgba(255,255,255,0.10)', text: 'rgba(255,255,255,0.60)' };
@@ -409,7 +408,7 @@ function LeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; index: nu
       </View>
     </Animated.View>
   );
-}
+});
 
 // Main Dashboard Component
 export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
@@ -461,7 +460,11 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   // Gamification hook
   const { leaderboard: gamifyLb, myStats, loading: gamifyLoading, error: gamifyError, refetch: gamifyRefetch } = useGamification(propertyId);
 
-  // Fetch data
+  // Keep ref in sync with gamifyLb to avoid stale closure in fetchLeaderboard
+  const gamifyLbRef = useRef(gamifyLb);
+  useEffect(() => { gamifyLbRef.current = gamifyLb; }, [gamifyLb]);
+
+  // Fetch data — gamifyLb.length removed from deps to break the cascading re-fetch loop
   useEffect(() => {
     if (propertyId) {
       fetchProperty();
@@ -469,7 +472,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       fetchStats();
       fetchLeaderboard();
     }
-  }, [propertyId, user?.id, gamifyLb.length]);
+  }, [propertyId, user?.id]);
 
   const fetchProperty = async () => {
     const { data } = await supabase
@@ -556,9 +559,9 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       .in('role', ['mst', 'maintenance_staff', 'staff']);
 
     if (!error && staffData && staffData.length > 0) {
-      // Build score lookup from gamification hook data
+      // Build score lookup from gamification hook data — read from ref to avoid stale closure
       const scoreMap = new Map<string, GamificationEntry>();
-      for (const entry of gamifyLb) {
+      for (const entry of gamifyLbRef.current) {
         scoreMap.set(entry.user_id, entry);
       }
 
@@ -765,7 +768,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
           <Text style={styles.topPropertyLabel}>TOP PROPERTY TODAY</Text>
           <Text style={styles.topPropertyName}>{property?.name || 'Property'}</Text>
         </View>
-        <Ionicons name="trophy" size={32} color="#FFD700" />
+        <Ionicons name="trophy" size={32} color="#708F96" />
       </View>
 
       <View style={{ height: 40 }} />
@@ -790,7 +793,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       <View style={styles.championCard}>
         <View style={styles.championHeader}>
           <Text style={styles.championLabel}>WEEKLY CHAMPION</Text>
-          <Ionicons name="star" size={16} color="#FFD700" />
+          <Ionicons name="star" size={16} color="#708F96" />
         </View>
         <View style={styles.championContent}>
           <View style={styles.championAvatar}>
@@ -800,7 +803,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
           </View>
           <View>
             <Text style={[styles.championName, { color: '#FFFFFF' }]}>{leaderboard[0]?.name || 'No champion yet'}</Text>
-            <Text style={[styles.championScore, { color: '#FFD700' }]}>
+            <Text style={[styles.championScore, { color: '#708F96' }]}>
               {leaderboard[0]?.score.toLocaleString() ?? '0'} pts
             </Text>
             <Text style={[styles.championSub, { color: 'rgba(255,255,255,0.55)' }]}>
@@ -817,7 +820,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
           <Text style={styles.pillText}>Critical</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.filterPill, styles.highPill]}>
-          <View style={[styles.pillDot, { backgroundColor: '#F59E0B' }]} />
+          <View style={[styles.pillDot, { backgroundColor: '#475569' }]} />
           <Text style={styles.pillText}>High</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.filterPill}>
@@ -1616,7 +1619,7 @@ const styles = StyleSheet.create({
   championAvatarText: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#FFD700',
+    color: '#708F96',
   },
   championName: {
     fontSize: 18,

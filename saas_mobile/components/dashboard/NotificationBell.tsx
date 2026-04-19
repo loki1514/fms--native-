@@ -40,7 +40,7 @@ export default function NotificationBell() {
     const { data, error } = await (supabase
       .from('notifications')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', authUser.id)
       .order('created_at', { ascending: false })
       .limit(20) as any);
 
@@ -171,7 +171,7 @@ export default function NotificationBell() {
             {/* List */}
             {isLoading ? (
               <View style={styles.emptyState}>
-                <ActivityIndicator size="small" color="#7C3AED" />
+                <ActivityIndicator size="small" color="#708F96" />
               </View>
             ) : notifications.length === 0 ? (
               <View style={styles.emptyState}>
@@ -193,7 +193,7 @@ export default function NotificationBell() {
                       <Ionicons
                         name={getIconName(item.notification_type)}
                         size={18}
-                        color={!item.is_read ? '#7C3AED' : '#94A3B8'}
+                        color={!item.is_read ? '#708F96' : '#94A3B8'}
                       />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   markAllText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#7C3AED',
+    color: '#708F96',
   },
   closeButton: {
     padding: 4,
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#708F96',
     marginTop: 6,
   },
 });

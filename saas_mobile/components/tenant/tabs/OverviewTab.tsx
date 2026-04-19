@@ -56,8 +56,8 @@ const SHORTCUTS = [
   {
     label: 'Amenities',
     icon: 'amenities',
-    color: '#F59E0B',
-    colorLight: 'rgba(245,158,11,0.15)',
+    color: '#475569',
+    colorLight: 'rgba(71,85,105,0.15)',
   },
   {
     label: 'Parking',
@@ -213,7 +213,7 @@ export function OverviewTab({
             value={stats.open}
             label="Open Tickets"
             sublabel="Active requests"
-            color="#D4A017"
+            color="#FF9F0A"
             icon="ticket"
             trend="up"
           />

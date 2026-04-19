@@ -4,7 +4,7 @@
  * Opens as a true full-screen modal overlay when the orb is tapped.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -19,17 +19,24 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAppStore } from '@/stores/appStore';
+import { useCassandraStore } from '@/stores/cassandraStore';
+import {
+  smartQuery,
+  createTicketNL,
+  researchQuery,
+  generateReport,
+} from '@/lib/cassandra';
+import { useTextToSpeech } from '@/hooks/voice/useTextToSpeech';
+import { useCassandraVoice } from '@/hooks/voice/useCassandraVoice';
+import { toast } from '@/lib/toast';
 import {
   Colors,
   Gradients,
   Typography,
   Spacing,
   Radius,
-  OrbState,
-  OrbColors,
 } from '@/constants/cassandra-theme';
-import ParticleOrb from '@/components/dashboard/ParticleOrb';
+import SidekickFace, { type FaceState } from '@/components/dashboard/SidekickFace';
 import Svg, { Path } from 'react-native-svg';
 
 // ─── Icons ─────────────────────────────────────────────────────────────────
@@ -61,18 +68,18 @@ const SkillChip = ({ label, onPress }: { label: string; onPress: () => void }) =
 );
 
 // ─── Status Ring (orb state visualization) ─────────────────────────────────
-const StatusRing = ({ state }: { state: OrbState }) => {
+const StatusRing = ({ voiceState }: { voiceState: string }) => {
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (state === 'listening') {
+    if (voiceState === 'recording') {
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulse, { toValue: 1.4, duration: 1200, useNativeDriver: true }),
           Animated.timing(pulse, { toValue: 1, duration: 0, useNativeDriver: true }),
         ])
       ).start();
-    } else if (state === 'processing') {
+    } else if (voiceState === 'processing') {
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulse, { toValue: 1.15, duration: 600, useNativeDriver: true }),
@@ -82,10 +89,14 @@ const StatusRing = ({ state }: { state: OrbState }) => {
     } else {
       pulse.setValue(1);
     }
-  }, [state]);
+  }, [voiceState]);
 
-  const color = OrbColors[state];
-  const isActive = state === 'listening' || state === 'processing' || state === 'speaking';
+  const color = voiceState === 'speaking' ? Colors.violet
+    : voiceState === 'recording' ? Colors.cyan
+    : voiceState === 'processing' ? Colors.warning
+    : voiceState === 'error' ? Colors.error
+    : Colors.violet;
+  const isActive = voiceState === 'recording' || voiceState === 'processing' || voiceState === 'speaking';
 
   return (
     <Animated.View
@@ -105,21 +116,57 @@ const StatusRing = ({ state }: { state: OrbState }) => {
 interface CassandraSessionModalProps {
   visible: boolean;
   onClose: () => void;
+  orgId: string;
 }
 
 export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   visible,
   onClose,
+  orgId,
 }) => {
   const insets = useSafeAreaInsets();
-  const { orbState, setOrbState, transcript, setTranscript, isConnected } = useAppStore();
+  const {
+    voiceState,
+    isConnected,
+    addMessage,
+    transcript,
+    messageHistory,
+    setVoiceState,
+    setLastResponse,
+  } = useCassandraStore();
   const [inputText, setInputText] = useState('');
+  const [inputMode, setInputMode] = useState<'text' | 'voice'>('text');
   const scrollRef = useRef<ScrollView>(null);
   const orbScale = useRef(new Animated.Value(1)).current;
+  const { speak, stop: stopSpeaking } = useTextToSpeech();
+
+  // Cassandra voice session
+  const voice = useCassandraVoice(orgId, {
+    onStateChange: useCassandraStore.getState().setVoiceState,
+    onTranscript: (text, speakerId) => {
+      useCassandraStore.getState().addTranscriptSegment(text, speakerId);
+      if (text.trim()) {
+        useCassandraStore.getState().addMessage({ role: 'user', text });
+      }
+    },
+    onAudioPlaybackStart: () => {},
+    onAudioPlaybackEnd: () => {
+      stopSpeaking();
+      useCassandraStore.getState().setVoiceState('idle');
+    },
+    onTicketCreated: (id, desc) => {
+      toast.success(`Ticket ${id} created: ${desc}`);
+      useCassandraStore.getState().addMessage({ role: 'cassandra', text: `Ticket ${id} created: ${desc}` });
+    },
+    onError: (err) => {
+      toast.error(err);
+      useCassandraStore.getState().setConnectionError(err);
+    },
+  });
 
   // Breathing animation when idle
   useEffect(() => {
-    if (orbState !== 'idle' || !visible) return;
+    if (voiceState !== 'idle' || !visible) return;
     const breathe = Animated.loop(
       Animated.sequence([
         Animated.timing(orbScale, { toValue: 1.05, duration: 2000, useNativeDriver: true }),
@@ -128,38 +175,105 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     );
     breathe.start();
     return () => breathe.stop();
-  }, [orbState, visible]);
+  }, [voiceState, visible]);
 
   // Auto-scroll transcript
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
-  }, [transcript]);
+  }, [messageHistory]);
 
   const handleOrbPress = () => {
-    if (orbState === 'idle' || orbState === 'error') {
-      setOrbState('listening');
-      setTranscript('');
+    if (voiceState === 'speaking') {
+      stopSpeaking();
+      if (inputMode === 'voice') {
+        voice.stopSession();
+      }
+      setVoiceState('idle');
+      return;
+    }
+    if (inputMode === 'voice') {
+      if (voice.state === 'idle' || voice.state === 'error') {
+        voice.startSession();
+      } else {
+        voice.stopSession();
+      }
+      return;
+    }
+    if (voiceState === 'idle' || voiceState === 'error') {
+      setVoiceState('processing');
     } else {
-      setOrbState('idle');
+      setVoiceState('idle');
     }
   };
 
-  const handleSend = () => {
+  const handleSend = useCallback(async () => {
     if (!inputText.trim()) return;
-    setTranscript((prev) => (prev ? prev + '\n\n' : '') + '🧑 ' + inputText.trim());
+    const text = inputText.trim();
+    addMessage({ role: 'user', text });
     setInputText('');
-  };
+    setVoiceState('processing');
 
-  const handleSkill = (skill: string) => {
-    setTranscript((prev) => (prev ? prev + '\n\n' : '') + '🧑 ' + skill);
-  };
+    try {
+      const res = await smartQuery(text, orgId);
+      const responseText = (res as any)?.response ?? (res as any)?.message ?? "I'm not sure how to answer that.";
+      addMessage({ role: 'cassandra', text: responseText });
+      setVoiceState('speaking');
+      await speak(responseText);
+      setVoiceState('idle');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong.';
+      addMessage({ role: 'cassandra', text: `Error: ${msg}` });
+      toast.error(msg);
+      setVoiceState('idle');
+    }
+  }, [inputText, orgId, speak, addMessage, setVoiceState]);
 
-  const statusLabels: Record<OrbState, string> = {
-    idle: 'Tap orb to speak',
-    listening: 'Listening…',
+  const handleSkill = useCallback((skill: string, endpoint?: 'research' | 'report' | 'ticket') => {
+    addMessage({ role: 'user', text: skill });
+    setVoiceState('processing');
+
+    const runSkill = async () => {
+      try {
+        let responseText: string;
+        if (endpoint === 'research') {
+          responseText = 'Researching…';
+          const res = await researchQuery(skill, orgId);
+          responseText = (res as any)?.response ?? (res as any)?.message ?? 'Research complete.';
+        } else if (endpoint === 'report') {
+          const res = await generateReport('weekly', '', '7d', orgId);
+          responseText = (res as any)?.response ?? (res as any)?.summary ?? 'Report generated successfully.';
+        } else if (endpoint === 'ticket') {
+          const res = await createTicketNL(skill, orgId);
+          responseText = (res as any)?.response ?? (res as any)?.message ?? 'Ticket created.';
+          if ((res as any)?.ticket_id) {
+            toast.success(`Ticket created: ${(res as any).ticket_id}`);
+          }
+        } else {
+          const res = await smartQuery(skill, orgId);
+          responseText = (res as any)?.response ?? (res as any)?.message ?? "I'm not sure how to answer that.";
+        }
+        addMessage({ role: 'cassandra', text: responseText });
+        setVoiceState('speaking');
+        await speak(responseText);
+        setVoiceState('idle');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Something went wrong.';
+        addMessage({ role: 'cassandra', text: `Error: ${msg}` });
+        toast.error(msg);
+        setVoiceState('idle');
+      }
+    };
+
+    runSkill();
+  }, [orgId, speak, addMessage, setVoiceState]);
+
+  const statusLabels: Record<string, string> = {
+    idle: inputMode === 'voice' ? 'Tap orb to start voice' : 'Tap face to speak',
+    recording: 'Listening… speak now',
+    connecting: 'Connecting…',
     processing: 'Cassandra is thinking…',
     speaking: 'Cassandra is speaking…',
-    error: 'Connection error',
+    error: 'Something went wrong. Tap to retry.',
   };
 
   return (
@@ -190,9 +304,28 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
             />
             <Text style={styles.headerTitle}>Cassandra</Text>
           </View>
-          <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
-            <CloseIcon />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            {/* Mode toggle */}
+            <View style={styles.modeToggle}>
+              <TouchableOpacity
+                onPress={() => setInputMode('text')}
+                style={[styles.modeBtn, inputMode === 'text' && styles.modeBtnActive]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.modeBtnText, inputMode === 'text' && styles.modeBtnTextActive]}>Text</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setInputMode('voice')}
+                style={[styles.modeBtn, inputMode === 'voice' && styles.modeBtnActive]}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.modeBtnText, inputMode === 'voice' && styles.modeBtnTextActive]}>Voice</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
+              <CloseIcon />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Drag handle */}
@@ -211,21 +344,30 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
           >
             {/* Orb Section */}
             <View style={styles.orbSection}>
-              <StatusRing state={orbState} />
+              <StatusRing voiceState={voiceState} />
               <TouchableOpacity onPress={handleOrbPress} activeOpacity={0.9}>
                 <Animated.View style={{ transform: [{ scale: orbScale }] }}>
-                  <ParticleOrb size={140} />
+                  <SidekickFace
+                    size={140}
+                    state={voiceState === 'recording' || voiceState === 'connecting' ? 'listening' : voiceState === 'processing' ? 'thinking' : voiceState === 'error' ? 'alert' : voiceState as FaceState}
+                  />
                 </Animated.View>
               </TouchableOpacity>
-              <Text style={[styles.statusLabel, { color: OrbColors[orbState] }]}>
-                {statusLabels[orbState]}
+              <Text style={[styles.statusLabel, { color: voiceState === 'speaking' ? Colors.violet : voiceState === 'recording' ? Colors.cyan : voiceState === 'processing' ? Colors.warning : voiceState === 'error' ? Colors.error : Colors.textMuted }]}>
+                {statusLabels[voiceState] ?? 'Tap face to speak'}
               </Text>
             </View>
 
             {/* Transcript */}
-            {transcript ? (
+            {messageHistory.length > 0 ? (
               <View style={styles.transcriptBox}>
-                <Text style={styles.transcriptText}>{transcript}</Text>
+                {messageHistory.map((msg) => (
+                  <Text key={msg.id} style={styles.transcriptText}>
+                    <Text style={styles.transcriptRole}>{msg.role === 'user' ? '🧑 ' : '🤖 '}</Text>
+                    {msg.text}
+                    {'\n\n'}
+                  </Text>
+                ))}
               </View>
             ) : (
               <View style={styles.emptyBox}>
@@ -238,9 +380,9 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
             {/* Quick Skills */}
             <View style={styles.skillsRow}>
               <SkillChip label="Dashboard" onPress={() => handleSkill('Show me the dashboard')} />
-              <SkillChip label="Tickets" onPress={() => handleSkill('Any open tickets?')} />
-              <SkillChip label="Report" onPress={() => handleSkill('Generate weekly report')} />
-              <SkillChip label="Research" onPress={() => handleSkill('Research HVAC vendors')} />
+              <SkillChip label="Tickets" onPress={() => handleSkill('Any open tickets?', 'ticket')} />
+              <SkillChip label="Report" onPress={() => handleSkill('Generate weekly report', 'report')} />
+              <SkillChip label="Research" onPress={() => handleSkill('Research HVAC vendors', 'research')} />
             </View>
           </ScrollView>
 
@@ -255,7 +397,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
               onPress={handleOrbPress}
               style={[
                 styles.micBtn,
-                { backgroundColor: orbState === 'listening' ? Colors.cyan : Colors.violet },
+                { backgroundColor: voiceState === 'recording' ? Colors.cyan : Colors.violet },
               ]}
               activeOpacity={0.8}
             >
@@ -301,6 +443,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  modeToggle: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: Radius.lg,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: Colors.borderGlass,
+  },
+  modeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.lg - 2,
+  },
+  modeBtnActive: {
+    backgroundColor: Colors.violet,
+  },
+  modeBtnText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    fontWeight: '500',
+  },
+  modeBtnTextActive: {
+    color: Colors.textPrimary,
   },
   statusDot: {
     width: 8,
@@ -364,6 +535,9 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textSecondary,
     lineHeight: 24,
+  },
+  transcriptRole: {
+    fontWeight: '700',
   },
   emptyBox: {
     alignItems: 'center',

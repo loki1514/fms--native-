@@ -23,6 +23,11 @@ export default function Index() {
     return <Redirect href="/login" />;
   }
 
+  // Lovable Super Admin — email-gated redirect
+  if (user?.email?.toLowerCase() === 'sanyog@gmail.com') {
+    return <Redirect href="/super-admin" />;
+  }
+
   // User is authenticated — redirect to their first property's index (which has role-based routing)
   if (membership && membership.properties && membership.properties.length > 0) {
     const firstProperty = membership.properties[0];

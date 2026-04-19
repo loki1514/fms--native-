@@ -65,10 +65,11 @@ interface TicketShuffleStackProps {
   user: any;
   propertyId: string;
   onEdit: (t: Ticket) => void;
+  tick?: number;
 }
 
 // ─── Stack Container ───────────────────────────────────────
-export function TicketShuffleStack({ tickets, user, propertyId, onEdit }: TicketShuffleStackProps) {
+export function TicketShuffleStack({ tickets, user, propertyId, onEdit, tick }: TicketShuffleStackProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [tallestCardHeight, setTallestCardHeight] = useState(200);
   const translateX = useSharedValue(0);
@@ -109,6 +110,7 @@ export function TicketShuffleStack({ tickets, user, propertyId, onEdit }: Ticket
           propertyId={propertyId}
           onEdit={onEdit}
           onHeightMeasured={onCardLayout}
+          tick={tick}
         />
       )).reverse()}
     </View>
@@ -117,11 +119,11 @@ export function TicketShuffleStack({ tickets, user, propertyId, onEdit }: Ticket
 
 // ─── Individual Card ───────────────────────────────────────
 function AnimatedTicketCard({
-  ticket, index, total, translateX, onSwipe, propertyId, onEdit, onHeightMeasured
+  ticket, index, total, translateX, onSwipe, propertyId, onEdit, onHeightMeasured, tick
 }: {
   ticket: Ticket; index: number; total: number; translateX: any;
   onSwipe: () => void; propertyId: string; onEdit: (t: Ticket) => void;
-  onHeightMeasured: (h: number) => void;
+  onHeightMeasured: (h: number) => void; tick?: number;
 }) {
   const router = useRouter();
   const { isDark } = useTheme();
@@ -279,6 +281,7 @@ function AnimatedTicketCard({
                   shadowOpacity: 0,
                   elevation: 0,
                 }}
+                tick={tick}
               />
             </View>
           </View>

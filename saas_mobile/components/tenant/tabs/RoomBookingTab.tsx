@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   },
   roomCreditText: {
     fontSize: 10,
-    color: '#D4A017',
+    color: '#FF9F0A',
     fontWeight: '700',
   },
   bookBtn: {

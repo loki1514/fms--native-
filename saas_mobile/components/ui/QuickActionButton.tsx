@@ -13,7 +13,7 @@ interface QuickActionButtonProps {
 export function QuickActionButton({
   icon,
   label,
-  color = '#7C3AED',
+  color = '#708F96',
   onPress,
   style,
 }: QuickActionButtonProps) {
