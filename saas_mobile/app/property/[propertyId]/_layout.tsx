@@ -51,10 +51,10 @@ const MOBILE_ROLES = ['tenant', 'super_tenant'];
 // The property layout sidebar must NOT render alongside them or you get double sidebars.
 // NOTE: property_admin goes to DashboardScreen which has NO sidebar — keep the
 // property layout sidebar for property_admin so they have navigation.
-const FULL_DASHBOARD_ROLES = ['mst', 'maintenance_staff'];
+const FULL_DASHBOARD_ROLES = ['mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager'];
 
 // ---- Full-screen routes for full-dashboard roles (no sidebar) ----
-const FULL_SCREEN_ROUTES = ['mst', 'maintenance_staff', 'settings', 'profile'];
+const FULL_SCREEN_ROUTES = ['mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager', 'settings', 'profile'];
 
 // ---- Property Context ----
 export const PropertyContext = React.createContext<{

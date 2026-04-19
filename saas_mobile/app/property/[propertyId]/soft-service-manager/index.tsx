@@ -1,10 +1,8 @@
-import React from 'react';
-import { View, Text } from 'react-native';
+import SoftServiceManagerDashboard from '@/components/dashboard/SoftServiceManagerDashboard';
+import { useLocalSearchParams } from 'expo-router';
 
-export default function Placeholder() {
-  return (
-    <View>
-      <Text>Placeholder</Text>
-    </View>
-  );
+export default function SoftServiceManagerPage() {
+  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  if (!propertyId) return null;
+  return <SoftServiceManagerDashboard propertyId={propertyId} />;
 }

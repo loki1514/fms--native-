@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname, useLocalSearchParams } from 'expo-router';
@@ -85,10 +86,10 @@ export default function DashboardSidebar(props: DrawerContentComponentProps) {
       {/* Logo Section */}
       <View style={styles.logoSection}>
         <View style={styles.logoRow}>
-          <View style={styles.logoIcon}>
-            <Text style={styles.logoIconText}>A</Text>
-          </View>
-          <Text style={styles.logoText}>AUTOPILOT</Text>
+          <Image 
+            source={require('../../assets/images/autopilot-logo-new.png')} 
+            style={{ height: 56, width: 240, resizeMode: 'stretch', marginLeft: -8 }} 
+          />
         </View>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>STAFF DASHBOARD</Text>
@@ -197,10 +198,10 @@ export function MobileHeader({ onMenuToggle }: { onMenuToggle: () => void }) {
       </TouchableOpacity>
 
       <View style={headerStyles.logoRow}>
-        <View style={headerStyles.logoIcon}>
-          <Text style={headerStyles.logoIconText}>A</Text>
-        </View>
-        <Text style={headerStyles.logoText}>Autopilot</Text>
+        <Image 
+          source={require('../../assets/images/autopilot-logo-new.png')} 
+          style={{ height: 48, width: 200, resizeMode: 'stretch' }} 
+        />
       </View>
 
       <View style={{ width: 44 }} />

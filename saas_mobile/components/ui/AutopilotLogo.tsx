@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, Image } from 'react-native';
 import Svg, { Path, SvgProps } from 'react-native-svg';
 
 interface AutopilotLogoProps {
@@ -27,10 +27,10 @@ export const AutopilotLogo: React.FC<AutopilotLogoProps> = ({
 
   return (
     <View style={[styles.container, style]}>
-      <Svg width={height * 0.8} height={height} viewBox="0 0 32 40" fill={color}>
-        <Path d="M0 40 L16 0 L32 40 L24 40 L16 16 L8 40 Z" />
-      </Svg>
-      <Text style={[styles.text, { fontSize, color }]}>UTOPILOT</Text>
+      <Image
+        source={require('../../assets/images/autopilot-logo-new.png')}
+        style={{ width: height * 5, height: height, resizeMode: 'contain' }}
+      />
     </View>
   );
 };

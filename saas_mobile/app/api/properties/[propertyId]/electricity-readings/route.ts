@@ -261,3 +261,9 @@ export async function DELETE(
     return jsonResponse({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+// Placeholder default export — HTTP method exports handle routing
+export default function GET(
+  _request: Request,
+  { params }: { params: Promise<{ propertyId: string }> }
+) { return null; }

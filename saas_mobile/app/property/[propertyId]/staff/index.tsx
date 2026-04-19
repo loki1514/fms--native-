@@ -1,10 +1,8 @@
-import React from 'react';
-import { View, Text } from 'react-native';
+import StaffDashboard from '@/components/dashboard/StaffDashboard';
+import { useLocalSearchParams } from 'expo-router';
 
-export default function Placeholder() {
-  return (
-    <View>
-      <Text>Placeholder</Text>
-    </View>
-  );
+export default function StaffPage() {
+  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  if (!propertyId) return null;
+  return <StaffDashboard propertyId={propertyId} />;
 }

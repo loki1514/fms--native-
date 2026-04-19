@@ -204,12 +204,30 @@ export default function ElectricityAnalyticsScreen() {
       setMeters((metersRes.data as any) || []);
       setReadings((readingsRes.data as any) || []);
 
-      const today = new Date().toISOString().split('T')[0];
-      const tariffRes = await fetch(`/api/properties/${propertyId}/grid-tariffs?date=${today}`);
-      if (tariffRes.ok) {
-        const t = await tariffRes.json();
-        setActiveTariff(t);
-      }
+      const todayStr = new Date().toISOString().split('T')[0];
+      supabase.rpc('get_active_grid_tariff', {
+        p_property_id: propertyId,
+        p_date: todayStr
+      }).then(({ data: rpcData }) => {
+        if (rpcData && (rpcData as any[]).length > 0) {
+          setActiveTariff((rpcData as any[])[0]);
+        } else {
+          // Fallback fetch all
+          return supabase
+            .from('grid_tariffs')
+            .select('*')
+            .eq('property_id', propertyId)
+            .order('effective_from', { ascending: false })
+            .then(({ data: allData }) => {
+              if (allData && allData.length > 0) {
+                const active = allData.find((t: any) => 
+                  !t.effective_to && t.effective_from <= todayStr
+                ) || allData[0];
+                setActiveTariff(active);
+              }
+            });
+        }
+      });
     } catch (e) {
       console.error('Electricity analytics fetch error:', e);
     } finally {
@@ -349,8 +367,8 @@ export default function ElectricityAnalyticsScreen() {
             />
             <SummaryCard
               label="Est. Cost"
-              value={estimatedCost > 0 ? `$${estimatedCost.toFixed(0)}` : '-'}
-              unit={tariffRate > 0 ? `@ $${tariffRate.toFixed(4)}/kVAh` : ''}
+              value={estimatedCost > 0 ? `₹${estimatedCost.toFixed(0)}` : '-'}
+              unit={tariffRate > 0 ? `@ ₹${tariffRate.toFixed(2)}/kVAh` : ''}
               icon={<DollarSign size={18} color={colors.success} />}
               color={colors.success}
             />
@@ -456,7 +474,7 @@ export default function ElectricityAnalyticsScreen() {
                     </View>
                     <View style={styles.costRowRight}>
                       <Text style={[styles.costAmount, { color: colors.success }]}>
-                        {cost > 0 ? `$${cost.toFixed(2)}` : '-'}
+                        {cost > 0 ? `₹${cost.toFixed(2)}` : '-'}
                       </Text>
                       <Text style={[styles.costPct, { color: colors.textTertiary }]}>{pct.toFixed(0)}%</Text>
                     </View>
@@ -466,7 +484,7 @@ export default function ElectricityAnalyticsScreen() {
               <View style={[styles.costTotalRow, { borderColor: colors.border }]}>
                 <Text style={[styles.costTotalLabel, { color: colors.text }]}>Total Estimated Cost</Text>
                 <Text style={[styles.costTotalAmount, { color: colors.primary }]}>
-                  ${estimatedCost.toFixed(2)}
+                  ₹{estimatedCost.toFixed(2)}
                 </Text>
               </View>
             </View>
