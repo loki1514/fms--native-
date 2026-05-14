@@ -24,11 +24,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '@/stores/appStore';
+import { useCassandraStore } from '@/stores/cassandraStore';
 import { useAuth } from '@/hooks/useAuth';
 import { healthCheck, getDashboard, getOnboardingState, API_URL } from '@/lib/cassandra';
 import { Colors, Gradients, Typography, Spacing, OrbState } from '@/constants/cassandra-theme';
 import SidekickFace, { type FaceState } from '@/components/dashboard/SidekickFace';
-import SidekickChat from '@/components/dashboard/SidekickChat';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 import { toast } from '@/lib/toast';
 
@@ -47,26 +47,29 @@ const ConnectionPill = () => {
 
 // ─── Hint Text ─────────────────────────────────────────────────────────────
 const OrbHint = () => {
-  const { orbState, transcript } = useAppStore();
-  if (transcript) {
+  const { voiceState, transcript } = useCassandraStore();
+  const joinedTranscript = transcript.join(' ');
+  if (joinedTranscript) {
     return (
       <View style={styles.hintBox}>
         <Text style={styles.transcript} numberOfLines={3}>
-          {transcript}
+          {joinedTranscript}
         </Text>
       </View>
     );
   }
-  const hints: Record<OrbState, string> = {
+  const hints: Record<string, string> = {
     idle: 'Tap the orb to talk to Cassandra',
-    listening: 'Listening… speak now',
+    connecting: 'Connecting…',
+    authenticated: 'Ready — tap to speak',
+    recording: 'Listening… speak now',
     processing: 'Cassandra is thinking…',
     speaking: 'Cassandra is speaking…',
     error: 'Something went wrong. Tap to retry.',
   };
   return (
     <View style={styles.hintBox}>
-      <Text style={styles.hint}>{hints[orbState]}</Text>
+      <Text style={styles.hint}>{hints[voiceState] ?? hints.idle}</Text>
     </View>
   );
 };
@@ -76,6 +79,7 @@ export default function CassandraHomeScreen() {
   const insets = useSafeAreaInsets();
   const { membership } = useAuth();
   const { orbState, setOrbState, setIsConnected, setActiveModal, setLastTickets } = useAppStore();
+  const { voiceState } = useCassandraStore();
   const [orbScale] = useState(new Animated.Value(1));
   const [sessionOpen, setSessionOpen] = useState(false);
   const [isLoadingDock, setIsLoadingDock] = useState(false);
@@ -130,7 +134,7 @@ export default function CassandraHomeScreen() {
 
   // Orb breathing animation (idle)
   useEffect(() => {
-    if (orbState !== 'idle') return;
+    if (voiceState !== 'idle') return;
     const breathe = Animated.loop(
       Animated.sequence([
         Animated.timing(orbScale, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
@@ -139,7 +143,7 @@ export default function CassandraHomeScreen() {
     );
     breathe.start();
     return () => breathe.stop();
-  }, [orbState]);
+  }, [voiceState]);
 
   // Orb press — open the Cassandra session modal
   const handleOrbPress = () => {
@@ -162,9 +166,9 @@ export default function CassandraHomeScreen() {
           styles.ambientGlow,
           {
             backgroundColor:
-              orbState === 'listening'
+              voiceState === 'recording' || voiceState === 'connecting' || voiceState === 'authenticated'
                 ? Colors.cyanGlow
-                : orbState === 'error'
+                : voiceState === 'error'
                   ? 'rgba(239,68,68,0.15)'
                   : 'rgba(139,92,246,0.12)',
           },
@@ -193,7 +197,18 @@ export default function CassandraHomeScreen() {
             style={styles.orbTouch}
           >
             <Animated.View style={{ transform: [{ scale: orbScale }] }}>
-              <SidekickFace size={96} state="idle" />
+              <SidekickFace
+                size={96}
+                state={
+                  voiceState === 'processing'
+                    ? 'thinking'
+                    : voiceState === 'error'
+                      ? 'alert'
+                      : voiceState === 'recording' || voiceState === 'connecting' || voiceState === 'authenticated'
+                        ? 'listening'
+                        : voiceState
+                }
+              />
             </Animated.View>
           </TouchableOpacity>
 
@@ -225,10 +240,7 @@ export default function CassandraHomeScreen() {
           </ScrollView>
         </View>
 
-        {/* SidekickChat glass card */}
-        <View style={styles.chatCard}>
-          <SidekickChat open={true} onClose={() => setActiveModal('chat')} />
-        </View>
+
       </View>
 
       {/* Bottom dock */}
@@ -267,6 +279,7 @@ export default function CassandraHomeScreen() {
         visible={sessionOpen}
         onClose={() => setSessionOpen(false)}
         orgId={orgId}
+        initialMode="voice"
       />
     </View>
   );

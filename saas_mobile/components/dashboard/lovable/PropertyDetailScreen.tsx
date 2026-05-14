@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,24 +13,26 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useWeather } from '@/hooks/useWeather';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
-import DashboardTile from '@/components/dashboard/DashboardTile';
-import { Property, TileDetail } from './types';
-import {
-  BG,
-  fontSans,
-  fontDisplay,
-  STATUS_COLORS,
-} from './constants';
 import MiniBarChart from './MiniBarChart';
 import PulseDot from './PulseDot';
+import { Property, TileDetail } from './types';
+import { BG, fontSans, fontDisplay } from './constants';
+import {
+  GlassCard,
+  StatusGradient,
+  STATUS_COLORS,
+  SPACING,
+  TYPOGRAPHY,
+  CARD_SURFACES,
+  type StatusType,
+} from '@/constants/designSystem';
 
-// Placeholder or real detail mapped data
 // Helper to generate dynamic tile details from live property data
 function generateTileDetails(property: Property): Record<string, TileDetail> {
   const open = property.openTickets;
   const resolved = property.resolvedTickets;
   const total = property.totalTickets;
-  
+
   return {
     tickets: {
       id: 'tickets',
@@ -44,17 +45,17 @@ function generateTileDetails(property: Property): Record<string, TileDetail> {
         { label: 'Total', value: total.toString() },
       ],
       chartTitle: '7-Day History',
-      chartData: property.tickets || [],
+      chartData: (property.tickets || []).map(t => ({ label: t.day, value: t.count })),
       chartColor: '#3B82F6',
       trendDirection: 'up',
       trendLabel: 'Real-time volume',
       breakdownTitle: 'Metric Distribution',
       breakdown: [
-        { label: 'Open', value: open, color: STATUS_COLORS.critical },
-        { label: 'Resolved', value: resolved, color: STATUS_COLORS.optimal },
+        { label: 'Open', value: open, color: STATUS_COLORS.critical.bg },
+        { label: 'Resolved', value: resolved, color: STATUS_COLORS.optimal.bg },
         { label: 'Total', value: total, color: '#3B82F6' },
       ],
-      aiAnalysis: open > 15 
+      aiAnalysis: open > 15
         ? 'Critical ticket backlog detected. Priority response recommended for oldest open items.'
         : 'Ticket volume is within normal operating parameters. Focus on maintaining resolution speed.',
     },
@@ -72,14 +73,14 @@ function generateTileDetails(property: Property): Record<string, TileDetail> {
       chartData: [
         { label: 'Goal', value: 100 },
         { label: 'Current', value: property.checklist.percent },
-      ],
-      chartColor: '#1FC26E',
+      ] as const,
+      chartColor: STATUS_COLORS.optimal.bg,
       trendDirection: 'up',
       trendLabel: 'Daily accuracy',
       breakdownTitle: 'Completion Status',
       breakdown: [
-        { label: 'Completed', value: property.checklist.completed, color: STATUS_COLORS.optimal },
-        { label: 'Incomplete', value: property.checklist.total - property.checklist.completed, color: STATUS_COLORS.warning },
+        { label: 'Completed', value: property.checklist.completed, color: STATUS_COLORS.optimal.bg },
+        { label: 'Incomplete', value: property.checklist.total - property.checklist.completed, color: STATUS_COLORS.watch.bg },
       ],
       aiAnalysis: property.checklist.percent > 90
         ? 'Operational compliance is excellent. Teams are following standard procedures consistently.'
@@ -99,14 +100,14 @@ function generateTileDetails(property: Property): Record<string, TileDetail> {
       chartData: [
         { label: 'Critical', value: 30 },
         { label: 'Base', value: property.healthScore },
-      ],
-      chartColor: property.healthStatus === 'critical' ? '#D9261C' : '#1FC26E',
+      ] as const,
+      chartColor: property.healthStatus === 'critical' ? STATUS_COLORS.critical.bg : STATUS_COLORS.optimal.bg,
       trendDirection: 'down',
       trendLabel: 'Real-time index',
       breakdownTitle: 'Health Components',
       breakdown: [
-        { label: 'Facility', value: property.healthScore, color: STATUS_COLORS.optimal },
-        { label: 'Risk', value: 100 - property.healthScore, color: STATUS_COLORS.critical },
+        { label: 'Facility', value: property.healthScore, color: STATUS_COLORS.optimal.bg },
+        { label: 'Risk', value: 100 - property.healthScore, color: STATUS_COLORS.critical.bg },
       ],
       aiAnalysis: property.healthScore > 80
         ? 'Facility health is optimal. No immediate infrastructure risks identified.'
@@ -126,7 +127,7 @@ function generateTileDetails(property: Property): Record<string, TileDetail> {
       chartData: [
         { label: 'Avg', value: 100 },
         { label: 'Current', value: 100 + property.energy.trend },
-      ],
+      ] as const,
       chartColor: '#FFD60A',
       trendDirection: property.energy.trend > 0 ? 'up' : 'down',
       trendLabel: '30-day average',
@@ -135,11 +136,30 @@ function generateTileDetails(property: Property): Record<string, TileDetail> {
         { label: 'Grid', value: property.energy.electricity, color: '#FFD60A' },
         { label: 'DG', value: property.energy.diesel, color: '#FF9500' },
       ],
-      aiAnalysis: property.energy.trend > 10 
+      aiAnalysis: property.energy.trend > 10
         ? 'Energy consumption is trending higher than monthly average. Inspect heavy loads or check for utility leakage.'
         : 'Energy consumption is stable and matches historical patterns.',
     }
   };
+}
+
+/** Map internal health status to design system StatusType */
+function getStatusType(healthStatus: string): StatusType {
+  if (healthStatus === 'critical') return 'critical';
+  if (healthStatus === 'warning') return 'watch';
+  return 'optimal';
+}
+
+/** Status pill component using design system tokens */
+function StatusPill({ status }: { status: StatusType }) {
+  const palette = STATUS_COLORS[status];
+  const label = status === 'optimal' ? 'Optimal' : status === 'watch' ? 'Watch' : 'Critical';
+  return (
+    <View style={[styles.statusPill, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+      <PulseDot color={palette.bg} />
+      <Text style={[styles.statusPillText, { color: palette.text }]}>{label}</Text>
+    </View>
+  );
 }
 
 interface PropertyDetailScreenProps {
@@ -168,21 +188,17 @@ export default function PropertyDetailScreen({
   const resolved = property.resolvedTickets ?? 0;
   const total = property.totalTickets ?? 0;
   const healthStatus = property.healthStatus ?? (open > 15 ? 'critical' : open > 5 ? 'warning' : 'good');
-  const healthColor =
-    healthStatus === 'good' ? STATUS_COLORS.optimal :
-    healthStatus === 'warning' ? STATUS_COLORS.warning :
-    STATUS_COLORS.critical;
-  
+  const statusType = getStatusType(healthStatus);
+
   const checklistPct = property.checklist
     ? Math.round((property.checklist.completed / property.checklist.total) * 100)
     : 87;
 
-  // Use property.tickets if available, otherwise deterministic placeholder
   const history = useMemo(() => {
     if (property.tickets && property.tickets.length > 0) return property.tickets;
     return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => ({
       day: d,
-      count: 10 + (i * 2), // Stable placeholder
+      count: 10 + (i * 2),
     }));
   }, [property.tickets]);
 
@@ -191,21 +207,20 @@ export default function PropertyDetailScreen({
   return (
     <View style={[styles.detailContainer, { backgroundColor: BG }]}>
       <StatusBar barStyle="light-content" />
-      
-      {/* Issue #15: Gradient overlap - use more subtle background if weather is active */}
+
       <LinearGradient
         colors={weather ? ['#0f121e', '#07090e'] : ['#1c2135', '#0f121e', '#07090e']}
         style={StyleSheet.absoluteFillObject}
       />
-      
+
       {weather && <WeatherBackground condition={weather.condition} />}
 
       <ScrollView
         style={styles.detailScroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ 
-          paddingBottom: insets.bottom + 120, 
-          paddingTop: insets.top + 24,
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 160,
+          paddingTop: insets.top + SPACING.xl,
         }}
       >
         {/* Header */}
@@ -221,109 +236,139 @@ export default function PropertyDetailScreen({
           </View>
         </View>
 
-        {/* Search bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color="rgba(255,255,255,0.45)" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search tickets, checklists..."
-            placeholderTextColor="rgba(255,255,255,0.35)"
-          />
-        </View>
-
-        {/* Tickets tile */}
-        <Animated.View style={{ marginBottom: 20 }} entering={FadeInUp.delay(100).duration(500)}>
-          <DashboardTile
-            label="TICKETS"
-            variant="tickets"
-            delay={0.05}
+        {/* ── Tickets Card (full-width) ── */}
+        <Animated.View style={{ marginBottom: SPACING.lg, marginHorizontal: SPACING.xl }} entering={FadeInUp.delay(100).duration(500)}>
+          <TouchableOpacity
+            activeOpacity={0.9}
             onPress={() => onShowTileDetail(tileDetails.tickets)}
           >
-            <View style={styles.tileTopRow}>
-              <View>
-                <Text style={styles.tileMetricBig}>{total}</Text>
-                <Text style={styles.tileSubtext}>
-                  {open} open · {resolved} resolved
-                </Text>
-              </View>
-              <MiniBarChart data={history} />
-            </View>
-            <View style={styles.tileDivider} />
-            <View style={styles.tileFooter}>
-              <View style={styles.healthBadge}>
-                <PulseDot color={healthColor} />
-                <Text style={[styles.healthBadgeText, { color: healthColor }]}>
-                  {healthStatus === 'good' ? 'Healthy' : healthStatus === 'warning' ? 'Watch' : 'Critical'}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.40)" />
-            </View>
-          </DashboardTile>
+            <StatusGradient status={statusType}>
+              <GlassCard status={statusType} style={styles.fixedCard}>
+                {/* Top row: label left, status pill right */}
+                <View style={styles.cardTopRow}>
+                  <View style={styles.labelRow}>
+                    <View style={styles.iconBadge}>
+                      <Ionicons name="ticket-outline" size={14} color={STATUS_COLORS[statusType].bg} />
+                    </View>
+                    <Text style={styles.cardLabel}>TICKETS</Text>
+                  </View>
+                  <StatusPill status={statusType} />
+                </View>
+
+                {/* Body */}
+                <View style={styles.cardBody}>
+                  <View>
+                    <Text style={styles.displayNumber}>{total}</Text>
+                    <Text style={styles.cardSubtext}>
+                      {open} open · {resolved} resolved
+                    </Text>
+                  </View>
+                  <View style={styles.chartContainer}>
+                    <MiniBarChart data={history} />
+                  </View>
+                </View>
+              </GlassCard>
+            </StatusGradient>
+          </TouchableOpacity>
         </Animated.View>
 
-        {/* Checklist + Health row */}
+        {/* ── Checklist + Health row ── */}
         <Animated.View entering={FadeInUp.delay(180).duration(500)}>
           <View style={styles.rowTwo}>
-            <DashboardTile
-              label="CHECKLIST"
-              variant="checklist"
-              delay={0.12}
+            {/* Checklist */}
+            <TouchableOpacity
+              activeOpacity={0.9}
               onPress={() => onShowTileDetail(tileDetails.checklist)}
+              style={{ flex: 1 }}
             >
-              <Text style={styles.tileMetricMid}>
-                {property.checklist.completed}{' '}
-                <Text style={styles.tileMetricSuffix}>/ {property.checklist.total}</Text>
-              </Text>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${property.checklist.percent}%` }]} />
-              </View>
-              <Text style={styles.tileSubtext}>{property.checklist.percent}% completed</Text>
-            </DashboardTile>
+              <StatusGradient status="optimal">
+                <GlassCard status="optimal" style={styles.fixedCard}>
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.labelRow}>
+                      <View style={styles.iconBadge}>
+                        <Ionicons name="checkmark-circle-outline" size={14} color={STATUS_COLORS.optimal.bg} />
+                      </View>
+                      <Text style={styles.cardLabel}>CHECKLIST</Text>
+                    </View>
+                    <StatusPill status="optimal" />
+                  </View>
+                  <Text style={styles.midNumber}>
+                    {property.checklist.completed}{' '}
+                    <Text style={styles.midSuffix}>/ {property.checklist.total}</Text>
+                  </Text>
+                  <View style={styles.progressBar}>
+                    <View style={[styles.progressFill, { width: `${property.checklist.percent}%` }]} />
+                  </View>
+                  <Text style={styles.cardSubtext}>{property.checklist.percent}% completed</Text>
+                </GlassCard>
+              </StatusGradient>
+            </TouchableOpacity>
 
-            <DashboardTile
-              label="HEALTH"
-              variant="health"
-              delay={0.18}
+            {/* Health */}
+            <TouchableOpacity
+              activeOpacity={0.9}
               onPress={() => onShowTileDetail(tileDetails.health)}
+              style={{ flex: 1 }}
             >
-              <Text style={[styles.tileMetricMid, { color: healthColor }]}>
-                {healthStatus === 'good' ? 'Optimal' : healthStatus === 'warning' ? 'Watch' : 'Critical'}
-              </Text>
-              <View style={[styles.healthDotLarge, { backgroundColor: healthColor }]} />
-              <Text style={styles.tileSubtext}>Facility score: {property.healthScore}</Text>
-            </DashboardTile>
+              <StatusGradient status={statusType}>
+                <GlassCard status={statusType} style={styles.fixedCard}>
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.labelRow}>
+                      <View style={styles.iconBadge}>
+                        <Ionicons name="heart-outline" size={14} color={STATUS_COLORS[statusType].bg} />
+                      </View>
+                      <Text style={styles.cardLabel}>HEALTH</Text>
+                    </View>
+                    <StatusPill status={statusType} />
+                  </View>
+                  <Text style={[styles.midNumber, { color: STATUS_COLORS[statusType].text }]}>
+                    {statusType === 'optimal' ? 'Optimal' : statusType === 'watch' ? 'Watch' : 'Critical'}
+                  </Text>
+                  <View style={[styles.healthDot, { backgroundColor: STATUS_COLORS[statusType].bg }]} />
+                  <Text style={styles.cardSubtext}>Facility score: {property.healthScore}</Text>
+                </GlassCard>
+              </StatusGradient>
+            </TouchableOpacity>
           </View>
         </Animated.View>
 
-        {/* Energy row */}
-        <Animated.View entering={FadeInUp.delay(260).duration(500)} style={{ marginTop: 20 }}>
-          <View style={styles.energyRow}>
-            <DashboardTile
-              label="ENERGY"
-              variant="energy"
-              delay={0.24}
-              onPress={() => onShowTileDetail(tileDetails.energy)}
-            >
-              <View style={styles.energyContent}>
-                <View>
-                  <Text style={styles.tileMetricMid}>
-                    {property.energy.electricity} <Text style={styles.tileMetricSuffix}>kVAh</Text>
-                  </Text>
-                  <Text style={styles.tileSubtext}>Real-time grid consumption</Text>
+        {/* ── Energy Card (full-width) ── */}
+        <Animated.View entering={FadeInUp.delay(260).duration(500)} style={{ marginTop: SPACING.lg, marginHorizontal: SPACING.xl, marginBottom: SPACING.xl }}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => onShowTileDetail(tileDetails.energy)}
+          >
+            <StatusGradient status={property.energy.trend > 10 ? 'watch' : 'optimal'}>
+              <GlassCard status={property.energy.trend > 10 ? 'watch' : 'optimal'} style={styles.fixedCard}>
+                <View style={styles.cardTopRow}>
+                  <View style={styles.labelRow}>
+                    <View style={styles.iconBadge}>
+                      <Ionicons name="flash-outline" size={14} color={STATUS_COLORS.watch.bg} />
+                    </View>
+                    <Text style={styles.cardLabel}>ENERGY USAGE</Text>
+                  </View>
+                  <StatusPill status={property.energy.trend > 10 ? 'watch' : 'optimal'} />
                 </View>
-                <View style={[styles.trendBadge, { backgroundColor: property.energy.trend > 0 ? 'rgba(217,38,28,0.15)' : 'rgba(31,194,110,0.15)' }]}>
-                   <Ionicons 
-                     name={property.energy.trend > 0 ? 'trending-up' : 'trending-down'} 
-                     size={14} 
-                     color={property.energy.trend > 0 ? STATUS_COLORS.critical : STATUS_COLORS.optimal} 
-                   />
-                   <Text style={[styles.trendText, { color: property.energy.trend > 0 ? STATUS_COLORS.critical : STATUS_COLORS.optimal }]}>
-                     {Math.abs(property.energy.trend)}%
-                   </Text>
+                <View style={styles.cardBody}>
+                  <View>
+                    <Text style={styles.midNumber}>
+                      {property.energy.electricity} <Text style={styles.midSuffix}>kVAh</Text>
+                    </Text>
+                    <View style={styles.trendChip}>
+                      <Ionicons
+                        name={property.energy.trend > 0 ? 'trending-up' : 'trending-down'}
+                        size={14}
+                        color={property.energy.trend > 0 ? STATUS_COLORS.critical.bg : STATUS_COLORS.optimal.bg}
+                      />
+                      <Text style={[styles.trendText, { color: property.energy.trend > 0 ? STATUS_COLORS.critical.bg : STATUS_COLORS.optimal.bg }]}>
+                        {Math.abs(property.energy.trend)}%
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
-            </DashboardTile>
-          </View>
+              </GlassCard>
+            </StatusGradient>
+          </TouchableOpacity>
         </Animated.View>
       </ScrollView>
     </View>
@@ -336,9 +381,9 @@ const styles = StyleSheet.create({
   detailHeaderScrollable: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 24,
-    paddingHorizontal: 20,
+    gap: SPACING.md,
+    marginBottom: SPACING.xl,
+    paddingHorizontal: SPACING.xl,
   },
   backBtn: {
     width: 40,
@@ -362,116 +407,131 @@ const styles = StyleSheet.create({
     fontFamily: fontSans,
     fontSize: 14,
     color: 'rgba(255,255,255,0.55)',
-    marginTop: 4,
+    marginTop: SPACING.xs,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 14,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    gap: 10,
+  // Cards
+  fixedCard: {
+    height: 180,
+    justifyContent: 'space-between',
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: fontSans,
-    paddingVertical: 0,
-  },
-  tileTopRow: {
+  cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  tileMetricBig: {
-    fontFamily: fontSans,
-    fontSize: 48,
-    fontWeight: '300',
-    color: '#FFFFFF',
-    letterSpacing: -1.5,
-    lineHeight: 52,
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
-  tileMetricMid: {
+  iconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  cardLabel: {
     fontFamily: fontSans,
-    fontSize: 28,
+    fontSize: TYPOGRAPHY.caption.fontSize,
+    fontWeight: TYPOGRAPHY.caption.fontWeight,
+    color: 'rgba(255,255,255,0.70)',
+    letterSpacing: TYPOGRAPHY.caption.letterSpacing,
+    textTransform: 'uppercase',
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  statusPillText: {
+    fontFamily: fontSans,
+    fontSize: 10,
     fontWeight: '600',
+  },
+
+  // Body
+  cardBody: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  displayNumber: {
+    ...TYPOGRAPHY.displayLarge,
+    fontFamily: fontDisplay,
     color: '#FFFFFF',
   },
-  tileMetricSuffix: {
+  midNumber: {
+    ...TYPOGRAPHY.displayMedium,
+    fontFamily: fontDisplay,
+    color: '#FFFFFF',
+  },
+  midSuffix: {
     fontSize: 14,
     fontWeight: '400',
     color: 'rgba(255,255,255,0.40)',
   },
-  tileSubtext: {
+  cardSubtext: {
     fontFamily: fontSans,
-    fontSize: 13,
+    fontSize: TYPOGRAPHY.body.fontSize,
     color: 'rgba(255,255,255,0.50)',
-    marginTop: 4,
+    marginTop: SPACING.xs,
   },
-  tileDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    marginVertical: 12,
+  chartContainer: {
+    width: 120,
+    height: 60,
+    paddingRight: SPACING.lg,
+    justifyContent: 'flex-end',
   },
-  tileFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  healthBadge: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  healthBadgeText: {
-    fontFamily: fontSans,
-    fontSize: 13,
-    fontWeight: '600',
-  },
+
+  // Two column row
   rowTwo: {
     flexDirection: 'row',
-    gap: 16,
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    gap: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
+
+  // Progress
   progressBar: {
     width: '100%',
     height: 4,
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 2,
-    marginTop: 12,
-    marginBottom: 6,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#1FC26E',
+    backgroundColor: STATUS_COLORS.optimal.bg,
     borderRadius: 2,
   },
-  healthDotLarge: {
+
+  // Health
+  healthDot: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    marginVertical: 8,
+    marginTop: SPACING.sm,
   },
-  energyRow: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  energyContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  trendBadge: {
+
+  // Energy trend
+  trendChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
     borderRadius: 8,
-    gap: 4,
+    gap: SPACING.xs,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginTop: SPACING.sm,
+    alignSelf: 'flex-start',
   },
   trendText: {
     fontFamily: fontSans,

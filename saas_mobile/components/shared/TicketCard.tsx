@@ -12,7 +12,7 @@ import {
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import { useTheme } from '@/context';
 import { getPriorityConfig, getStatusConfig } from '@/utils/StatusColors';
 
@@ -145,7 +145,7 @@ const TicketCard = memo(function TicketCard({
       activeOpacity={0.7}
     >
       {glass && Platform.OS === 'ios' && (
-        <BlurView
+        <SafeBlurView
           intensity={blurIntensity}
           tint={isDark ? 'dark' : 'light'}
           style={StyleSheet.absoluteFill}
@@ -296,7 +296,7 @@ const TicketCard = memo(function TicketCard({
         ]}
       >
         {Platform.OS === 'ios' ? (
-          <BlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <SafeBlurView intensity={100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         ) : (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.85)' }]} />
         )}

@@ -1,4 +1,4 @@
-import React, { useEffect, Component, ReactNode } from 'react';
+import React, { useEffect, Component, ReactNode, useState, useCallback } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, ThemeProvider } from '@/context';
 import { useColorScheme, View, Text, StyleSheet, Platform } from 'react-native';
+import AutopilotSplash from '@/components/splash/AutopilotSplash';
 
 // Global error handler to catch silent crashes
 if (typeof window !== 'undefined') {
@@ -57,9 +58,11 @@ const styles = StyleSheet.create({
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [showSplash, setShowSplash] = useState(true);
+  const [appReady, setAppReady] = useState(false);
   console.log('[RootLayout] Rendering...');
 
-  // Inject Google Fonts on web (Poppins + Urbanist are used throughout the app)
+  // Inject Google Fonts on web
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const link = document.createElement('link');
@@ -71,7 +74,7 @@ export default function RootLayout() {
     };
   }, []);
 
-  // Load custom fonts (web uses system fonts — .ttf require() doesn't work in browser)
+  // Load custom fonts
   const [fontsLoaded, fontError] = useFonts(
     Platform.OS === 'web'
       ? {}
@@ -88,22 +91,28 @@ export default function RootLayout() {
         }
   );
 
+  // Hide native splash immediately, show our custom splash
   useEffect(() => {
-    // Safety timeout to ensure splash screen hides even if fonts/context hang
-    const timer = setTimeout(() => {
-      SplashScreen.hideAsync().catch(() => {});
-    }, 2000);
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
 
+  // Mark app ready when fonts are loaded (or errored)
+  useEffect(() => {
     if (fontsLoaded || fontError) {
-      clearTimeout(timer);
-      SplashScreen.hideAsync().catch(() => {});
+      setAppReady(true);
     }
-
-    return () => clearTimeout(timer);
   }, [fontsLoaded, fontError]);
 
-  // Always render something so we can see if the error is in rendering
-  const fontStatus = fontsLoaded ? 'FONTS OK' : fontError ? 'FONT ERROR' : 'LOADING FONTS';
+  const handleSplashComplete = useCallback(() => {
+    setShowSplash(false);
+  }, []);
+
+  // Show custom splash immediately on first mount
+  if (showSplash) {
+    return (
+      <AutopilotSplash onComplete={handleSplashComplete} />
+    );
+  }
 
   return (
     <ErrorBoundary>

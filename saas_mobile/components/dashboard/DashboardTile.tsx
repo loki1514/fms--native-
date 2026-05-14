@@ -20,7 +20,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export type TileVariant = 'tickets' | 'checklist' | 'health' | 'energy';
@@ -106,7 +106,7 @@ export default function DashboardTile({
       onHoverOut={Platform.OS === 'web' ? handleHoverOut : undefined}
       style={[animatedStyle, styles.tileWrapper, style]}
     >
-      <BlurView intensity={40} style={styles.blurLayer} tint="dark">
+      <SafeBlurView intensity={40} style={styles.blurLayer} tint="dark">
         <LinearGradient
           colors={VARIANT_GRADIENTS[variant]}
           style={StyleSheet.absoluteFillObject}
@@ -129,7 +129,7 @@ export default function DashboardTile({
           {/* Content */}
           <View style={styles.content}>{children}</View>
         </View>
-      </BlurView>
+      </SafeBlurView>
     </AnimatedPressable>
   );
 }

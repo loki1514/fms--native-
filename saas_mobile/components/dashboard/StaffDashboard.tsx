@@ -19,7 +19,7 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +33,7 @@ import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
 import { LoggersMenu } from '../shared/LoggersMenu';
 import StockScannerModal from '../stock/StockScannerModal';
 import { TicketShuffleStack } from '../shared/TicketShuffleStack';
+import FloatingMenu from '@/components/ui/FloatingMenu';
 import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
 
 const DRAWER_WIDTH = 280;
@@ -122,7 +123,6 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
   const [userSkills, setUserSkills] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [requestFilter, setRequestFilter] = useState<'all' | 'active' | 'completed'>('all');
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [showLoggersMenu, setShowLoggersMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -396,83 +396,6 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
   const shuffledActive = useMemo(() => shuffle(incomingTickets), [incomingTickets]);
   const shuffledCompleted = useMemo(() => shuffle(completedTickets), [completedTickets]);
 
-  // ─── Sidebar ───────────────────────────────────────────────────────────────
-  function StaffSidebar() {
-    const bgColor = isDark ? '#1A1F2E' : '#FFFFFF';
-    const borderColor = isDark ? '#2D3748' : '#F1F5F9';
-    const textPrimary = isDark ? '#F8FAFC' : '#1A2332';
-    const textSecondary = isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)';
-    const primary = '#708F96';
-
-    const SidebarItem = ({ icon, label, isActive, onPress }: { icon: string; label: string; isActive?: boolean; onPress: () => void }) => (
-      <TouchableOpacity style={[styles.drawerItem, isActive && { backgroundColor: primary }]} onPress={onPress} activeOpacity={0.7}>
-        <Ionicons name={isActive ? (icon.replace('-outline', '') as any) : icon as any} size={20}
-          color={isActive ? '#FFF' : (isDark ? 'rgba(230,235,238,0.6)' : 'rgba(26,35,50,0.6)')} />
-        <Text style={[styles.drawerItemLabel, { color: isActive ? '#FFF' : textPrimary }]}>{label}</Text>
-      </TouchableOpacity>
-    );
-
-    const SidebarSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
-      <>
-        <Text style={[styles.drawerSectionLabel, { color: textSecondary }]}>{title}</Text>
-        {children}
-      </>
-    );
-
-    return (
-      <>
-        <Pressable style={[styles.drawerOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setDrawerOpen(false)} />
-        <View style={[styles.drawer, { backgroundColor: bgColor, borderRightColor: borderColor }]}>
-          <View style={[styles.drawerHeader, { borderBottomColor: borderColor, paddingTop: Math.max(insets.top, 16) }]}>
-            <Image source={require('../../assets/images/autopilot-logo-new.png')} style={{ height: 52, width: 220, resizeMode: 'stretch', marginLeft: -4 }} />
-            <TouchableOpacity style={styles.drawerCloseBtn} onPress={() => setDrawerOpen(false)}>
-              <Ionicons name="close" size={22} color={textSecondary} />
-            </TouchableOpacity>
-          </View>
-          <View style={[styles.drawerBadge, { backgroundColor: isDark ? 'rgba(112,143,150,0.1)' : 'rgba(112,143,150,0.06)', borderColor: isDark ? 'rgba(112,143,150,0.15)' : 'rgba(112,143,150,0.1)' }]}>
-            <Text style={[styles.drawerBadgeText, { color: primary }]}>STAFF PORTAL</Text>
-          </View>
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 8 }}>
-            <SidebarSection title="DAILY WORK">
-              <SidebarItem icon="grid-outline" label="Overview" isActive={activeTab === 'overview'} onPress={() => { setActiveTab('overview'); setDrawerOpen(false); }} />
-              <SidebarItem icon="ticket-outline" label="Requests" isActive={activeTab === 'requests'} onPress={() => { setActiveTab('requests'); setDrawerOpen(false); }} />
-            </SidebarSection>
-            <View style={{ marginTop: 12 }}>
-              <SidebarSection title="OPERATIONS">
-                <SidebarItem icon="cube-outline" label="Stock" onPress={() => { setDrawerOpen(false); router.push('/property/' + propertyId + '/stock' as any); }} />
-                <SidebarItem icon="checkbox-outline" label="Checklists" onPress={() => { setDrawerOpen(false); router.push('/property/' + propertyId + '/checklist' as any); }} />
-                <SidebarItem icon="people-outline" label="Visitors" onPress={() => { setDrawerOpen(false); router.push('/property/' + propertyId + '/visitors' as any); }} />
-                <SidebarItem icon="water-outline" label="Diesel Logger" onPress={() => { setDrawerOpen(false); router.push('/property/' + propertyId + '/diesel' as any); }} />
-                <SidebarItem icon="flash-outline" label="Electricity Logger" onPress={() => { setDrawerOpen(false); router.push('/property/' + propertyId + '/electricity' as any); }} />
-              </SidebarSection>
-            </View>
-            <View style={{ marginTop: 12 }}>
-              <SidebarSection title="SYSTEM & PERSONAL">
-                <SidebarItem icon="settings-outline" label="Settings" onPress={() => { setDrawerOpen(false); router.push('/property/' + propertyId + '/settings' as any); }} />
-                <SidebarItem icon="person-outline" label="Profile" onPress={() => { setDrawerOpen(false); router.push('/property/' + propertyId + '/profile' as any); }} />
-              </SidebarSection>
-            </View>
-          </ScrollView>
-          <View style={[styles.drawerBottom, { borderTopColor: borderColor }]}>
-            <View style={[styles.drawerUserCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}>
-              <View style={[styles.drawerAvatar, { backgroundColor: 'rgba(112,143,150,0.12)' }]}>
-                <Text style={styles.drawerAvatarText}>{getInitials(user?.user_metadata?.full_name ?? user?.email ?? 'U')}</Text>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.drawerUserName, { color: textPrimary }]} numberOfLines={1}>{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}</Text>
-                <Text style={[styles.drawerUserRole, { color: textSecondary }]} numberOfLines={1}>{userRole}</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={[styles.drawerSignOut, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2' }]} onPress={() => { setDrawerOpen(false); setShowSignOutModal(true); }} activeOpacity={0.7}>
-              <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-              <Text style={styles.drawerSignOutText}>Sign Out</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </>
-    );
-  }
-
   // ─── Overview Tab ───────────────────────────────────────────────────────────
   const renderOverviewTab = () => (
     <LinearGradient colors={isDark ? ['#0F172A', '#1E293B'] : ['#FFFFFF', '#F9FBFF']} style={styles.tabContent}>
@@ -520,7 +443,7 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
             style={[styles.squareGlassCard, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)', borderColor: isDark ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.25)', borderWidth: 1.5 }]}
             onPress={() => setRequestFilter('all')}
           >
-            {Platform.OS === 'ios' && <BlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+            {Platform.OS === 'ios' && <SafeBlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
             <View style={styles.squareCardContent}>
               <Text style={[styles.squareStatNumber, { color: isDark ? '#A5B4FC' : '#6366F1' }]}>{totalTickets}</Text>
               <Text style={[styles.squareStatLabel, { color: isDark ? '#A5B4FC' : '#6366F1', opacity: 0.8 }]}>TOTAL</Text>
@@ -531,14 +454,14 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.squareGlassCard, { backgroundColor: isDark ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.08)' }]} onPress={() => setRequestFilter('active')}>
-            {Platform.OS === 'ios' && <BlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+            {Platform.OS === 'ios' && <SafeBlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
             <View style={styles.squareCardContent}>
               <Text style={[styles.squareStatNumber, { color: '#3B82F6' }]}>{activeCount}</Text>
               <Text style={[styles.squareStatLabel, { color: colors.textSecondary }]}>ACTIVE</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.squareGlassCard, { backgroundColor: isDark ? 'rgba(16,185,129,0.12)' : 'rgba(16,185,129,0.08)' }]} onPress={() => setRequestFilter('completed')}>
-            {Platform.OS === 'ios' && <BlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+            {Platform.OS === 'ios' && <SafeBlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
             <View style={styles.squareCardContent}>
               <Text style={[styles.squareStatNumber, { color: '#10B981' }]}>{completedCount}</Text>
               <Text style={[styles.squareStatLabel, { color: colors.textSecondary }]}>DONE</Text>
@@ -729,12 +652,23 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      {drawerOpen && <StaffSidebar />}
+      <FloatingMenu
+        title="Staff Portal"
+        items={[
+          { label: 'Overview', icon: 'grid', onPress: () => setActiveTab('overview') },
+          { label: 'Requests', icon: 'ticket', onPress: () => setActiveTab('requests') },
+          { label: 'Stock', icon: 'cube', onPress: () => router.push('/property/' + propertyId + '/stock' as any) },
+          { label: 'Checklists', icon: 'checkbox', onPress: () => router.push('/property/' + propertyId + '/checklist' as any) },
+          { label: 'Visitors', icon: 'people', onPress: () => router.push('/property/' + propertyId + '/visitors' as any) },
+          { label: 'Diesel', icon: 'water', onPress: () => router.push('/property/' + propertyId + '/diesel' as any) },
+          { label: 'Electricity', icon: 'flash', onPress: () => router.push('/property/' + propertyId + '/electricity' as any) },
+          { label: 'Settings', icon: 'settings', onPress: () => router.push('/property/' + propertyId + '/settings' as any) },
+          { label: 'Profile', icon: 'person', onPress: () => router.push('/property/' + propertyId + '/profile' as any) },
+        ]}
+        footer={{ label: 'Sign Out', icon: 'log-out-outline', danger: true, onPress: () => setShowSignOutModal(true) }}
+      />
 
       <View style={[styles.topNav, { backgroundColor: colors.surface, borderBottomColor: colors.border, paddingTop: Math.max(insets.top, 16) }]}>
-        <TouchableOpacity onPress={() => setDrawerOpen(true)} activeOpacity={0.7}>
-          <Ionicons name="menu-outline" size={26} color={colors.textPrimary} />
-        </TouchableOpacity>
         <Image source={require('../../assets/images/autopilot-logo-new.png')} style={{ height: 48, width: 200, resizeMode: 'stretch' }} />
         <View style={styles.headerRightGroup}>
           <TouchableOpacity

@@ -57,6 +57,7 @@ import { useGamification, LeaderboardEntry as GamificationEntry } from '@/hooks/
 import { createClient } from '@/utils/supabase/client';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/context';
+import FloatingMenu from '@/components/ui/FloatingMenu';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -114,155 +115,6 @@ interface LeaderboardEntry {
 
 interface MstDashboardProps {
   propertyId: string;
-}
-
-// Sidebar Component
-function CollapsibleSidebar({ 
-  isCollapsed, 
-  onToggle, 
-  activeTab,
-  onTabChange,
-  propertyId 
-}: { 
-  isCollapsed: boolean;
-  onToggle: () => void;
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-  propertyId: string;
-}) {
-  const { user } = useAuth();
-  const router = useRouter();
-  const { theme } = useTheme();
-  const colors = Colors[theme];
-
-  const getUserInitials = (name: string) => {
-    return name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
-  };
-
-  const navSections = [
-    {
-      title: 'DAILY WORK',
-      items: [
-        { key: 'dashboard', label: 'Overview', icon: 'grid-outline' },
-        { key: 'requests', label: 'Requests', icon: 'ticket-outline' },
-        { key: 'daily-board', label: 'Leaderboard', icon: 'trophy-outline' },
-        { key: 'flow-map', label: 'Live Flow Map', icon: 'pulse-outline' },
-      ],
-    },
-    {
-      title: 'OPERATIONS',
-      items: [
-        { key: 'visitors', label: 'Visitors', icon: 'people-outline' },
-        { key: 'diesel', label: 'Diesel Logger', icon: 'flame-outline' },
-        { key: 'electricity', label: 'Electricity', icon: 'flash-outline' },
-        { key: 'checklist', label: 'Checklists', icon: 'checkbox-outline' },
-      ],
-    },
-    {
-      title: 'SYSTEM',
-      items: [
-        { key: 'settings', label: 'Settings', icon: 'settings-outline' },
-        { key: 'profile', label: 'Profile', icon: 'person-outline' },
-      ],
-    },
-  ];
-
-  return (
-    <View style={[styles.sidebarContainer, isCollapsed && styles.sidebarCollapsed]}>
-      {/* Logo */}
-      <View style={styles.sidebarHeader}>
-        {!isCollapsed && (
-          <>
-            <View style={styles.logoRow}>
-              <View style={styles.logoIcon}>
-                <Text style={styles.logoIconText}>A</Text>
-              </View>
-              <View>
-                <Text style={styles.logoText}>AUTOPILOT</Text>
-                <Text style={styles.logoSubtext}>MAINTENANCE PORTAL</Text>
-              </View>
-            </View>
-          </>
-        )}
-        <TouchableOpacity style={styles.collapseBtn} onPress={onToggle}>
-          <Ionicons 
-            name={isCollapsed ? 'chevron-forward' : 'chevron-back'} 
-            size={20} 
-            color="#64748B" 
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Navigation */}
-      <ScrollView style={styles.sidebarNav} showsVerticalScrollIndicator={false}>
-        {navSections.map((section) => (
-          <View key={section.title} style={styles.navSection}>
-            {!isCollapsed && (
-              <Text style={styles.navSectionTitle}>{section.title}</Text>
-            )}
-            {section.items.map((item) => {
-              const isActive = activeTab === item.key;
-              return (
-                <TouchableOpacity
-                  key={item.key}
-                  style={[
-                    styles.navItem,
-                    isActive && styles.navItemActive,
-                    isCollapsed && styles.navItemCollapsed,
-                  ]}
-                  onPress={() => {
-                    if (['dashboard', 'requests', 'daily-board', 'flow-map'].includes(item.key)) {
-                      onTabChange(item.key as TabKey);
-                    } else {
-                      router.push(`/property/${propertyId}/${item.key}` as any);
-                    }
-                  }}
-                >
-                  <Ionicons
-                    name={item.icon as any}
-                    size={20}
-                    color={isActive ? '#708F96' : 'rgba(255,255,255,0.40)'}
-                  />
-                  {!isCollapsed && (
-                    <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-                      {item.label}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* User Profile */}
-      <View style={styles.sidebarFooter}>
-        <View style={[styles.userCard, isCollapsed && styles.userCardCollapsed]}>
-          <View style={styles.userAvatar}>
-            <Text style={styles.userAvatarText}>
-              {getUserInitials(user?.user_metadata?.full_name || 'User')}
-            </Text>
-          </View>
-          {!isCollapsed && (
-            <View style={styles.userInfo}>
-              <Text style={styles.userName} numberOfLines={1}>
-                {user?.user_metadata?.full_name || 'User'}
-              </Text>
-              <Text style={styles.userRole}>MST Staff</Text>
-            </View>
-          )}
-        </View>
-        
-        <TouchableOpacity 
-          style={[styles.signOutBtn, isCollapsed && styles.signOutBtnCollapsed]}
-          onPress={() => router.push('/(auth)/login' as any)}
-        >
-          <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-          {!isCollapsed && <Text style={styles.signOutText}>Sign Out</Text>}
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 }
 
 // KPI Card Component
@@ -425,22 +277,6 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
 
   // State
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobile);
-  const [sidebarVisible, setSidebarVisible] = useState(false);
-  const sidebarTranslateX = useSharedValue(isMobile ? -280 : 0);
-  const sidebarBackdropOpacity = useSharedValue(0);
-
-  // Sync translateX when sidebarVisible changes on mobile
-  useEffect(() => {
-    if (isMobile) {
-      sidebarTranslateX.value = withSpring(sidebarVisible ? 0 : -280, { damping: 20 });
-      sidebarBackdropOpacity.value = withSpring(sidebarVisible ? 1 : 0, { damping: 20 });
-    }
-  }, [sidebarVisible, isMobile]);
-
-  const toggleMobileSidebar = () => setSidebarVisible(prev => !prev);
-  const closeMobileSidebar = () => setSidebarVisible(false);
-
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -850,68 +686,27 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       {weather && <AuroraBackground colors={weather.auroraColors} />}
       <View style={styles.mainContainer}>
-        {/* Mobile Sidebar Overlay */}
-        {isMobile && (
-          <>
-            {/* Backdrop */}
-            <Animated.View
-              style={[
-                styles.sidebarBackdrop,
-                {
-                  opacity: sidebarBackdropOpacity,
-                  pointerEvents: sidebarVisible ? 'auto' : 'none',
-                },
-              ]}
-            >
-              <TouchableOpacity
-                style={StyleSheet.absoluteFill}
-                activeOpacity={1}
-                onPress={closeMobileSidebar}
-              />
-            </Animated.View>
-
-            {/* Sidebar Drawer */}
-            <Animated.View
-              style={[
-                styles.mobileSidebarOverlay,
-                { transform: [{ translateX: sidebarTranslateX }] },
-              ]}
-            >
-              <CollapsibleSidebar
-                isCollapsed={false}
-                onToggle={closeMobileSidebar}
-                activeTab={activeTab}
-                onTabChange={(tab) => {
-                  setActiveTab(tab);
-                  closeMobileSidebar();
-                }}
-                propertyId={propertyId}
-              />
-            </Animated.View>
-          </>
-        )}
-
-        {/* Desktop Sidebar */}
-        {!isMobile && (
-          <CollapsibleSidebar
-            isCollapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            propertyId={propertyId}
-          />
-        )}
-
         {/* Main Content */}
         <View style={styles.contentArea}>
           {/* Top Bar */}
           <View style={styles.topBar}>
             <View style={styles.topBarLeft}>
-              {isMobile && (
-                <TouchableOpacity style={styles.menuButton} onPress={toggleMobileSidebar}>
-                  <Ionicons name={sidebarVisible ? 'close' : 'menu'} size={22} color="rgba(255,255,255,0.70)" />
-                </TouchableOpacity>
-              )}
+              <FloatingMenu
+                title="Maintenance Portal"
+                items={[
+                  { label: 'Overview', icon: 'grid', onPress: () => setActiveTab('dashboard') },
+                  { label: 'Requests', icon: 'ticket', onPress: () => setActiveTab('requests') },
+                  { label: 'Leaderboard', icon: 'trophy', onPress: () => setActiveTab('daily-board') },
+                  { label: 'Flow Map', icon: 'pulse', onPress: () => setActiveTab('flow-map') },
+                  { label: 'Visitors', icon: 'people', onPress: () => router.push(`/property/${propertyId}/visitors` as any) },
+                  { label: 'Diesel', icon: 'flame', onPress: () => router.push(`/property/${propertyId}/diesel` as any) },
+                  { label: 'Electricity', icon: 'flash', onPress: () => router.push(`/property/${propertyId}/electricity` as any) },
+                  { label: 'Checklists', icon: 'checkbox', onPress: () => router.push(`/property/${propertyId}/checklist` as any) },
+                  { label: 'Settings', icon: 'settings', onPress: () => router.push(`/property/${propertyId}/settings` as any) },
+                  { label: 'Profile', icon: 'person', onPress: () => setActiveTab('profile') },
+                ]}
+                footer={{ label: 'Sign Out', icon: 'log-out-outline', danger: true, onPress: () => router.push('/(auth)/login' as any) }}
+              />
             </View>
             <View style={styles.topBarRight}>
               <TouchableOpacity style={styles.topBarButton}>

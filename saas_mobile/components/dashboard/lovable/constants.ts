@@ -4,6 +4,8 @@ export const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 export const fontDisplay = Platform.OS === 'web' ? 'Poppins' : 'System';
 
 export const LOVABLE_EMAIL = 'sanyog@gmail.com';
+export const MST_TEST_EMAIL = 'srustikarta2022@gmail.com';
+export const PROPERTY_ADMIN_TEST_EMAIL = 'lohitexplores@gmail.com';
 
 export const BG = '#060912';
 

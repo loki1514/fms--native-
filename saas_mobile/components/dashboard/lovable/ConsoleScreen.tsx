@@ -40,25 +40,33 @@ export function OverviewTab({
         <Text style={styles.consoleSubtitle}>Super Admin Overview</Text>
       </View>
 
-      {/* Stats grid - Fixed Issue #10 */}
+      {/* Stats grid — unified glass-morphism */}
       <View style={styles.statsGrid}>
-        <View style={[styles.statCard, { backgroundColor: 'rgba(59,130,246,0.12)', borderColor: 'rgba(59,130,246,0.25)' }]}>
-          <Ionicons name="business" size={22} color="rgba(255,255,255,0.55)" />
+        <View style={styles.statCard}>
+          <View style={[styles.statIconWrap, { borderColor: 'rgba(59,130,246,0.30)' }]}>
+            <Ionicons name="business" size={20} color="#3B82F6" />
+          </View>
           <Text style={styles.statNumber}>{stats.orgs}</Text>
           <Text style={styles.statLabel}>Organizations</Text>
         </View>
-        <View style={[styles.statCard, { backgroundColor: 'rgba(76,175,80,0.12)', borderColor: 'rgba(76,175,80,0.25)' }]}>
-          <Ionicons name="grid" size={22} color="rgba(255,255,255,0.55)" />
+        <View style={styles.statCard}>
+          <View style={[styles.statIconWrap, { borderColor: 'rgba(76,175,80,0.30)' }]}>
+            <Ionicons name="grid" size={20} color="#4CAF50" />
+          </View>
           <Text style={styles.statNumber}>{stats.properties}</Text>
           <Text style={styles.statLabel}>Properties</Text>
         </View>
-        <View style={[styles.statCard, { backgroundColor: 'rgba(139,92,246,0.12)', borderColor: 'rgba(139,92,246,0.25)' }]}>
-          <Ionicons name="people" size={22} color="rgba(255,255,255,0.55)" />
+        <View style={styles.statCard}>
+          <View style={[styles.statIconWrap, { borderColor: 'rgba(139,92,246,0.30)' }]}>
+            <Ionicons name="people" size={20} color="#8B5CF6" />
+          </View>
           <Text style={styles.statNumber}>{stats.users}</Text>
           <Text style={styles.statLabel}>Users</Text>
         </View>
-        <View style={[styles.statCard, { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.25)' }]}>
-          <Ionicons name="ticket" size={22} color="rgba(255,255,255,0.55)" />
+        <View style={styles.statCard}>
+          <View style={[styles.statIconWrap, { borderColor: 'rgba(239,68,68,0.30)' }]}>
+            <Ionicons name="ticket" size={20} color="#EF4444" />
+          </View>
           <Text style={styles.statNumber}>{stats.tickets}</Text>
           <Text style={styles.statLabel}>Open Tickets</Text>
         </View>
@@ -233,12 +241,16 @@ export function UsersTab({
 // ─── Profile Tab ─────────────────────────────────────────────────────────────
 export function ProfileTab({ 
   onSignOut,
-  userEmail = 'sanyog@gmail.com'
+  user,
 }: { 
   onSignOut: () => void,
-  userEmail?: string 
+  user?: { email?: string; full_name?: string; phone?: string | null } | null,
 }) {
   const insets = useSafeAreaInsets();
+  const displayName = user?.full_name || 'Super Admin';
+  const displayEmail = user?.email || 'sanyog@gmail.com';
+  const initial = displayName.charAt(0).toUpperCase();
+
   return (
     <ScrollView
       style={styles.tabContent}
@@ -248,24 +260,24 @@ export function ProfileTab({
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
           <View style={styles.profileAvatar}>
-            <Text style={styles.profileAvatarText}>S</Text>
+            <Text style={styles.profileAvatarText}>{initial}</Text>
           </View>
           <View style={styles.profileBadge}>
-            <Text style={styles.profileBadgeText}>LOVABLE SUPER ADMIN</Text>
+            <Text style={styles.profileBadgeText}>SUPER ADMIN</Text>
           </View>
         </View>
         <View style={styles.profileInfo}>
           <View style={styles.profileRow}>
             <Text style={styles.profileLabel}>Name</Text>
-            <Text style={styles.profileValue}>Sanyog</Text>
+            <Text style={styles.profileValue}>{displayName}</Text>
           </View>
           <View style={styles.profileRow}>
             <Text style={styles.profileLabel}>Email</Text>
-            <Text style={styles.profileValue}>{userEmail}</Text>
+            <Text style={styles.profileValue}>{displayEmail}</Text>
           </View>
           <View style={styles.profileRow}>
             <Text style={styles.profileLabel}>Role</Text>
-            <Text style={styles.profileValue}>Lovable Super Admin</Text>
+            <Text style={styles.profileValue}>Super Admin</Text>
           </View>
           <View style={[styles.profileRow, { borderBottomWidth: 0 }]}>
             <Text style={styles.profileLabel}>Access Level</Text>
@@ -306,12 +318,24 @@ const styles = StyleSheet.create({
     marginBottom: 8 
   },
   statCard: {
-    flexBasis: '47%', // Fixed Issue #10: still keeps it 2-column but more flexible
+    flexBasis: '47%',
     flexGrow: 1,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
+    borderColor: GLASS_BORDER,
+    backgroundColor: GLASS_BG,
     padding: 16,
     alignItems: 'center',
+  },
+  statIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   statNumber: {
     fontFamily: fontDisplay,
