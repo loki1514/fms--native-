@@ -34,8 +34,8 @@ import { useRouter } from 'expo-router';
 import { createClient } from '@/utils/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/mst/useGamification';
-import { useWeather } from '@/hooks/useWeather';
-import WeatherBackground from '@/components/dashboard/WeatherBackground';
+
+// WeatherBackground removed — using static sunny gradient instead
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { LevelBadge } from '@/components/gamification/LevelBadge';
 import { XPBar } from '@/components/gamification/XPBar';
@@ -397,7 +397,7 @@ export default function LovableMstDashboard({ propertyId }: Props) {
   const insets = useSafeAreaInsets();
   const { user, signOut, membership } = useAuth();
   const router = useRouter();
-  const { weather } = useWeather();
+
   const supabase = useMemo(() => createClient(), []);
 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -815,7 +815,7 @@ export default function LovableMstDashboard({ propertyId }: Props) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <StatusBar barStyle="light-content" />
-        <LinearGradient colors={['#0B0F19', '#1A1F3C']} style={StyleSheet.absoluteFillObject} />
+        <LinearGradient colors={['#F2B134', '#D96B2B', '#4A1A1A']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFillObject} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#8B5CF6" />
           <Text style={styles.loadingText}>Loading dashboard...</Text>
@@ -827,8 +827,8 @@ export default function LovableMstDashboard({ propertyId }: Props) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#0B0F19', '#1A1F3C']} style={StyleSheet.absoluteFillObject} />
-      {weather && <WeatherBackground condition={weather.condition} />}
+      <LinearGradient colors={['#F2B134', '#D96B2B', '#4A1A1A']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFillObject} />
+      {/* Sunny orange gradient background — no weather overlay */}
 
       {/* Floating Menu */}
       <FloatingMenu
@@ -921,10 +921,13 @@ export default function LovableMstDashboard({ propertyId }: Props) {
         </SafeBlurView>
       </View>
 
-      {/* Floating Cassandra dock */}
-      <View style={[styles.cassandraDock, { bottom: insets.bottom > 0 ? insets.bottom + 72 : 80 }]}>
-        <TouchableOpacity style={styles.cassandraOrb} onPress={() => setShowChat(true)}>
-          <SidekickFace size={48} state={faceState} compact />
+      {/* ASK CASSANDRA floating button */}
+      <View style={[styles.askCassandraWrap, { bottom: insets.bottom > 0 ? insets.bottom + 72 : 80 }]}>
+        <TouchableOpacity style={styles.askCassandraBtn} onPress={() => setShowChat(true)} activeOpacity={0.8}>
+          <Text style={styles.askCassandraLabel}>ASK CASSANDRA</Text>
+          <View style={styles.askCassandraOrb}>
+            <SidekickFace size={40} state={faceState} compact />
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -941,7 +944,7 @@ export default function LovableMstDashboard({ propertyId }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0B0F19',
+    backgroundColor: '#4A1A1A',
   },
   scroll: {
     flex: 1,
@@ -1724,16 +1727,42 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Cassandra dock
-  cassandraDock: {
+  // Ask Cassandra
+  askCassandraWrap: {
     position: 'absolute',
-    right: 20,
+    left: 0,
+    right: 0,
     zIndex: 40,
+    alignItems: 'center',
   },
-  cassandraOrb: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  askCassandraBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.20)',
+    paddingLeft: 16,
+    paddingRight: 6,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  askCassandraLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  askCassandraOrb: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
