@@ -38,6 +38,11 @@ import { createClient } from '@/utils/supabase/client';
 import { useTheme } from '@/context';
 import { useWeather } from '@/hooks/useWeather';
 import { AuroraBackground } from '@/components/shared/AuroraBackground';
+import {
+  STATUS_COLORS,
+  SPACING,
+  type StatusType,
+} from '@/constants/designSystem';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
@@ -92,17 +97,23 @@ const IconMenu = ({ size = 20, color = 'rgba(255,255,255,0.7)' }: { size?: numbe
   </Svg>
 );
 
-// ---- Glowing Status Dot ----
-function StatusDot({ status }: { status: 'good' | 'warning' | 'critical' }) {
-  const colors = { good: '#34C759', warning: '#FF9F0A', critical: '#FF3B30' };
-  const color = colors[status] || colors.good;
+/** Map health status string to design system StatusType */
+function getStatusType(healthStatus: string): StatusType {
+  if (healthStatus === 'critical') return 'critical';
+  if (healthStatus === 'warning') return 'watch';
+  return 'optimal';
+}
+
+// ---- Glowing Status Dot using design system tokens ----
+function StatusDot({ status }: { status: StatusType }) {
+  const palette = STATUS_COLORS[status];
   return (
     <View
       style={[
         styles.statusDot,
         {
-          backgroundColor: color,
-          shadowColor: color,
+          backgroundColor: palette.bg,
+          shadowColor: palette.bg,
           shadowOffset: { width: 0, height: 0 },
           shadowOpacity: 1,
           shadowRadius: 6,
@@ -125,9 +136,8 @@ function WeatherPropertyCard({ property, index }: { property: OrgProperty; index
   const open = property.openTickets ?? 0;
   const resolved = property.resolvedTickets ?? 0;
 
-  const statusText = open > 15 ? 'Critical' : open > 5 ? 'Watch' : 'Optimal';
-  const healthStatus: 'good' | 'warning' | 'critical' =
-    open > 15 ? 'critical' : open > 5 ? 'warning' : 'good';
+  const statusType = getStatusType(property.healthStatus ?? 'good');
+  const statusText = statusType === 'critical' ? 'Critical' : statusType === 'watch' ? 'Watch' : 'Optimal';
 
   const hasImage = !!property.image_url;
 
@@ -156,9 +166,10 @@ function WeatherPropertyCard({ property, index }: { property: OrgProperty; index
             style={styles.cardImageBg}
             resizeMode="cover"
           >
+            {/* Single dark gradient: transparent top → dark bottom for text readability */}
             <LinearGradient
-              colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.65)']}
-              locations={[0, 0.45, 1]}
+              colors={['rgba(0,0,0,0.00)', 'rgba(0,0,0,0.40)', 'rgba(0,0,0,0.70)']}
+              locations={[0, 0.5, 1]}
               style={styles.cardOverlay}
             >
               <CardContent
@@ -166,13 +177,13 @@ function WeatherPropertyCard({ property, index }: { property: OrgProperty; index
                 open={open}
                 resolved={resolved}
                 statusText={statusText}
-                healthStatus={healthStatus}
+                statusType={statusType}
               />
             </LinearGradient>
           </ImageBackground>
         ) : (
           <LinearGradient
-            colors={gradient}
+            colors={gradient as [string, string, ...string[]]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.cardGradient}
@@ -182,7 +193,7 @@ function WeatherPropertyCard({ property, index }: { property: OrgProperty; index
               open={open}
               resolved={resolved}
               statusText={statusText}
-              healthStatus={healthStatus}
+              statusType={statusType}
             />
           </LinearGradient>
         )}
@@ -191,13 +202,14 @@ function WeatherPropertyCard({ property, index }: { property: OrgProperty; index
   );
 }
 
-function CardContent({ property, open, resolved, statusText, healthStatus }: {
+function CardContent({ property, open, resolved, statusText, statusType }: {
   property: OrgProperty;
   open: number;
   resolved: number;
   statusText: string;
-  healthStatus: 'good' | 'warning' | 'critical';
+  statusType: StatusType;
 }) {
+  const palette = STATUS_COLORS[statusType];
   return (
     <View style={{ flex: 1, justifyContent: 'space-between' }}>
       {/* Top: Name + Code on left, large number on right */}
@@ -212,8 +224,8 @@ function CardContent({ property, open, resolved, statusText, healthStatus }: {
       {/* Bottom: Status dot + label on left, H/L on right */}
       <View style={styles.cardBottomRow}>
         <View style={styles.statusRow}>
-          <StatusDot status={healthStatus} />
-          <Text style={styles.cardStatus}>{statusText}</Text>
+          <StatusDot status={statusType} />
+          <Text style={[styles.cardStatus, { color: palette.text }]}>{statusText}</Text>
         </View>
         <Text style={styles.cardRange}>H:{resolved}  L:{open}</Text>
       </View>

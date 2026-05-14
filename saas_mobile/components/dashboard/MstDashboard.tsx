@@ -33,7 +33,7 @@ import {
   GestureHandlerRootView 
 } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -48,6 +48,7 @@ import CreateTicketModal from '../shared/CreateTicketModal';
 import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
 import { LoggersMenu } from '../shared/LoggersMenu';
 import { TicketShuffleStack } from '../shared/TicketShuffleStack';
+import FloatingMenu from '@/components/ui/FloatingMenu';
 import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
 
 // ---- Dotted Background Pattern ----
@@ -183,7 +184,6 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showLoggersMenu, setShowLoggersMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [statsData, setStatsData] = useState({ urgent: 0, rate: 0 });
   
   // Shift Management State
@@ -440,172 +440,6 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
     return name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
   }
 
-  // ---- Drawer Nav Items ----
-  type DrawerItem = { label: string; icon: keyof typeof Ionicons.glyphMap; tab?: Tab; action?: () => void };
-  const DRAWER_ITEMS: DrawerItem[] = [
-    { label: 'Overview',       icon: 'grid-outline',          tab: 'overview' },
-    { label: 'Requests',      icon: 'ticket-outline',        tab: 'requests' },
-    { label: 'Live Flow Map', icon: 'git-network-outline',   action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/flow-map' as any); } },
-  ];
-
-  const DRAWER_OPERATIONS_ITEMS: DrawerItem[] = [
-    { label: 'Visitors',           icon: 'people-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/visitors' as any); } },
-    { label: 'Diesel Logger',      icon: 'water-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/diesel' as any); } },
-    { label: 'Electricity Logger',icon: 'flash-outline',       action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/electricity' as any); } },
-    { label: 'Checklists',         icon: 'checkbox-outline',    action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/checklist' as any); } },
-  ];
-
-  const DRAWER_SYSTEM_ITEMS: DrawerItem[] = [
-    { label: 'Settings',  icon: 'settings-outline', action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/settings' as any); } },
-    { label: 'Profile',   icon: 'person-outline',  action: () => { setDrawerOpen(false); router.push('/property/' + propertyId + '/profile' as any); } },
-  ];
-
-  // ---- MstSidebar Drawer ----
-  function MstSidebar({ themeVal }: { themeVal: string }) {
-    const isDark = themeVal === 'dark';
-    const bgColor = isDark ? '#1A1F2E' : '#FFFFFF';
-    const borderColor = isDark ? '#2D3748' : '#F1F5F9';
-    const textPrimary = isDark ? '#F8FAFC' : '#1A2332';
-    const textSecondary = isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)';
-    const primary = '#708F96';
-
-    const handleItemPress = (item: DrawerItem) => {
-      if (item.tab) setActiveTab(item.tab as TabKey);
-      else if (item.action) item.action();
-      setDrawerOpen(false);
-    };
-
-    return (
-      <>
-        {/* Overlay */}
-        <Pressable
-          style={[styles.drawerOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
-          onPress={() => setDrawerOpen(false)}
-        />
-
-        {/* Drawer */}
-        <View style={[styles.drawer, { backgroundColor: bgColor, borderRightColor: borderColor }]}>
-          {/* Header */}
-          <View style={[styles.drawerHeader, { borderBottomColor: borderColor, paddingTop: Math.max(insets.top, 16) }]}>
-            <View style={styles.drawerLogoRow}>
-              <Image 
-                source={require('../../assets/images/autopilot-logo-new.png')} 
-                style={{ height: 52, width: 220, resizeMode: 'stretch', marginLeft: -4 }} 
-              />
-            </View>
-            <TouchableOpacity style={styles.drawerCloseBtn} onPress={() => setDrawerOpen(false)}>
-              <Ionicons name="close" size={22} color={textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Maintenance Portal Badge */}
-          <View style={[styles.drawerBadge, { backgroundColor: isDark ? 'rgba(112,143,150,0.1)' : 'rgba(112,143,150,0.06)', borderColor: isDark ? 'rgba(112,143,150,0.15)' : 'rgba(112,143,150,0.1)' }]}>
-            <Text style={[styles.drawerBadgeText, { color: primary }]}>MAINTENANCE PORTAL</Text>
-          </View>
-
-          {/* Scrollable Nav */}
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 8 }}>
-            {/* Daily Work */}
-            <Text style={[styles.drawerSectionLabel, { color: textSecondary }]}>DAILY WORK</Text>
-            {DRAWER_ITEMS.map((item) => {
-              const isActive = item.tab === activeTab;
-              return (
-                <TouchableOpacity
-                  key={item.label}
-                  style={[styles.drawerItem, isActive && { backgroundColor: primary }]}
-                  onPress={() => handleItemPress(item)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={isActive ? (item.icon.replace('-outline', '') as keyof typeof Ionicons.glyphMap) : item.icon}
-                    size={20}
-                    color={isActive ? '#FFF' : (isDark ? 'rgba(230,235,238,0.6)' : 'rgba(26,35,50,0.6)')}
-                  />
-                  <Text style={[styles.drawerItemLabel, { color: isActive ? '#FFF' : textPrimary }]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-
-            {/* Operations */}
-            <Text style={[styles.drawerSectionLabel, { color: textSecondary, marginTop: 12 }]}>OPERATIONS</Text>
-            {DRAWER_OPERATIONS_ITEMS.map((item) => {
-              const isActive = item.tab === activeTab;
-              return (
-                <TouchableOpacity
-                  key={item.label}
-                  style={[styles.drawerItem, isActive && { backgroundColor: primary }]}
-                  onPress={() => handleItemPress(item)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={isActive ? (item.icon.replace('-outline', '') as keyof typeof Ionicons.glyphMap) : item.icon}
-                    size={20}
-                    color={isActive ? '#FFF' : (isDark ? 'rgba(230,235,238,0.6)' : 'rgba(26,35,50,0.6)')}
-                  />
-                  <Text style={[styles.drawerItemLabel, { color: isActive ? '#FFF' : textPrimary }]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-
-            {/* System & Personal */}
-            <Text style={[styles.drawerSectionLabel, { color: textSecondary, marginTop: 12 }]}>SYSTEM &amp; PERSONAL</Text>
-            {DRAWER_SYSTEM_ITEMS.map((item) => {
-              const isActive = item.tab === activeTab;
-              return (
-                <TouchableOpacity
-                  key={item.label}
-                  style={[styles.drawerItem, isActive && { backgroundColor: primary }]}
-                  onPress={() => handleItemPress(item)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={isActive ? (item.icon.replace('-outline', '') as keyof typeof Ionicons.glyphMap) : item.icon}
-                    size={20}
-                    color={isActive ? '#FFF' : (isDark ? 'rgba(230,235,238,0.6)' : 'rgba(26,35,50,0.6)')}
-                  />
-                  <Text style={[styles.drawerItemLabel, { color: isActive ? '#FFF' : textPrimary }]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* User Card + Sign Out */}
-          <View style={[styles.drawerBottom, { borderTopColor: borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)' }]}>
-            <View style={[styles.drawerUserCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}>
-              <View style={[styles.drawerAvatar, { backgroundColor: 'rgba(112,143,150,0.12)' }]}>
-                <Text style={styles.drawerAvatarText}>
-                  {getInitials(user?.user_metadata?.full_name ?? user?.email ?? 'User')}
-                </Text>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.drawerUserName, { color: textPrimary }]} numberOfLines={1}>
-                  {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
-                </Text>
-                <Text style={[styles.drawerUserRole, { color: textSecondary }]} numberOfLines={1}>
-                  {userRole}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[styles.drawerSignOut, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2' }]}
-              onPress={() => { setDrawerOpen(false); setShowSignOutModal(true); }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-              <Text style={styles.drawerSignOutText}>Sign Out</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </>
-    );
-  }
-
   const renderDashboardTab = () => (
     <LinearGradient 
       colors={isDark ? ['#0F172A', '#1E293B'] : ['#FFFFFF', '#F9FBFF']}
@@ -654,7 +488,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             style={[mstStyles.squareGlassCard, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.1)', borderColor: isDark ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.25)', borderWidth: 1.5 }]}
             onPress={() => setRequestFilter('all')}
           >
-            {Platform.OS === 'ios' && <BlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+            {Platform.OS === 'ios' && <SafeBlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
             <View style={mstStyles.squareCardContent}>
               <Text style={[mstStyles.squareStatNumber, { color: isDark ? '#A5B4FC' : '#6366F1' }]}>{totalTickets}</Text>
               <Text style={[mstStyles.squareStatLabel, { color: isDark ? '#A5B4FC' : '#6366F1', opacity: 0.8 }]}>TOTAL</Text>
@@ -670,7 +504,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             style={[mstStyles.squareGlassCard, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)' }]}
             onPress={() => setRequestFilter('active')}
           >
-            {Platform.OS === 'ios' && <BlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+            {Platform.OS === 'ios' && <SafeBlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
             <View style={mstStyles.squareCardContent}>
               <Text style={[mstStyles.squareStatNumber, { color: '#3B82F6' }]}>{activeCount}</Text>
               <Text style={[mstStyles.squareStatLabel, { color: colors.textSecondary }]}>ACTIVE</Text>
@@ -682,7 +516,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
             style={[mstStyles.squareGlassCard, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)' }]}
             onPress={() => setRequestFilter('completed')}
           >
-            {Platform.OS === 'ios' && <BlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
+            {Platform.OS === 'ios' && <SafeBlurView intensity={isDark ? 20 : 30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />}
             <View style={mstStyles.squareCardContent}>
               <Text style={[mstStyles.squareStatNumber, { color: '#10B981' }]}>{completedCount}</Text>
               <Text style={[mstStyles.squareStatLabel, { color: colors.textSecondary }]}>DONE</Text>
@@ -810,33 +644,6 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Tickets List */}
       <View style={[styles.ticketsList, { backgroundColor: colors.background, paddingHorizontal: 20 }]}>
-<<<<<<< HEAD
-        {(requestFilter === 'all' || requestFilter === 'active') && filteredIncomingTickets.map((ticket) => (
-          <TicketCard
-            key={ticket.id}
-            id={ticket.id}
-            title={ticket.title}
-            priority={(ticket.priority?.toUpperCase() as any) || 'MEDIUM'}
-            status={
-              ticket.status === 'in_progress' ? 'IN_PROGRESS' :
-              ticket.assigned_to ? 'ASSIGNED' : 'OPEN'
-            }
-            ticketNumber={ticket.ticket_number}
-            createdAt={ticket.created_at}
-            assignedTo={ticket.assignee?.full_name || 'Unassigned'}
-            assigneePhotoUrl={ticket.assignee?.user_photo_url}
-            photoUrl={ticket.photo_before_url}
-            materialsOrdered={(ticket as any).materials_ordered}
-            onClick={() => router.push(`/property/${propertyId}/tickets/${ticket.id}` as any)}
-            onEdit={() => {
-              setEditingTicket(ticket);
-              setEditTitle(ticket.title);
-              setEditDescription(ticket.description);
-            }}
-            tick={tick}
-          />
-        ))}
-=======
         {(requestFilter === 'all' || requestFilter === 'active') && filteredIncomingTickets.map((ticket) => {
           // Calculate escalation chain
           const logs = ticket.ticket_escalation_logs;
@@ -875,10 +682,10 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
                 setEditTitle(ticket.title);
                 setEditDescription(ticket.description);
               }}
+              tick={tick}
             />
           );
         })}
->>>>>>> origin/main
         {(requestFilter === 'all' || requestFilter === 'completed') && filteredCompletedTickets.map((ticket) => (
           <TicketCard
             key={ticket.id}
@@ -985,19 +792,28 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
 
-      {/* Mobile Sidebar Drawer */}
-      {drawerOpen && <MstSidebar themeVal={theme} />}
-      
+      <FloatingMenu
+        title="Maintenance Portal"
+        items={[
+          { label: 'Overview', icon: 'grid', onPress: () => setActiveTab('overview') },
+          { label: 'Requests', icon: 'ticket', onPress: () => setActiveTab('requests') },
+          { label: 'Flow Map', icon: 'git-network', onPress: () => router.push('/property/' + propertyId + '/flow-map' as any) },
+          { label: 'Visitors', icon: 'people', onPress: () => router.push('/property/' + propertyId + '/visitors' as any) },
+          { label: 'Diesel', icon: 'water', onPress: () => router.push('/property/' + propertyId + '/diesel' as any) },
+          { label: 'Electricity', icon: 'flash', onPress: () => router.push('/property/' + propertyId + '/electricity' as any) },
+          { label: 'Checklists', icon: 'checkbox', onPress: () => router.push('/property/' + propertyId + '/checklist' as any) },
+          { label: 'Settings', icon: 'settings', onPress: () => router.push('/property/' + propertyId + '/settings' as any) },
+          { label: 'Profile', icon: 'person', onPress: () => router.push('/property/' + propertyId + '/profile' as any) },
+        ]}
+        footer={{ label: 'Sign Out', icon: 'log-out-outline', danger: true, onPress: () => setShowSignOutModal(true) }}
+      />
+
       {/* Top Navigation */}
       <View style={[styles.topNav, {
         backgroundColor: colors.surface,
         borderBottomColor: colors.border,
         paddingTop: Math.max(insets.top, 16)
       }]}>
-        {/* Hamburger + App Name */}
-        <TouchableOpacity onPress={() => setDrawerOpen(true)} activeOpacity={0.7}>
-          <Ionicons name="menu-outline" size={26} color={colors.textPrimary} />
-        </TouchableOpacity>
         <Image 
           source={require('../../assets/images/autopilot-logo-new.png')} 
           style={{ height: 48, width: 200, resizeMode: 'stretch' }}
@@ -1109,64 +925,10 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
           </View>
         </View>
       </Modal>
-<<<<<<< HEAD
       </View>
   );
 }
 
-// ---- MST Shuffle Card Container ----
-function MstShuffleStack({ tickets, user, propertyId, onEdit, tick }: { tickets: Ticket[]; user: any; propertyId: string; onEdit: (t: Ticket) => void; tick: number }) {
-  const router = useRouter();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const translateX = useSharedValue(0);
-
-  const displayTickets = useMemo(() => {
-    const total = tickets.length;
-    if (total === 0) return [];
-    
-    // Prioritize tickets assigned to the current user
-    const sorted = [...tickets].sort((a, b) => {
-        if (a.assigned_to === user?.id && b.assigned_to !== user?.id) return -1;
-        if (a.assigned_to !== user?.id && b.assigned_to === user?.id) return 1;
-        return 0;
-    });
-
-    const items = [];
-    const count = Math.min(4, total); // Show up to 4 cards for a richer stack
-    for(let i = 0; i < count; i++) {
-        items.push(sorted[(currentIndex + i) % total]);
-    }
-    return items;
-  }, [tickets, currentIndex, user?.id]);
-
-  const handleSwipe = () => {
-    translateX.value = 0;
-    setCurrentIndex(prev => prev + 1);
-  };
-
-  return (
-    <View style={mstStyles.stackContainer}>
-      {displayTickets.map((ticket, i) => (
-        <AnimatedTicketCard 
-          key={ticket.id}
-          ticket={ticket}
-          index={i}
-          total={displayTickets.length}
-          translateX={translateX}
-          onSwipe={handleSwipe}
-          user={user}
-          propertyId={propertyId}
-          onEdit={onEdit}
-          tick={tick}
-        />
-      )).reverse()}
-=======
->>>>>>> origin/main
-    </View>
-  );
-}
-
-<<<<<<< HEAD
 function AnimatedTicketCard({
   ticket, index, total, translateX, onSwipe, user, propertyId, onEdit, tick
 }: {
@@ -1263,8 +1025,6 @@ function AnimatedTicketCard({
   );
 }
 
-=======
->>>>>>> origin/main
 const mstStyles = StyleSheet.create({
   stackContainer: {
     height: 320, 

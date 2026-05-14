@@ -13,17 +13,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
 import { createClient } from '@/utils/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useCassandraStore } from '@/stores/cassandraStore';
 import { useWeather } from '@/hooks/useWeather';
 
 // Modular Lovable Components
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import SignOutModal from '@/components/ui/SignOutModal';
 import DetailModal, { type TileDetail } from '@/components/dashboard/DetailModal';
-import SidekickChat from '@/components/dashboard/SidekickChat';
+import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 
 import { 
   BG, 
@@ -54,7 +52,6 @@ import {
 // ─── Main dashboard ────────────────────────────────────────────────────────────
 export default function LovableSuperAdminDashboard() {
   const { user, signOut, membership } = useAuth();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { weather } = useWeather();
 
@@ -83,6 +80,7 @@ export default function LovableSuperAdminDashboard() {
   // Issue #9: Search Debounce
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [consoleSearchQuery, setConsoleSearchQuery] = useState('');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
@@ -122,7 +120,7 @@ export default function LovableSuperAdminDashboard() {
       }
 
       if (!resolvedOrgId) {
-        console.warn('[LovableDashboard] No org membership found for user:', user.email);
+        // No org membership found
         setFetchError('No organization found. Please ensure your account has org access.');
         setProperties([]);
         setOrganizations([]);
@@ -136,7 +134,7 @@ export default function LovableSuperAdminDashboard() {
         .from('organizations')
         .select('*, properties(count)')
         .order('created_at', { ascending: false });
-      if (orgsError) console.error('[LovableDashboard] Orgs fetch error:', orgsError);
+      if (orgsError) {/* orgs fetch failed */}
       else if (allOrgs) setOrganizations(allOrgs as Org[]);
 
       // Fetch properties for this org
@@ -144,10 +142,10 @@ export default function LovableSuperAdminDashboard() {
         .from('properties')
         .select('id, name, code, address, image_url, organization_id')
         .eq('organization_id', resolvedOrgId);
-      if (propError) console.error('[LovableDashboard] Properties fetch error:', propError);
+      if (propError) {/* properties fetch failed */}
 
       if (!propData || propData.length === 0) {
-        console.log('[LovableDashboard] No properties found for org:', resolvedOrgId);
+        {/* no properties */}
         setProperties([]);
         setIsLoading(false);
         setIsRefreshing(false);
@@ -176,11 +174,11 @@ export default function LovableSuperAdminDashboard() {
           .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       ]);
 
-      if (ticketError) console.error('[LovableDashboard] Tickets error:', ticketError);
-      if (sopError) console.error('[LovableDashboard] SOPs error:', sopError);
-      if (dieselError) console.error('[LovableDashboard] Diesel error:', dieselError);
-      if (electricError) console.error('[LovableDashboard] Electricity error:', electricError);
-      if (histError) console.error('[LovableDashboard] Historical electricity error:', histError);
+      if (ticketError) {/* tickets fetch failed */}
+      if (sopError) {/* sop fetch failed */}
+      if (dieselError) {/* diesel fetch failed */}
+      if (electricError) {/* electricity fetch failed */}
+      if (histError) {/* historical electricity fetch failed */}
 
       const ticketMap = new Map<string, {
         open: number;
@@ -299,7 +297,7 @@ export default function LovableSuperAdminDashboard() {
         return mapped.find((p) => p.id === prev.id) ?? prev;
       });
 
-      console.log('[LovableDashboard] Loaded', mapped.length, 'properties for org', resolvedOrgId, '| total tickets:', mapped.reduce((s, p) => s + p.totalTickets, 0), '| total open:', mapped.reduce((s, p) => s + p.openTickets, 0));
+      {/* loaded properties */}
       setFetchError(null);
 
       // Fetch users
@@ -310,7 +308,7 @@ export default function LovableSuperAdminDashboard() {
       if (userData) setUsers(userData as SystemUser[]);
 
     } catch (error) {
-      console.error('[LovableDashboard] Fetch error:', error);
+      {/* fetch error handled by setFetchError */}
       setFetchError('Failed to load dashboard. Pull to refresh.');
     } finally {
       setIsLoading(false);
@@ -383,20 +381,20 @@ export default function LovableSuperAdminDashboard() {
         return (
           <OrganizationsTab
             organizations={organizations}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
+            searchQuery={consoleSearchQuery}
+            setSearchQuery={setConsoleSearchQuery}
           />
         );
       case 'users':
         return (
           <UsersTab
             users={users}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
+            searchQuery={consoleSearchQuery}
+            setSearchQuery={setConsoleSearchQuery}
           />
         );
       case 'profile':
-        return <ProfileTab onSignOut={() => setShowSignOut(true)} userEmail={user?.email} />;
+        return <ProfileTab onSignOut={() => setShowSignOut(true)} user={user} />;
       default:
         return null;
     }
@@ -501,8 +499,7 @@ export default function LovableSuperAdminDashboard() {
           </Animated.ScrollView>
         ) : screen === 'console' ? (
           <View style={{ flex: 1 }}>
-            {/* Console Screen has its own Tab Header integrated now or we show it here */}
-             <View style={styles.consoleTabs}>
+            <View style={styles.consoleTabs}>
               {(['overview', 'organizations', 'users', 'profile'] as Tab[]).map((tab) => (
                 <TouchableOpacity
                   key={tab}
@@ -542,7 +539,7 @@ export default function LovableSuperAdminDashboard() {
       />
 
       {/* Modals */}
-      <SidekickChat open={showChat} onClose={() => { setShowChat(false); useCassandraStore.getState().closeChat(); }} orgId={orgId} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
       <SignOutModal
         isOpen={showSignOut}
         onClose={() => setShowSignOut(false)}

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '@/utils/supabase/client';
-import KPICard from './KPICard';
+import { SPACING, CARD_SURFACES } from '@/constants/designSystem';
 
 interface AnalyticsUser {
   user_id: string;
@@ -31,6 +31,59 @@ interface AnalyticsData {
   users: AnalyticsUser[];
 }
 
+const fontSans = 'System';
+const fontDisplay = 'System';
+
+function KPICard({ title, value, icon, accentColor }: { title: string; value: string | number; icon: keyof typeof Ionicons.glyphMap; accentColor: string }) {
+  return (
+    <View style={kpiStyles.card}>
+      <View style={[kpiStyles.iconWrap, { borderColor: accentColor + '30' }]}>
+        <Ionicons name={icon} size={16} color={accentColor} />
+      </View>
+      <Text style={kpiStyles.value}>{value}</Text>
+      <Text style={kpiStyles.label}>{title}</Text>
+    </View>
+  );
+}
+
+const kpiStyles = StyleSheet.create({
+  card: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+    backgroundColor: CARD_SURFACES.cardBg,
+    padding: 16,
+    alignItems: 'center',
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  value: {
+    fontFamily: fontDisplay,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 4,
+  },
+  label: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+});
+
 export default function AnalyticsTab() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +93,6 @@ export default function AnalyticsTab() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Use Supabase RPC or direct query instead of API route
         const { data: metricsData, error } = await supabase.rpc('get_usage_metrics');
         if (error) throw error;
         setData(metricsData);
@@ -78,7 +130,7 @@ export default function AnalyticsTab() {
     if (idx === 0) return '#F59E0B';
     if (idx === 1) return '#3B82F6';
     if (idx === 2) return '#F97316';
-    return '#CBD5E1';
+    return 'rgba(255,255,255,0.40)';
   };
 
   return (
@@ -106,13 +158,13 @@ export default function AnalyticsTab() {
 
         {/* Search */}
         <View style={styles.searchRow}>
-          <Ionicons name="search-outline" size={14} color="#94A3B8" />
+          <Ionicons name="search-outline" size={14} color="rgba(255,255,255,0.45)" />
           <TextInput
             style={styles.searchInput}
             value={searchTerm}
             onChangeText={setSearchTerm}
             placeholder="Search users..."
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor="rgba(255,255,255,0.35)"
           />
         </View>
 
@@ -151,22 +203,53 @@ export default function AnalyticsTab() {
 const styles = StyleSheet.create({
   container: { gap: 20 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingVertical: 80 },
-  loadingText: { fontSize: 13, fontWeight: '700', color: '#94A3B8' },
-  title: { fontSize: 22, fontWeight: '900', color: '#1A2332', letterSpacing: -0.5 },
-  subtitle: { fontSize: 13, color: '#94A3B8' },
+  loadingText: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.55)' },
+  title: { fontFamily: fontDisplay, fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
+  subtitle: { fontFamily: fontSans, fontSize: 13, color: 'rgba(255,255,255,0.50)', marginTop: 4 },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  section: { backgroundColor: '#FFF', borderRadius: 20, borderWidth: 1, borderColor: '#F1F5F9', padding: 20 },
+  section: {
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+    padding: 20,
+  },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  sectionIconContainer: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(99,102,241,0.06)', justifyContent: 'center', alignItems: 'center' },
-  sectionTitle: { fontSize: 16, fontWeight: '900', color: '#1A2332' },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 40, borderRadius: 12, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#F1F5F9', paddingHorizontal: 12, marginBottom: 12 },
-  searchInput: { flex: 1, fontSize: 13, fontWeight: '500', color: '#1A2332' },
-  emptyText: { textAlign: 'center', color: '#94A3B8', fontSize: 13, padding: 32 },
-  userRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
-  rank: { fontSize: 13, fontWeight: '900', width: 32 },
-  userName: { fontSize: 13, fontWeight: '900', color: '#1A2332' },
-  userEmail: { fontSize: 11, color: '#94A3B8' },
+  sectionIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(99,102,241,0.10)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionTitle: { fontFamily: fontDisplay, fontSize: 16, fontWeight: '900', color: '#FFFFFF' },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  searchInput: { flex: 1, fontSize: 13, fontWeight: '500', color: '#FFFFFF', fontFamily: fontSans },
+  emptyText: { textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: 13, padding: 32, fontFamily: fontSans },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  rank: { fontSize: 13, fontWeight: '900', width: 32, fontFamily: fontDisplay },
+  userName: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', fontFamily: fontSans },
+  userEmail: { fontSize: 11, color: 'rgba(255,255,255,0.45)', fontFamily: fontSans },
   statsCol: { alignItems: 'center', minWidth: 52 },
-  statValue: { fontSize: 13, fontWeight: '900', color: '#475569' },
-  statLabel: { fontSize: 9, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statValue: { fontSize: 13, fontWeight: '900', color: 'rgba(255,255,255,0.80)', fontFamily: fontSans },
+  statLabel: { fontSize: 9, color: 'rgba(255,255,255,0.40)', textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: fontSans },
 });

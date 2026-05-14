@@ -9,13 +9,13 @@ import {
   ActivityIndicator,
   Dimensions,
   Platform,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/utils/supabase/client';
@@ -58,6 +58,21 @@ const TIME_FILTERS: { value: TimePeriod; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: 'month', label: 'Month' },
   { value: 'all', label: 'All' },
+];
+
+// Navigation items for the hamburger drawer
+const DRAWER_ITEMS = [
+  { label: 'Dashboard', route: 'dashboard', icon: 'grid-outline' },
+  { label: 'Requests', route: 'tickets', icon: 'ticket-outline' },
+  { label: 'Flow Map', route: 'flow-map', icon: 'git-branch-outline' },
+  { label: 'Users', route: 'users', icon: 'people-outline' },
+  { label: 'Visitors', route: 'visitors', icon: 'person-add-outline' },
+  { label: 'Rooms', route: 'rooms', icon: 'cube-outline' },
+  { label: 'Diesel', route: 'diesel', icon: 'flashlight-outline' },
+  { label: 'Electricity', route: 'electricity', icon: 'bolt-outline' },
+  { label: 'Stock', route: 'stock', icon: 'cube-outline' },
+  { label: 'Reports', route: 'reports', icon: 'document-text-outline' },
+  { label: 'Settings', route: 'settings', icon: 'settings-outline' },
 ];
 
 const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
@@ -133,100 +148,55 @@ function PulseDot({ color }: { color: string }) {
   );
 }
 
-// ---- Glass card tile ----
-function GlassTile({
-  badgeColor,
-  badgeBg,
-  label,
-  children,
-  delay = 0,
-  style,
+// ---- Hamburger Drawer ----
+function NavDrawer({
+  visible,
+  onClose,
+  propertyId,
 }: {
-  badgeColor: string;
-  badgeBg?: string;
-  label: string;
-  children: React.ReactNode;
-  delay?: number;
-  style?: any;
+  visible: boolean;
+  onClose: () => void;
+  propertyId: string;
 }) {
-  return (
-    <Animated.View entering={FadeInUp.delay(delay).duration(500)} style={style}>
-      <View style={styles.tile}>
-        <View style={styles.tileHeader}>
-          <View style={[styles.iconBadge, { backgroundColor: badgeBg || badgeColor + '18' }]}>
-            <View style={{ width: 14, height: 14, borderRadius: 3 }} />
-          </View>
-          <Text style={styles.tileLabel}>{label}</Text>
-        </View>
-        {children}
-      </View>
-    </Animated.View>
-  );
-}
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-// ---- Floating Bottom Nav ----
-function FloatingBottomNav({
-  active,
-  onProperties,
-  onConsole,
-  onCassandra,
-  onProfile,
-  insets,
-}: {
-  active: string;
-  onProperties: () => void;
-  onConsole: () => void;
-  onCassandra: () => void;
-  onProfile: () => void;
-  insets: any;
-}) {
-  const tabs = [
-    { key: 'properties', label: 'Properties', icon: 'grid', iconFilled: 'grid' },
-    { key: 'console', label: 'Console', icon: 'settings-outline', iconFilled: 'settings' },
-    { key: 'cassandra', label: '', icon: '', iconFilled: '' },
-    { key: 'profile', label: 'Profile', icon: 'person-outline', iconFilled: 'person' },
-  ];
+  const handleNavigate = (route: string) => {
+    onClose();
+    router.push(`/property/${propertyId}/${route}` as never);
+  };
 
   return (
-    <View style={[styles.floatingNav, { bottom: Math.max(insets.bottom, 16) + 16 }]}>
-      <View style={styles.navPill}>
-        {tabs.map((tab) => {
-          if (tab.key === 'cassandra') {
-            return (
-              <TouchableOpacity key={tab.key} style={styles.cassandraOrbBtn} onPress={onCassandra} activeOpacity={0.8}>
-                <View style={styles.cassandraOrb}>
-                  <View style={styles.orbInner} />
-                </View>
-              </TouchableOpacity>
-            );
-          }
-          const isActive = active === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              style={styles.navBtn}
-              onPress={
-                tab.key === 'properties' ? onProperties :
-                tab.key === 'console' ? onConsole :
-                tab.key === 'profile' ? onProfile : undefined
-              }
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={(isActive ? tab.iconFilled : tab.icon) as any}
-                size={20}
-                color={isActive ? '#708F96' : 'rgba(255,255,255,0.40)'}
-              />
-              {tab.label && (
-                <Text style={[styles.navText, isActive && styles.navTextActive]}>
-                  {tab.label}
-                </Text>
-              )}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity style={styles.drawerBackdrop} onPress={onClose} activeOpacity={1}>
+        <View style={[styles.drawerPanel, { paddingTop: insets.top + 16 }]}>
+          <View style={styles.drawerHeader}>
+            <Text style={styles.drawerTitle}>Menu</Text>
+            <TouchableOpacity onPress={onClose} style={styles.drawerCloseBtn} activeOpacity={0.7}>
+              <Ionicons name="close" size={24} color="rgba(255,255,255,0.70)" />
             </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {DRAWER_ITEMS.map((item) => (
+              <TouchableOpacity
+                key={item.route}
+                style={styles.drawerItem}
+                onPress={() => handleNavigate(item.route)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.60)" />
+                <Text style={styles.drawerItemLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
@@ -258,6 +228,7 @@ function DashboardInner() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const propertyInfo = useMemo(() => {
     if (!membership) return { name: '', code: '' };
@@ -360,6 +331,13 @@ function DashboardInner() {
         end={{ x: 0.5, y: 1 }}
       />
 
+      {/* Navigation Drawer */}
+      <NavDrawer
+        visible={drawerVisible}
+        onClose={() => setDrawerVisible(false)}
+        propertyId={propertyId ?? ''}
+      />
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}
@@ -369,13 +347,13 @@ function DashboardInner() {
         {/* ── Header ── */}
         <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
           <View style={styles.headerTopRow}>
-            {/* Back button */}
+            {/* Hamburger menu */}
             <TouchableOpacity
               style={styles.backBtn}
-              onPress={() => router.back()}
+              onPress={() => setDrawerVisible(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="arrow-back" size={16} color="#FFFFFF" />
+              <Ionicons name="menu" size={20} color="#FFFFFF" />
             </TouchableOpacity>
 
             {/* Title */}
@@ -428,13 +406,13 @@ function DashboardInner() {
               </View>
               {/* Body */}
               <View style={styles.tileBodyRow}>
-                <View>
+                <View style={styles.tileBodyLeft}>
                   <Text style={styles.bigNumber}>{stats.ticketStats.total.toLocaleString()}</Text>
                   <Text style={styles.subText}>
                     {stats.ticketStats.open} open · {stats.ticketStats.in_progress} in progress
                   </Text>
                 </View>
-                <View style={{ flex: 1, paddingLeft: 24 }}>
+                <View style={styles.tileBodyRight}>
                   <Sparkline data={ticketHistory} accentColor={ACCENT_AMBER} height={64} />
                 </View>
               </View>
@@ -450,10 +428,10 @@ function DashboardInner() {
             </View>
           </Animated.View>
 
-          {/* ── Checklist + Health row ── */}
-          <View style={styles.twoColRow}>
+          {/* ── Checklist + Health — STACKED vertically ── */}
+          <View style={styles.stackRow}>
             {/* Checklist */}
-            <Animated.View entering={FadeInUp.delay(0.12).duration(500)} style={{ flex: 1 }}>
+            <Animated.View entering={FadeInUp.delay(0.12).duration(500)}>
               <View style={styles.tile}>
                 <View style={styles.tileHeader}>
                   <View style={[styles.iconBadge, { backgroundColor: ACCENT_GREEN + '18' }]}>
@@ -461,10 +439,12 @@ function DashboardInner() {
                   </View>
                   <Text style={styles.tileLabel}>CHECKLIST</Text>
                 </View>
-                <Text style={styles.midNumber}>
-                  {stats.checklistStats.doneToday}
+                <View style={styles.tileNumberRow}>
+                  <Text style={styles.midNumber}>
+                    {stats.checklistStats.doneToday}
+                  </Text>
                   <Text style={styles.midSuffix}> / {checklistTotal}</Text>
-                </Text>
+                </View>
                 <View style={styles.progressBar}>
                   <View style={[styles.progressFill, { width: `${checklistPct}%`, backgroundColor: ACCENT_GREEN }]} />
                 </View>
@@ -473,7 +453,7 @@ function DashboardInner() {
             </Animated.View>
 
             {/* Health */}
-            <Animated.View entering={FadeInUp.delay(0.18).duration(500)} style={{ flex: 1 }}>
+            <Animated.View entering={FadeInUp.delay(0.18).duration(500)}>
               <View style={styles.tile}>
                 <View style={styles.tileHeader}>
                   <View style={[styles.iconBadge, { backgroundColor: healthColor + '18' }]}>
@@ -481,9 +461,11 @@ function DashboardInner() {
                   </View>
                   <Text style={styles.tileLabel}>HEALTH</Text>
                 </View>
-                <Text style={[styles.midNumber, { color: healthColor }]}>
-                  {healthStatus === 'good' ? 'Optimal' : healthStatus === 'warning' ? 'Watch' : 'Critical'}
-                </Text>
+                <View style={styles.tileNumberRow}>
+                  <Text style={[styles.midNumber, { color: healthColor }]}>
+                    {healthStatus === 'good' ? 'Optimal' : healthStatus === 'warning' ? 'Watch' : 'Critical'}
+                  </Text>
+                </View>
                 <View style={[styles.healthDot, { backgroundColor: healthColor, shadowColor: healthColor }]} />
                 <Text style={styles.subText}>{stats.ticketStats.open} open tickets</Text>
                 <View style={styles.liveRow}>
@@ -504,18 +486,20 @@ function DashboardInner() {
                 <Text style={styles.tileLabel}>ENERGY USAGE</Text>
               </View>
               <View style={styles.tileBodyRow}>
-                <View>
-                  <Text style={styles.midNumber}>
-                    {timePeriod === 'today' ? stats.electricityUnitsToday : stats.electricityUnits}
+                <View style={styles.tileBodyLeft}>
+                  <View style={styles.tileNumberRow}>
+                    <Text style={styles.midNumber}>
+                      {timePeriod === 'today' ? stats.electricityUnitsToday : stats.electricityUnits}
+                    </Text>
                     <Text style={styles.midSuffix}> kWh</Text>
-                  </Text>
+                  </View>
                   <View style={styles.trendChip}>
                     <View style={styles.trendDot} />
                     <Text style={styles.trendText}>+12%</Text>
                   </View>
                   <Text style={[styles.subText, { marginTop: 6 }]}>Grid + DG consumption</Text>
                 </View>
-                <View style={{ flex: 1, paddingLeft: 16 }}>
+                <View style={styles.tileBodyRight}>
                   <Sparkline data={energyHistory} accentColor={ACCENT_AMBER} height={40} />
                   <Text style={[styles.chartLabel, { marginTop: 6 }]}>Last 7 days</Text>
                 </View>
@@ -538,6 +522,72 @@ function DashboardInner() {
   );
 }
 
+// ---- Floating Bottom Nav ----
+function FloatingBottomNav({
+  active,
+  onProperties,
+  onConsole,
+  onCassandra,
+  onProfile,
+  insets,
+}: {
+  active: string;
+  onProperties: () => void;
+  onConsole: () => void;
+  onCassandra: () => void;
+  onProfile: () => void;
+  insets: any;
+}) {
+  const tabs = [
+    { key: 'properties', label: 'Properties', icon: 'grid', iconFilled: 'grid' },
+    { key: 'console', label: 'Console', icon: 'settings-outline', iconFilled: 'settings' },
+    { key: 'cassandra', label: '', icon: '', iconFilled: '' },
+    { key: 'profile', label: 'Profile', icon: 'person-outline', iconFilled: 'person' },
+  ];
+
+  return (
+    <View style={[styles.floatingNav, { bottom: Math.max(insets.bottom, 16) + 16 }]}>
+      <View style={styles.navPill}>
+        {tabs.map((tab) => {
+          if (tab.key === 'cassandra') {
+            return (
+              <TouchableOpacity key={tab.key} style={styles.cassandraOrbBtn} onPress={onCassandra} activeOpacity={0.8}>
+                <View style={styles.cassandraOrb}>
+                  <View style={styles.orbInner} />
+                </View>
+              </TouchableOpacity>
+            );
+          }
+          const isActive = active === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={styles.navBtn}
+              onPress={
+                tab.key === 'properties' ? onProperties :
+                tab.key === 'console' ? onConsole :
+                tab.key === 'profile' ? onProfile : undefined
+              }
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={(isActive ? tab.iconFilled : tab.icon) as any}
+                size={20}
+                color={isActive ? '#708F96' : 'rgba(255,255,255,0.40)'}
+              />
+              {tab.label && (
+                <Text style={[styles.navText, isActive && styles.navTextActive]}>
+                  {tab.label}
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ---- Styles ----
 const styles = StyleSheet.create({
   // Container
@@ -545,6 +595,59 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, zIndex: 10 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 16, fontFamily: fontSans, fontSize: 15, color: 'rgba(255,255,255,0.55)' },
+
+  // Drawer
+  drawerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.60)',
+    flexDirection: 'row',
+  },
+  drawerPanel: {
+    width: 280,
+    backgroundColor: '#0f0f1a',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.10)',
+  },
+  drawerTitle: {
+    fontFamily: fontDisplay,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  drawerCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  drawerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  drawerItemLabel: {
+    fontFamily: fontSans,
+    fontSize: 15,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.80)',
+  },
 
   // Header
   header: {
@@ -676,24 +779,38 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
+  tileBodyLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  tileBodyRight: {
+    flex: 1,
+    paddingLeft: 16,
+    minWidth: 0,
+  },
+  tileNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+  },
   bigNumber: {
     fontFamily: fontDisplay,
-    fontSize: 72,
+    fontSize: 52,
     fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: -0.04 * 72,
-    lineHeight: 72,
+    letterSpacing: -0.04 * 52,
+    lineHeight: 56,
   },
   midNumber: {
     fontFamily: fontDisplay,
-    fontSize: 48,
+    fontSize: 28,
     fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: -0.04 * 48,
-    lineHeight: 56,
+    letterSpacing: -0.03 * 28,
+    lineHeight: 34,
   },
   midSuffix: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '400',
     color: 'rgba(255,255,255,0.50)',
     letterSpacing: 0,
@@ -731,9 +848,9 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.60)',
   },
 
-  // Two column
-  twoColRow: {
-    flexDirection: 'row',
+  // Stacked row (was twoColRow)
+  stackRow: {
+    flexDirection: 'column',
     gap: 12,
   },
 
@@ -753,9 +870,9 @@ const styles = StyleSheet.create({
 
   // Health
   healthDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     marginTop: 8,
     shadowOpacity: 0.8,
     shadowRadius: 12,
@@ -812,7 +929,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   navBtn: {
-    width: 44,
+    width: 56,
     height: 44,
     borderRadius: 22,
     justifyContent: 'center',

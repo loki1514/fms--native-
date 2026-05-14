@@ -49,12 +49,12 @@ const MOBILE_ROLES = ['tenant', 'super_tenant'];
 // ---- Roles that render their own full-screen dashboard with internal sidebar ----
 // NewMstDashboard and PremiumMstDashboard are self-contained (sidebar built in).
 // The property layout sidebar must NOT render alongside them or you get double sidebars.
-// NOTE: property_admin goes to DashboardScreen which has NO sidebar — keep the
-// property layout sidebar for property_admin so they have navigation.
-const FULL_DASHBOARD_ROLES = ['mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager'];
+// property_admin now uses the mobile-native glassmorphism dashboard with bottom nav
+// and a hamburger drawer — no persistent sidebar.
+const FULL_DASHBOARD_ROLES = ['mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager', 'property_admin'];
 
 // ---- Full-screen routes for full-dashboard roles (no sidebar) ----
-const FULL_SCREEN_ROUTES = ['mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager', 'settings', 'profile'];
+const FULL_SCREEN_ROUTES = ['mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager', 'property_admin', 'settings', 'profile'];
 
 // ---- Property Context ----
 export const PropertyContext = React.createContext<{

@@ -25,6 +25,15 @@ export default function PropertyIndex() {
     return <Redirect href="/login" />;
   }
 
+  // Lovable test dashboards — email-gated redirect (before role logic)
+  const userEmail = user.email?.toLowerCase() ?? '';
+  if (userEmail === 'srustikarta2022@gmail.com') {
+    return <Redirect href={`/property/${propertyId}/lovable-mst`} />;
+  }
+  if (userEmail === 'lohitexplores@gmail.com') {
+    return <Redirect href={`/property/${propertyId}/lovable-admin`} />;
+  }
+
   // Check property-level membership
   const propMembership = membership.properties?.find((p) => p.id === propertyId);
   const propRole = propMembership?.role?.toLowerCase();

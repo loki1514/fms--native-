@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -54,6 +54,7 @@ import { TenantStatsCard } from '@/components/tenant/TenantStatsCard';
 import { TenantTicketCard } from '@/components/tenant/TenantTicketCard';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/context';
+import FloatingMenu from '@/components/ui/FloatingMenu';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
@@ -298,7 +299,7 @@ function PremiumKPICard({
       <Animated.View style={[styles.kpiGlow, { backgroundColor: color }, glowStyle]} />
       
       {/* Card */}
-      <BlurView intensity={20} tint="dark" style={styles.kpiBlurCard}>
+      <SafeBlurView intensity={20} tint="dark" style={styles.kpiBlurCard}>
         <LinearGradient
           colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.05)']}
           start={{ x: 0, y: 0 }}
@@ -330,7 +331,7 @@ function PremiumKPICard({
             )}
           </View>
         </LinearGradient>
-      </BlurView>
+      </SafeBlurView>
     </Animated.View>
   );
 }
@@ -389,7 +390,7 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
       <View style={styles.ticketCardShadow} />
       
       {/* Card Content */}
-      <BlurView intensity={40} tint="dark" style={styles.ticketBlurCard}>
+      <SafeBlurView intensity={40} tint="dark" style={styles.ticketBlurCard}>
         <LinearGradient
           colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.05)']}
           locations={[0, 1]}
@@ -479,7 +480,7 @@ function PremiumTicketCard({ ticket, onPress, index }: { ticket: Ticket; onPress
             </TouchableOpacity>
           </View>
         </LinearGradient>
-      </BlurView>
+      </SafeBlurView>
     </AnimatedTouchable>
   );
 }
@@ -537,7 +538,7 @@ function PremiumLeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; in
 
   return (
     <Animated.View style={[styles.leaderboardEntryContainer, animatedStyle]}>
-      <BlurView intensity={30} tint="dark" style={styles.leaderboardBlur}>
+      <SafeBlurView intensity={30} tint="dark" style={styles.leaderboardBlur}>
         <LinearGradient
           colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.05)']}
           style={styles.leaderboardGradient}
@@ -584,7 +585,7 @@ function PremiumLeaderboardEntry({ entry, index }: { entry: LeaderboardEntry; in
             <Text style={styles.leaderboardScore}>{entry.score.toLocaleString()}</Text>
           </View>
         </LinearGradient>
-      </BlurView>
+      </SafeBlurView>
     </Animated.View>
   );
 }
@@ -612,7 +613,7 @@ function PremiumCountdown({ countdown }: { countdown: string }) {
 
   return (
     <Animated.View entering={FadeInUp.springify()} style={styles.countdownContainer}>
-      <BlurView intensity={60} tint="dark" style={styles.countdownBlur}>
+      <SafeBlurView intensity={60} tint="dark" style={styles.countdownBlur}>
         <LinearGradient
           colors={['rgba(112, 143, 150, 0.15)', 'rgba(112, 143, 150, 0.05)']}
           start={{ x: 0, y: 0 }}
@@ -634,171 +635,7 @@ function PremiumCountdown({ countdown }: { countdown: string }) {
             </Animated.View>
           </View>
         </LinearGradient>
-      </BlurView>
-    </Animated.View>
-  );
-}
-
-// Collapsible Sidebar with Premium Effects
-function PremiumSidebar({ 
-  isCollapsed, 
-  onToggle, 
-  activeTab,
-  onTabChange,
-  propertyId 
-}: { 
-  isCollapsed: boolean;
-  onToggle: () => void;
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-  propertyId: string;
-}) {
-  const { user } = useAuth();
-  const router = useRouter();
-  const { theme } = useTheme();
-  const colors = Colors[theme];
-  const sidebarWidth = useSharedValue(isCollapsed ? 80 : 280);
-
-  useEffect(() => {
-    sidebarWidth.value = withSpring(isCollapsed ? 80 : 280, { damping: 20 });
-  }, [isCollapsed]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    width: sidebarWidth.value,
-  }));
-
-  const getUserInitials = (name: string) => {
-    return name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
-  };
-
-  const navSections = [
-    {
-      title: 'DAILY WORK',
-      items: [
-        { key: 'dashboard', label: 'Overview', icon: 'grid-outline' },
-        { key: 'requests', label: 'Requests', icon: 'ticket-outline' },
-        { key: 'daily-board', label: 'Leaderboard', icon: 'trophy-outline' },
-        { key: 'flow-map', label: 'Live Flow', icon: 'pulse-outline' },
-      ],
-    },
-    {
-      title: 'OPERATIONS',
-      items: [
-        { key: 'visitors', label: 'Visitors', icon: 'people-outline' },
-        { key: 'diesel', label: 'Diesel', icon: 'flame-outline' },
-        { key: 'electricity', label: 'Electricity', icon: 'flash-outline' },
-        { key: 'checklist', label: 'Checklists', icon: 'checkbox-outline' },
-      ],
-    },
-    {
-      title: 'SYSTEM',
-      items: [
-        { key: 'settings', label: 'Settings', icon: 'settings-outline' },
-        { key: 'profile', label: 'Profile', icon: 'person-outline' },
-      ],
-    },
-  ];
-
-  return (
-    <Animated.View style={[styles.sidebarContainer, animatedStyle]}>
-      <LinearGradient
-        colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.03)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-      />
-      
-      {/* Header */}
-      <View style={styles.sidebarHeader}>
-        {!isCollapsed && (
-          <Animated.View entering={FadeIn} style={styles.logoRow}>
-            <View style={styles.logoIcon}>
-              <LinearGradient
-                colors={[colors.primary, colors.primaryDark]}
-                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              />
-              <Text style={styles.logoIconText}>A</Text>
-            </View>
-            <View>
-              <Text style={styles.logoText}>AUTOPILOT</Text>
-              <Text style={styles.logoSubtext}>MAINTENANCE</Text>
-            </View>
-          </Animated.View>
-        )}
-        <TouchableOpacity style={styles.collapseBtn} onPress={onToggle}>
-          <Ionicons name={isCollapsed ? 'chevron-forward' : 'chevron-back'} size={20} color="#64748B" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Navigation */}
-      <ScrollView style={styles.sidebarNav} showsVerticalScrollIndicator={false}>
-        {navSections.map((section, sectionIndex) => (
-          <View key={section.title} style={styles.navSection}>
-            {!isCollapsed && (
-              <Animated.Text entering={FadeInDown.delay(sectionIndex * 100)} style={styles.navSectionTitle}>
-                {section.title}
-              </Animated.Text>
-            )}
-            {section.items.map((item, itemIndex) => {
-              const isActive = activeTab === item.key;
-              return (
-                <AnimatedTouchable
-                  key={item.key}
-                  entering={FadeInDown.delay(sectionIndex * 100 + itemIndex * 50)}
-                  style={[styles.navItem, isActive && styles.navItemActive, isCollapsed && styles.navItemCollapsed]}
-                  onPress={() => {
-                    if (['dashboard', 'requests', 'daily-board', 'flow-map', 'profile'].includes(item.key)) {
-                      onTabChange(item.key as TabKey);
-                    } else {
-                      router.push(`/property/${propertyId}/${item.key}` as any);
-                    }
-                  }}
-                >
-                  {isActive && (
-                    <LinearGradient
-                      colors={['rgba(112, 143, 150, 0.15)', 'rgba(112, 143, 150, 0.05)']}
-                      style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                    />
-                  )}
-                  <Ionicons name={item.icon as any} size={20} color={isActive ? colors.primary : 'rgba(255,255,255,0.40)'} />
-                  {!isCollapsed && (
-                    <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
-                  )}
-                </AnimatedTouchable>
-              );
-            })}
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* Footer */}
-      <View style={styles.sidebarFooter}>
-        <BlurView intensity={20} tint="dark" style={styles.userCard}>
-          <View style={[styles.userAvatar, isCollapsed && styles.userAvatarCollapsed]}>
-            <LinearGradient
-              colors={['#708F96', '#8AA5AC']}
-              style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-            <Text style={styles.userAvatarText}>
-              {getUserInitials(user?.user_metadata?.full_name || 'User')}
-            </Text>
-          </View>
-          {!isCollapsed && (
-            <View style={styles.userInfo}>
-              <Text style={styles.userName} numberOfLines={1}>
-                {user?.user_metadata?.full_name || 'User'}
-              </Text>
-              <Text style={styles.userRole}>MST Staff</Text>
-            </View>
-          )}
-        </BlurView>
-      </View>
+      </SafeBlurView>
     </Animated.View>
   );
 }
@@ -839,22 +676,6 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobile);
-  const [sidebarVisible, setSidebarVisible] = useState(false);
-  const sidebarTranslateX = useSharedValue(isMobile ? -280 : 0);
-  const sidebarBackdropOpacity = useSharedValue(0);
-
-  // Sync translateX when sidebarVisible changes on mobile
-  useEffect(() => {
-    if (isMobile) {
-      sidebarTranslateX.value = withSpring(sidebarVisible ? 0 : -280, { damping: 20 });
-      sidebarBackdropOpacity.value = withSpring(sidebarVisible ? 1 : 0, { damping: 20 });
-    }
-  }, [sidebarVisible, isMobile]);
-
-  const toggleMobileSidebar = () => setSidebarVisible(prev => !prev);
-  const closeMobileSidebar = () => setSidebarVisible(false);
-
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -1141,7 +962,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Search */}
       <Animated.View entering={FadeInDown.delay(100)} style={styles.searchContainer}>
-        <BlurView intensity={30} tint="dark" style={styles.searchBlur}>
+        <SafeBlurView intensity={30} tint="dark" style={styles.searchBlur}>
           <Ionicons name="search" size={20} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
@@ -1150,7 +971,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
-        </BlurView>
+        </SafeBlurView>
       </Animated.View>
 
       {/* Filter Chips */}
@@ -1229,7 +1050,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
       </Animated.View>
 
       <Animated.View entering={ZoomIn.delay(200)} style={styles.championCard}>
-        <BlurView intensity={40} tint="dark" style={styles.championBlur}>
+        <SafeBlurView intensity={40} tint="dark" style={styles.championBlur}>
           <LinearGradient
             colors={['rgba(255, 215, 0, 0.1)', 'rgba(255, 215, 0, 0.02)']}
             start={{ x: 0, y: 0 }}
@@ -1260,7 +1081,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
               </View>
             </View>
           </LinearGradient>
-        </BlurView>
+        </SafeBlurView>
       </Animated.View>
 
       <View style={{ height: 40 }} />
@@ -1292,7 +1113,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Profile Card */}
       <Animated.View entering={FadeInDown.delay(100)}>
-        <BlurView intensity={30} tint="dark" style={styles.profileCardBlur}>
+        <SafeBlurView intensity={30} tint="dark" style={styles.profileCardBlur}>
           <LinearGradient
             colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.05)']}
             style={styles.profileCardGradient}
@@ -1333,7 +1154,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
               </View>
             </View>
           </LinearGradient>
-        </BlurView>
+        </SafeBlurView>
       </Animated.View>
 
       {/* Personal Stats */}
@@ -1366,71 +1187,30 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       {weather && <AuroraBackground colors={weather.auroraColors} />}
       <View style={styles.mainContainer}>
-        {/* Mobile Sidebar Overlay */}
-        {isMobile && (
-          <>
-            {/* Backdrop */}
-            <Animated.View
-              style={[
-                styles.sidebarBackdrop,
-                {
-                  opacity: sidebarBackdropOpacity,
-                  pointerEvents: sidebarVisible ? 'auto' : 'none',
-                },
-              ]}
-            >
-              <TouchableOpacity
-                style={StyleSheet.absoluteFill}
-                activeOpacity={1}
-                onPress={closeMobileSidebar}
-              />
-            </Animated.View>
-
-            {/* Sidebar Drawer */}
-            <Animated.View
-              style={[
-                styles.mobileSidebarOverlay,
-                { transform: [{ translateX: sidebarTranslateX }] },
-              ]}
-            >
-              <PremiumSidebar
-                isCollapsed={false}
-                onToggle={closeMobileSidebar}
-                activeTab={activeTab}
-                onTabChange={(tab) => {
-                  setActiveTab(tab);
-                  closeMobileSidebar();
-                }}
-                propertyId={propertyId}
-              />
-            </Animated.View>
-          </>
-        )}
-
-        {/* Desktop Sidebar */}
-        {!isMobile && (
-          <PremiumSidebar
-            isCollapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            propertyId={propertyId}
-          />
-        )}
-
         <View style={styles.contentArea}>
           {/* Top Bar */}
-          <BlurView intensity={60} tint="dark" style={styles.topBar}>
+          <SafeBlurView intensity={60} tint="dark" style={styles.topBar}>
             <LinearGradient
               colors={['rgba(10,15,25,0.80)', 'rgba(10,15,25,0.70)']}
               style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
             />
             <View style={styles.topBarLeft}>
-              {isMobile && (
-                <TouchableOpacity style={styles.menuButton} onPress={toggleMobileSidebar}>
-                  <Ionicons name={sidebarVisible ? 'close' : 'menu'} size={22} color="rgba(255,255,255,0.70)" />
-                </TouchableOpacity>
-              )}
+              <FloatingMenu
+                title="Maintenance Portal"
+                items={[
+                  { label: 'Overview', icon: 'grid', onPress: () => setActiveTab('dashboard') },
+                  { label: 'Requests', icon: 'ticket', onPress: () => setActiveTab('requests') },
+                  { label: 'Leaderboard', icon: 'trophy', onPress: () => setActiveTab('daily-board') },
+                  { label: 'Flow Map', icon: 'pulse', onPress: () => setActiveTab('flow-map') },
+                  { label: 'Visitors', icon: 'people', onPress: () => router.push(`/property/${propertyId}/visitors` as any) },
+                  { label: 'Diesel', icon: 'flame', onPress: () => router.push(`/property/${propertyId}/diesel` as any) },
+                  { label: 'Electricity', icon: 'flash', onPress: () => router.push(`/property/${propertyId}/electricity` as any) },
+                  { label: 'Checklists', icon: 'checkbox', onPress: () => router.push(`/property/${propertyId}/checklist` as any) },
+                  { label: 'Settings', icon: 'settings', onPress: () => router.push(`/property/${propertyId}/settings` as any) },
+                  { label: 'Profile', icon: 'person', onPress: () => setActiveTab('profile') },
+                ]}
+                footer={{ label: 'Sign Out', icon: 'log-out-outline', danger: true, onPress: () => router.push('/(auth)/login' as any) }}
+              />
             </View>
             <View style={styles.topBarRight}>
               <TouchableOpacity style={styles.topBarButton}>
@@ -1443,7 +1223,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
               </View>
               <Text style={[styles.userName, { color: 'rgba(255,255,255,0.85)' }]}>{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'MST Staff'}</Text>
             </View>
-          </BlurView>
+          </SafeBlurView>
 
           {activeTab === 'dashboard' && renderDashboardContent()}
           {activeTab === 'requests' && renderRequestsContent()}

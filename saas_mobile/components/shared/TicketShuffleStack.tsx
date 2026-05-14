@@ -19,7 +19,7 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { BlurView } from 'expo-blur';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context';
@@ -241,7 +241,7 @@ function AnimatedTicketCard({
             },
           ]}>
             {Platform.OS === 'ios' && (
-              <BlurView intensity={isTop ? 60 : 80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+              <SafeBlurView intensity={isTop ? 60 : 80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
             )}
             
             {/* Top shimmer highlight */}

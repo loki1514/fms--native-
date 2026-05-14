@@ -1,57 +1,71 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Detect if we are in a browser, node, or native environment
-const isBrowser = typeof window !== 'undefined';
-const hasLocalStorage = isBrowser && !!window.localStorage;
+// ─── Environment detection ─────────────────────────────────────────────────
 
-// AsyncStorage wrapper that handles Web, Node, and Native environments safely.
+// Browser: has window + localStorage
+const isBrowser = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+
+// React Native: lazy check to avoid Node.js / SSR crashes.
+// We must NOT import @react-native-async-storage/async-storage at module level
+// because its CommonJS build accesses `window` during initialization.
+function isReactNative() {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') return true;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Platform } = require('react-native');
+    return Platform && Platform.OS && Platform.OS !== 'web';
+  } catch {
+    return false;
+  }
+}
+
+// Lazy-loaded AsyncStorage — only imported when running in React Native.
+let _asyncStorage: any = null;
+async function getAsyncStorage() {
+  if (!_asyncStorage && isReactNative()) {
+    try {
+      const mod = await import('@react-native-async-storage/async-storage');
+      _asyncStorage = mod.default;
+    } catch {
+      // AsyncStorage not available
+    }
+  }
+  return _asyncStorage;
+}
+
+// ─── Storage adapter (browser → localStorage, native → AsyncStorage, SSR → no-op)
+
 const customStorage = {
   getItem: async (key: string): Promise<string | null> => {
-    if (hasLocalStorage) {
-      return window.localStorage.getItem(key);
-    }
-    // Only use AsyncStorage if we are NOT in a browser and it's available
-    if (!isBrowser && AsyncStorage && typeof AsyncStorage.getItem === 'function') {
-      try {
-        return await AsyncStorage.getItem(key);
-      } catch (e) {
-        return null;
-      }
-    }
+    if (isBrowser) return window.localStorage.getItem(key);
+    const storage = await getAsyncStorage();
+    if (storage) return storage.getItem(key);
     return null;
   },
   setItem: async (key: string, value: string): Promise<void> => {
-    if (hasLocalStorage) {
+    if (isBrowser) {
       window.localStorage.setItem(key, value);
       return;
     }
-    if (!isBrowser && AsyncStorage && typeof AsyncStorage.setItem === 'function') {
-      try {
-        await AsyncStorage.setItem(key, value);
-      } catch (e) {}
-    }
+    const storage = await getAsyncStorage();
+    if (storage) await storage.setItem(key, value);
   },
   removeItem: async (key: string): Promise<void> => {
-    if (hasLocalStorage) {
+    if (isBrowser) {
       window.localStorage.removeItem(key);
       return;
     }
-    if (!isBrowser && AsyncStorage && typeof AsyncStorage.removeItem === 'function') {
-      try {
-        await AsyncStorage.removeItem(key);
-      } catch (e) {}
-    }
+    const storage = await getAsyncStorage();
+    if (storage) await storage.removeItem(key);
   },
 };
 
-// Lazy-initialized singleton so createSupabaseClient() is NOT called at
-// module-load time. Calling it at module evaluation causes a crash because
-// Metro's module resolver may access `window` (via AsyncStorage's lib/module
-// build) before the JS runtime is fully initialized during Expo server start.
+// ─── Lazy-initialized singleton ────────────────────────────────────────────
+// Module-level initialization is deferred so Metro/SSR don't crash.
+
 let _supabase: ReturnType<typeof createSupabaseClient> | null = null;
 
 function getSupabaseClient() {

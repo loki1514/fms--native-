@@ -1,6 +1,6 @@
 'use client';
 /**
- * DetailModal — Tile detail modal matching reference design
+ * DetailModal — Tile detail bottom sheet with design system tokens
  *
  * Shows:
  *  - 3-column metrics grid
@@ -18,10 +18,18 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  Dimensions,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Rect, Line, Circle } from 'react-native-svg';
+import {
+  SPACING,
+  TYPOGRAPHY,
+  MODAL_TOKENS,
+  STATUS_COLORS,
+  CARD_SURFACES,
+  type StatusType,
+} from '@/constants/designSystem';
 
 export type TileVariant = 'tickets' | 'checklist' | 'health' | 'energy';
 
@@ -54,6 +62,7 @@ export interface TileDetail {
 
 const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 const fontDisplay = Platform.OS === 'web' ? 'Poppins' : 'System';
+const SCREEN_H = Dimensions.get('window').height;
 
 // ─── Custom SVG area chart ────────────────────────────────────────────────────
 interface AreaSvgChartProps {
@@ -79,7 +88,6 @@ function AreaSvgChart({ data, color }: AreaSvgChartProps) {
   const getX = (i: number) => padL + (i / (data.length - 1)) * innerW;
   const getY = (v: number) => padT + innerH - ((v - minVal) / range) * innerH;
 
-  // Build smooth bezier area path
   const pts = data?.map((d, i) => ({ x: getX(i), y: getY(d.value) })) || [];
 
   const linePath = pts.reduce((acc, pt, i) => {
@@ -91,10 +99,8 @@ function AreaSvgChart({ data, color }: AreaSvgChartProps) {
   }, '');
 
   const areaPath = `${linePath} L ${pts[pts.length - 1].x},${chartH - padB} L ${pts[0].x},${chartH - padB} Z`;
-
   const gradientId = `chartGrad_${color.replace(/[^a-z0-9]/gi, '')}`;
 
-  // Horizontal grid lines
   const gridLines = [0, 0.25, 0.5, 0.75, 1].map((frac) => {
     const y = padT + frac * innerH;
     return { y, value: Math.round(maxVal - frac * range) };
@@ -111,7 +117,6 @@ function AreaSvgChart({ data, color }: AreaSvgChartProps) {
           </SvgLinearGradient>
         </Defs>
 
-        {/* Grid lines */}
         {gridLines?.map((gl, i) => (
           <Line
             key={i}
@@ -119,15 +124,12 @@ function AreaSvgChart({ data, color }: AreaSvgChartProps) {
             y1={gl.y}
             x2={chartW - padR}
             y2={gl.y}
-            stroke="rgba(255,255,255,0.08)"
+            stroke={CARD_SURFACES.cardBorder}
             strokeWidth={1}
           />
         ))}
 
-        {/* Area fill */}
         <Path d={areaPath} fill={`url(#${gradientId})`} />
-
-        {/* Line stroke */}
         <Path
           d={linePath}
           fill="none"
@@ -137,7 +139,6 @@ function AreaSvgChart({ data, color }: AreaSvgChartProps) {
           strokeLinejoin="round"
         />
 
-        {/* Data points */}
         {pts?.map((pt, i) => (
           <Circle
             key={i}
@@ -151,8 +152,7 @@ function AreaSvgChart({ data, color }: AreaSvgChartProps) {
         ))}
       </Svg>
 
-      {/* X-axis labels */}
-      <View style={[StyleSheet.absoluteFill, { top: chartH - padB + 4 }]}>
+      <View style={[StyleSheet.absoluteFill, { top: chartH - padB + SPACING.xs }]}>
         <View style={{ flexDirection: 'row', paddingLeft: padL, paddingRight: padR }}>
           {data?.map((d, i) => (
             <Text
@@ -201,40 +201,39 @@ export default function DetailModal({ detail, onClose }: DetailModalProps) {
       presentationStyle="overFullScreen"
       onRequestClose={onClose}
     >
-      {/* Backdrop */}
+      {/* Backdrop — solid dim */}
       <TouchableOpacity
         style={styles.backdrop}
         activeOpacity={1}
         onPress={onClose}
       />
 
-      {/* Modal content */}
-      <View style={styles.modalContainer}>
-        <BlurView intensity={80} tint="dark" style={styles.modalContent}>
-          <View style={{ padding: 28, flex: 1 }}>
-            {/* Header */}
-          <View style={styles.modalHeader}>
-            <View style={styles.headerLeft}>
-              <View style={styles.labelRow}>
-                <Ionicons
-                  name={detail.iconName}
-                  size={14}
-                  color="rgba(255,255,255,0.60)"
-                />
-                <Text style={styles.labelText}>{detail.label.toUpperCase()}</Text>
-              </View>
-              <Text style={styles.titleText}>{detail.title}</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={18} color="rgba(255,255,255,0.80)" />
-            </TouchableOpacity>
-          </View>
-
+      {/* Sheet content — solid bg, occludes everything underneath */}
+      <View style={styles.sheetContainer}>
+        <View style={styles.sheetContent}>
           <ScrollView
             style={styles.scrollView}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 40 }}
+            contentContainerStyle={{ paddingBottom: SPACING.xl }}
           >
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.headerLeft}>
+                <View style={styles.labelRow}>
+                  <Ionicons
+                    name={detail.iconName}
+                    size={14}
+                    color="rgba(255,255,255,0.60)"
+                  />
+                  <Text style={styles.labelText}>{detail.label.toUpperCase()}</Text>
+                </View>
+                <Text style={styles.titleText}>{detail.title}</Text>
+              </View>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <Ionicons name="close" size={18} color="rgba(255,255,255,0.80)" />
+              </TouchableOpacity>
+            </View>
+
             {/* Metrics row */}
             <View style={styles.metricsRow}>
               {detail.metrics?.map((m) => (
@@ -255,21 +254,21 @@ export default function DetailModal({ detail, onClose }: DetailModalProps) {
                     {
                       backgroundColor:
                         detail.trendDirection === 'up'
-                          ? 'rgba(31,194,110,0.15)'
-                          : 'rgba(196,160,0,0.15)',
+                          ? STATUS_COLORS.optimal.surface
+                          : STATUS_COLORS.watch.surface,
                     },
                   ]}
                 >
                   <Ionicons
                     name={detail.trendDirection === 'up' ? 'trending-up' : 'trending-down'}
                     size={12}
-                    color={detail.trendDirection === 'up' ? '#1FC26E' : '#C4A000'}
+                    color={detail.trendDirection === 'up' ? STATUS_COLORS.optimal.bg : STATUS_COLORS.watch.bg}
                   />
                   <Text
                     style={[
                       styles.trendText,
                       {
-                        color: detail.trendDirection === 'up' ? '#1FC26E' : '#C4A000',
+                        color: detail.trendDirection === 'up' ? STATUS_COLORS.optimal.bg : STATUS_COLORS.watch.bg,
                       },
                     ]}
                   >
@@ -277,8 +276,6 @@ export default function DetailModal({ detail, onClose }: DetailModalProps) {
                   </Text>
                 </View>
               </View>
-
-              {/* Custom SVG area chart */}
               <AreaSvgChart data={detail.chartData} color={detail.chartColor} />
             </View>
 
@@ -307,8 +304,7 @@ export default function DetailModal({ detail, onClose }: DetailModalProps) {
               <Text style={styles.aiText}>{detail.aiAnalysis}</Text>
             </View>
           </ScrollView>
-          </View>
-        </BlurView>
+        </View>
       </View>
     </Modal>
   );
@@ -317,27 +313,30 @@ export default function DetailModal({ detail, onClose }: DetailModalProps) {
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.60)',
+    backgroundColor: MODAL_TOKENS.backdropColor,
   },
-  modalContainer: {
+  sheetContainer: {
     flex: 1,
     justifyContent: 'flex-end',
+    marginTop: SCREEN_H * 0.15, // 85% height
   },
-  modalContent: {
+  sheetContent: {
     flex: 1,
-    backgroundColor: 'rgba(10,12,20,0.7)',
-    marginTop: 80, // High margin for airy feel
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: MODAL_TOKENS.sheetBg,
+    borderTopLeftRadius: MODAL_TOKENS.sheetRadius,
+    borderTopRightRadius: MODAL_TOKENS.sheetRadius,
     overflow: 'hidden',
+  },
+  scrollView: {
+    flex: 1,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: SPACING.xl,
+    padding: SPACING.xl,
+    paddingBottom: 0,
   },
   headerLeft: {
     flex: 1,
@@ -345,21 +344,21 @@ const styles = StyleSheet.create({
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   labelText: {
     fontFamily: fontSans,
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: TYPOGRAPHY.caption.fontSize,
+    fontWeight: TYPOGRAPHY.caption.fontWeight,
     color: 'rgba(255,255,255,0.60)',
-    letterSpacing: 0.15 * 10,
+    letterSpacing: TYPOGRAPHY.caption.letterSpacing,
     textTransform: 'uppercase',
   },
   titleText: {
-    fontFamily: Platform.OS === 'web' ? 'Poppins' : 'System',
-    fontSize: 22,
-    fontWeight: '700',
+    fontFamily: fontDisplay,
+    fontSize: TYPOGRAPHY.title.fontSize,
+    fontWeight: TYPOGRAPHY.title.fontWeight,
     color: '#FFFFFF',
     letterSpacing: -0.5,
   },
@@ -367,32 +366,30 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: CARD_SURFACES.cardBg,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-  scrollView: {
-    flex: 1,
+    borderColor: CARD_SURFACES.cardBorder,
   },
 
   // Metrics
   metricsRow: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 16,
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderRadius: CARD_SURFACES.cardRadius,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    padding: 20,
-    marginBottom: 16,
+    borderColor: CARD_SURFACES.cardBorder,
+    padding: CARD_SURFACES.cardPadding,
+    marginBottom: SPACING.xl,
+    marginHorizontal: SPACING.xl,
   },
   metricCell: {
     flex: 1,
     alignItems: 'center',
   },
   metricValue: {
-    fontFamily: Platform.OS === 'web' ? 'Poppins' : 'System',
+    fontFamily: fontDisplay,
     fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
@@ -405,27 +402,28 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.50)',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginTop: 4,
+    marginTop: SPACING.xs,
     textAlign: 'center',
   },
 
-  // Chart card
+  // Cards
   card: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 16,
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderRadius: CARD_SURFACES.cardRadius,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    padding: 20,
-    marginBottom: 12,
+    borderColor: CARD_SURFACES.cardBorder,
+    padding: CARD_SURFACES.cardPadding,
+    marginBottom: SPACING.xl,
+    marginHorizontal: SPACING.xl,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   cardTitle: {
-    fontFamily: Platform.OS === 'web' ? 'Poppins' : 'System',
+    fontFamily: fontDisplay,
     fontSize: 14,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.90)',
@@ -433,9 +431,9 @@ const styles = StyleSheet.create({
   trendBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
     borderRadius: 8,
   },
   trendText: {
@@ -443,20 +441,16 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  chartContainer: {
-    alignItems: 'center',
-    marginTop: 8,
-  },
 
   // Breakdown
   breakdownList: {
-    gap: 12,
-    marginTop: 4,
+    gap: SPACING.md,
+    marginTop: SPACING.xs,
   },
   breakdownRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING.md,
   },
   statusDot: {
     width: 8,
@@ -478,20 +472,21 @@ const styles = StyleSheet.create({
   // AI
   aiCard: {
     backgroundColor: 'rgba(167,139,250,0.12)',
-    borderRadius: 16,
+    borderRadius: CARD_SURFACES.cardRadius,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.20)',
-    padding: 20,
-    marginBottom: 12,
+    padding: CARD_SURFACES.cardPadding,
+    marginBottom: SPACING.xl,
+    marginHorizontal: SPACING.xl,
   },
   aiHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   aiTitle: {
-    fontFamily: Platform.OS === 'web' ? 'Poppins' : 'System',
+    fontFamily: fontDisplay,
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',

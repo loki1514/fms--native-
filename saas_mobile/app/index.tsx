@@ -28,6 +28,18 @@ export default function Index() {
     return <Redirect href="/super-admin" />;
   }
 
+  // Lovable test dashboards — email-gated redirect
+  if (membership && membership.properties && membership.properties.length > 0) {
+    const firstProperty = membership.properties[0];
+    const email = user?.email?.toLowerCase() ?? '';
+    if (email === 'srustikarta2022@gmail.com') {
+      return <Redirect href={`/property/${firstProperty.id}/lovable-mst`} />;
+    }
+    if (email === 'lohitexplores@gmail.com') {
+      return <Redirect href={`/property/${firstProperty.id}/lovable-admin`} />;
+    }
+  }
+
   // User is authenticated — redirect to their first property's index (which has role-based routing)
   if (membership && membership.properties && membership.properties.length > 0) {
     const firstProperty = membership.properties[0];

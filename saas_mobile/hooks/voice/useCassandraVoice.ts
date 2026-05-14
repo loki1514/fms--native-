@@ -97,6 +97,9 @@ const HEARTBEAT_INTERVAL_MS = 15000;
 const HEARTBEAT_TIMEOUT_MS = 3000;
 const RATE_LIMIT_BASE_MS = 1000;
 const MAX_RATE_LIMIT_MS = 30000;
+const MAX_RETRIES = 5;
+const RETRY_BASE_MS = 1000;
+const RETRY_MAX_MS = 30000;
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
@@ -123,6 +126,11 @@ export function useCassandraVoice(
   const soundRef = useRef<any>(null);
   const chunkSeqRef = useRef(0);
   const isRecordingRef = useRef(false);
+  const socketGenerationRef = useRef(0);
+  const currentRoomIdRef = useRef<string | undefined>(undefined);
+  const retryCountRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectRef = useRef<(roomId?: string) => Promise<void>>(null as any);
 
   // ─── State setter ──────────────────────────────────────────────────────────
 
@@ -134,6 +142,12 @@ export function useCassandraVoice(
   // ─── Cleanup ───────────────────────────────────────────────────────────────
 
   const cleanup = useCallback(async () => {
+    // Stop reconnect timer
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
     // Stop heartbeat
     if (heartbeatTimerRef.current) {
       clearInterval(heartbeatTimerRef.current);
@@ -167,7 +181,7 @@ export function useCassandraVoice(
 
     // Close WebSocket
     if (wsRef.current) {
-      wsRef.current.close();
+      try { wsRef.current.close(); } catch { /* ignore */ }
       wsRef.current = null;
     }
 
@@ -184,11 +198,10 @@ export function useCassandraVoice(
         wsRef.current.send(JSON.stringify({ type: 'ping' }));
         // Expect pong within HEARTBEAT_TIMEOUT_MS
         heartbeatTimeoutRef.current = setTimeout(() => {
-          console.warn('[CassandraVoice] Heartbeat timeout — reconnecting');
-          cleanup().then(() => {
-            setVoiceState('idle');
-            onError?.('Connection lost. Tap to reconnect.');
-          });
+          console.warn('[CassandraVoice] Heartbeat timeout — will retry');
+          if (wsRef.current) {
+            try { wsRef.current.close(1001, 'Heartbeat timeout'); } catch { /* ignore */ }
+          }
         }, HEARTBEAT_TIMEOUT_MS);
       }
     }, HEARTBEAT_INTERVAL_MS);
@@ -402,6 +415,8 @@ export function useCassandraVoice(
 
   const connect = useCallback(async (roomId?: string) => {
     await cleanup();
+    currentRoomIdRef.current = roomId;
+    retryCountRef.current = 0;
 
     setVoiceState('connecting');
 
@@ -416,10 +431,12 @@ export function useCassandraVoice(
     }
 
     const url = `${WS_URL}/ws/audio/${encodeURIComponent(orgId)}`;
+    const generation = ++socketGenerationRef.current;
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      if (socketGenerationRef.current !== generation) return;
       // Send session_start with token (V2 protocol — token in JSON frame, NOT URL param)
       ws.send(JSON.stringify({
         type: 'session_start',
@@ -428,15 +445,34 @@ export function useCassandraVoice(
       }));
     };
 
-    ws.onmessage = handleMessage;
+    ws.onmessage = (event: MessageEvent) => {
+      if (socketGenerationRef.current !== generation) return;
+      handleMessage(event);
+    };
 
     ws.onerror = () => {
+      if (socketGenerationRef.current !== generation) return;
       onError?.('WebSocket connection failed');
       setVoiceState('error');
     };
 
     ws.onclose = () => {
-      cleanup();
+      if (socketGenerationRef.current !== generation) return;
+      wsRef.current = null;
+      setIsConnected(false);
+
+      if (retryCountRef.current < MAX_RETRIES) {
+        const delay = Math.min(RETRY_BASE_MS * Math.pow(2, retryCountRef.current), RETRY_MAX_MS);
+        retryCountRef.current++;
+        toast.info(`Reconnecting in ${delay / 1000}s… (attempt ${retryCountRef.current}/${MAX_RETRIES})`);
+        setVoiceState('connecting');
+        reconnectTimerRef.current = setTimeout(() => {
+          connectRef.current(currentRoomIdRef.current);
+        }, delay);
+      } else {
+        setVoiceState('error');
+        onError?.('Connection lost. Max retries reached.');
+      }
     };
   }, [orgId, cleanup, handleMessage, onError, setVoiceState]);
 
@@ -444,9 +480,16 @@ export function useCassandraVoice(
 
   const startSession = useCallback(async (roomId?: string) => {
     if (state !== 'idle' && state !== 'error') return;
+    retryCountRef.current = 0;
     await connect(roomId);
     // Recording will start after session_acknowledged is received
   }, [state, connect]);
+
+  // ─── Keep connect ref current for retry callbacks ───────────────────────────
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   // ─── Cleanup on unmount ────────────────────────────────────────────────────
 

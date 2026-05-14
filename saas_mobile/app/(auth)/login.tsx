@@ -76,7 +76,7 @@ export default function LoginScreen() {
 
   // ─── Redirect helper ────────────────────────────────────────────────────────
   const resolveAndRedirect = async (authUserId: string) => {
-    // 1. Fetch auth user email first (needed for Lovable Super Admin gate)
+    // 1. Fetch auth user data
     const { data: { user: authUserData } } = await supabase.auth.getUser();
 
     // Lovable Super Admin — email-gated redirect (before any role logic)
@@ -84,6 +84,7 @@ export default function LoginScreen() {
       router.replace('/super-admin' as any);
       return;
     }
+
 
     // 2. Fetch user profile
     const { data: userProfile, error: profileError } = await (supabase
@@ -158,6 +159,17 @@ export default function LoginScreen() {
         mst: 'mst',
         vendor: 'vendor',
       };
+      // Lovable test dashboards — email-gated redirects
+      const userEmail = authUserData?.email?.toLowerCase() ?? '';
+      if (userEmail === 'srustikarta2022@gmail.com') {
+        router.replace(`/property/${pId}/lovable-mst`);
+        return;
+      }
+      if (userEmail === 'lohitexplores@gmail.com') {
+        router.replace(`/property/${pId}/lovable-admin`);
+        return;
+      }
+
       const route = roleRouteMap[role] || 'dashboard';
       router.replace(`/property/${pId}/${route}`);
       return;

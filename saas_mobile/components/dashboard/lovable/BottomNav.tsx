@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, Text, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import { Ionicons } from '@expo/vector-icons';
 import { EdgeInsets } from 'react-native-safe-area-context';
 import SidekickFace, { type FaceState } from '@/components/dashboard/SidekickFace';
@@ -48,7 +48,7 @@ export default function BottomNav({
   })();
 
   return (
-    <BlurView
+    <SafeBlurView
       intensity={40}
       tint="dark"
       style={[
@@ -118,7 +118,7 @@ export default function BottomNav({
           Profile
         </Text>
       </TouchableOpacity>
-    </BlurView>
+    </SafeBlurView>
   );
 }
 

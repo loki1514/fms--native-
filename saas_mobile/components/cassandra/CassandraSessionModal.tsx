@@ -2,6 +2,11 @@
  * Cassandra Session Modal — Full-screen voice + chat interaction
  *
  * Opens as a true full-screen modal overlay when the orb is tapped.
+ * Matches the original intended design: orb, capability grid, recent-chat
+ * suggestions, and the Cassandra input bar.
+ *
+ * Chat messages are bottom-aligned (newest at the bottom) like a normal
+ * text-chat app (WhatsApp / iMessage style).
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -18,7 +23,6 @@ import {
   Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import {
   smartQuery,
@@ -33,9 +37,14 @@ import {
   Colors,
   Gradients,
   Typography,
-  Spacing,
+  Spacing as CassSpacing,
   Radius,
 } from '@/constants/cassandra-theme';
+import {
+  MODAL_TOKENS,
+  SPACING,
+  CARD_SURFACES,
+} from '@/constants/designSystem';
 import SidekickFace, { type FaceState } from '@/components/dashboard/SidekickFace';
 import Svg, { Path } from 'react-native-svg';
 
@@ -60,12 +69,45 @@ const CloseIcon = ({ size = 18, color = '#fff' }: { size?: number; color?: strin
   </Svg>
 );
 
+const AttachmentIcon = ({ size = 20, color = '#9CA3AF' }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+  </Svg>
+);
+
+const PersonIcon = ({ size = 20, color = '#9CA3AF' }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </Svg>
+);
+
 // ─── Skill Chip ────────────────────────────────────────────────────────────
-const SkillChip = ({ label, onPress }: { label: string; onPress: () => void }) => (
-  <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={styles.chip}>
-    <Text style={styles.chipText}>{label}</Text>
+const SkillChip = ({ label, onPress, variant = 'default' }: { label: string; onPress: () => void; variant?: 'default' | 'muted' }) => (
+  <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={[styles.chip, variant === 'muted' && styles.chipMuted]}>
+    <Text style={[styles.chipText, variant === 'muted' && styles.chipTextMuted]}>{label}</Text>
   </TouchableOpacity>
 );
+
+// ─── Chat Bubble ───────────────────────────────────────────────────────────
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'cassandra';
+  text: string;
+}
+
+const ChatBubble = ({ message }: { message: ChatMessage }) => {
+  const isUser = message.role === 'user';
+  return (
+    <View style={[styles.bubbleRow, isUser ? styles.bubbleRowRight : styles.bubbleRowLeft]}>
+      <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleBot]}>
+        <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextBot]}>
+          {message.text}
+        </Text>
+      </View>
+    </View>
+  );
+};
 
 // ─── Status Ring (orb state visualization) ─────────────────────────────────
 const StatusRing = ({ voiceState }: { voiceState: string }) => {
@@ -112,17 +154,35 @@ const StatusRing = ({ voiceState }: { voiceState: string }) => {
   );
 };
 
+// ─── Capability Grid ───────────────────────────────────────────────────────
+const WHAT_I_CAN_DO = [
+  { label: 'Triage tickets', action: 'Triage open tickets', endpoint: 'ticket' as const },
+  { label: 'Explain energy spikes', action: 'Explain recent energy spikes', endpoint: 'research' as const },
+  { label: 'Find on-call staff', action: 'Who is on call right now?', endpoint: undefined },
+  { label: 'Summarise reports', action: 'Summarise this week\'s reports', endpoint: 'report' as const },
+];
+
+const RECENT_CHATS = [
+  { label: 'Show critical tickets at SS Plaza', action: 'Show critical tickets at SS Plaza', endpoint: 'ticket' as const },
+  { label: 'Energy spike yesterday — why?', action: 'Why was there an energy spike yesterday?', endpoint: 'research' as const },
+  { label: 'Open checklist items for today', action: 'Open checklist items for today', endpoint: undefined },
+  { label: 'Compare health across properties', action: 'Compare health scores across properties', endpoint: 'research' as const },
+  { label: 'Who\'s on call for Bajaj Kolkata?', action: 'Who is on call for Bajaj Kolkata?', endpoint: undefined },
+];
+
 // ─── Main Modal ────────────────────────────────────────────────────────────
 interface CassandraSessionModalProps {
   visible: boolean;
   onClose: () => void;
   orgId: string;
+  initialMode?: 'text' | 'voice';
 }
 
 export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   visible,
   onClose,
   orgId,
+  initialMode = 'text',
 }) => {
   const insets = useSafeAreaInsets();
   const {
@@ -135,12 +195,11 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     setLastResponse,
   } = useCassandraStore();
   const [inputText, setInputText] = useState('');
-  const [inputMode, setInputMode] = useState<'text' | 'voice'>('text');
+  const [inputMode, setInputMode] = useState<'text' | 'voice'>(initialMode);
   const scrollRef = useRef<ScrollView>(null);
   const orbScale = useRef(new Animated.Value(1)).current;
   const { speak, stop: stopSpeaking } = useTextToSpeech();
 
-  // Cassandra voice session
   const voice = useCassandraVoice(orgId, {
     onStateChange: useCassandraStore.getState().setVoiceState,
     onTranscript: (text, speakerId) => {
@@ -164,7 +223,6 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     },
   });
 
-  // Breathing animation when idle
   useEffect(() => {
     if (voiceState !== 'idle' || !visible) return;
     const breathe = Animated.loop(
@@ -176,11 +234,6 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     breathe.start();
     return () => breathe.stop();
   }, [voiceState, visible]);
-
-  // Auto-scroll transcript
-  useEffect(() => {
-    scrollRef.current?.scrollToEnd({ animated: true });
-  }, [messageHistory]);
 
   const handleOrbPress = () => {
     if (voiceState === 'speaking') {
@@ -268,13 +321,15 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   }, [orgId, speak, addMessage, setVoiceState]);
 
   const statusLabels: Record<string, string> = {
-    idle: inputMode === 'voice' ? 'Tap orb to start voice' : 'Tap face to speak',
+    idle: 'Tap face to speak',
     recording: 'Listening… speak now',
     connecting: 'Connecting…',
     processing: 'Cassandra is thinking…',
     speaking: 'Cassandra is speaking…',
     error: 'Something went wrong. Tap to retry.',
   };
+
+  const hasMessages = messageHistory.length > 0;
 
   return (
     <Modal
@@ -284,43 +339,21 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        {/* Background */}
-        <LinearGradient
-          colors={Gradients.radialBg}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+      {/* Solid background — must fully occlude everything behind */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: MODAL_TOKENS.sheetBg }]} />
 
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: isConnected ? Colors.success : Colors.error },
-              ]}
-            />
-            <Text style={styles.headerTitle}>Cassandra</Text>
-          </View>
-          <View style={styles.headerRight}>
-            {/* Mode toggle */}
-            <View style={styles.modeToggle}>
-              <TouchableOpacity
-                onPress={() => setInputMode('text')}
-                style={[styles.modeBtn, inputMode === 'text' && styles.modeBtnActive]}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.modeBtnText, inputMode === 'text' && styles.modeBtnTextActive]}>Text</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setInputMode('voice')}
-                style={[styles.modeBtn, inputMode === 'voice' && styles.modeBtnActive]}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.modeBtnText, inputMode === 'voice' && styles.modeBtnTextActive]}>Voice</Text>
-              </TouchableOpacity>
+        <View style={styles.headerSurface}>
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: isConnected ? Colors.success : Colors.error },
+                ]}
+              />
+              <Text style={styles.headerTitle}>Cassandra</Text>
             </View>
             <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
               <CloseIcon />
@@ -328,90 +361,107 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
           </View>
         </View>
 
-        {/* Drag handle */}
-        <View style={styles.dragHandle} />
-
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={80}
         >
-          <ScrollView
-            ref={scrollRef}
-            style={styles.flex}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Orb Section */}
-            <View style={styles.orbSection}>
-              <StatusRing voiceState={voiceState} />
-              <TouchableOpacity onPress={handleOrbPress} activeOpacity={0.9}>
-                <Animated.View style={{ transform: [{ scale: orbScale }] }}>
-                  <SidekickFace
-                    size={140}
-                    state={voiceState === 'recording' || voiceState === 'connecting' ? 'listening' : voiceState === 'processing' ? 'thinking' : voiceState === 'error' ? 'alert' : voiceState as FaceState}
-                  />
-                </Animated.View>
-              </TouchableOpacity>
-              <Text style={[styles.statusLabel, { color: voiceState === 'speaking' ? Colors.violet : voiceState === 'recording' ? Colors.cyan : voiceState === 'processing' ? Colors.warning : voiceState === 'error' ? Colors.error : Colors.textMuted }]}>
-                {statusLabels[voiceState] ?? 'Tap face to speak'}
-              </Text>
-            </View>
-
-            {/* Transcript */}
-            {messageHistory.length > 0 ? (
-              <View style={styles.transcriptBox}>
-                {messageHistory.map((msg) => (
-                  <Text key={msg.id} style={styles.transcriptText}>
-                    <Text style={styles.transcriptRole}>{msg.role === 'user' ? '🧑 ' : '🤖 '}</Text>
-                    {msg.text}
-                    {'\n\n'}
-                  </Text>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.emptyBox}>
-                <Text style={styles.emptyText}>
-                  Ask Cassandra anything about your properties, tickets, or team.
+          {hasMessages ? (
+            /* ─── CHAT MODE: bottom-aligned messages ─── */
+            <ScrollView
+              ref={scrollRef}
+              style={styles.flex}
+              contentContainerStyle={styles.chatScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {[...messageHistory].reverse().map((msg) => (
+                <ChatBubble key={msg.id} message={msg as ChatMessage} />
+              ))}
+            </ScrollView>
+          ) : (
+            /* ─── EMPTY STATE: orb + suggestions ─── */
+            <ScrollView
+              style={styles.flex}
+              contentContainerStyle={styles.emptyScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Orb Section */}
+              <View style={styles.orbSection}>
+                <StatusRing voiceState={voiceState} />
+                <TouchableOpacity onPress={handleOrbPress} activeOpacity={0.9}>
+                  <Animated.View style={{ transform: [{ scale: orbScale }] }}>
+                    <SidekickFace
+                      size={140}
+                      state={voiceState === 'recording' || voiceState === 'connecting' ? 'listening' : voiceState === 'processing' ? 'thinking' : voiceState === 'error' ? 'alert' : voiceState as FaceState}
+                    />
+                  </Animated.View>
+                </TouchableOpacity>
+                <Text style={[styles.statusLabel, { color: voiceState === 'speaking' ? Colors.violet : voiceState === 'recording' ? Colors.cyan : voiceState === 'processing' ? Colors.warning : voiceState === 'error' ? Colors.error : Colors.textMuted }]}>
+                  {statusLabels[voiceState] ?? 'Tap face to speak'}
                 </Text>
               </View>
-            )}
 
-            {/* Quick Skills */}
-            <View style={styles.skillsRow}>
-              <SkillChip label="Dashboard" onPress={() => handleSkill('Show me the dashboard')} />
-              <SkillChip label="Tickets" onPress={() => handleSkill('Any open tickets?', 'ticket')} />
-              <SkillChip label="Report" onPress={() => handleSkill('Generate weekly report', 'report')} />
-              <SkillChip label="Research" onPress={() => handleSkill('Research HVAC vendors', 'research')} />
-            </View>
-          </ScrollView>
+              {/* ─── WHAT I CAN DO ─── */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>WHAT I CAN DO</Text>
+                <View style={styles.capabilityGrid}>
+                  {WHAT_I_CAN_DO.map((item) => (
+                    <SkillChip
+                      key={item.label}
+                      label={item.label}
+                      variant="muted"
+                      onPress={() => handleSkill(item.action, item.endpoint)}
+                    />
+                  ))}
+                </View>
+              </View>
+
+              {/* ─── BASED ON RECENT CHATS ─── */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>BASED ON RECENT CHATS</Text>
+                <View style={styles.recentChipsWrap}>
+                  {RECENT_CHATS.map((item) => (
+                    <SkillChip
+                      key={item.label}
+                      label={item.label}
+                      variant="muted"
+                      onPress={() => handleSkill(item.action, item.endpoint)}
+                    />
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+          )}
 
           {/* Input Bar */}
           <View
             style={[
               styles.inputBar,
-              { paddingBottom: Math.max(insets.bottom, 12) },
+              { paddingBottom: Math.max(insets.bottom, SPACING.md) },
             ]}
           >
-            <TouchableOpacity
-              onPress={handleOrbPress}
-              style={[
-                styles.micBtn,
-                { backgroundColor: voiceState === 'recording' ? Colors.cyan : Colors.violet },
-              ]}
-              activeOpacity={0.8}
-            >
-              <MicIcon size={18} color="#fff" />
+            <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}>
+              <AttachmentIcon size={20} />
             </TouchableOpacity>
-            <TextInput
-              style={styles.input}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder="Type a command or question…"
-              placeholderTextColor={Colors.textMuted}
-              onSubmitEditing={handleSend}
-              returnKeyType="send"
-            />
+            <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}>
+              <PersonIcon size={20} />
+            </TouchableOpacity>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder="Ask Cassandra anything…"
+                placeholderTextColor={Colors.textMuted}
+                onSubmitEditing={handleSend}
+                returnKeyType="send"
+              />
+              <TouchableOpacity onPress={handleOrbPress} activeOpacity={0.8} style={styles.micBtnInline}>
+                <MicIcon size={16} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity onPress={handleSend} activeOpacity={0.7} style={styles.sendBtn}>
               <SendIcon />
             </TouchableOpacity>
@@ -425,53 +475,27 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.bgDeep,
+    backgroundColor: MODAL_TOKENS.sheetBg,
   },
   flex: {
     flex: 1,
+  },
+  headerSurface: {
+    backgroundColor: MODAL_TOKENS.sheetBg,
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_SURFACES.cardBorder,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderGlass,
+    paddingHorizontal: CassSpacing.lg,
+    paddingVertical: CassSpacing.md,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  modeToggle: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: Radius.lg,
-    padding: 2,
-    borderWidth: 1,
-    borderColor: Colors.borderGlass,
-  },
-  modeBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.lg - 2,
-  },
-  modeBtnActive: {
-    backgroundColor: Colors.violet,
-  },
-  modeBtnText: {
-    ...Typography.caption,
-    color: Colors.textMuted,
-    fontWeight: '500',
-  },
-  modeBtnTextActive: {
-    color: Colors.textPrimary,
+    gap: SPACING.sm,
   },
   statusDot: {
     width: 8,
@@ -486,29 +510,67 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: CARD_SURFACES.cardBg,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.borderGlass,
+    borderColor: CARD_SURFACES.cardBorder,
   },
-  dragHandle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.20)',
-    marginTop: 8,
-    marginBottom: 4,
+  /* ─── Chat (bottom-aligned) ─── */
+  chatScrollContent: {
+    flexDirection: 'column-reverse',
+    paddingHorizontal: CassSpacing.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.md,
+    flexGrow: 1,
+    justifyContent: 'flex-start',
   },
-  scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl,
+  bubbleRow: {
+    width: '100%',
+    marginBottom: CassSpacing.sm,
+  },
+  bubbleRowLeft: {
+    alignItems: 'flex-start',
+  },
+  bubbleRowRight: {
+    alignItems: 'flex-end',
+  },
+  bubble: {
+    maxWidth: '80%',
+    borderRadius: Radius.xl,
+    paddingHorizontal: CassSpacing.md,
+    paddingVertical: CassSpacing.sm,
+  },
+  bubbleBot: {
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+    borderTopLeftRadius: Radius.sm,
+  },
+  bubbleUser: {
+    backgroundColor: Colors.violet,
+    borderTopRightRadius: Radius.sm,
+  },
+  bubbleText: {
+    ...Typography.body,
+    lineHeight: 22,
+  },
+  bubbleTextBot: {
+    color: Colors.textPrimary,
+  },
+  bubbleTextUser: {
+    color: '#fff',
+  },
+  /* ─── Empty state ─── */
+  emptyScrollContent: {
+    paddingHorizontal: CassSpacing.lg,
+    paddingBottom: SPACING.xl,
+    flexGrow: 1,
   },
   orbSection: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.xl,
+    paddingVertical: SPACING.xl,
     minHeight: 220,
   },
   statusRing: {
@@ -520,39 +582,29 @@ const styles = StyleSheet.create({
   },
   statusLabel: {
     ...Typography.bodySmall,
-    marginTop: Spacing.md,
+    marginTop: SPACING.md,
     fontWeight: '500',
   },
-  transcriptBox: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderGlass,
-    marginBottom: Spacing.lg,
+  section: {
+    marginBottom: CassSpacing.xl,
   },
-  transcriptText: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    lineHeight: 24,
-  },
-  transcriptRole: {
-    fontWeight: '700',
-  },
-  emptyBox: {
-    alignItems: 'center',
-    paddingVertical: Spacing.xxl,
-  },
-  emptyText: {
-    ...Typography.body,
+  sectionTitle: {
+    ...Typography.caption,
     color: Colors.textMuted,
-    textAlign: 'center',
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    marginBottom: CassSpacing.md,
+    textTransform: 'uppercase',
   },
-  skillsRow: {
+  capabilityGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
+    gap: CassSpacing.sm,
+  },
+  recentChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: CassSpacing.sm,
   },
   chip: {
     backgroundColor: 'rgba(139,92,246,0.15)',
@@ -562,43 +614,69 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(139,92,246,0.30)',
   },
+  chipMuted: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: Radius.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   chipText: {
     ...Typography.caption,
     color: Colors.violetLight,
     fontWeight: '500',
   },
+  chipTextMuted: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+  },
+  /* ─── Input Bar ─── */
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
+    gap: CassSpacing.sm,
+    paddingHorizontal: CassSpacing.lg,
+    paddingTop: CassSpacing.md,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderGlass,
-    backgroundColor: 'rgba(11,15,25,0.90)',
+    borderTopColor: CARD_SURFACES.cardBorder,
+    backgroundColor: MODAL_TOKENS.sheetBg,
   },
-  micBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+    paddingLeft: CassSpacing.md,
   },
   input: {
     flex: 1,
     height: 44,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.md,
     color: Colors.textPrimary,
     ...Typography.body,
-    borderWidth: 1,
-    borderColor: Colors.borderGlass,
+    paddingRight: 4,
+  },
+  micBtnInline: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.violet,
     alignItems: 'center',
     justifyContent: 'center',

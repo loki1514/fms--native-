@@ -3,7 +3,9 @@ import { StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withRepeat,
+  withTiming,
+  Easing,
 } from 'react-native-reanimated';
 
 interface PulseDotProps {
@@ -15,29 +17,16 @@ export default function PulseDot({ color }: PulseDotProps) {
   const opacity = useSharedValue(1);
 
   React.useEffect(() => {
-    scale.value = withSpring(0.85, { damping: 10, stiffness: 100 });
-    opacity.value = withSpring(0.5, { damping: 10, stiffness: 100 });
-    const t1 = setTimeout(() => {
-      scale.value = withSpring(1, { damping: 10, stiffness: 100 });
-      opacity.value = withSpring(1, { damping: 10, stiffness: 100 });
-    }, 800);
-    const t2 = setTimeout(() => {
-      scale.value = withSpring(0.85, { damping: 10, stiffness: 100 });
-      opacity.value = withSpring(0.5, { damping: 10, stiffness: 100 });
-    }, 1600);
-    const interval = setInterval(() => {
-      scale.value = withSpring(0.85, { damping: 10, stiffness: 100 });
-      opacity.value = withSpring(0.5, { damping: 10, stiffness: 100 });
-      setTimeout(() => {
-        scale.value = withSpring(1, { damping: 10, stiffness: 100 });
-        opacity.value = withSpring(1, { damping: 10, stiffness: 100 });
-      }, 800);
-    }, 1600);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearInterval(interval);
-    };
+    scale.value = withRepeat(
+      withTiming(0.85, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+    opacity.value = withRepeat(
+      withTiming(0.5, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
   }, [scale, opacity]);
 
   const animStyle = useAnimatedStyle(() => ({

@@ -24,6 +24,7 @@ import { useTheme } from '@/context';
 import SignOutModal from '../ui/SignOutModal';
 import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
 import StockScannerModal from '../stock/StockScannerModal';
+import FloatingMenu from '@/components/ui/FloatingMenu';
 
 const DRAWER_WIDTH = 280;
 
@@ -37,7 +38,6 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
 
   const [activeTab, setActiveTab] = useState<SSMTab>('overview');
   const [userRole, setUserRole] = useState('');
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -213,69 +213,6 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
 
   const isManager = userRole.toLowerCase().includes('manager') || userRole.toLowerCase().includes('supervisor');
   const skillColor = '#8B5CF6'; // Purple for soft services
-
-  // ─── Sidebar ───────────────────────────────────────────────────────────────
-  function SSMSidebar() {
-    const bgColor = isDark ? '#1A1F2E' : '#FFFFFF';
-    const borderColor = isDark ? '#2D3748' : '#F1F5F9';
-    const textPrimary = isDark ? '#F8FAFC' : '#1A2332';
-    const textSecondary = isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)';
-    const primary = '#708F96';
-
-    const SidebarItem = ({ icon, label, isActive, onPress }: { icon: string; label: string; isActive?: boolean; onPress: () => void }) => (
-      <TouchableOpacity style={[styles.drawerItem, isActive && { backgroundColor: primary }]} onPress={onPress} activeOpacity={0.7}>
-        <Ionicons name={isActive ? (icon.replace('-outline', '') as any) : icon as any} size={20}
-          color={isActive ? '#FFF' : (isDark ? 'rgba(230,235,238,0.6)' : 'rgba(26,35,50,0.6)')} />
-        <Text style={[styles.drawerItemLabel, { color: isActive ? '#FFF' : textPrimary }]}>{label}</Text>
-      </TouchableOpacity>
-    );
-
-    return (
-      <>
-        <Pressable style={[styles.drawerOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]} onPress={() => setDrawerOpen(false)} />
-        <View style={[styles.drawer, { backgroundColor: bgColor, borderRightColor: borderColor }]}>
-          <View style={[styles.drawerHeader, { borderBottomColor: borderColor, paddingTop: Math.max(insets.top, 16) }]}>
-            <Image source={require('../../assets/images/autopilot-logo-new.png')} style={{ height: 52, width: 220, resizeMode: 'stretch', marginLeft: -4 }} />
-            <TouchableOpacity style={styles.drawerCloseBtn} onPress={() => setDrawerOpen(false)}>
-              <Ionicons name="close" size={22} color={textSecondary} />
-            </TouchableOpacity>
-          </View>
-          <View style={[styles.drawerBadge, { backgroundColor: isDark ? 'rgba(112,143,150,0.1)' : 'rgba(112,143,150,0.06)', borderColor: isDark ? 'rgba(112,143,150,0.15)' : 'rgba(112,143,150,0.1)' }]}>
-            <Text style={[styles.drawerBadgeText, { color: primary }]}>{isManager ? 'SOFT SERVICE MANAGER' : 'STAFF SOFT SERVICE'}</Text>
-          </View>
-
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 8 }}>
-            <Text style={[styles.drawerSectionLabel, { color: textSecondary }]}>OPERATIONS</Text>
-            <SidebarItem icon="grid-outline" label="Overview" isActive={activeTab === 'overview'} onPress={() => { setActiveTab('overview'); setDrawerOpen(false); }} />
-            {isManager && (
-              <SidebarItem icon="cube-outline" label="Stock Management" isActive={activeTab === 'stock'} onPress={() => { setActiveTab('stock'); setDrawerOpen(false); }} />
-            )}
-            <SidebarItem icon="checkbox-outline" label="Checklists" isActive={activeTab === 'checklist'} onPress={() => { setActiveTab('checklist'); setDrawerOpen(false); }} />
-
-            <Text style={[styles.drawerSectionLabel, { color: textSecondary, marginTop: 12 }]}>SYSTEM & PERSONAL</Text>
-            <SidebarItem icon="settings-outline" label="Settings" onPress={() => { setDrawerOpen(false); router.push('/property/' + propertyId + '/settings' as any); }} />
-            <SidebarItem icon="person-outline" label="Profile" isActive={activeTab === 'profile'} onPress={() => { setActiveTab('profile'); setDrawerOpen(false); }} />
-          </ScrollView>
-
-          <View style={[styles.drawerBottom, { borderTopColor: borderColor }]}>
-            <View style={[styles.drawerUserCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)', borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)' }]}>
-              <View style={[styles.drawerAvatar, { backgroundColor: 'rgba(112,143,150,0.12)' }]}>
-                <Text style={styles.drawerAvatarText}>{getInitials(user?.user_metadata?.full_name ?? user?.email ?? 'U')}</Text>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.drawerUserName, { color: textPrimary }]} numberOfLines={1}>{user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}</Text>
-                <Text style={[styles.drawerUserRole, { color: textSecondary }]} numberOfLines={1}>{userRole}</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={[styles.drawerSignOut, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FEF2F2' }]} onPress={() => { setDrawerOpen(false); setShowSignOutModal(true); }} activeOpacity={0.7}>
-              <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-              <Text style={styles.drawerSignOutText}>Sign Out</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </>
-    );
-  }
 
   // ─── Overview Tab ───────────────────────────────────────────────────────────
   const renderOverviewTab = () => (
@@ -510,13 +447,20 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      {drawerOpen && <SSMSidebar />}
+      <FloatingMenu
+        title={isManager ? 'Soft Service Manager' : 'Staff Soft Service'}
+        items={[
+          { label: 'Overview', icon: 'grid', onPress: () => setActiveTab('overview') },
+          ...(isManager ? [{ label: 'Stock', icon: 'cube', onPress: () => setActiveTab('stock') }] : []),
+          { label: 'Checklists', icon: 'checkbox', onPress: () => setActiveTab('checklist') },
+          { label: 'Settings', icon: 'settings', onPress: () => router.push('/property/' + propertyId + '/settings' as any) },
+          { label: 'Profile', icon: 'person', onPress: () => setActiveTab('profile') },
+        ]}
+        footer={{ label: 'Sign Out', icon: 'log-out-outline', danger: true, onPress: () => setShowSignOutModal(true) }}
+      />
 
       {/* Top Nav */}
       <View style={[styles.topNav, { backgroundColor: colors.surface, borderBottomColor: colors.border, paddingTop: Math.max(insets.top, 16) }]}>
-        <TouchableOpacity onPress={() => setDrawerOpen(true)} activeOpacity={0.7}>
-          <Ionicons name="menu-outline" size={26} color={colors.textPrimary} />
-        </TouchableOpacity>
         <Image source={require('../../assets/images/autopilot-logo-new.png')} style={{ height: 48, width: 200, resizeMode: 'stretch' }} />
         <View style={styles.headerRightGroup}>
           <TouchableOpacity
