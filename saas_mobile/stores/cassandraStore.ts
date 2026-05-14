@@ -134,7 +134,6 @@ export const useCassandraStore = create<CassandraStore>((set, get) => ({
 
   // ── Reset ───────────────────────────────────────────────────────────
   reset: () => {
-    const { cleanup } = get();
     set(initialState);
   },
 }));

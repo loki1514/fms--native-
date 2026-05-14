@@ -511,7 +511,9 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
         `${basePath}/profile`,
       ];
     case 'mst':
+    case 'maintenance_staff':
       return [
+        `${basePath}/lovable-mst`,
         `${basePath}/mst`,
         `${basePath}/dashboard`,
         `${basePath}/tickets`,
@@ -562,7 +564,8 @@ export function getRoleDefaultPath(role: string, propertyId: string): string {
     case 'soft_service_manager':
       return `${basePath}/soft-service-manager`;
     case 'mst':
-      return `${basePath}/mst`;
+    case 'maintenance_staff':
+      return `${basePath}/lovable-mst`;
     case 'vendor':
       return `${basePath}/vendor`;
     default:

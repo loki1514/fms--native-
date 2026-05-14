@@ -110,26 +110,16 @@ export default function CassandraHomeScreen() {
     }
   };
 
-  const handleTeamPress = async () => {
-    if (!orgId) return;
-    setIsLoadingDock(true);
-    try {
-      const data = await getOnboardingState(orgId);
-      // Store team data in appStore for the users modal to render
-      setActiveModal('users');
-    } catch {
-      toast.error('Could not load team data.');
-    } finally {
-      setIsLoadingDock(false);
-    }
+  const handleTeamPress = () => {
+    toast.info('Team features coming soon');
   };
 
   const handleFilesPress = () => {
-    setActiveModal('files');
+    toast.info('Files coming soon');
   };
 
   const handleChatPress = () => {
-    setActiveModal('chat');
+    setSessionOpen(true);
   };
 
   // Orb breathing animation (idle)
@@ -230,7 +220,7 @@ export default function CassandraHomeScreen() {
               <TouchableOpacity
                 key={i}
                 style={styles.promptChip}
-                onPress={() => {}}
+                onPress={() => setSessionOpen(true)}
                 activeOpacity={0.7}
               >
                 <Ionicons name="sparkles" size={11} color="rgba(167,139,250,0.9)" />

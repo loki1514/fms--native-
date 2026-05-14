@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -136,6 +137,80 @@ function ProgressBar({ percent, color }: { percent: number; color: string }) {
   );
 }
 
+// ─── Health Score Ring ────────────────────────────────────────────────────────
+function HealthScoreRing({ score, size = 120 }: { score: number; size?: number }) {
+  const color = score >= 80 ? '#10B981' : score >= 50 ? '#F59E0B' : '#EF4444';
+  const circumference = 2 * Math.PI * ((size - 12) / 2);
+  const strokeDashoffset = circumference * (1 - score / 100);
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={(size - 12) / 2}
+          stroke="rgba(255,255,255,0.08)"
+          strokeWidth={8}
+          fill="none"
+        />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={(size - 12) / 2}
+          stroke={color}
+          strokeWidth={8}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          transform={`rotate(-90, ${size / 2}, ${size / 2})`}
+        />
+      </Svg>
+      <View style={{ position: 'absolute', alignItems: 'center' }}>
+        <Text style={{ fontFamily: fontDisplay, fontSize: 28, fontWeight: '700', color: '#FFFFFF' }}>{score}</Text>
+        <Text style={{ fontFamily: fontSans, fontSize: 10, color: 'rgba(255,255,255,0.50)', marginTop: -2 }}>HEALTH</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Attention Card ───────────────────────────────────────────────────────────
+function AttentionCard({ item, index, onAction }: { item: any; index: number; onAction: () => void }) {
+  const severityColor =
+    item.severity === 'critical' ? '#EF4444' :
+    item.severity === 'high' ? '#F59E0B' :
+    item.severity === 'medium' ? '#3B82F6' : '#6B7280';
+  const iconName =
+    item.type === 'sla_risk' ? 'timer-outline' :
+    item.type === 'unassigned_critical' ? 'alert-circle-outline' :
+    item.type === 'unassigned_high' ? 'warning-outline' :
+    item.type === 'stale_ticket' ? 'time-outline' :
+    item.type === 'sop_missed' ? 'checkbox-outline' : 'information-circle-outline';
+
+  return (
+    <Animated.View entering={FadeInUp.delay(index * 100).duration(500)}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={onAction}
+        style={[styles.attentionCard, { borderLeftColor: severityColor, borderLeftWidth: 3 }]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.attentionIconBadge, { backgroundColor: severityColor + '15' }]}>
+            <Ionicons name={iconName} size={16} color={severityColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.attentionTitle}>{item.title}</Text>
+            <Text style={styles.attentionDesc} numberOfLines={2}>{item.description}</Text>
+          </View>
+          <View style={[styles.attentionActionBadge, { backgroundColor: severityColor + '15' }]}>
+            <Text style={[styles.attentionActionText, { color: severityColor }]}>{item.action_label}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 // ─── Tab Button ───────────────────────────────────────────────────────────────
 function TabButton({
   label,
@@ -156,42 +231,6 @@ function TabButton({
   );
 }
 
-// ─── User Card ────────────────────────────────────────────────────────────────
-function UserCard({ user }: { user: any }) {
-  return (
-    <View style={styles.listCard}>
-      <View style={styles.listAvatar}>
-        <Text style={styles.listAvatarText}>
-          {(user.full_name ?? user.email ?? 'U').charAt(0).toUpperCase()}
-        </Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.listName}>{user.full_name || 'Unknown'}</Text>
-        <Text style={styles.listMeta}>{user.email}</Text>
-        <Text style={styles.listRole}>{user.role || 'Member'}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
-    </View>
-  );
-}
-
-// ─── Visitor Card ─────────────────────────────────────────────────────────────
-function VisitorCard({ visitor }: { visitor: any }) {
-  return (
-    <View style={styles.listCard}>
-      <View style={styles.listAvatar}>
-        <Text style={styles.listAvatarText}>{(visitor.name ?? 'V').charAt(0).toUpperCase()}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.listName}>{visitor.name || 'Guest'}</Text>
-        <Text style={styles.listMeta}>{visitor.purpose || 'General Visit'}</Text>
-        <Text style={styles.listRole}>{visitor.status || 'Checked In'}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
-    </View>
-  );
-}
-
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const { user, signOut, membership } = useAuth();
@@ -205,6 +244,8 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [showChat, setShowChat] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
   const [showTileDetail, setShowTileDetail] = useState<TileDetail | null>(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [visitorSearch, setVisitorSearch] = useState('');
 
   // Data state
   const [tickets, setTickets] = useState<any[]>([]);
@@ -215,6 +256,12 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [propertyUsers, setPropertyUsers] = useState<any[]>([]);
   const [visitors, setVisitors] = useState<any[]>([]);
   const [propertyName, setPropertyName] = useState('Property');
+
+  // Leadership cockpit state
+  const [healthScore, setHealthScore] = useState<any>(null);
+  const [attentionItems, setAttentionItems] = useState<any[]>([]);
+  const [ticketFunnel, setTicketFunnel] = useState<any[]>([]);
+  const [showHealthDetail, setShowHealthDetail] = useState(false);
 
   // Cassandra voice state
   const voiceState = useCassandraStore((s) => s.voiceState);
@@ -295,6 +342,26 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         .gte('check_in_time', today)
         .order('check_in_time', { ascending: false });
       if (visitorData) setVisitors(visitorData);
+
+      // Health score
+      const { data: healthData } = await supabase.rpc('get_property_health_score', {
+        p_property_id: propertyId,
+      });
+      if (healthData) setHealthScore(healthData);
+
+      // Attention items
+      const { data: attentionData } = await supabase.rpc('get_attention_items', {
+        p_property_id: propertyId,
+        p_limit: 10,
+      });
+      if (attentionData) setAttentionItems(attentionData);
+
+      // Ticket funnel
+      const { data: funnelData } = await supabase.rpc('get_ticket_funnel', {
+        p_property_id: propertyId,
+        p_days: 30,
+      });
+      if (funnelData) setTicketFunnel(funnelData);
     } catch (_) {
       {/* silent */}
     } finally {
@@ -437,6 +504,16 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
     },
   };
 
+  const filteredVisitors = useMemo(() => {
+    if (!visitorSearch.trim()) return visitors;
+    const q = visitorSearch.toLowerCase();
+    return visitors.filter(
+      (v) =>
+        (v.name ?? '').toLowerCase().includes(q) ||
+        (v.purpose ?? '').toLowerCase().includes(q)
+    );
+  }, [visitors, visitorSearch]);
+
   if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -450,13 +527,117 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
     );
   }
 
+  const getRoleColor = (role?: string) => {
+    if (role === 'admin' || role === 'property_admin') return '#3B82F6';
+    if (role === 'manager') return '#F59E0B';
+    if (role === 'staff') return '#10B981';
+    return '#6B7280';
+  };
+  const getVisitorStatusColor = (status?: string) => {
+    if (status === 'checked_in') return '#10B981';
+    if (status === 'checked_out') return '#3B82F6';
+    return '#F59E0B';
+  };
+  const getVisitorStatusLabel = (status?: string) => {
+    if (status === 'checked_in') return 'Checked In';
+    if (status === 'checked_out') return 'Checked Out';
+    if (status === 'pending' || status === 'expected') return 'Pending';
+    return status || 'Unknown';
+  };
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
         return (
           <>
-            {/* Tickets Tile */}
-            <GlassTile label="Tickets" icon="ticket" delay={100} status={healthStatus} onPress={() => setShowTileDetail(tileDetails.tickets)}>
+            {/* Health Score Card */}
+            {healthScore && (
+              <Animated.View entering={FadeInUp.delay(80).duration(500)}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={[styles.tileWrapper, { minHeight: 140 }]}
+                  onPress={() => setShowHealthDetail(!showHealthDetail)}
+                >
+                  <SafeBlurView intensity={40} style={styles.tileBlur} tint="dark">
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.06)', 'rgba(25,20,50,0.2)']}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                    <View style={[styles.tileContent, { flexDirection: 'row', alignItems: 'center', gap: 20 }]}>
+                      <HealthScoreRing score={healthScore.score} size={110} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.headerSubtitle}>Property Health Score</Text>
+                        <Text style={styles.tileMetricMid}>
+                          {healthScore.score >= 80 ? 'Excellent' : healthScore.score >= 50 ? 'Needs Attention' : 'Critical'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                          <View>
+                            <Text style={styles.tileMetricSmall}>{healthScore.total_open}</Text>
+                            <Text style={styles.tileSuffix}>Open</Text>
+                          </View>
+                          <View>
+                            <Text style={[styles.tileMetricSmall, { color: '#F59E0B' }]}>{healthScore.sla_risk}</Text>
+                            <Text style={styles.tileSuffix}>SLA Risk</Text>
+                          </View>
+                          <View>
+                            <Text style={[styles.tileMetricSmall, { color: '#EF4444' }]}>{healthScore.stale}</Text>
+                            <Text style={styles.tileSuffix}>Stale</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <Ionicons
+                        name={showHealthDetail ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color="rgba(255,255,255,0.30)"
+                      />
+                    </View>
+                    {showHealthDetail && healthScore.breakdown && (
+                      <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+                        {healthScore.breakdown.map((b: any, i: number) => (
+                          <View key={i} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                            <Text style={{ flex: 1, fontFamily: fontSans, fontSize: 12, color: 'rgba(255,255,255,0.60)', textTransform: 'capitalize' }}>
+                              {b.component.replace(/_/g, ' ')}
+                            </Text>
+                            <Text style={{ fontFamily: fontSans, fontSize: 12, fontWeight: '600', color: '#FFFFFF', width: 40, textAlign: 'right' }}>
+                              {b.value}
+                            </Text>
+                            <View style={{ width: 60, alignItems: 'flex-end' }}>
+                              <Text style={{ fontFamily: fontSans, fontSize: 11, color: b.impact > 0 ? '#EF4444' : '#10B981' }}>
+                                {b.impact > 0 ? `-${Math.round(b.impact)}` : 'OK'}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </SafeBlurView>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+
+            {/* Attention Feed */}
+            {attentionItems.length > 0 && (
+              <>
+                <Animated.View entering={FadeInUp.delay(120).duration(500)} style={{ paddingHorizontal: SPACING.xl, marginBottom: SPACING.md }}>
+                  <Text style={styles.sectionLabel}>⚠️ NEEDS ATTENTION</Text>
+                </Animated.View>
+                {attentionItems.slice(0, 5).map((item, index) => (
+                  <AttentionCard
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    onAction={() => {
+                      if (item.entity_type === 'ticket') {
+                        router.push(`/property/${propertyId}/tickets/${item.entity_id}`);
+                      }
+                    }}
+                  />
+                ))}
+              </>
+            )}
+
+            {/* Tickets Intelligence Tile */}
+            <GlassTile label="Tickets" icon="ticket" delay={160} status={healthStatus} onPress={() => setShowTileDetail(tileDetails.tickets)}>
               <View style={styles.tileTopRow}>
                 <View>
                   <Text style={styles.tileMetricBig}>{totalTickets}</Text>
@@ -464,11 +645,20 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
                 </View>
                 <MiniBarChart data={ticketHistory} />
               </View>
+              {/* Status breakdown row */}
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                {ticketFunnel.slice(0, 4).map((f: any) => (
+                  <View key={f.status_label} style={{ flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 6 }}>
+                    <Text style={{ fontFamily: fontDisplay, fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>{f.ticket_count}</Text>
+                    <Text style={{ fontFamily: fontSans, fontSize: 9, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginTop: 2 }}>{f.status_label}</Text>
+                  </View>
+                ))}
+              </View>
             </GlassTile>
 
             {/* Checklist + Health Row */}
             <View style={styles.rowTwo}>
-              <GlassTile label="Checklist" icon="checkbox-outline" delay={180} onPress={() => setShowTileDetail(tileDetails.checklist)}>
+              <GlassTile label="Checklist" icon="checkbox-outline" delay={220} onPress={() => setShowTileDetail(tileDetails.checklist)}>
                 <Text style={styles.tileMetricMid}>
                   {sopCount} <Text style={styles.tileSuffix}>/ {sopTotal}</Text>
                 </Text>
@@ -476,7 +666,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
                 <Text style={styles.tileSubtext}>{checklistPct}% completed</Text>
               </GlassTile>
 
-              <GlassTile label="Health" icon="heart" delay={240} status={healthStatus} onPress={() => setShowTileDetail(tileDetails.health)}>
+              <GlassTile label="Health" icon="heart" delay={280} status={healthStatus} onPress={() => setShowTileDetail(tileDetails.health)}>
                 <Text style={[styles.tileMetricMid, { color: healthColor }]}>
                   {healthStatus === 'optimal' ? 'Optimal' : healthStatus === 'watch' ? 'Watch' : 'Critical'}
                 </Text>
@@ -486,7 +676,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             </View>
 
             {/* Energy Tile */}
-            <GlassTile label="Energy Usage" icon="flash" delay={300} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
+            <GlassTile label="Energy Usage" icon="flash" delay={340} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
               <View style={styles.tileTopRow}>
                 <View>
                   <Text style={styles.tileMetricMid}>
@@ -523,13 +713,79 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       case 'users':
         return (
           <View style={{ paddingHorizontal: SPACING.xl }}>
-            {propertyUsers.map((u) => (
-              <UserCard key={u.id} user={u} />
-            ))}
-            {propertyUsers.length === 0 && (
+            {/* Search Bar */}
+            <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.searchBarWrap}>
+              <Ionicons name="search" size={16} color="rgba(255,255,255,0.40)" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search users..."
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                value={userSearch}
+                onChangeText={setUserSearch}
+              />
+            </Animated.View>
+
+            {/* Stats Row */}
+            <Animated.View entering={FadeInUp.delay(140).duration(500)} style={styles.statsRow}>
+              <View style={styles.statMiniCard}>
+                <Text style={styles.statMiniValue}>{propertyUsers.length}</Text>
+                <Text style={styles.statMiniLabel}>Total</Text>
+              </View>
+              <View style={styles.statMiniCard}>
+                <Text style={styles.statMiniValue}>{propertyUsers.filter((u) => ['admin', 'property_admin'].includes(u.role)).length}</Text>
+                <Text style={styles.statMiniLabel}>Admins</Text>
+              </View>
+              <View style={styles.statMiniCard}>
+                <Text style={styles.statMiniValue}>{propertyUsers.filter((u) => ['staff', 'manager'].includes(u.role)).length}</Text>
+                <Text style={styles.statMiniLabel}>Staff</Text>
+              </View>
+              <View style={styles.statMiniCard}>
+                <Text style={styles.statMiniValue}>{propertyUsers.filter((u) => ['tenant', 'member'].includes(u.role)).length}</Text>
+                <Text style={styles.statMiniLabel}>Members</Text>
+              </View>
+            </Animated.View>
+
+            {/* User List */}
+            {propertyUsers
+              .filter((u) =>
+                !userSearch ||
+                (u.full_name ?? '').toLowerCase().includes(userSearch.toLowerCase()) ||
+                (u.email ?? '').toLowerCase().includes(userSearch.toLowerCase())
+              )
+              .map((u, index) => (
+                <Animated.View key={u.id ?? index} entering={FadeInUp.delay(index * 80).duration(500)}>
+                  <TouchableOpacity
+                    style={styles.listCard}
+                    activeOpacity={0.85}
+                    onPress={() => router.push(`/property/${propertyId}/users`)}
+                  >
+                    <View style={styles.listAvatar}>
+                      <Text style={styles.listAvatarText}>
+                        {(u.full_name ?? u.email ?? 'U').charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.listName}>{u.full_name || 'Unknown'}</Text>
+                      <Text style={styles.listMeta}>{u.email || 'No email'}</Text>
+                      <View style={[styles.roleBadge, { backgroundColor: getRoleColor(u.role) + '20', borderColor: getRoleColor(u.role) + '40' }]}>
+                        <Text style={[styles.roleBadgeText, { color: getRoleColor(u.role) }]}>{u.role || 'Member'}</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
+                  </TouchableOpacity>
+                </Animated.View>
+              ))}
+
+            {propertyUsers.filter((u) =>
+              !userSearch ||
+              (u.full_name ?? '').toLowerCase().includes(userSearch.toLowerCase()) ||
+              (u.email ?? '').toLowerCase().includes(userSearch.toLowerCase())
+            ).length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="people-outline" size={40} color="rgba(255,255,255,0.20)" />
-                <Text style={styles.emptyText}>No users found</Text>
+                <Text style={styles.emptyText}>
+                  {userSearch.trim() ? 'No users match your search' : 'No users found'}
+                </Text>
               </View>
             )}
           </View>
@@ -538,13 +794,75 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       case 'visitors':
         return (
           <View style={{ paddingHorizontal: SPACING.xl }}>
-            {visitors.map((v, i) => (
-              <VisitorCard key={v.id ?? i} visitor={v} />
+            {/* Search Bar */}
+            <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.searchBarWrap}>
+              <Ionicons name="search" size={16} color="rgba(255,255,255,0.40)" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search visitors..."
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                value={visitorSearch}
+                onChangeText={setVisitorSearch}
+              />
+            </Animated.View>
+
+            {/* Stats Row */}
+            <Animated.View entering={FadeInUp.delay(140).duration(500)} style={styles.statsRow}>
+              <View style={styles.statMiniCard}>
+                <Text style={styles.statMiniValue}>{visitors.length}</Text>
+                <Text style={styles.statMiniLabel}>Today</Text>
+              </View>
+              <View style={styles.statMiniCard}>
+                <Text style={styles.statMiniValue}>{visitors.filter((v) => v.status === 'checked_in').length}</Text>
+                <Text style={styles.statMiniLabel}>Checked In</Text>
+              </View>
+              <View style={styles.statMiniCard}>
+                <Text style={styles.statMiniValue}>{visitors.filter((v) => v.status === 'checked_out').length}</Text>
+                <Text style={styles.statMiniLabel}>Checked Out</Text>
+              </View>
+              <View style={styles.statMiniCard}>
+                <Text style={styles.statMiniValue}>{visitors.filter((v) => v.status === 'pending' || v.status === 'expected').length}</Text>
+                <Text style={styles.statMiniLabel}>Pending</Text>
+              </View>
+            </Animated.View>
+
+            {/* Visitor List */}
+            {filteredVisitors.map((v, index) => (
+              <Animated.View key={v.id ?? index} entering={FadeInUp.delay(index * 80).duration(500)}>
+                <TouchableOpacity
+                  style={styles.listCard}
+                  activeOpacity={0.85}
+                  onPress={() => router.push(`/property/${propertyId}/visitors`)}
+                >
+                  <View style={styles.listAvatar}>
+                    <Text style={styles.listAvatarText}>{(v.name ?? 'V').charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listName}>{v.name || 'Guest'}</Text>
+                    <Text style={styles.listMeta}>{v.purpose || 'General Visit'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <View style={[styles.statusDot, { backgroundColor: getVisitorStatusColor(v.status) }]} />
+                      <Text style={[styles.roleBadgeText, { color: getVisitorStatusColor(v.status) }]}>
+                        {getVisitorStatusLabel(v.status)}
+                      </Text>
+                      {v.check_in_time && !isNaN(new Date(v.check_in_time).getTime()) && (
+                        <Text style={styles.timeText}>
+                          {new Date(v.check_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
+                </TouchableOpacity>
+              </Animated.View>
             ))}
-            {visitors.length === 0 && (
+
+            {filteredVisitors.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="person-outline" size={40} color="rgba(255,255,255,0.20)" />
-                <Text style={styles.emptyText}>No visitors today</Text>
+                <Text style={styles.emptyText}>
+                  {visitorSearch.trim() ? 'No visitors match your search' : 'No visitors today'}
+                </Text>
               </View>
             )}
           </View>
@@ -553,28 +871,65 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       case 'settings':
         return (
           <View style={{ paddingHorizontal: SPACING.xl }}>
-            <View style={styles.settingsCard}>
-              <TouchableOpacity style={styles.settingsRow} onPress={() => router.push(`/property/${propertyId}/settings`)}>
-                <Ionicons name="settings-outline" size={20} color="rgba(255,255,255,0.60)" />
-                <Text style={styles.settingsText}>Property Settings</Text>
+            {/* Property Management */}
+            <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.settingsSectionCard}>
+              <Text style={styles.settingsSectionLabel}>PROPERTY MANAGEMENT</Text>
+              <TouchableOpacity activeOpacity={0.85} style={styles.settingsRowModern} onPress={() => router.push(`/property/${propertyId}/settings`)}>
+                <View style={styles.settingsIconBadge}>
+                  <Ionicons name="settings-outline" size={16} color="#FFFFFF" />
+                </View>
+                <Text style={styles.settingsText}>Settings</Text>
                 <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsRow} onPress={() => router.push(`/property/${propertyId}/diesel`)}>
-                <Ionicons name="water-outline" size={20} color="rgba(255,255,255,0.60)" />
+              <View style={styles.settingsDivider} />
+              <TouchableOpacity activeOpacity={0.85} style={styles.settingsRowModern} onPress={() => router.push(`/property/${propertyId}/users`)}>
+                <View style={styles.settingsIconBadge}>
+                  <Ionicons name="people-outline" size={16} color="#FFFFFF" />
+                </View>
+                <Text style={styles.settingsText}>Users</Text>
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
+              </TouchableOpacity>
+              <View style={styles.settingsDivider} />
+              <TouchableOpacity activeOpacity={0.85} style={styles.settingsRowModern} onPress={() => router.push(`/property/${propertyId}/visitors`)}>
+                <View style={styles.settingsIconBadge}>
+                  <Ionicons name="person-add-outline" size={16} color="#FFFFFF" />
+                </View>
+                <Text style={styles.settingsText}>Visitors</Text>
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* Utilities */}
+            <Animated.View entering={FadeInUp.delay(180).duration(500)} style={styles.settingsSectionCard}>
+              <Text style={styles.settingsSectionLabel}>UTILITIES</Text>
+              <TouchableOpacity activeOpacity={0.85} style={styles.settingsRowModern} onPress={() => router.push(`/property/${propertyId}/diesel`)}>
+                <View style={styles.settingsIconBadge}>
+                  <Ionicons name="water-outline" size={16} color="#FFFFFF" />
+                </View>
                 <Text style={styles.settingsText}>Diesel Logger</Text>
                 <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsRow} onPress={() => router.push(`/property/${propertyId}/electricity`)}>
-                <Ionicons name="flash-outline" size={20} color="rgba(255,255,255,0.60)" />
+              <View style={styles.settingsDivider} />
+              <TouchableOpacity activeOpacity={0.85} style={styles.settingsRowModern} onPress={() => router.push(`/property/${propertyId}/electricity`)}>
+                <View style={styles.settingsIconBadge}>
+                  <Ionicons name="flash-outline" size={16} color="#FFFFFF" />
+                </View>
                 <Text style={styles.settingsText}>Electricity Logger</Text>
                 <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsRow} onPress={() => setShowSignOut(true)}>
-                <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
+            </Animated.View>
+
+            {/* Account */}
+            <Animated.View entering={FadeInUp.delay(260).duration(500)} style={styles.settingsSectionCard}>
+              <Text style={styles.settingsSectionLabel}>ACCOUNT</Text>
+              <TouchableOpacity activeOpacity={0.85} style={styles.settingsRowModern} onPress={() => setShowSignOut(true)}>
+                <View style={[styles.settingsIconBadge, { backgroundColor: 'rgba(255,59,48,0.15)', borderColor: 'rgba(255,59,48,0.30)' }]}>
+                  <Ionicons name="log-out-outline" size={16} color="#FF3B30" />
+                </View>
                 <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Sign Out</Text>
                 <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
         );
     }
@@ -898,13 +1253,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.50)',
     marginTop: 2,
   },
-  listRole: {
-    fontFamily: fontSans,
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#708F96',
-    marginTop: 2,
-  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -914,21 +1262,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: 'rgba(255,255,255,0.40)',
     marginTop: 12,
-  },
-  settingsCard: {
-    backgroundColor: CARD_SURFACES.cardBg,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: CARD_SURFACES.cardBorder,
-    padding: SPACING.lg,
-  },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   settingsText: {
     fontFamily: fontSans,
@@ -969,5 +1302,167 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginHorizontal: 4,
+  },
+  searchBarWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: SPACING.lg,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: fontSans,
+    fontSize: 14,
+    color: '#FFFFFF',
+    paddingVertical: 0,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: SPACING.lg,
+  },
+  statMiniCard: {
+    flex: 1,
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  statMiniValue: {
+    fontFamily: fontDisplay,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  statMiniLabel: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.50)',
+    marginTop: 4,
+  },
+  roleBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  roleBadgeText: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  timeText: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.40)',
+    marginLeft: 'auto',
+  },
+  settingsSectionCard: {
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  settingsSectionLabel: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.40)',
+    letterSpacing: 2,
+    marginBottom: SPACING.md,
+    textTransform: 'uppercase',
+  },
+  settingsRowModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  settingsDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  settingsIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionLabel: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.45)',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  tileMetricSmall: {
+    fontFamily: fontDisplay,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  attentionCard: {
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+    padding: 14,
+    marginHorizontal: SPACING.xl,
+    marginBottom: 10,
+  },
+  attentionIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attentionTitle: {
+    fontFamily: fontSans,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  attentionDesc: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  attentionActionBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  attentionActionText: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

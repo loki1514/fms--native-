@@ -226,14 +226,20 @@ export function useCassandraVoice(
     }
 
     try {
-      // Convert base64 MP3 to a blob URL for expo-av
-      const binaryString = atob(mp3Base64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      // Convert base64 MP3 to a URI for expo-av
+      // On native, pass base64 directly; on web, use Blob + URL.createObjectURL
+      let uri: string;
+      if (Platform.OS === 'web') {
+        const binaryString = atob(mp3Base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'audio/mp3' });
+        uri = URL.createObjectURL(blob);
+      } else {
+        uri = `data:audio/mp3;base64,${mp3Base64}`;
       }
-      const blob = new Blob([bytes], { type: 'audio/mp3' });
-      const uri = URL.createObjectURL(blob);
 
       const Audio = getAudio();
       if (!Audio) return;
@@ -261,7 +267,9 @@ export function useCassandraVoice(
   const handleMessage = useCallback(async (event: MessageEvent) => {
     // Binary frame → MP3 audio
     if (event.data instanceof ArrayBuffer) {
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(event.data)));
+      const base64 = typeof btoa !== 'undefined'
+        ? btoa(String.fromCharCode(...new Uint8Array(event.data)))
+        : Buffer.from(event.data).toString('base64');
       await playAudioChunk(base64);
       return;
     }
@@ -286,6 +294,11 @@ export function useCassandraVoice(
       console.log('[CassandraVoice] Session acknowledged — starting recording');
       setVoiceState('authenticated');
       startHeartbeat();
+      startRecording().catch((err) => {
+        console.error('[CassandraVoice] Auto-start recording failed:', err);
+        onError?.('Failed to start recording after session acknowledgement');
+        setVoiceState('error');
+      });
       return;
     }
 
