@@ -43,7 +43,7 @@ export interface TileDetail {
 }
 
 export type Screen = 'properties' | 'property-detail' | 'console' | 'analytics';
-export type Tab = 'overview' | 'organizations' | 'users' | 'profile';
+export type Tab = 'overview' | 'organizations';
 
 export interface Org {
   id: string;

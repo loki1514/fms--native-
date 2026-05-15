@@ -10,7 +10,22 @@ import {
   StyleSheet,
   ActivityIndicator,
   useColorScheme,
+  Dimensions,
 } from 'react-native';
+
+// ─── Lovable Dashboard Font Stack ────────────────────────────────────────────
+const FONT_FAMILY = Platform.select({
+  web: '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+  ios: 'System',
+  android: 'sans-serif',
+  default: 'System',
+});
+
+const FONT_TRACKING = {
+  display: -0.04 * 16,  // -0.04em
+  body: -0.01 * 16,     // -0.01em
+  tight: -0.02 * 16,    // -0.02em
+};
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -20,7 +35,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/utils/supabase/client';
 import { Colors } from '@/constants/Colors';
 import { AutopilotLogo } from '@/components/ui/AutopilotLogo';
-import AnimatedLogo from '@/components/shared/AnimatedLogo';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 
 // ─── Zod schema ───────────────────────────────────────────────────────────────
 const signInSchema = z.object({
@@ -43,9 +65,85 @@ type SignUpForm = z.infer<typeof signUpSchema>;
 
 type AuthMode = 'signin' | 'signup';
 
+const { width: SCREEN_W } = Dimensions.get('window');
+
+// ─── Floating decorative shape ───────────────────────────────────────────────
+function FloatingShape({
+  size,
+  color,
+  top,
+  left,
+  right,
+  delay,
+  duration,
+}: {
+  size: number;
+  color: string;
+  top?: number | string;
+  left?: number | string;
+  right?: number | string;
+  delay: number;
+  duration: number;
+}) {
+  const floatY = useSharedValue(0);
+  const floatX = useSharedValue(0);
+  const opacity = useSharedValue(0);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      opacity.value = withTiming(1, { duration: 600 });
+      floatY.value = withRepeat(
+        withSequence(
+          withTiming(-12, { duration, easing: Easing.inOut(Easing.ease) }),
+          withTiming(12, { duration, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+      floatX.value = withRepeat(
+        withSequence(
+          withTiming(8, { duration: duration * 1.3, easing: Easing.inOut(Easing.ease) }),
+          withTiming(-8, { duration: duration * 1.3, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+    }, delay);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [
+      { translateY: floatY.value },
+      { translateX: floatX.value },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.floatingShape,
+        {
+          width: size,
+          height: size,
+          backgroundColor: color,
+          top,
+          left,
+          right,
+          borderRadius: size * 0.35,
+        },
+        animatedStyle,
+      ]}
+    />
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 export default function LoginScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
+  const isDark = colorScheme === 'dark';
 
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [showPassword, setShowPassword] = useState(false);
@@ -53,7 +151,7 @@ export default function LoginScreen() {
   const [apiError, setApiError] = useState('');
   const [apiSuccess, setApiSuccess] = useState('');
 
-  const { signIn, signUp, signOut } = useAuth();
+  const { signIn, signUp } = useAuth();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
@@ -74,19 +172,27 @@ export default function LoginScreen() {
   const isSignInLoading = signInForm.formState.isSubmitting;
   const isSignUpLoading = signUpForm.formState.isSubmitting;
 
+  // ─── Floating shapes config (theme-aware) ────────────────────────────────────
+  const shapes = useMemo(
+    () => [
+      { size: 64, color: isDark ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.10)', top: 60, left: -20, delay: 0, duration: 3500 },
+      { size: 40, color: isDark ? 'rgba(41,151,255,0.10)' : 'rgba(41,151,255,0.08)', top: 140, right: 20, delay: 400, duration: 4000 },
+      { size: 28, color: isDark ? 'rgba(112,143,150,0.15)' : 'rgba(112,143,150,0.12)', top: 240, left: 30, delay: 800, duration: 3200 },
+      { size: 48, color: isDark ? 'rgba(255,159,10,0.08)' : 'rgba(255,159,10,0.06)', top: 360, right: -10, delay: 200, duration: 3800 },
+      { size: 20, color: isDark ? 'rgba(52,199,89,0.10)' : 'rgba(52,199,89,0.08)', top: 480, left: '20%', delay: 600, duration: 3000 },
+    ],
+    [isDark]
+  );
+
   // ─── Redirect helper ────────────────────────────────────────────────────────
   const resolveAndRedirect = async (authUserId: string) => {
-    // 1. Fetch auth user data
     const { data: { user: authUserData } } = await supabase.auth.getUser();
 
-    // Lovable Super Admin — email-gated redirect (before any role logic)
     if (authUserData?.email?.toLowerCase() === 'sanyog@gmail.com') {
       router.replace('/super-admin' as any);
       return;
     }
 
-
-    // 2. Fetch user profile
     const { data: userProfile, error: profileError } = await (supabase
       .from('users')
       .select('id, is_master_admin')
@@ -97,13 +203,11 @@ export default function LoginScreen() {
       throw new Error('User profile not found.');
     }
 
-    // 4. Master admin shortcut
     if (userProfile.is_master_admin) {
       router.replace('/master' as any);
       return;
     }
 
-    // 5. Org-level memberships
     const { data: orgMemberships } = await supabase
       .from('organization_memberships')
       .select('organization_id, role, is_active')
@@ -129,7 +233,6 @@ export default function LoginScreen() {
       return;
     }
 
-    // 6. Property memberships
     const { data: propMemberships } = await supabase
       .from('property_memberships')
       .select('property_id, organization_id, role, is_active')
@@ -144,22 +247,21 @@ export default function LoginScreen() {
     );
 
     if (activePropMemberships.length === 0) {
-      await signOut();
-      throw new Error('Your account is not assigned to any organization or property.');
+      router.replace('/onboarding' as any);
+      return;
     }
 
     if (activePropMemberships.length === 1) {
-      // Single property – go directly to that property
       const { property_id: pId, role } = activePropMemberships[0];
       const roleRouteMap: Record<string, string> = {
         property_admin: 'dashboard',
         tenant: 'tenant',
         security: 'security',
-        staff: 'staff',
-        mst: 'mst',
+        staff: 'lovable-mst',
+        mst: 'lovable-mst',
+        maintenance_staff: 'lovable-mst',
         vendor: 'vendor',
       };
-      // Lovable test dashboards — email-gated redirects
       const userEmail = authUserData?.email?.toLowerCase() ?? '';
       if (userEmail === 'srustikarta2022@gmail.com') {
         router.replace(`/property/${pId}/lovable-mst`);
@@ -175,7 +277,6 @@ export default function LoginScreen() {
       return;
     }
 
-    // Multiple properties – show property selection screen
     router.replace({
       pathname: '/(auth)/property-selection',
       params: {
@@ -237,8 +338,6 @@ export default function LoginScreen() {
 
   // ─── Handle Google OAuth ────────────────────────────────────────────────────
   const handleGoogleAuth = () => {
-    // Google OAuth requires native configuration via expo-auth-session
-    // Placeholder – wire up when OAuth is configured
     setApiError('Google Sign-In is not yet configured on mobile. Please sign in with your email and password.');
   };
 
@@ -248,385 +347,380 @@ export default function LoginScreen() {
       style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* Floating decorative shapes */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {shapes.map((s, i) => (
+          <FloatingShape key={i} {...s} />
+        ))}
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.card, {
-          backgroundColor: theme.card,
-          borderColor: theme.border,
-          shadowColor: colorScheme === 'dark' ? '#000' : theme.shadowColor,
-        }]}>
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            <AnimatedLogo size="lg" />
-          </View>
+        {/* Logo */}
+        <View style={styles.logoWrap}>
+          <AutopilotLogo size="lg" variant={isDark ? 'light' : 'dark'} />
+        </View>
 
-          {/* Heading */}
-          <Text style={[styles.title, { color: theme.text }]}>
-            {authMode === 'signup' ? 'Start Your Journey' : 'Welcome Back'}
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            {authMode === 'signup'
-              ? 'Create your account to get started'
-              : 'Sign in to your facility management hub'}
-          </Text>
+        {/* Heading */}
+        <Text style={[styles.title, { color: theme.textPrimary }]}>
+          {authMode === 'signup' ? 'Create Account' : 'Welcome Back'}
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+          {authMode === 'signup'
+            ? 'Get started with your facility management hub'
+            : 'Sign in to your facility management hub'}
+        </Text>
 
-          {/* Tab Switcher */}
-          <View style={[styles.tabContainer, { backgroundColor: theme.surface }]}>
+        {/* Tab Switcher — pill style */}
+        <View style={[styles.tabContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
+          <TouchableOpacity
+            style={[styles.tab, authMode === 'signin' && { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : '#FFFFFF' }]}
+            onPress={() => { setAuthMode('signin'); setApiError(''); setApiSuccess(''); }}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, { color: authMode === 'signin' ? theme.textPrimary : theme.textTertiary }]}>
+              Sign In
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, authMode === 'signup' && { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : '#FFFFFF' }]}
+            onPress={() => { setAuthMode('signup'); setApiError(''); setApiSuccess(''); }}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, { color: authMode === 'signup' ? theme.textPrimary : theme.textTertiary }]}>
+              Sign Up
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ─── Sign In Form ─── */}
+        {authMode === 'signin' && (
+          <View style={styles.form}>
+            {/* Email */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Email</Text>
+              <Controller
+                control={signInForm.control}
+                name="email"
+                render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
+                  <>
+                    <View style={[styles.inputWrapper, { borderBottomColor: error ? theme.error : theme.border }]}>
+                      <Ionicons name="mail-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary }]}
+                        placeholder="name@company.com"
+                        placeholderTextColor={theme.textTertiary}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="email"
+                      />
+                    </View>
+                    {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
+                  </>
+                )}
+              />
+            </View>
+
+            {/* Password */}
+            <View style={styles.fieldGroup}>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, { color: theme.textPrimary }]}>Password</Text>
+                <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
+                  <Text style={[styles.forgotLink, { color: theme.primary }]}>Forgot?</Text>
+                </TouchableOpacity>
+              </View>
+              <Controller
+                control={signInForm.control}
+                name="password"
+                render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
+                  <>
+                    <View style={[styles.inputWrapper, { borderBottomColor: error ? theme.error : theme.border }]}>
+                      <Ionicons name="lock-closed-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary }]}
+                        placeholder="Enter your password"
+                        placeholderTextColor={theme.textTertiary}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        secureTextEntry={!showPassword}
+                        autoComplete="password"
+                      />
+                      <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                        <Ionicons
+                          name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={18}
+                          color={theme.textTertiary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
+                  </>
+                )}
+              />
+            </View>
+
+            {/* API Error */}
+            {apiError !== '' && (
+              <View style={[styles.messageBox, { backgroundColor: theme.errorBg, borderColor: theme.errorBorder }]}>
+                <Ionicons name="alert-circle" size={16} color={theme.error} style={{ marginRight: 8 }} />
+                <Text style={[styles.messageText, { color: theme.error }]}>{apiError}</Text>
+              </View>
+            )}
+
+            {/* API Success */}
+            {apiSuccess !== '' && (
+              <View style={[styles.messageBox, { backgroundColor: theme.successBg, borderColor: theme.successBorder }]}>
+                <Ionicons name="checkmark-circle" size={16} color={theme.success} style={{ marginRight: 8 }} />
+                <Text style={[styles.messageText, { color: theme.success }]}>{apiSuccess}</Text>
+              </View>
+            )}
+
+            {/* Submit */}
             <TouchableOpacity
-              style={[styles.tab, authMode === 'signin' && { backgroundColor: theme.primary }]}
-              onPress={() => { setAuthMode('signin'); setApiError(''); setApiSuccess(''); }}
+              style={[styles.submitButton, { backgroundColor: theme.primary, opacity: isSignInLoading ? 0.7 : 1 }]}
+              onPress={signInForm.handleSubmit(handleSignIn)}
+              disabled={isSignInLoading}
               activeOpacity={0.8}
             >
-              <Text style={[styles.tabText, { color: authMode === 'signin' ? '#fff' : theme.textSecondary }]}>
-                Sign In
-              </Text>
+              {isSignInLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <View style={styles.submitRow}>
+                  <Text style={styles.submitText}>Sign In</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </View>
+              )}
             </TouchableOpacity>
+
+            {/* OAuth Divider */}
+            <View style={styles.dividerRow}>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              <Text style={[styles.dividerText, { color: theme.textTertiary }]}>or continue with</Text>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            </View>
+
+            {/* Google */}
             <TouchableOpacity
-              style={[styles.tab, authMode === 'signup' && { backgroundColor: theme.primary }]}
-              onPress={() => { setAuthMode('signup'); setApiError(''); setApiSuccess(''); }}
+              style={[styles.oauthButton, { borderColor: theme.border }]}            
+              onPress={handleGoogleAuth}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="logo-google" size={20} color="#4285F4" />
+              <Text style={[styles.oauthText, { color: theme.textPrimary }]}>Sign in with Google</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ─── Sign Up Form ─── */}
+        {authMode === 'signup' && (
+          <View style={styles.form}>
+            {/* Full Name */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Full Name</Text>
+              <Controller
+                control={signUpForm.control}
+                name="fullName"
+                render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
+                  <>
+                    <View style={[styles.inputWrapper, { borderBottomColor: error ? theme.error : theme.border }]}>
+                      <Ionicons name="person-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary }]}
+                        placeholder="John Doe"
+                        placeholderTextColor={theme.textTertiary}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        autoCapitalize="words"
+                        autoComplete="name"
+                      />
+                    </View>
+                    {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
+                  </>
+                )}
+              />
+            </View>
+
+            {/* Email */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Email</Text>
+              <Controller
+                control={signUpForm.control}
+                name="email"
+                render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
+                  <>
+                    <View style={[styles.inputWrapper, { borderBottomColor: error ? theme.error : theme.border }]}>
+                      <Ionicons name="mail-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary }]}
+                        placeholder="name@company.com"
+                        placeholderTextColor={theme.textTertiary}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        autoComplete="email"
+                      />
+                    </View>
+                    {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
+                  </>
+                )}
+              />
+            </View>
+
+            {/* Password */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Password</Text>
+              <Controller
+                control={signUpForm.control}
+                name="password"
+                render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
+                  <>
+                    <View style={[styles.inputWrapper, { borderBottomColor: error ? theme.error : theme.border }]}>
+                      <Ionicons name="lock-closed-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary }]}
+                        placeholder="Min. 6 characters"
+                        placeholderTextColor={theme.textTertiary}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        secureTextEntry={!showPassword}
+                        autoComplete="password-new"
+                      />
+                      <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                        <Ionicons
+                          name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={18}
+                          color={theme.textTertiary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
+                  </>
+                )}
+              />
+            </View>
+
+            {/* Confirm Password */}
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.label, { color: theme.textPrimary }]}>Confirm Password</Text>
+              <Controller
+                control={signUpForm.control}
+                name="confirmPassword"
+                render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
+                  <>
+                    <View style={[styles.inputWrapper, { borderBottomColor: error ? theme.error : theme.border }]}>
+                      <Ionicons name="shield-checkmark-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { color: theme.textPrimary }]}
+                        placeholder="Re-enter your password"
+                        placeholderTextColor={theme.textTertiary}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        secureTextEntry={!showConfirmPassword}
+                        autoComplete="password-new"
+                      />
+                      <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeButton}>
+                        <Ionicons
+                          name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={18}
+                          color={theme.textTertiary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
+                  </>
+                )}
+              />
+            </View>
+
+            {/* API Error */}
+            {apiError !== '' && (
+              <View style={[styles.messageBox, { backgroundColor: theme.errorBg, borderColor: theme.errorBorder }]}>
+                <Ionicons name="alert-circle" size={16} color={theme.error} style={{ marginRight: 8 }} />
+                <Text style={[styles.messageText, { color: theme.error }]}>{apiError}</Text>
+              </View>
+            )}
+
+            {/* API Success */}
+            {apiSuccess !== '' && (
+              <View style={[styles.messageBox, { backgroundColor: theme.successBg, borderColor: theme.successBorder }]}>
+                <Ionicons name="checkmark-circle" size={16} color={theme.success} style={{ marginRight: 8 }} />
+                <Text style={[styles.messageText, { color: theme.success }]}>{apiSuccess}</Text>
+              </View>
+            )}
+
+            {/* Submit */}
+            <TouchableOpacity
+              style={[styles.submitButton, { backgroundColor: theme.primary, opacity: isSignUpLoading ? 0.7 : 1 }]}
+              onPress={signUpForm.handleSubmit(handleSignUp)}
+              disabled={isSignUpLoading}
               activeOpacity={0.8}
             >
-              <Text style={[styles.tabText, { color: authMode === 'signup' ? '#fff' : theme.textSecondary }]}>
+              {isSignUpLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <View style={styles.submitRow}>
+                  <Text style={styles.submitText}>Create Account</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* OAuth Divider */}
+            <View style={styles.dividerRow}>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              <Text style={[styles.dividerText, { color: theme.textTertiary }]}>or continue with</Text>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            </View>
+
+            {/* Google */}
+            <TouchableOpacity
+              style={[styles.oauthButton, { borderColor: theme.border }]}
+              onPress={handleGoogleAuth}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="logo-google" size={20} color="#4285F4" />
+              <Text style={[styles.oauthText, { color: theme.textPrimary }]}>Sign up with Google</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          {authMode === 'signin' ? (
+            <Text style={[styles.footerText, { color: theme.textSecondary }]}>
+              Don't have an account?{' '}
+              <Text
+                style={[styles.footerLink, { color: theme.primary }]}
+                onPress={() => { setAuthMode('signup'); setApiError(''); setApiSuccess(''); }}
+              >
                 Sign Up
               </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* ─── Sign In Form ─── */}
-          {authMode === 'signin' && (
-            <View style={styles.form}>
-              {/* Email */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: theme.text }]}>Email</Text>
-                <Controller
-                  control={signInForm.control}
-                  name="email"
-                  render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-                    <>
-                      <View style={[styles.inputWrapper, { borderColor: error ? theme.error : theme.border }]}>
-                        <Ionicons name="mail-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
-                        <TextInput
-                          style={[styles.input, { color: theme.text }]}
-                          placeholder="name@company.com"
-                          placeholderTextColor={theme.textTertiary}
-                          value={value}
-                          onChangeText={onChange}
-                          onBlur={onBlur}
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          autoComplete="email"
-                        />
-                      </View>
-                      {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
-                    </>
-                  )}
-                />
-              </View>
-
-              {/* Password */}
-              <View style={styles.fieldGroup}>
-                <View style={styles.labelRow}>
-                  <Text style={[styles.label, { color: theme.text }]}>Password</Text>
-                  <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
-                    <Text style={[styles.forgotLink, { color: theme.primary }]}>Forgot Password?</Text>
-                  </TouchableOpacity>
-                </View>
-                <Controller
-                  control={signInForm.control}
-                  name="password"
-                  render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-                    <>
-                      <View style={[styles.inputWrapper, { borderColor: error ? theme.error : theme.border }]}>
-                        <Ionicons name="lock-closed-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
-                        <TextInput
-                          style={[styles.input, { color: theme.text }]}
-                          placeholder="Enter your password"
-                          placeholderTextColor={theme.textTertiary}
-                          value={value}
-                          onChangeText={onChange}
-                          onBlur={onBlur}
-                          secureTextEntry={!showPassword}
-                          autoComplete="password"
-                        />
-                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                          <Ionicons
-                            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                            size={18}
-                            color={theme.textTertiary}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
-                    </>
-                  )}
-                />
-              </View>
-
-              {/* API Error */}
-              {apiError !== '' && (
-                <View style={[styles.messageBox, { backgroundColor: theme.errorBg, borderColor: theme.errorBorder }]}>
-                  <Ionicons name="alert-circle" size={16} color={theme.error} style={{ marginRight: 8 }} />
-                  <Text style={[styles.messageText, { color: theme.error }]}>{apiError}</Text>
-                </View>
-              )}
-
-              {/* API Success */}
-              {apiSuccess !== '' && (
-                <View style={[styles.messageBox, { backgroundColor: theme.successBg, borderColor: theme.successBorder }]}>
-                  <Ionicons name="checkmark-circle" size={16} color={theme.success} style={{ marginRight: 8 }} />
-                  <Text style={[styles.messageText, { color: theme.success }]}>{apiSuccess}</Text>
-                </View>
-              )}
-
-              {/* Submit */}
-              <TouchableOpacity
-                style={[styles.submitButton, {
-                  backgroundColor: theme.primary,
-                  opacity: isSignInLoading ? 0.6 : 1,
-                }]}
-                onPress={signInForm.handleSubmit(handleSignIn)}
-                disabled={isSignInLoading}
-                activeOpacity={0.8}
+            </Text>
+          ) : (
+            <Text style={[styles.footerText, { color: theme.textSecondary }]}>
+              Already have an account?{' '}
+              <Text
+                style={[styles.footerLink, { color: theme.primary }]}
+                onPress={() => { setAuthMode('signin'); setApiError(''); setApiSuccess(''); }}
               >
-                {isSignInLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <View style={styles.submitRow}>
-                    <Text style={styles.submitText}>Sign In</Text>
-                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              {/* OAuth Divider */}
-              <View style={styles.dividerRow}>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                <Text style={[styles.dividerText, { color: theme.textTertiary }]}>or continue with</Text>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-              </View>
-
-              {/* Google */}
-              <TouchableOpacity
-                style={[styles.oauthButton, { borderColor: theme.border }]}
-                onPress={handleGoogleAuth}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="logo-google" size={20} color="#4285F4" />
-                <Text style={[styles.oauthText, { color: theme.text }]}>Sign in with Google</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ─── Sign Up Form ─── */}
-          {authMode === 'signup' && (
-            <View style={styles.form}>
-              {/* Full Name */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: theme.text }]}>Full Name</Text>
-                <Controller
-                  control={signUpForm.control}
-                  name="fullName"
-                  render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-                    <>
-                      <View style={[styles.inputWrapper, { borderColor: error ? theme.error : theme.border }]}>
-                        <Ionicons name="person-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
-                        <TextInput
-                          style={[styles.input, { color: theme.text }]}
-                          placeholder="John Doe"
-                          placeholderTextColor={theme.textTertiary}
-                          value={value}
-                          onChangeText={onChange}
-                          onBlur={onBlur}
-                          autoCapitalize="words"
-                          autoComplete="name"
-                        />
-                      </View>
-                      {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
-                    </>
-                  )}
-                />
-              </View>
-
-              {/* Email */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: theme.text }]}>Email</Text>
-                <Controller
-                  control={signUpForm.control}
-                  name="email"
-                  render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-                    <>
-                      <View style={[styles.inputWrapper, { borderColor: error ? theme.error : theme.border }]}>
-                        <Ionicons name="mail-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
-                        <TextInput
-                          style={[styles.input, { color: theme.text }]}
-                          placeholder="name@company.com"
-                          placeholderTextColor={theme.textTertiary}
-                          value={value}
-                          onChangeText={onChange}
-                          onBlur={onBlur}
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          autoCorrect={false}
-                          autoComplete="email"
-                        />
-                      </View>
-                      {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
-                    </>
-                  )}
-                />
-              </View>
-
-              {/* Password */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: theme.text }]}>Password</Text>
-                <Controller
-                  control={signUpForm.control}
-                  name="password"
-                  render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-                    <>
-                      <View style={[styles.inputWrapper, { borderColor: error ? theme.error : theme.border }]}>
-                        <Ionicons name="lock-closed-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
-                        <TextInput
-                          style={[styles.input, { color: theme.text }]}
-                          placeholder="Min. 6 characters"
-                          placeholderTextColor={theme.textTertiary}
-                          value={value}
-                          onChangeText={onChange}
-                          onBlur={onBlur}
-                          secureTextEntry={!showPassword}
-                          autoComplete="password-new"
-                        />
-                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                          <Ionicons
-                            name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                            size={18}
-                            color={theme.textTertiary}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
-                    </>
-                  )}
-                />
-              </View>
-
-              {/* Confirm Password */}
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: theme.text }]}>Confirm Password</Text>
-                <Controller
-                  control={signUpForm.control}
-                  name="confirmPassword"
-                  render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-                    <>
-                      <View style={[styles.inputWrapper, { borderColor: error ? theme.error : theme.border }]}>
-                        <Ionicons name="shield-checkmark-outline" size={18} color={theme.textTertiary} style={styles.inputIcon} />
-                        <TextInput
-                          style={[styles.input, { color: theme.text }]}
-                          placeholder="Re-enter your password"
-                          placeholderTextColor={theme.textTertiary}
-                          value={value}
-                          onChangeText={onChange}
-                          onBlur={onBlur}
-                          secureTextEntry={!showConfirmPassword}
-                          autoComplete="password-new"
-                        />
-                        <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeButton}>
-                          <Ionicons
-                            name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                            size={18}
-                            color={theme.textTertiary}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      {error && <Text style={[styles.fieldError, { color: theme.error }]}>{error.message}</Text>}
-                    </>
-                  )}
-                />
-              </View>
-
-              {/* API Error */}
-              {apiError !== '' && (
-                <View style={[styles.messageBox, { backgroundColor: theme.errorBg, borderColor: theme.errorBorder }]}>
-                  <Ionicons name="alert-circle" size={16} color={theme.error} style={{ marginRight: 8 }} />
-                  <Text style={[styles.messageText, { color: theme.error }]}>{apiError}</Text>
-                </View>
-              )}
-
-              {/* API Success */}
-              {apiSuccess !== '' && (
-                <View style={[styles.messageBox, { backgroundColor: theme.successBg, borderColor: theme.successBorder }]}>
-                  <Ionicons name="checkmark-circle" size={16} color={theme.success} style={{ marginRight: 8 }} />
-                  <Text style={[styles.messageText, { color: theme.success }]}>{apiSuccess}</Text>
-                </View>
-              )}
-
-              {/* Submit */}
-              <TouchableOpacity
-                style={[styles.submitButton, {
-                  backgroundColor: theme.primary,
-                  opacity: isSignUpLoading ? 0.6 : 1,
-                }]}
-                onPress={signUpForm.handleSubmit(handleSignUp)}
-                disabled={isSignUpLoading}
-                activeOpacity={0.8}
-              >
-                {isSignUpLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <View style={styles.submitRow}>
-                    <Text style={styles.submitText}>Create Account</Text>
-                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              {/* OAuth Divider */}
-              <View style={styles.dividerRow}>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                <Text style={[styles.dividerText, { color: theme.textTertiary }]}>or continue with</Text>
-                <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-              </View>
-
-              {/* Google */}
-              <TouchableOpacity
-                style={[styles.oauthButton, { borderColor: theme.border }]}
-                onPress={handleGoogleAuth}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="logo-google" size={20} color="#4285F4" />
-                <Text style={[styles.oauthText, { color: theme.text }]}>Sign up with Google</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            {authMode === 'signin' ? (
-              <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-                Don't have an account?{' '}
-                <Text
-                  style={[styles.footerLink, { color: theme.primary }]}
-                  onPress={() => { setAuthMode('signup'); setApiError(''); setApiSuccess(''); }}
-                >
-                  Sign Up
-                </Text>
+                Sign In
               </Text>
-            ) : (
-              <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-                Already have an account?{' '}
-                <Text
-                  style={[styles.footerLink, { color: theme.primary }]}
-                  onPress={() => { setAuthMode('signin'); setApiError(''); setApiSuccess(''); }}
-                >
-                  Sign In
-                </Text>
-              </Text>
-            )}
-          </View>
+            </Text>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -641,92 +735,103 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 24,
+    paddingHorizontal: 28,
+    paddingTop: Platform.OS === 'ios' ? 80 : 60,
+    paddingBottom: 40,
   },
-  card: {
-    borderRadius: 24,
-    padding: 28,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    elevation: 4,
-    borderWidth: 1,
+
+  // Floating shapes
+  floatingShape: {
+    position: 'absolute',
   },
-  logoContainer: {
+
+  // Logo
+  logoWrap: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 32,
   },
+
+  // Heading
   title: {
     fontSize: 28,
     fontWeight: '800',
-    letterSpacing: -0.5,
-    marginBottom: 6,
+    letterSpacing: FONT_TRACKING.display,
+    marginBottom: 8,
     textAlign: 'center',
-    fontFamily: 'Urbanist-Bold',
+    fontFamily: FONT_FAMILY,
   },
   subtitle: {
     fontSize: 15,
-    marginBottom: 20,
+    marginBottom: 32,
     textAlign: 'center',
     lineHeight: 22,
-    fontFamily: 'Urbanist-Regular',
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
+
+  // Tab Switcher
   tabContainer: {
     flexDirection: 'row',
     borderRadius: 12,
     padding: 4,
-    marginBottom: 24,
+    marginBottom: 32,
+    alignSelf: 'center',
   },
   tab: {
-    flex: 1,
+    paddingHorizontal: 24,
     paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
+    borderRadius: 10,
   },
   tabText: {
     fontSize: 14,
     fontWeight: '700',
-    fontFamily: 'Urbanist-SemiBold',
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
+
+  // Form
   form: {
     gap: 0,
   },
   fieldGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   label: {
     fontSize: 13,
     fontWeight: '600',
-    marginBottom: 6,
-    fontFamily: 'Urbanist-SemiBold',
+    marginBottom: 8,
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
   forgotLink: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 10,
+    borderBottomWidth: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     backgroundColor: 'transparent',
-    paddingHorizontal: 12,
   },
   inputIcon: {
     marginRight: 10,
   },
   input: {
     flex: 1,
-    height: 48,
+    height: 44,
     fontSize: 15,
-    fontFamily: 'Urbanist-Regular',
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
   eyeButton: {
     padding: 4,
@@ -734,8 +839,9 @@ const styles = StyleSheet.create({
   fieldError: {
     fontSize: 12,
     fontWeight: '500',
-    marginTop: 4,
-    fontFamily: 'Urbanist-Regular',
+    marginTop: 6,
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
   messageBox: {
     flexDirection: 'row',
@@ -750,19 +856,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 18,
-    fontFamily: 'Urbanist-SemiBold',
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
   submitButton: {
-    borderRadius: 10,
-    height: 50,
+    borderRadius: 14,
+    height: 52,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 4,
     marginBottom: 20,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
   submitRow: {
     flexDirection: 'row',
@@ -773,24 +876,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Urbanist-Bold',
+    letterSpacing: FONT_TRACKING.tight,
+    fontFamily: FONT_FAMILY,
   },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   dividerLine: {
     flex: 1,
     height: 1,
   },
   dividerText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     marginHorizontal: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: FONT_FAMILY,
   },
   oauthButton: {
     flexDirection: 'row',
@@ -798,25 +902,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     height: 50,
-    borderRadius: 10,
+    borderRadius: 14,
     borderWidth: 1,
     marginBottom: 20,
   },
   oauthText: {
     fontSize: 15,
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
   footer: {
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
   },
   footerText: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Regular',
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
   footerLink: {
     fontWeight: '700',
-    fontFamily: 'Urbanist-Bold',
+    letterSpacing: FONT_TRACKING.body,
+    fontFamily: FONT_FAMILY,
   },
 });

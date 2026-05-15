@@ -103,8 +103,9 @@ export default function PropertySelectionScreen() {
         property_admin: 'dashboard',
         tenant: 'tenant',
         security: 'security',
-        staff: 'staff',
-        mst: 'mst',
+        staff: 'lovable-mst',
+        mst: 'lovable-mst',
+        maintenance_staff: 'lovable-mst',
         vendor: 'vendor',
       };
       const route = roleRouteMap[role] || 'dashboard';

@@ -25,10 +25,10 @@ const lightBorder = '#E8E8ED';   // Apple border
 
 // ---- Dark Theme ----
 const darkText = '#E6EBEE';
-const darkBackground = '#0F172A';  // Ink charcoal — richer than before
-const darkSurface = '#1C1C1E';     // Apple-style dark surface
-const darkCard = '#1C1C1E';
-const darkBorder = '#38383A';      // Apple dark border
+const darkBackground = '#121212';  // Neutral deep dark — no blue tint
+const darkSurface = '#1E1E1E';     // Elevated surface
+const darkCard = '#1E1E1E';
+const darkBorder = '#2C2C2E';      // Subtle border
 
 // ---- Apple System Status Colors ----
 const SUCCESS = '#34C759';

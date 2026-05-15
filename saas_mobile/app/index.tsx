@@ -47,6 +47,6 @@ export default function Index() {
     return <Redirect href={`/property/${firstProperty.id}`} />;
   }
 
-  // No property access — redirect to login (login will show "no access" message)
-  return <Redirect href="/login" />;
+  // User is authenticated but has no property access — send to onboarding to complete setup
+  return <Redirect href="/onboarding" />;
 }

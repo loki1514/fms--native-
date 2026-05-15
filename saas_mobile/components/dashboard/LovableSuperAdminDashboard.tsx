@@ -42,11 +42,13 @@ import BottomNav from './lovable/BottomNav';
 import PropertyDetailScreen from './lovable/PropertyDetailScreen';
 import AnalyticsScreen from './lovable/AnalyticsScreen';
 import SkeletonLoader from './lovable/SkeletonLoader';
+import {
+  SPACING,
+  CARD_SURFACES,
+} from '@/constants/designSystem';
 import { 
   OverviewTab, 
-  OrganizationsTab, 
-  UsersTab, 
-  ProfileTab 
+  OrganizationsTab
 } from './lovable/ConsoleScreen';
 
 // ─── Main dashboard ────────────────────────────────────────────────────────────
@@ -294,7 +296,7 @@ export default function LovableSuperAdminDashboard() {
       // so activeProperty points to the old stale object; look it up by id
       setActiveProperty((prev) => {
         if (!prev) return null;
-        return mapped.find((p) => p.id === prev.id) ?? prev;
+        return mapped.find((p) => p.id === prev.id) || null;
       });
 
       {/* loaded properties */}
@@ -385,16 +387,6 @@ export default function LovableSuperAdminDashboard() {
             setSearchQuery={setConsoleSearchQuery}
           />
         );
-      case 'users':
-        return (
-          <UsersTab
-            users={users}
-            searchQuery={consoleSearchQuery}
-            setSearchQuery={setConsoleSearchQuery}
-          />
-        );
-      case 'profile':
-        return <ProfileTab onSignOut={() => setShowSignOut(true)} user={user} />;
       default:
         return null;
     }
@@ -499,8 +491,8 @@ export default function LovableSuperAdminDashboard() {
           </Animated.ScrollView>
         ) : screen === 'console' ? (
           <View style={{ flex: 1 }}>
-            <View style={styles.consoleTabs}>
-              {(['overview', 'organizations', 'users', 'profile'] as Tab[]).map((tab) => (
+            <View style={[styles.consoleTabs, { marginTop: insets.top + 12 }]}>
+              {(['overview', 'organizations'] as Tab[]).map((tab) => (
                 <TouchableOpacity
                   key={tab}
                   style={[styles.consoleTab, consoleTab === tab && styles.consoleTabActive]}
@@ -531,10 +523,6 @@ export default function LovableSuperAdminDashboard() {
         onConsole={() => setScreen('console')}
         onAnalytics={() => setScreen('analytics')}
         onChat={() => setShowChat(true)}
-        onProfile={() => {
-          setScreen('console');
-          setConsoleTab('profile');
-        }}
         insets={insets}
       />
 
@@ -594,11 +582,10 @@ const styles = StyleSheet.create({
   accessSignOutText: { color: '#FFFFFF', fontWeight: '600' },
   consoleTabs: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 4,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    gap: 6,
     zIndex: 10,
-    marginTop: Platform.OS === 'ios' ? 44 : 12,
   },
   consoleTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
   consoleTabActive: { backgroundColor: 'rgba(112,143,150,0.25)' },
@@ -614,8 +601,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 28,
-    paddingBottom: 8,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.sm,
   },
   mainTitle: {
     fontSize: 32,
@@ -644,13 +631,13 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    marginHorizontal: 28,
-    marginBottom: 20,
-    paddingHorizontal: 14,
+    backgroundColor: CARD_SURFACES.cardBg,
+    marginHorizontal: SPACING.xl,
+    marginBottom: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
     paddingVertical: 11,
     borderRadius: 14,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: CARD_SURFACES.cardBorder,
     borderWidth: 1,
     gap: 10,
   },
@@ -661,7 +648,7 @@ const styles = StyleSheet.create({
     fontFamily: fontSans,
     paddingVertical: 0,
   },
-  propertiesList: { paddingHorizontal: 28, gap: 16, paddingTop: 12, paddingBottom: 12 },
+  propertiesList: { paddingHorizontal: SPACING.xl, gap: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.md },
   emptyState: { alignItems: 'center', paddingVertical: 80 },
   emptyText: {
     fontFamily: fontSans,
@@ -676,9 +663,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,149,0,0.30)',
-    marginHorizontal: 28,
-    marginBottom: 16,
-    paddingHorizontal: 14,
+    marginHorizontal: SPACING.xl,
+    marginBottom: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
     paddingVertical: 10,
     gap: 8,
   },

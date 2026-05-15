@@ -4,11 +4,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   StatusBar,
   RefreshControl,
   ScrollView,
   ActivityIndicator,
+  Platform,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,11 +33,11 @@ import {
   CARD_SURFACES,
 } from '@/constants/designSystem';
 
-const fontSans = 'System';
-const fontDisplay = 'System';
-const BG = '#060912';
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const BG = '#121212';
 
-type TabKey = 'overview' | 'users' | 'visitors' | 'settings';
+type TabKey = 'overview';
 
 interface Props {
   propertyId: string;
@@ -73,7 +74,7 @@ function GlassTile({
   const statusColor = status ? STATUS_COLORS[status].bg : undefined;
 
   return (
-    <Animated.View entering={FadeInUp.delay(delay).duration(500)} style={{ flex: 1 }}>
+    <Animated.View entering={FadeInUp.delay(delay).duration(500)} style={{ width: '100%' }}>
       <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={styles.tileWrapper}>
         <SafeBlurView intensity={40} style={styles.tileBlur} tint="dark">
           <LinearGradient
@@ -136,59 +137,40 @@ function ProgressBar({ percent, color }: { percent: number; color: string }) {
   );
 }
 
-// ─── Tab Button ───────────────────────────────────────────────────────────────
-function TabButton({
-  label,
-  icon,
-  active,
-  onPress,
-}: {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={[styles.tabBtn, active && styles.tabBtnActive]} onPress={onPress}>
-      <Ionicons name={icon} size={18} color={active ? '#FFFFFF' : 'rgba(255,255,255,0.40)'} />
-      <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
+// ─── Attention Card ───────────────────────────────────────────────────────────
+function AttentionCard({ item, index, onAction }: { item: any; index: number; onAction: () => void }) {
+  const severityColor =
+    item.severity === 'critical' ? '#EF4444' :
+    item.severity === 'high' ? '#F59E0B' :
+    item.severity === 'medium' ? '#3B82F6' : '#6B7280';
+  const iconName =
+    item.type === 'sla_risk' ? 'timer-outline' :
+    item.type === 'unassigned_critical' ? 'alert-circle-outline' :
+    item.type === 'unassigned_high' ? 'warning-outline' :
+    item.type === 'stale_ticket' ? 'time-outline' :
+    item.type === 'sop_missed' ? 'checkbox-outline' : 'information-circle-outline';
 
-// ─── User Card ────────────────────────────────────────────────────────────────
-function UserCard({ user }: { user: any }) {
   return (
-    <View style={styles.listCard}>
-      <View style={styles.listAvatar}>
-        <Text style={styles.listAvatarText}>
-          {(user.full_name ?? user.email ?? 'U').charAt(0).toUpperCase()}
-        </Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.listName}>{user.full_name || 'Unknown'}</Text>
-        <Text style={styles.listMeta}>{user.email}</Text>
-        <Text style={styles.listRole}>{user.role || 'Member'}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
-    </View>
-  );
-}
-
-// ─── Visitor Card ─────────────────────────────────────────────────────────────
-function VisitorCard({ visitor }: { visitor: any }) {
-  return (
-    <View style={styles.listCard}>
-      <View style={styles.listAvatar}>
-        <Text style={styles.listAvatarText}>{(visitor.name ?? 'V').charAt(0).toUpperCase()}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.listName}>{visitor.name || 'Guest'}</Text>
-        <Text style={styles.listMeta}>{visitor.purpose || 'General Visit'}</Text>
-        <Text style={styles.listRole}>{visitor.status || 'Checked In'}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
-    </View>
+    <Animated.View entering={FadeInUp.delay(index * 100).duration(500)}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={onAction}
+        style={[styles.attentionCard, { borderLeftColor: severityColor, borderLeftWidth: 3 }]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.attentionIconBadge, { backgroundColor: severityColor + '15' }]}>
+            <Ionicons name={iconName} size={16} color={severityColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.attentionTitle}>{item.title}</Text>
+            <Text style={styles.attentionDesc} numberOfLines={2}>{item.description}</Text>
+          </View>
+          <View style={[styles.attentionActionBadge, { backgroundColor: severityColor + '15' }]}>
+            <Text style={[styles.attentionActionText, { color: severityColor }]}>{item.action_label}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -205,6 +187,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [showChat, setShowChat] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
   const [showTileDetail, setShowTileDetail] = useState<TileDetail | null>(null);
+  const [showDrawer, setShowDrawer] = useState(false);
 
   // Data state
   const [tickets, setTickets] = useState<any[]>([]);
@@ -212,9 +195,14 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [sopTotal, setSopTotal] = useState(0);
   const [energyKwh, setEnergyKwh] = useState(0);
   const [energyTrend, setEnergyTrend] = useState(12);
-  const [propertyUsers, setPropertyUsers] = useState<any[]>([]);
-  const [visitors, setVisitors] = useState<any[]>([]);
   const [propertyName, setPropertyName] = useState('Property');
+
+  // Leadership cockpit state
+  const [healthScore, setHealthScore] = useState<any>(null);
+  const [attentionItems, setAttentionItems] = useState<any[]>([]);
+  const [ticketFunnel, setTicketFunnel] = useState<any[]>([]);
+  const [ticketTimeFilter, setTicketTimeFilter] = useState<'today' | 'month' | 'all'>('all');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Cassandra voice state
   const voiceState = useCassandraStore((s) => s.voiceState);
@@ -268,38 +256,31 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         .maybeSingle();
       if (elecData) setEnergyKwh(Math.round((elecData as any).final_units || 0));
 
-      // Users
-      const { data: userData } = await supabase
-        .from('property_memberships')
-        .select('user_id, role, users(full_name, email, phone)')
-        .eq('property_id', propertyId)
-        .eq('is_active', true);
-      if (userData) {
-        setPropertyUsers(
-          userData.map((u: any) => ({
-            id: u.user_id,
-            full_name: u.users?.full_name,
-            email: u.users?.email,
-            phone: u.users?.phone,
-            role: u.role,
-          }))
-        );
-      }
+      // Health score
+      const { data: healthData } = await supabase.rpc('get_property_health_score', {
+        p_property_id: propertyId,
+      });
+      if (healthData) setHealthScore(healthData);
 
-      // Visitors (today)
-      const today = new Date().toISOString().split('T')[0];
-      const { data: visitorData } = await supabase
-        .from('visitors')
-        .select('*')
-        .eq('property_id', propertyId)
-        .gte('check_in_time', today)
-        .order('check_in_time', { ascending: false });
-      if (visitorData) setVisitors(visitorData);
+      // Attention items
+      const { data: attentionData } = await supabase.rpc('get_attention_items', {
+        p_property_id: propertyId,
+        p_limit: 10,
+      });
+      if (attentionData) setAttentionItems(attentionData);
+
+      // Ticket funnel
+      const { data: funnelData } = await supabase.rpc('get_ticket_funnel', {
+        p_property_id: propertyId,
+        p_days: 30,
+      });
+      if (funnelData) setTicketFunnel(funnelData);
     } catch (_) {
       {/* silent */}
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setLastUpdated(new Date());
     }
   }, [propertyId]);
 
@@ -313,9 +294,22 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   };
 
   // Stats
-  const openTickets = useMemo(() => tickets.filter((t) => ['open', 'blocked', 'client_raised'].includes(t.status)).length, [tickets]);
-  const resolvedTickets = useMemo(() => tickets.filter((t) => ['resolved', 'closed', 'satisfied'].includes(t.status)).length, [tickets]);
-  const totalTickets = tickets.length;
+  const filteredTickets = useMemo(() => {
+    const now = new Date();
+    if (ticketTimeFilter === 'today') {
+      const todayStr = now.toISOString().split('T')[0];
+      return tickets.filter((t) => t.created_at?.startsWith(todayStr));
+    }
+    if (ticketTimeFilter === 'month') {
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      return tickets.filter((t) => t.created_at >= monthStart);
+    }
+    return tickets;
+  }, [tickets, ticketTimeFilter]);
+
+  const openTickets = useMemo(() => filteredTickets.filter((t) => ['open', 'blocked', 'client_raised'].includes(t.status)).length, [filteredTickets]);
+  const resolvedTickets = useMemo(() => filteredTickets.filter((t) => ['resolved', 'closed', 'satisfied'].includes(t.status)).length, [filteredTickets]);
+  const totalTickets = filteredTickets.length;
   const healthStatus: 'optimal' | 'watch' | 'critical' = openTickets > 15 ? 'critical' : openTickets > 5 ? 'watch' : 'optimal';
   const healthColor = STATUS_COLORS[healthStatus].bg;
   const checklistPct = sopTotal > 0 ? Math.round((sopCount / sopTotal) * 100) : 100;
@@ -441,7 +435,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <StatusBar barStyle="light-content" />
-        <LinearGradient colors={['#1c2135', '#0f121e', '#07090e']} style={StyleSheet.absoluteFillObject} />
+        <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#708F96" />
           <Text style={{ color: 'rgba(255,255,255,0.55)', marginTop: 16 }}>Loading...</Text>
@@ -450,140 +444,167 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
     );
   }
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'overview':
-        return (
-          <>
-            {/* Tickets Tile */}
-            <GlassTile label="Tickets" icon="ticket" delay={100} status={healthStatus} onPress={() => setShowTileDetail(tileDetails.tickets)}>
-              <View style={styles.tileTopRow}>
-                <View>
-                  <Text style={styles.tileMetricBig}>{totalTickets}</Text>
-                  <Text style={styles.tileSubtext}>{openTickets} open · {resolvedTickets} resolved</Text>
-                </View>
-                <MiniBarChart data={ticketHistory} />
+  const renderTabContent = () => (
+    <>
+      {/* Tickets Intelligence Tile — moved up */}
+      <GlassTile label="Tickets" icon="ticket" delay={80} status={healthStatus} onPress={() => setShowTileDetail(tileDetails.tickets)}>
+        {/* Time filter toggle */}
+        <View style={styles.timeToggleRow}>
+          {(['today', 'month', 'all'] as const).map((f) => (
+            <TouchableOpacity
+              key={f}
+              style={[styles.timeToggleBtn, ticketTimeFilter === f && styles.timeToggleBtnActive]}
+              onPress={() => setTicketTimeFilter(f)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.timeToggleText, ticketTimeFilter === f && styles.timeToggleTextActive]}>
+                {f === 'today' ? 'Today' : f === 'month' ? 'This Month' : 'All Time'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={styles.tileTopRow}>
+          <View>
+            <Text style={styles.tileMetricBig}>{totalTickets}</Text>
+            <Text style={styles.tileSubtext}>{openTickets} open · {resolvedTickets} resolved</Text>
+          </View>
+          <MiniBarChart data={ticketHistory} />
+        </View>
+        {/* Status breakdown row */}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+          {ticketFunnel.slice(0, 4).map((f: any) => {
+            const shortLabel = f.status_label
+              ?.replace(/_/g, ' ')
+              ?.replace(/pending validation/i, 'Pending')
+              ?.replace(/assigned/i, 'Assigned')
+              ?.replace(/closed/i, 'Closed')
+              ?.replace(/waitlist/i, 'Waitlist')
+              ?.replace(/open/i, 'Open')
+              ?.replace(/resolved/i, 'Resolved')
+              ?.replace(/in progress/i, 'In Progress')
+              || f.status_label;
+            return (
+              <View key={f.status_label} style={{ flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 2, overflow: 'hidden' }}>
+                <Text style={{ fontFamily: fontDisplay, fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>{f.ticket_count}</Text>
+                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontFamily: fontSans, fontSize: 9, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginTop: 2, textAlign: 'center', maxWidth: '100%' }}>{shortLabel}</Text>
               </View>
-            </GlassTile>
+            );
+          })}
+        </View>
+      </GlassTile>
 
-            {/* Checklist + Health Row */}
-            <View style={styles.rowTwo}>
-              <GlassTile label="Checklist" icon="checkbox-outline" delay={180} onPress={() => setShowTileDetail(tileDetails.checklist)}>
-                <Text style={styles.tileMetricMid}>
-                  {sopCount} <Text style={styles.tileSuffix}>/ {sopTotal}</Text>
+      {/* Compact Health Score — one line */}
+      {healthScore && (
+        <Animated.View entering={FadeInUp.delay(120).duration(500)}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={[styles.tileWrapper, { minHeight: 64 }]}
+            onPress={() => setShowTileDetail(tileDetails.health)}
+          >
+            <SafeBlurView intensity={40} style={[styles.tileBlur, { minHeight: 64 }]} tint="dark">
+              <LinearGradient
+                colors={['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.2)']}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={[styles.tileContent, { paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+                <View style={[styles.healthDot, { backgroundColor: (healthScore.score ?? 0) >= 80 ? '#10B981' : (healthScore.score ?? 0) >= 50 ? '#F59E0B' : '#EF4444' }]} />
+                <Text style={[styles.tileLabel, { flex: 0, letterSpacing: 1 }]}>HEALTH</Text>
+                <Text style={[styles.tileMetricMid, { fontSize: 22 }]}>{healthScore.score ?? 0}</Text>
+                <Text style={[styles.tileSuffix, { fontSize: 12 }]}>/ 100</Text>
+                <Text style={[styles.tileSubtext, { color: healthColor, fontWeight: '600', fontSize: 12, marginTop: 0 }]}>
+                  {(healthScore.score ?? 0) >= 80 ? 'Excellent' : (healthScore.score ?? 0) >= 50 ? 'Needs Attention' : 'Critical'}
                 </Text>
-                <ProgressBar percent={checklistPct} color={STATUS_COLORS.optimal.bg} />
-                <Text style={styles.tileSubtext}>{checklistPct}% completed</Text>
-              </GlassTile>
-
-              <GlassTile label="Health" icon="heart" delay={240} status={healthStatus} onPress={() => setShowTileDetail(tileDetails.health)}>
-                <Text style={[styles.tileMetricMid, { color: healthColor }]}>
-                  {healthStatus === 'optimal' ? 'Optimal' : healthStatus === 'watch' ? 'Watch' : 'Critical'}
-                </Text>
-                <View style={[styles.healthDotLarge, { backgroundColor: healthColor, shadowColor: healthColor }]} />
-                <Text style={styles.tileSubtext}>Facility Status</Text>
-              </GlassTile>
-            </View>
-
-            {/* Energy Tile */}
-            <GlassTile label="Energy Usage" icon="flash" delay={300} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
-              <View style={styles.tileTopRow}>
-                <View>
-                  <Text style={styles.tileMetricMid}>
-                    {energyKwh} <Text style={styles.tileSuffix}>kWh</Text>
-                  </Text>
-                  <Text style={styles.tileSubtext}>Grid + DG consumption today</Text>
-                </View>
-                <View style={styles.trendChip}>
-                  <Ionicons name={energyTrend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#1FC26E" />
-                  <Text style={styles.trendChipText}>+{energyTrend}%</Text>
+                <View style={{ flex: 1 }} />
+                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={[styles.tileMetricSmall, { fontSize: 13 }]}>{healthScore.total_open ?? 0}</Text>
+                    <Text style={[styles.tileSuffix, { fontSize: 9 }]}>Open</Text>
+                  </View>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={[styles.tileMetricSmall, { fontSize: 13, color: '#F59E0B' }]}>{healthScore.sla_risk ?? 0}</Text>
+                    <Text style={[styles.tileSuffix, { fontSize: 9 }]}>Risk</Text>
+                  </View>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={[styles.tileMetricSmall, { fontSize: 13, color: '#EF4444' }]}>{healthScore.stale ?? 0}</Text>
+                    <Text style={[styles.tileSuffix, { fontSize: 9 }]}>Stale</Text>
+                  </View>
                 </View>
               </View>
-              <MiniBarChart data={energyHistory} highlightColor="rgba(214,158,46,0.85)" />
-            </GlassTile>
+            </SafeBlurView>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
-            {/* Quick Actions */}
-            <View style={styles.quickActions}>
-              <TouchableOpacity style={styles.quickBtn} onPress={() => setShowChat(true)}>
-                <Ionicons name="chatbubble-ellipses" size={20} color="#FFFFFF" />
-                <Text style={styles.quickText}>Ask Cassandra</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.quickBtn} onPress={() => router.push(`/property/${propertyId}/users`)}>
-                <Ionicons name="people" size={20} color="#FFFFFF" />
-                <Text style={styles.quickText}>Users</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.quickBtn} onPress={() => router.push(`/property/${propertyId}/visitors`)}>
-                <Ionicons name="person-add" size={20} color="#FFFFFF" />
-                <Text style={styles.quickText}>Visitors</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        );
+      {/* Attention Feed */}
+      {attentionItems.length > 0 && (
+        <>
+          <Animated.View entering={FadeInUp.delay(160).duration(500)} style={{ paddingHorizontal: SPACING.xl, marginBottom: SPACING.md }}>
+            <Text style={styles.sectionLabel}>⚠️ NEEDS ATTENTION</Text>
+          </Animated.View>
+          {attentionItems.slice(0, 3).map((item, index) => (
+            <AttentionCard
+              key={item.id}
+              item={item}
+              index={index}
+              onAction={() => {
+                if (item.entity_type === 'ticket') {
+                  router.push(`/property/${propertyId}/tickets/${item.entity_id}`);
+                }
+              }}
+            />
+          ))}
+        </>
+      )}
 
-      case 'users':
-        return (
-          <View style={{ paddingHorizontal: SPACING.xl }}>
-            {propertyUsers.map((u) => (
-              <UserCard key={u.id} user={u} />
-            ))}
-            {propertyUsers.length === 0 && (
-              <View style={styles.emptyState}>
-                <Ionicons name="people-outline" size={40} color="rgba(255,255,255,0.20)" />
-                <Text style={styles.emptyText}>No users found</Text>
-              </View>
-            )}
+      {/* Checklist — full width */}
+      <GlassTile label="Checklist" icon="checkbox-outline" delay={200} onPress={() => setShowTileDetail(tileDetails.checklist)}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={styles.tileMetricMid}>
+              {sopCount} <Text style={styles.tileSuffix}>/ {sopTotal}</Text>
+            </Text>
+            <Text style={styles.tileSubtext}>{checklistPct}% completed</Text>
           </View>
-        );
-
-      case 'visitors':
-        return (
-          <View style={{ paddingHorizontal: SPACING.xl }}>
-            {visitors.map((v, i) => (
-              <VisitorCard key={v.id ?? i} visitor={v} />
-            ))}
-            {visitors.length === 0 && (
-              <View style={styles.emptyState}>
-                <Ionicons name="person-outline" size={40} color="rgba(255,255,255,0.20)" />
-                <Text style={styles.emptyText}>No visitors today</Text>
-              </View>
-            )}
+          <View style={{ alignItems: 'flex-end' }}>
+            <ProgressBar percent={checklistPct} color={STATUS_COLORS.optimal.bg} />
+            <Text style={[styles.tileSubtext, { marginTop: 4, color: checklistPct >= 80 ? STATUS_COLORS.optimal.bg : STATUS_COLORS.watch.bg }]}>
+              {checklistPct >= 80 ? 'On track' : checklistPct >= 50 ? 'Behind' : 'Critical'}
+            </Text>
           </View>
-        );
+        </View>
+      </GlassTile>
 
-      case 'settings':
-        return (
-          <View style={{ paddingHorizontal: SPACING.xl }}>
-            <View style={styles.settingsCard}>
-              <TouchableOpacity style={styles.settingsRow} onPress={() => router.push(`/property/${propertyId}/settings`)}>
-                <Ionicons name="settings-outline" size={20} color="rgba(255,255,255,0.60)" />
-                <Text style={styles.settingsText}>Property Settings</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsRow} onPress={() => router.push(`/property/${propertyId}/diesel`)}>
-                <Ionicons name="water-outline" size={20} color="rgba(255,255,255,0.60)" />
-                <Text style={styles.settingsText}>Diesel Logger</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsRow} onPress={() => router.push(`/property/${propertyId}/electricity`)}>
-                <Ionicons name="flash-outline" size={20} color="rgba(255,255,255,0.60)" />
-                <Text style={styles.settingsText}>Electricity Logger</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.settingsRow} onPress={() => setShowSignOut(true)}>
-                <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
-                <Text style={[styles.settingsText, { color: '#FF3B30' }]}>Sign Out</Text>
-                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.30)" />
-              </TouchableOpacity>
-            </View>
+      {/* Energy Tile */}
+      <GlassTile label="Energy Usage" icon="flash" delay={280} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
+        <View style={styles.tileTopRow}>
+          <View>
+            <Text style={styles.tileMetricMid}>
+              {energyKwh} <Text style={styles.tileSuffix}>kWh</Text>
+            </Text>
+            <Text style={styles.tileSubtext}>Grid + DG consumption today</Text>
           </View>
-        );
-    }
-  };
+          <View style={styles.trendChip}>
+            <Ionicons name={energyTrend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#1FC26E" />
+            <Text style={styles.trendChipText}>+{energyTrend}%</Text>
+          </View>
+        </View>
+        <MiniBarChart data={energyHistory} highlightColor="rgba(214,158,46,0.85)" />
+      </GlassTile>
+
+      {/* Quick Actions */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity style={styles.quickBtn} onPress={() => setShowChat(true)}>
+          <Ionicons name="chatbubble-ellipses" size={20} color="#FFFFFF" />
+          <Text style={styles.quickText}>Ask Cassandra</Text>
+        </TouchableOpacity>
+      </View>
+    </>
+  );
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#1c2135', '#0f121e', '#07090e']} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
       {weather && <WeatherBackground condition={weather.condition} />}
 
       <ScrollView
@@ -599,22 +620,61 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>{propertyName}</Text>
             <Text style={styles.headerSubtitle}>Property Admin Dashboard</Text>
+            {lastUpdated && (
+              <Text style={styles.headerUpdated}>Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</Text>
+            )}
           </View>
-          <TouchableOpacity style={styles.signOutBtn} onPress={() => setShowSignOut(true)}>
-            <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.60)" />
+          <TouchableOpacity style={styles.signOutBtn} onPress={() => setShowDrawer(true)}>
+            <Ionicons name="menu" size={22} color="rgba(255,255,255,0.60)" />
           </TouchableOpacity>
-        </Animated.View>
-
-        {/* Tabs */}
-        <Animated.View entering={FadeInUp.delay(60).duration(500)} style={styles.tabsRow}>
-          <TabButton label="Overview" icon="grid" active={activeTab === 'overview'} onPress={() => setActiveTab('overview')} />
-          <TabButton label="Users" icon="people" active={activeTab === 'users'} onPress={() => setActiveTab('users')} />
-          <TabButton label="Visitors" icon="person-add" active={activeTab === 'visitors'} onPress={() => setActiveTab('visitors')} />
-          <TabButton label="Settings" icon="settings" active={activeTab === 'settings'} onPress={() => setActiveTab('settings')} />
         </Animated.View>
 
         {/* Tab Content */}
         <View style={{ marginTop: SPACING.lg }}>{renderTabContent()}</View>
+
+        {/* Navigation Drawer */}
+        <Modal visible={showDrawer} transparent animationType="slide" onRequestClose={() => setShowDrawer(false)}>
+          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end' }}>
+            <TouchableOpacity style={styles.drawerBackdrop} onPress={() => setShowDrawer(false)} activeOpacity={1} />
+            <View style={[styles.drawerPanel, { paddingTop: insets.top + 16 }]}>
+              <View style={styles.drawerHeader}>
+                <Text style={styles.drawerTitle}>Menu</Text>
+                <TouchableOpacity onPress={() => setShowDrawer(false)} style={styles.drawerCloseBtn} activeOpacity={0.7}>
+                  <Ionicons name="close" size={24} color="rgba(255,255,255,0.70)" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {[
+                  { label: 'Dashboard', route: 'dashboard', icon: 'grid-outline' },
+                  { label: 'Tickets', route: 'tickets', icon: 'ticket-outline' },
+                  { label: 'Flow Map', route: 'flow-map', icon: 'git-merge-outline' },
+                  { label: 'Visitors', route: 'visitors', icon: 'people-outline' },
+                  { label: 'Rooms', route: 'rooms', icon: 'cube-outline' },
+                  { label: 'Stock', route: 'stock', icon: 'cube-outline' },
+                  { label: 'Diesel', route: 'diesel', icon: 'flame-outline' },
+                  { label: 'Electricity', route: 'electricity', icon: 'flash-outline' },
+                  { label: 'Users', route: 'users', icon: 'person-outline' },
+                  { label: 'Settings', route: 'settings', icon: 'settings-outline' },
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.route}
+                    style={styles.drawerItem}
+                    onPress={() => { setShowDrawer(false); router.push(`/property/${propertyId}/${item.route}` as never); }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.60)" />
+                    <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                    <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.20)" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity style={styles.drawerSignOut} onPress={() => { setShowDrawer(false); setShowSignOut(true); }}>
+                <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+                <Text style={styles.drawerSignOutText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
 
       {/* Floating bottom nav with Cassandra */}
@@ -623,18 +683,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
           <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('overview')}>
             <Ionicons name={activeTab === 'overview' ? 'grid' : 'grid-outline'} size={22} color={activeTab === 'overview' ? '#FFFFFF' : 'rgba(255,255,255,0.40)'} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('users')}>
-            <Ionicons name={activeTab === 'users' ? 'people' : 'people-outline'} size={22} color={activeTab === 'users' ? '#FFFFFF' : 'rgba(255,255,255,0.40)'} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navOrb} onPress={() => setShowChat(true)}>
-            <SidekickFace size={48} state={faceState} compact />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('visitors')}>
-            <Ionicons name={activeTab === 'visitors' ? 'person-add' : 'person-add-outline'} size={22} color={activeTab === 'visitors' ? '#FFFFFF' : 'rgba(255,255,255,0.40)'} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('settings')}>
-            <Ionicons name={activeTab === 'settings' ? 'settings' : 'settings-outline'} size={22} color={activeTab === 'settings' ? '#FFFFFF' : 'rgba(255,255,255,0.40)'} />
-          </TouchableOpacity>
+          <SidekickFace size={48} state={faceState} compact onClick={() => setShowChat(true)} />
         </SafeBlurView>
       </View>
 
@@ -668,6 +717,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
   },
+  headerUpdated: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.30)',
+    marginTop: 4,
+  },
   signOutBtn: {
     width: 40,
     height: 40,
@@ -677,31 +732,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.xl,
-    gap: 8,
-  },
-  tabBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    gap: 4,
-  },
-  tabBtnActive: {
-    backgroundColor: 'rgba(112,143,150,0.25)',
-  },
-  tabText: {
-    fontFamily: fontSans,
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.40)',
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
   },
   tileWrapper: {
     borderRadius: 24,
@@ -713,7 +743,6 @@ const styles = StyleSheet.create({
     minHeight: 160,
   },
   tileBlur: {
-    flex: 1,
     minHeight: 160,
   },
   tileContent: {
@@ -861,82 +890,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'rgba(255,255,255,0.70)',
   },
-  listCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: CARD_SURFACES.cardBg,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: CARD_SURFACES.cardBorder,
-    padding: 14,
-    marginBottom: 12,
-  },
-  listAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  listAvatarText: {
-    fontFamily: fontDisplay,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  listName: {
-    fontFamily: fontSans,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  listMeta: {
-    fontFamily: fontSans,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.50)',
-    marginTop: 2,
-  },
-  listRole: {
-    fontFamily: fontSans,
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#708F96',
-    marginTop: 2,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontFamily: fontSans,
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.40)',
-    marginTop: 12,
-  },
-  settingsCard: {
-    backgroundColor: CARD_SURFACES.cardBg,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: CARD_SURFACES.cardBorder,
-    padding: SPACING.lg,
-  },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  settingsText: {
-    fontFamily: fontSans,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    flex: 1,
-  },
   bottomNav: {
     position: 'absolute',
     bottom: 24,
@@ -969,5 +922,162 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginHorizontal: 4,
+  },
+  sectionLabel: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.45)',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  tileMetricSmall: {
+    fontFamily: fontDisplay,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  attentionCard: {
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+    padding: 14,
+    marginHorizontal: SPACING.xl,
+    marginBottom: 10,
+  },
+  attentionIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attentionTitle: {
+    fontFamily: fontSans,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  attentionDesc: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.55)',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  attentionActionBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  attentionActionText: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  timeToggleRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 10,
+    padding: 4,
+    width: '100%',
+  },
+  timeToggleBtn: {
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  timeToggleBtnActive: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  timeToggleText: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.50)',
+  },
+  timeToggleTextActive: {
+    color: '#FFFFFF',
+  },
+  // Drawer
+  drawerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+  },
+  drawerPanel: {
+    width: 280,
+    height: '100%',
+    backgroundColor: '#1A1A1A',
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  drawerTitle: {
+    fontFamily: fontDisplay,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  drawerCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  drawerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 2,
+  },
+  drawerItemLabel: {
+    flex: 1,
+    fontFamily: fontSans,
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.80)',
+  },
+  drawerSignOut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+  },
+  drawerSignOutText: {
+    fontFamily: fontSans,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  healthDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
 });

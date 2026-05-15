@@ -115,7 +115,7 @@ export default function OnboardingScreen() {
   const theme = Colors[colorScheme];
   const router = useRouter();
   const isFocused = useIsOnScreen();
-  const { user } = useAuth();
+  const { user, refreshMembership } = useAuth();
   const supabase = createClient();
   const {
     voiceEnrollmentDone,
@@ -137,6 +137,7 @@ export default function OnboardingScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [showFireworks, setShowFireworks] = useState(false);
   const [error, setError] = useState('');
+  const [resolvedOrgId, setResolvedOrgId] = useState<string | null>(null);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -206,11 +207,31 @@ export default function OnboardingScreen() {
 
     const fetchProps = async () => {
       setLoading(true);
+      setError('');
       try {
+        // Resolve org ID: env var first, then query DB fallback
+        let orgId = AUTOPILOT_ORG_ID;
+        if (!orgId) {
+          const { data: org } = await supabase
+            .from('organizations')
+            .select('id')
+            .or(`code.eq.autopilot,name.ilike.%autopilot%`)
+            .limit(1)
+            .maybeSingle() as { data: OrgRow | null };
+          orgId = org?.id;
+        }
+        setResolvedOrgId(orgId ?? null);
+
+        if (!orgId) {
+          setProperties([]);
+          setLoading(false);
+          return;
+        }
+
         const { data, error: err } = await supabase
           .from('properties')
           .select('id, name, code, organization_id')
-          .eq('organization_id', AUTOPILOT_ORG_ID ?? '')
+          .eq('organization_id', orgId)
           .order('name');
 
         if (err) throw err;
@@ -307,18 +328,41 @@ export default function OnboardingScreen() {
 
     try {
       const authUser = user;
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
       let finalPropId = selectedProperty.id;
       if (finalPropId === 'default') {
-        const { data: rp } = await supabase.from('properties').select('id').eq('organization_id', AUTOPILOT_ORG_ID ?? '').limit(1).maybeSingle() as { data: { id: string } | null };
+        const orgId = resolvedOrgId ?? AUTOPILOT_ORG_ID;
+        if (!orgId) {
+          throw new Error('No organization configured. Please contact support.');
+        }
+        const { data: rp } = await supabase
+          .from('properties')
+          .select('id')
+          .eq('organization_id', orgId)
+          .limit(1)
+          .maybeSingle() as { data: { id: string } | null };
         if (rp) finalPropId = rp.id;
-        else throw new Error('No properties found.');
+        else throw new Error('No properties found for this organization. Please contact support.');
       }
 
-      let targetOrgId = AUTOPILOT_ORG_ID ?? '';
+      let targetOrgId = resolvedOrgId ?? AUTOPILOT_ORG_ID ?? '';
       if (!targetOrgId) {
-        const { data: org } = await supabase.from('organizations').select('id').or(`code.eq.autopilot,name.ilike.%autopilot%`).limit(1).maybeSingle() as { data: OrgRow | null };
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('id')
+          .or(`code.eq.autopilot,name.ilike.%autopilot%`)
+          .limit(1)
+          .maybeSingle() as { data: OrgRow | null };
         if (org) targetOrgId = org.id;
+      }
+
+      // Validate UUIDs before insert
+      if (!targetOrgId || !UUID_REGEX.test(targetOrgId)) {
+        throw new Error('Invalid organization ID. Please contact support.');
+      }
+      if (!finalPropId || !UUID_REGEX.test(finalPropId)) {
+        throw new Error('Invalid property ID. Please contact support.');
       }
 
       const finalRole = (selectedRole === 'staff' && selectedSkills.includes('soft_service_manager'))
@@ -405,6 +449,9 @@ export default function OnboardingScreen() {
 
       await supabase.auth.updateUser({ data: { onboarding_completed: true } });
 
+      // Refresh membership cache so the app sees the new property membership
+      await refreshMembership();
+
       setShowFireworks(true);
     } catch (err: any) {
       console.error('Onboarding complete error:', err);
@@ -415,7 +462,7 @@ export default function OnboardingScreen() {
 
   const handleFireworksDone = () => {
     setShowFireworks(false);
-    router.replace('/(auth)/login');
+    router.replace('/');
   };
 
   const toggleSkill = (code: string) => {
@@ -551,7 +598,7 @@ export default function OnboardingScreen() {
                   {properties.length === 0 ? (
                     <TouchableOpacity
                       style={[styles.propertyCard, { borderColor: theme.border }]}
-                      onPress={() => setSelectedProperty({ id: 'default', name: 'Main Campus', code: 'main', organization_id: AUTOPILOT_ORG_ID ?? 'default' })}
+                      onPress={() => setSelectedProperty({ id: 'default', name: 'Main Campus', code: 'main', organization_id: resolvedOrgId ?? AUTOPILOT_ORG_ID ?? 'default' })}
                     >
                       <Text style={[styles.propertyEmoji]}>🏢</Text>
                       <View style={styles.propertyInfo}>

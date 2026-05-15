@@ -20,6 +20,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { supabase } from '@/utils/supabase/client';
 
 const TOKEN_KEY = 'cassandra_token';
 const EXPIRES_KEY = 'cassandra_expires_at';
@@ -114,11 +115,8 @@ export async function getValidToken(): Promise<string> {
   // Get Supabase JWT for the exchange
   let supabaseToken: string | null = null;
 
-  if (Platform.OS === 'web') {
-    supabaseToken = localStorage.getItem('jwt');
-  } else {
-    supabaseToken = await SecureStore.getItemAsync('jwt');
-  }
+  const { data: { session } } = await supabase.auth.getSession();
+  supabaseToken = session?.access_token ?? null;
 
   if (!supabaseToken) {
     throw new Error('No Supabase session. Please sign in again.');

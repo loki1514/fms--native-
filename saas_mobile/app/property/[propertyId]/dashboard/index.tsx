@@ -19,6 +19,7 @@ import Animated, { FadeInUp, useSharedValue, useAnimatedStyle, withSpring } from
 
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/utils/supabase/client';
+import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 
 // ---- Types ----
 type TimePeriod = 'today' | 'month' | 'all';
@@ -229,6 +230,7 @@ function DashboardInner() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [showCassandraChat, setShowCassandraChat] = useState(false);
 
   const propertyInfo = useMemo(() => {
     if (!membership) return { name: '', code: '' };
@@ -514,9 +516,15 @@ function DashboardInner() {
         active={active}
         onProperties={() => {}}
         onConsole={() => {}}
-        onCassandra={() => {}}
+        onCassandra={() => setShowCassandraChat(true)}
         onProfile={() => {}}
         insets={insets}
+      />
+
+      <CassandraSessionModal
+        visible={showCassandraChat}
+        onClose={() => setShowCassandraChat(false)}
+        orgId={membership?.org_id ?? ''}
       />
     </View>
   );
