@@ -7,7 +7,7 @@ import SidekickFace, { type FaceState } from '@/components/dashboard/SidekickFac
 import { useCassandraStore } from '@/stores/cassandraStore';
 import type { CassandraVoiceState } from '@/hooks/voice/useCassandraVoice';
 
-export type NavActiveState = 'properties' | 'console' | 'analytics' | 'profile' | 'detail';
+export type NavActiveState = 'properties' | 'console' | 'analytics' | 'detail';
 
 interface BottomNavProps {
   active: NavActiveState;
@@ -15,7 +15,6 @@ interface BottomNavProps {
   onConsole: () => void;
   onAnalytics: () => void;
   onChat: () => void;
-  onProfile: () => void;
   insets: EdgeInsets;
 }
 
@@ -25,7 +24,6 @@ export default function BottomNav({
   onConsole,
   onAnalytics,
   onChat,
-  onProfile,
   insets,
 }: BottomNavProps) {
   const isPropsActive = active === 'properties' || active === 'detail';
@@ -105,19 +103,6 @@ export default function BottomNav({
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity 
-        style={[styles.navItem, active === 'profile' && styles.navItemActive]} 
-        onPress={onProfile}
-      >
-        <Ionicons
-          name={active === 'profile' ? 'person' : 'person-outline'}
-          size={22}
-          color={active === 'profile' ? '#FFF' : 'rgba(255,255,255,0.40)'}
-        />
-        <Text style={[styles.navText, active === 'profile' && styles.navTextActive]}>
-          Profile
-        </Text>
-      </TouchableOpacity>
     </SafeBlurView>
   );
 }
