@@ -173,9 +173,9 @@ export default function DashboardSidebar(props: DrawerContentComponentProps) {
         </TouchableOpacity>
 
         <SignOutModal
-          isOpen={showSignOutModal}
+          visible={showSignOutModal}
           onClose={() => setShowSignOutModal(false)}
-          onConfirm={signOut}
+          onSignOut={signOut}
         />
       </View>
     </View>

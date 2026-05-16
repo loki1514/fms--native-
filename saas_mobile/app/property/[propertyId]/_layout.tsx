@@ -40,6 +40,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { TenantTicketModal } from '@/components/tenant/TenantTicketModal';
 import AnimatedLogo from '@/components/shared/AnimatedLogo';
+import NotificationBell from '@/components/dashboard/NotificationBell';
 
 // ---- Layout Constants ----
 const SIDEBAR_WIDTH = 288;
@@ -271,18 +272,21 @@ function Sidebar({
           <AnimatedLogo size="md" />
         )}
 
-        {/* Hamburger / Collapse toggle */}
-        <TouchableOpacity
-          style={[styles.collapseBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9' }]}
-          onPress={onToggle}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={collapsed ? 'menu-outline' : 'chevron-back-outline'}
-            size={collapsed ? 20 : 16}
-            color={isDark ? 'rgba(230,235,238,0.6)' : '#64748B'}
-          />
-        </TouchableOpacity>
+        {/* Notification Bell + Collapse toggle */}
+        <View style={styles.headerActions}>
+          <NotificationBell />
+          <TouchableOpacity
+            style={[styles.collapseBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9' }]}
+            onPress={onToggle}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={collapsed ? 'menu-outline' : 'chevron-back-outline'}
+              size={collapsed ? 20 : 16}
+              color={isDark ? 'rgba(230,235,238,0.6)' : '#64748B'}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Quick Actions row */}
@@ -691,6 +695,11 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '900',
     letterSpacing: 1.5,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   collapseBtn: {
     width: 36,

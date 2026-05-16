@@ -252,16 +252,7 @@ export default function LoginScreen() {
     }
 
     if (activePropMemberships.length === 1) {
-      const { property_id: pId, role } = activePropMemberships[0];
-      const roleRouteMap: Record<string, string> = {
-        property_admin: 'dashboard',
-        tenant: 'tenant',
-        security: 'security',
-        staff: 'lovable-mst',
-        mst: 'lovable-mst',
-        maintenance_staff: 'lovable-mst',
-        vendor: 'vendor',
-      };
+      const { property_id: pId } = activePropMemberships[0];
       const userEmail = authUserData?.email?.toLowerCase() ?? '';
       if (userEmail === 'srustikarta2022@gmail.com') {
         router.replace(`/property/${pId}/lovable-mst`);
@@ -272,8 +263,8 @@ export default function LoginScreen() {
         return;
       }
 
-      const route = roleRouteMap[role] || 'dashboard';
-      router.replace(`/property/${pId}/${route}`);
+      // All roles now use the unified sidebar dashboard
+      router.replace(`/property/${pId}/dashboard`);
       return;
     }
 

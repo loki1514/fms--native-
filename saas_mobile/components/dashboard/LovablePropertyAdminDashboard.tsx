@@ -40,6 +40,7 @@ import {
   ProgressBar,
   AttentionCard,
 } from './DashboardComponents';
+import { TenantTicketModal } from '@/components/tenant/TenantTicketModal';
 
 const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
@@ -64,6 +65,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [showSignOut, setShowSignOut] = useState(false);
   const [showTileDetail, setShowTileDetail] = useState<TileDetail | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
 
   // Data state
   const [tickets, setTickets] = useState<any[]>([]);
@@ -553,7 +555,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             </TouchableOpacity>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.headerIconBtn}>
+            <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowTicketModal(true)}>
               <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.headerIconBtn}>
@@ -574,9 +576,9 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             <Text style={[styles.staticNavLabel, activeTab === 'overview' && styles.staticNavLabelActive]}>Dashboard</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.staticNavItem} onPress={() => setActiveTab('tickets')}>
-            <Ionicons name={activeTab === 'tickets' ? 'ticket' : 'ticket-outline'} size={22} color={activeTab === 'tickets' ? '#FFF' : 'rgba(255,255,255,0.4)'} />
-            <Text style={[styles.staticNavLabel, activeTab === 'tickets' && styles.staticNavLabelActive]}>Tickets</Text>
+          <TouchableOpacity style={styles.staticNavItem} onPress={() => router.push(`/property/${propertyId}/tickets`)}>
+            <Ionicons name="ticket-outline" size={22} color="rgba(255,255,255,0.4)" />
+            <Text style={styles.staticNavLabel}>Tickets</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.staticNavItemCenter} onPress={() => setShowChat(true)}>
@@ -669,6 +671,21 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
           <TouchableOpacity style={styles.drawerBackdrop} onPress={() => setShowDrawer(false)} />
         </View>
       </Modal>
+
+      {/* Create Request Modal */}
+      <TenantTicketModal
+        visible={showTicketModal}
+        propertyId={propertyId}
+        organizationId={orgId}
+        userId={user?.id || ''}
+        userName={user?.full_name || user?.email || 'User'}
+        propertyName={propertyName}
+        onClose={() => setShowTicketModal(false)}
+        onSuccess={() => {
+          setShowTicketModal(false);
+          fetchData();
+        }}
+      />
     </View>
   );
 }

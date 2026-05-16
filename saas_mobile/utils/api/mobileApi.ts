@@ -5,6 +5,7 @@
  * Web API base: https://fms-dev-saas-one.vercel.app
  */
 import { createClient } from '@/utils/supabase/client';
+import { Platform } from 'react-native';
 
 // ---------------------------------------------------------------------
 // Supabase client-with-token (used for server-side API calls)
@@ -465,6 +466,8 @@ export async function checkPropertyAccess(
 // ---------------------------------------------------------------------
 // Role path helpers — mirrors getRoleAllowedPaths / getRoleDefaultPath from web
 // ---------------------------------------------------------------------
+import { CAPABILITY_MATRIX } from '@/constants/capabilities';
+
 const PROPERTY_ADMIN_ROLES = [
   'property_admin',
   'org_admin',
@@ -474,103 +477,49 @@ const PROPERTY_ADMIN_ROLES = [
 ];
 
 /**
- * Get allowed Expo Router paths based on user role.
- * Mirrors getRoleAllowedPaths() from saas_development/app/property/[propertyId]/layout.tsx
+ * Build allowed paths from capability matrix so sidebar modules always match route access.
+ * Every role gets /dashboard. Additional paths are added based on CAPABILITY_MATRIX domains.
  */
 export function getRoleAllowedPaths(role: string, propertyId: string): string[] {
   const basePath = `/property/${propertyId}`;
+  const capabilities = CAPABILITY_MATRIX[role as keyof typeof CAPABILITY_MATRIX] || {};
+  const paths: string[] = [`${basePath}/dashboard`];
 
-  switch (role) {
-    case 'property_admin':
-    case 'org_admin':
-    case 'org_super_admin':
-    case 'master_admin':
-    case 'owner':
-      return [`${basePath}`]; // Full access
-    case 'tenant':
-      return [`${basePath}/tenant`];
-    case 'security':
-      return [`${basePath}/security`, `${basePath}/dashboard`, `${basePath}/tickets`, `${basePath}/profile`];
-    case 'staff':
-    case 'soft_service_staff':
-    case 'soft_service_supervisor':
-    case 'soft_service_manager':
-      return [
-        `${basePath}/staff`,
-        `${basePath}/soft-service-manager`,
-        `${basePath}/stock`,
-        `${basePath}/stock/scan`,
-        `${basePath}/checklist`,
-        `${basePath}/dashboard`,
-        `${basePath}/tickets`,
-        `${basePath}/visitors`,
-        `${basePath}/diesel`,
-        `${basePath}/electricity`,
-        `${basePath}/flow-map`,
-        `${basePath}/settings`,
-        `${basePath}/profile`,
-      ];
-    case 'mst':
-    case 'maintenance_staff':
-      return [
-        `${basePath}/lovable-mst`,
-        `${basePath}/mst`,
-        `${basePath}/dashboard`,
-        `${basePath}/tickets`,
-        `${basePath}/diesel`,
-        `${basePath}/electricity`,
-        `${basePath}/visitors`,
-        `${basePath}/flow-map`,
-        `${basePath}/checklist`,
-        `${basePath}/stock`,
-        `${basePath}/reports`,
-        `${basePath}/settings`,
-        `${basePath}/profile`,
-        `${basePath}/users`,
-        `${basePath}/rooms`,
-      ];
-    case 'vendor':
-      return [`${basePath}/vendor`, `${basePath}/dashboard`, `${basePath}/tickets`];
-    case 'super_tenant':
-      return [`${basePath}/tenant`];
-    default:
-      return [`${basePath}/dashboard`];
+  if (capabilities.tickets) {
+    paths.push(`${basePath}/tickets`);
+    paths.push(`${basePath}/flow-map`);
   }
+  if (capabilities.users) paths.push(`${basePath}/users`);
+  if (capabilities.visitors) paths.push(`${basePath}/visitors`);
+  if (capabilities.properties) paths.push(`${basePath}/rooms`);
+  if (capabilities.assets) {
+    paths.push(`${basePath}/diesel`);
+    paths.push(`${basePath}/electricity`);
+  }
+  if (capabilities.procurement || capabilities.stock) {
+    paths.push(`${basePath}/stock`);
+    paths.push(`${basePath}/stock/scan`);
+  }
+  if (capabilities.reports) paths.push(`${basePath}/reports`);
+  if (capabilities.security) paths.push(`${basePath}/security`);
+
+  // Common pages every logged-in user can reach
+  paths.push(`${basePath}/settings`, `${basePath}/profile`);
+
+  // Admin-level roles get blanket access
+  if (PROPERTY_ADMIN_ROLES.includes(role)) {
+    return [`${basePath}`];
+  }
+
+  return paths;
 }
 
 /**
  * Get the default redirect path for a given role.
- * Mirrors getRoleDefaultPath() from saas_development/app/property/[propertyId]/layout.tsx
+ * All roles now land on the unified sidebar dashboard.
  */
 export function getRoleDefaultPath(role: string, propertyId: string): string {
-  const basePath = `/property/${propertyId}`;
-
-  switch (role) {
-    case 'property_admin':
-    case 'org_admin':
-    case 'org_super_admin':
-    case 'master_admin':
-    case 'owner':
-      return `${basePath}/dashboard`;
-    case 'tenant':
-    case 'super_tenant':
-      return `${basePath}/tenant`;
-    case 'security':
-      return `${basePath}/security`;
-    case 'staff':
-      return `${basePath}/staff`;
-    case 'soft_service_staff':
-    case 'soft_service_supervisor':
-    case 'soft_service_manager':
-      return `${basePath}/soft-service-manager`;
-    case 'mst':
-    case 'maintenance_staff':
-      return `${basePath}/lovable-mst`;
-    case 'vendor':
-      return `${basePath}/vendor`;
-    default:
-      return `${basePath}/dashboard`;
-  }
+  return `/property/${propertyId}/dashboard`;
 }
 
 /**
@@ -753,4 +702,155 @@ export async function getRequestsReport(propertyId: string, month?: string, star
 
 export async function getSnagReport(importId: string): Promise<SnagReportResponse> {
   return apiFetch<SnagReportResponse>(`/api/reports/snag-report/${importId}`);
+}
+
+// =============================================================================
+// Procurement / Material Request APIs — mirrors saas_one web app
+// =============================================================================
+
+export interface MaterialRequestItem {
+  id?: string;
+  name: string;
+  quantity: number;
+  unit_price?: number | null;
+  total_price?: number | null;
+  photo_url?: string | null;
+  description?: string | null;
+}
+
+export interface MaterialRequest {
+  id: string;
+  ticket_id: string;
+  property_id: string;
+  organization_id: string;
+  requested_by: string;
+  assignee_uid?: string | null;
+  items: MaterialRequestItem[];
+  status: string;
+  priority?: string;
+  total_amount?: number | null;
+  total_estimated_cost?: number;
+  notes?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  rejected_by?: string | null;
+  rejected_at?: string | null;
+  escalated_by?: string | null;
+  escalated_at?: string | null;
+  approval_level?: number;
+  target_approver_id?: string | null;
+  target_approver_ids?: string[];
+  target_approver_names?: string[];
+  has_custom_items?: boolean;
+  budget_type?: string;
+  created_at: string;
+  updated_at: string;
+  ticket?: {
+    ticket_number: string;
+    title: string;
+    floor_number?: string | null;
+  };
+  requester?: { full_name: string } | null;
+  approver?: { full_name: string } | null;
+  rejecter?: { full_name: string } | null;
+  target_approver?: { full_name: string } | null;
+  assignee?: { full_name: string } | null;
+}
+
+export interface MaterialRequestListResponse {
+  requests?: MaterialRequest[];
+  error?: string;
+}
+
+/**
+ * List material requests pending approval for a specific approver.
+ * Mirrors GET /api/procurement/requests?approverId=<id>&propertyId=<id>
+ */
+export async function listPendingApprovals(
+  approverId: string,
+  propertyId?: string,
+  organizationId?: string
+): Promise<MaterialRequest[]> {
+  const params = new URLSearchParams();
+  params.set('approverId', approverId);
+  if (propertyId) params.set('propertyId', propertyId);
+  if (organizationId) params.set('organizationId', organizationId);
+
+  const data = await apiFetch<MaterialRequest[] | { error: string }>(
+    `/api/procurement/requests?${params.toString()}`
+  );
+
+  if ('error' in data && data.error) {
+    throw new Error(data.error);
+  }
+
+  return (data as MaterialRequest[]) || [];
+}
+
+/**
+ * Approve, reject, or escalate a material request.
+ * Mirrors PATCH /api/procurement/requests/<id>
+ */
+export async function updateMaterialRequestStatus(
+  requestId: string,
+  status: 'approved' | 'rejected' | 'escalated',
+  notes?: string
+): Promise<MaterialRequest> {
+  return apiFetch<MaterialRequest>(`/api/procurement/requests/${requestId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, notes }),
+  });
+}
+
+/**
+ * Upload a photo for a ticket.
+ * Mirrors POST /api/tickets/[id]/photos from web app
+ */
+export async function uploadTicketPhoto(
+  ticketId: string,
+  photoUri: string,
+  type: 'before' | 'after' = 'before'
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  const token = await getSupabaseToken();
+  const formData = new FormData();
+
+  // On mobile, we need to create a file-like object from the URI
+  // Ensure the URI is properly formatted for fetch/FormData
+  const cleanUri = Platform.OS === 'android' ? photoUri : photoUri.replace('file://', '');
+  
+  const filename = photoUri.split('/').pop() || 'photo.jpg';
+  const match = /\.(\w+)$/.exec(filename);
+  const fileType = match ? `image/${match[1]}` : `image/jpeg`;
+
+  formData.append('file', {
+    uri: photoUri, // Keep original URI for React Native FormData
+    name: filename,
+    type: fileType,
+  } as any);
+  formData.append('type', type);
+
+  console.log(`[uploadTicketPhoto] Uploading to ${WEB_API_BASE}/api/tickets/${ticketId}/photos`);
+  
+  try {
+    const response = await fetch(`${WEB_API_BASE}/api/tickets/${ticketId}/photos`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.error('[uploadTicketPhoto] Server error:', response.status, body);
+      return { success: false, error: body || response.statusText };
+    }
+
+    const json = await response.json();
+    console.log('[uploadTicketPhoto] Success:', json);
+    return json;
+  } catch (err) {
+    console.error('[uploadTicketPhoto] Network error:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Network error' };
+  }
 }

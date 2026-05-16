@@ -13,8 +13,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { createTicket } from '@/utils/api/mobileApi';
+import { createTicket, uploadTicketPhoto } from '@/utils/api/mobileApi';
 import { useTheme } from '@/context';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'react-native';
 import {
   classifyTicketEnhanced,
   getSkillGroupDisplayName,
@@ -52,6 +55,8 @@ export function TenantTicketModal({
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isInternal, setIsInternal] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Classification preview
@@ -89,9 +94,46 @@ export function TenantTicketModal({
     setTitle('');
     setDescription('');
     setPriority('medium');
+    setIsInternal(false);
+    setPhoto(null);
     setError(null);
     setIsSubmitting(false);
     setClassification(null);
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need camera roll permissions to upload photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setPhoto(result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need camera permissions to take photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setPhoto(result.assets[0].uri);
+    }
   };
 
   const handleClose = () => {
@@ -105,33 +147,59 @@ export function TenantTicketModal({
       return;
     }
 
+    if (!propertyId || !organizationId) {
+      setError('System Error: Missing Property context. Please restart the app.');
+      console.error('[TenantTicketModal] Missing context:', { propertyId, organizationId });
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
+      console.log('[TenantTicketModal] Submitting ticket...', { priority, isInternal });
       const result = await createTicket({
         title: title.trim() || undefined,
         description: description.trim(),
         propertyId,
         organizationId,
         priority,
-        isInternal: false,
+        isInternal,
       });
 
       if (result.error) {
         setError(result.error);
+        setIsSubmitting(false);
         return;
       }
 
       const ticketNumber = result.ticket?.ticket_number ?? 'TKT';
       const ticketId = result.ticket?.id ?? '';
 
-      // Use server-side classification for the confirmation message (more authoritative)
+      // Upload photo if selected
+      let photoSuccess = true;
+      if (photo && ticketId) {
+        try {
+          const photoRes = await uploadTicketPhoto(ticketId, photo, 'before');
+          if (!photoRes.success) {
+            console.warn('[TenantTicketModal] Photo upload failed but ticket was created:', photoRes.error);
+            photoSuccess = false;
+          }
+        } catch (photoErr) {
+          console.error('[TenantTicketModal] Photo upload error:', photoErr);
+          photoSuccess = false;
+        }
+      }
+
+      // Use server-side classification for the confirmation message
       const classification = result.classification;
       let message = `Ticket ${ticketNumber} created successfully!`;
       if (classification?.issue_code) {
         message += `\n\nAuto-classified as: ${classification.issue_code.replace(/_/g, ' ')}`;
-        message += `\nConfidence: ${classification.confidence}`;
+      }
+      
+      if (!photoSuccess) {
+        message += `\n\nNote: The photo could not be attached, but the ticket is raised.`;
       }
 
       Alert.alert('Ticket Created', message, [
@@ -302,11 +370,29 @@ export function TenantTicketModal({
             />
           </View>
 
-          {/* Priority */}
+          {/* Priority & Critical Toggle */}
           <View style={styles.field}>
-            <Text style={[styles.fieldLabel, { color: textSecondary }]}>Priority</Text>
+            <View style={styles.labelRow}>
+              <Text style={[styles.fieldLabel, { color: textSecondary }]}>Priority</Text>
+              <TouchableOpacity 
+                style={[
+                  styles.criticalToggle, 
+                  priority === 'critical' && { backgroundColor: '#EF4444', borderColor: '#EF4444' }
+                ]}
+                onPress={() => setPriority(priority === 'critical' ? 'medium' : 'critical')}
+              >
+                <Ionicons 
+                  name="flash" 
+                  size={14} 
+                  color={priority === 'critical' ? '#FFF' : '#EF4444'} 
+                />
+                <Text style={[styles.criticalToggleText, priority === 'critical' && { color: '#FFF' }]}>
+                  {priority === 'critical' ? 'Critical Active' : 'Mark Critical'}
+                </Text>
+              </TouchableOpacity>
+            </View>
             <View style={styles.priorityRow}>
-              {priorityOptions.map((p) => (
+              {priorityOptions.filter(p => p.value !== 'critical').map((p) => (
                 <TouchableOpacity
                   key={p.value}
                   style={[
@@ -334,6 +420,49 @@ export function TenantTicketModal({
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          {/* Photo Attachment */}
+          <View style={styles.field}>
+            <Text style={[styles.fieldLabel, { color: textSecondary }]}>Attachment</Text>
+            {photo ? (
+              <View style={styles.photoContainer}>
+                <Image source={{ uri: photo }} style={styles.attachedImage} />
+                <TouchableOpacity 
+                  style={styles.removePhotoBtn} 
+                  onPress={() => setPhoto(null)}
+                >
+                  <Ionicons name="close-circle" size={24} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.mediaButtonsRow}>
+                <TouchableOpacity style={[styles.mediaBtn, { backgroundColor: cardBg, borderColor: inputBorder }]} onPress={takePhoto}>
+                  <Ionicons name="camera" size={20} color={colors.primary} />
+                  <Text style={[styles.mediaBtnText, { color: textSecondary }]}>Camera</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.mediaBtn, { backgroundColor: cardBg, borderColor: inputBorder }]} onPress={pickImage}>
+                  <Ionicons name="images" size={20} color={colors.primary} />
+                  <Text style={[styles.mediaBtnText, { color: textSecondary }]}>Gallery</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Internal Toggle */}
+          <View style={[styles.internalCard, { backgroundColor: isInternal ? '#FEF2F2' : cardBg, borderColor: isInternal ? '#FEE2E2' : cardBorder }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.internalTitle, { color: isInternal ? '#B91C1C' : textPrimary }]}>Internal Ticket</Text>
+              <Text style={[styles.internalDesc, { color: isInternal ? '#EF4444' : textMuted }]}>
+                Only visible to staff and administrators
+              </Text>
+            </View>
+            <TouchableOpacity 
+              onPress={() => setIsInternal(!isInternal)}
+              style={[styles.toggleTrack, isInternal && { backgroundColor: '#EF4444' }]}
+            >
+              <View style={[styles.toggleThumb, isInternal && { transform: [{ translateX: 18 }] }]} />
+            </TouchableOpacity>
           </View>
 
           {/* Error */}
@@ -524,5 +653,103 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     color: '#EF4444',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  criticalToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+    backgroundColor: 'rgba(239, 68, 68, 0.05)',
+  },
+  criticalToggleText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: '#EF4444',
+  },
+  mediaButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  mediaBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  mediaBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  photoContainer: {
+    width: '100%',
+    height: 160,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  attachedImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  removePhotoBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'white',
+    borderRadius: 12,
+  },
+  internalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  internalTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  internalDesc: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  toggleTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#E2E8F0',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'white',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.5,
   },
 });

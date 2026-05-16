@@ -26,8 +26,9 @@ const TOKEN_KEY = 'cassandra_token';
 const EXPIRES_KEY = 'cassandra_expires_at';
 const REFRESH_BUFFER_SECONDS = 300; // 5 minutes
 
-const API_URL = (process.env.EXPO_PUBLIC_CASSANDRA_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
-const WS_URL = (process.env.EXPO_PUBLIC_CASSANDRA_WS_URL ?? 'ws://localhost:8000').replace(/\/$/, '');
+const DEFAULT_URL = 'https://fms-dev-saas-one.vercel.app';
+const API_URL = (process.env.EXPO_PUBLIC_VOICE_API_URL ?? process.env.EXPO_PUBLIC_CASSANDRA_API_URL ?? DEFAULT_URL).replace(/\/$/, '');
+const WS_URL = API_URL.replace(/^http/, 'ws');
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 

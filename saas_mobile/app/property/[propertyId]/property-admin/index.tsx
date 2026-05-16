@@ -1,9 +1,7 @@
 import React from 'react';
-import { useLocalSearchParams } from 'expo-router';
-import PropertyAdminDashboard from '@/components/dashboard/PropertyAdminDashboard';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
-export default function PropertyAdminRoute() {
+export default function LegacyPropertyAdminDashboard() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
-  if (!propertyId) return null;
-  return <PropertyAdminDashboard propertyId={propertyId} />;
+  return <Redirect href={`/property/${propertyId}/lovable-admin`} />;
 }

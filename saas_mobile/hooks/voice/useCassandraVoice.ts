@@ -48,7 +48,9 @@ interface AudioChunkFrame {
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-const WS_URL = (process.env.EXPO_PUBLIC_CASSANDRA_WS_URL ?? 'ws://localhost:8000').replace(/\/$/, '');
+const DEFAULT_URL = 'https://fms-dev-saas-one.vercel.app';
+const BASE_URL = (process.env.EXPO_PUBLIC_VOICE_API_URL ?? process.env.EXPO_PUBLIC_CASSANDRA_API_URL ?? DEFAULT_URL).replace(/\/$/, '');
+const WS_URL = BASE_URL.replace(/^http/, 'ws');
 
 // ─── Platform-safe lazy module loaders ───────────────────────────────────────
 // expo-av and expo-file-system are NOT supported on web.

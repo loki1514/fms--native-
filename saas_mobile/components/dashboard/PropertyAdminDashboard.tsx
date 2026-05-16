@@ -666,9 +666,9 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
 
       {/* Sign Out Modal */}
       <SignOutModal
-        isOpen={showSignOutModal}
+        visible={showSignOutModal}
         onClose={() => setShowSignOutModal(false)}
-        onConfirm={signOut}
+        onSignOut={signOut}
       />
     </View>
   );

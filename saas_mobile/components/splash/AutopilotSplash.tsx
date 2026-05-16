@@ -179,7 +179,6 @@ function Counter({ value, opacity, translateY }: CounterProps) {
     <Animated.View style={[styles.counterContainer, containerStyle]}>
       <AnimatedTextInput
         animatedProps={animatedProps}
-        defaultValue="0"
         editable={false}
         caretHidden
         style={styles.counterText}

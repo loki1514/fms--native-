@@ -934,7 +934,7 @@ export default function LovableMstDashboard({ propertyId }: Props) {
       {/* Modals */}
       <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
       <CreateTicketModal visible={showCreate} onClose={() => setShowCreate(false)} propertyId={propertyId} />
-      <SignOutModal isOpen={showSignOut} onClose={() => setShowSignOut(false)} onConfirm={signOut} />
+      <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
     </View>
   );
 }
