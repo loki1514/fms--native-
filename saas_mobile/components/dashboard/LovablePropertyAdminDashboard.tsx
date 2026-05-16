@@ -26,6 +26,7 @@ import SignOutModal from '@/components/ui/SignOutModal';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 import SidekickFace from '@/components/dashboard/SidekickFace';
 import DetailModal, { type TileDetail } from '@/components/dashboard/DetailModal';
+import MobileFooter from '@/components/shared/MobileFooter';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import {
   SPACING,
@@ -40,7 +41,7 @@ import {
   ProgressBar,
   AttentionCard,
 } from './DashboardComponents';
-import { TenantTicketModal } from '@/components/tenant/TenantTicketModal';
+import { TicketCreateModal } from '../tickets/TicketCreateModal';
 
 const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
@@ -568,37 +569,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         
         <View style={{ marginTop: SPACING.xs }}>{renderTabContent()}</View>
       </ScrollView>
-
-      <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom }]}>
-        <SafeBlurView intensity={80} style={styles.bottomNavStatic} tint="dark">
-          <TouchableOpacity style={styles.staticNavItem} onPress={() => setActiveTab('overview')}>
-            <Ionicons name={activeTab === 'overview' ? 'grid' : 'grid-outline'} size={22} color={activeTab === 'overview' ? '#FFF' : 'rgba(255,255,255,0.4)'} />
-            <Text style={[styles.staticNavLabel, activeTab === 'overview' && styles.staticNavLabelActive]}>Dashboard</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.staticNavItem} onPress={() => router.push(`/property/${propertyId}/tickets`)}>
-            <Ionicons name="ticket-outline" size={22} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.staticNavLabel}>Tickets</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.staticNavItemCenter} onPress={() => setShowChat(true)}>
-            <View style={styles.cassandraOrbSmall}>
-              <SidekickFace state={faceState} size={32} />
-            </View>
-            <Text style={styles.staticNavLabel}>Cassandra</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.staticNavItem}>
-            <Ionicons name="business-outline" size={22} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.staticNavLabel}>Assets</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.staticNavItem} onPress={() => setShowDrawer(true)}>
-            <Ionicons name="ellipsis-horizontal" size={22} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.staticNavLabel}>More</Text>
-          </TouchableOpacity>
-        </SafeBlurView>
-      </View>
+      <MobileFooter activeTab="dashboard" />
 
       <DetailModal visible={!!showTileDetail} onClose={() => setShowTileDetail(null)} detail={showTileDetail!} />
       <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
@@ -673,18 +644,13 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       </Modal>
 
       {/* Create Request Modal */}
-      <TenantTicketModal
-        visible={showTicketModal}
+      <TicketCreateModal
+        isOpen={showTicketModal}
+        onClose={() => setShowTicketModal(false)}
         propertyId={propertyId}
         organizationId={orgId}
-        userId={user?.id || ''}
-        userName={user?.full_name || user?.email || 'User'}
-        propertyName={propertyName}
-        onClose={() => setShowTicketModal(false)}
-        onSuccess={() => {
-          setShowTicketModal(false);
-          fetchData();
-        }}
+        role="admin"
+        onSuccess={fetchData}
       />
     </View>
   );

@@ -36,9 +36,10 @@ import {
   Scan,
   Moon,
   Sun,
+  ClipboardList,
 } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { TenantTicketModal } from '@/components/tenant/TenantTicketModal';
+import { TicketCreateModal } from '../../../components/tickets/TicketCreateModal';
 import AnimatedLogo from '@/components/shared/AnimatedLogo';
 import NotificationBell from '@/components/dashboard/NotificationBell';
 
@@ -56,7 +57,7 @@ const FULL_DASHBOARD_ROLES: string[] = [];
 // ---- Full-screen routes for full-dashboard roles (no sidebar) ----
 const FULL_SCREEN_ROUTES = [
   'mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager', 
-  'property_admin', 'lovable-admin', 'lovable-super-admin', 'lovable-mst', 'settings', 'profile'
+  'property_admin', 'lovable-admin', 'lovable-super-admin', 'lovable-mst', 'settings', 'profile', 'tickets', 'dashboard', 'index', 'stock'
 ];
 
 // ---- Property Context ----
@@ -92,6 +93,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Diesel',          route: 'diesel',       icon: Fuel,            domain: 'assets' },
   { label: 'Electricity',     route: 'electricity',  icon: Zap,             domain: 'assets' },
   { label: 'Stock',           route: 'stock',        icon: Package,         domain: 'stock' },
+  { label: 'Checklists',      route: 'checklist',    icon: ClipboardList,   domain: 'sop' },
   { label: 'Reports',         route: 'reports',      icon: FileText,        domain: 'reports' },
   { label: 'Settings',        route: 'settings',     icon: Settings },
 ];
@@ -525,8 +527,23 @@ export default function PropertyLayout() {
 
   const currentRoute = useMemo(() => {
     const parts = pathname.split('/').filter(Boolean);
-    return parts[parts.length - 1] ?? 'dashboard';
+    // If we're at /property/[id], the route is 'index' or 'dashboard'
+    if (parts.length === 2 && parts[0] === 'property') return 'index';
+    return parts[parts.length - 1] ?? 'index';
   }, [pathname]);
+
+  const isFullScreen = useMemo(() => {
+    if (FULL_SCREEN_ROUTES.includes(currentRoute)) return true;
+    
+    // Check for ticket details: property/[id]/tickets/[uuid]
+    const parts = pathname.split('/').filter(Boolean);
+    const ticketsIdx = parts.indexOf('tickets');
+    if (ticketsIdx !== -1 && ticketsIdx === parts.length - 2) {
+      return true; // It's a detail page
+    }
+    
+    return false;
+  }, [currentRoute, pathname]);
 
   // Loading state
   // DEFENSE-IN-DEPTH: also guard against membership being null — this prevents
@@ -600,7 +617,6 @@ export default function PropertyLayout() {
 
   console.log('[PropertyLayout] Access granted — role:', role);
 
-  const isFullScreen = FULL_SCREEN_ROUTES.includes(currentRoute);
 
   // ---- Unified sidebar layout for ALL roles (unless full-screen) ----
   if (isFullScreen) {
@@ -635,14 +651,12 @@ export default function PropertyLayout() {
         </View>
 
         {/* New Request — ticket modal with AI classification */}
-        <TenantTicketModal
-          visible={ticketModalVisible}
+        <TicketCreateModal
+          isOpen={ticketModalVisible}
+          onClose={() => setTicketModalVisible(false)}
           propertyId={propertyId ?? ''}
           organizationId={membership?.org_id ?? ''}
-          userId={user?.id ?? ''}
-          userName={user?.full_name ?? user?.email ?? 'User'}
-          propertyName={propertyInfo.propertyName}
-          onClose={() => setTicketModalVisible(false)}
+          role={membership?.role === 'org_super_admin' ? 'super_admin' : (membership?.role === 'property_admin' ? 'admin' : 'tenant')}
         />
       </View>
     </PropertyContext.Provider>

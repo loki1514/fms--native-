@@ -17,7 +17,18 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#708F96"
       },
-      "package": "com.autopilot.app"
+      "package": "com.autopilot.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -58,7 +69,9 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#708F96",
-          "sounds": ["./assets/sounds/notification.wav"],
+          "sounds": [
+            "./assets/sounds/notification.wav"
+          ],
           "enableBackgroundRemoteNotifications": true
         }
       ]
@@ -69,6 +82,12 @@
     "runtimeVersion": "1.0.0",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9b6a3c15-2467-4e45-8782-b4e5c33f443e"
+      }
     }
   }
 }

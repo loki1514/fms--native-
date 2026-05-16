@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,11 +20,15 @@ import {
   Package,
   FileText,
   Shield,
+  ClipboardList,
   ArrowRight,
   type LucideIcon,
 } from 'lucide-react-native';
 import { GlassCard } from '@/constants/designSystem';
 import PendingApprovals from '@/components/procurement/PendingApprovals';
+import PermissionOnboarding, {
+  hasRequestedPermissions,
+} from '@/components/onboarding/PermissionOnboarding';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context';
@@ -56,6 +60,7 @@ const MODULE_TILES: ModuleTile[] = [
   { domain: 'assets', label: 'Electricity', route: 'electricity', icon: Zap, color: '#FFD60A' },
   { domain: 'stock', label: 'Stock', route: 'stock', icon: Package, color: '#64D2FF' },
   { domain: 'procurement', label: 'Procurement', route: 'stock', icon: Package, color: '#64D2FF' },
+  { domain: 'sop', label: 'Checklists', route: 'checklist', icon: ClipboardList, color: '#34C759' },
   { domain: 'reports', label: 'Reports', route: 'reports', icon: FileText, color: '#A2845E' },
   { domain: 'security', label: 'Security', route: 'security', icon: Shield, color: '#FF453A' },
 ];
@@ -69,6 +74,18 @@ export default function UnifiedDashboard() {
 
   const isDark = theme === 'dark';
   const bgGradient = isDark ? ['#0F1419', '#1A1F2E'] as const : ['#F8FAFC', '#EEF2F6'] as const;
+
+  const [showPermissionOnboarding, setShowPermissionOnboarding] = useState(false);
+
+  useEffect(() => {
+    const check = async () => {
+      const requested = await hasRequestedPermissions();
+      if (!requested) {
+        setShowPermissionOnboarding(true);
+      }
+    };
+    check();
+  }, []);
 
   const propertyName = useMemo(() => {
     const prop = membership?.properties?.find(
@@ -191,6 +208,12 @@ export default function UnifiedDashboard() {
           </View>
         )}
       </ScrollView>
+
+      {/* First-time permission onboarding */}
+      <PermissionOnboarding
+        visible={showPermissionOnboarding}
+        onComplete={() => setShowPermissionOnboarding(false)}
+      />
     </LinearGradient>
   );
 }

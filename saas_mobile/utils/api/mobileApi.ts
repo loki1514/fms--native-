@@ -502,6 +502,7 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
   }
   if (capabilities.reports) paths.push(`${basePath}/reports`);
   if (capabilities.security) paths.push(`${basePath}/security`);
+  if (capabilities.sop) paths.push(`${basePath}/checklist`);
 
   // Common pages every logged-in user can reach
   paths.push(`${basePath}/settings`, `${basePath}/profile`);

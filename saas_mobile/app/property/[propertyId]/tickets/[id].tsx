@@ -16,14 +16,20 @@ import {
   Modal,
   StatusBar,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useWeather } from '@/hooks/useWeather';
 import { Video, ResizeMode } from 'expo-av';
 import { createClient } from '@/utils/supabase/client';
 import { createClientFromToken } from '@/utils/supabase/mobile-auth';
 import { useTheme, useAuth } from '@/context';
 import StatusBadge from '@/components/tickets/StatusBadge';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import AbstractBackground from '@/components/dashboard/AbstractBackground';
+import MobileFooter from '@/components/shared/MobileFooter';
 import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
 import MediaActionsSheet from '@/components/shared/MediaActionsSheet';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
@@ -162,6 +168,7 @@ export default function TicketDetailScreen() {
   const { user: authUser, session } = useAuth();
   const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
+  const { weather } = useWeather();
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -1046,7 +1053,9 @@ export default function TicketDetailScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: bg }}>
+    <View style={{ flex: 1 }}>
+      <AbstractBackground />
+      
       <Stack.Screen
         options={{
           headerShown: false,
@@ -1055,9 +1064,9 @@ export default function TicketDetailScreen() {
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       {/* Top Navigation */}
-      <View style={[styles.topNav, {
-        backgroundColor: cardBg,
-        borderBottomColor: borderColor,
+      <SafeBlurView intensity={80} tint="dark" style={[styles.topNav, {
+        backgroundColor: 'transparent',
+        borderBottomColor: 'rgba(255,255,255,0.1)',
         paddingTop: Math.max(insets.top, 16)
       }]}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={{ padding: 4 }}>
@@ -1071,14 +1080,14 @@ export default function TicketDetailScreen() {
         >
           <Ionicons name="notifications-outline" size={24} color={textSecondary} />
         </TouchableOpacity>
-      </View>
+      </SafeBlurView>
 
       <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: bg, paddingBottom: 0 }}
+        style={{ flex: 1, paddingBottom: 0 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {/* Sub-section tabs */}
-        <View style={[styles.tabContainer, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
+        <View style={[styles.tabContainer, { backgroundColor: 'transparent', borderBottomColor: 'rgba(255,255,255,0.1)' }]}>
           {(['details', 'timeline', 'chat'] as const).map(tab => (
             <TouchableOpacity
               key={tab}
@@ -1097,7 +1106,7 @@ export default function TicketDetailScreen() {
         </View>
 
         <ScrollView
-          style={{ flex: 1, backgroundColor: activeTab === 'chat' ? (isDark ? '#0B141A' : '#EFEAE2') : undefined }}
+          style={{ flex: 1, backgroundColor: activeTab === 'chat' ? (isDark ? 'rgba(11,20,26,0.5)' : 'rgba(239,234,226,0.5)') : 'transparent' }}
           contentContainerStyle={[
             styles.scrollContent,
             activeTab === 'chat' && styles.chatScrollContent
@@ -1107,7 +1116,7 @@ export default function TicketDetailScreen() {
           {activeTab === 'details' && (
             <>
               {/* Title + Badges */}
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
+          <SafeBlurView intensity={60} tint="dark" style={[styles.card, { borderColor }]}>
             <Text style={[styles.ticketNumberLabel, { color: textSecondary }]}>
               {ticket.ticket_number ?? ticket.id.slice(0, 8).toUpperCase()}
             </Text>
@@ -1124,11 +1133,11 @@ export default function TicketDetailScreen() {
                 </View>
               )}
             </View>
-          </View>
+          </SafeBlurView>
 
           {/* Actions Section — Accessible to all roles for reassignment/management */}
           {(canOperateOnTicket || isTenant) && ticket.status !== 'resolved' && (
-            <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
+            <SafeBlurView intensity={60} tint="dark" style={[styles.card, { borderColor }]}>
               <Text style={[styles.sectionTitle, { color: textPrimary }]}>Ticket Actions</Text>
               <View style={styles.primaryActionRow}>
                 {/* Start Work — Only for the assigned technician */}
@@ -1189,7 +1198,7 @@ export default function TicketDetailScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-            </View>
+            </SafeBlurView>
           )}
 
           {/* Tenant Validation — shown when ticket is pending client approval */}
@@ -1267,7 +1276,7 @@ export default function TicketDetailScreen() {
           )}
 
           {/* Description */}
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
+          <SafeBlurView intensity={60} tint="dark" style={[styles.card, { borderColor }]}>
             <Text style={[styles.sectionTitle, { color: textPrimary }]}>Description</Text>
             <Text style={[styles.description, { color: textSecondary }]}>{ticket.description}</Text>
             <View style={[styles.divider, { backgroundColor: borderColor }]} />
@@ -1293,10 +1302,10 @@ export default function TicketDetailScreen() {
                 </View>
               )}
             </View>
-          </View>
+          </SafeBlurView>
 
           {/* Ticket Information */}
-          <View style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
+          <SafeBlurView intensity={60} tint="dark" style={[styles.card, { borderColor }]}>
             <Text style={[styles.sectionTitle, { color: textPrimary }]}>Ticket Information</Text>
             
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -1331,7 +1340,7 @@ export default function TicketDetailScreen() {
                 )}
               </Text>
             </View>
-          </View>
+          </SafeBlurView>
             </>
           )}
 
@@ -1858,49 +1867,7 @@ export default function TicketDetailScreen() {
         )}
       </KeyboardAvoidingView>
 
-      {/* Bottom Navigation */}
-      <View style={[styles.bottomNav, { 
-        backgroundColor: cardBg, 
-        borderTopColor: borderColor,
-        paddingBottom: Math.max(insets.bottom, 12)
-      }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/${isTenant ? 'tenant' : 'mst'}`)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="grid-outline" size={22} color={textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: textTertiary }]}>OVERVIEW</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/${isTenant ? 'tenant' : 'mst'}`)}>
-          <View style={[styles.navIconWrapper, { backgroundColor: isDark ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
-            <Ionicons name="ticket" size={22} color={primary} />
-          </View>
-          <Text style={[styles.navText, { color: primary }]}>REQUESTS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.navItemCenter} 
-          onPress={() => { Alert.alert('Create Request', 'Please go back to the dashboard to create new requests.'); }}
-        >
-          <View style={[styles.centerFab, { backgroundColor: primary }]}>
-            <Ionicons name="add" size={32} color="#FFF" />
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => setShowLoggersMenu(true)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="options-outline" size={22} color={textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: textTertiary }]}>LOGGERS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/profile`)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="person-outline" size={22} color={textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: textTertiary }]}>PROFILE</Text>
-        </TouchableOpacity>
-      </View>
+      <MobileFooter activeTab="tickets" />
 
       {/* Status Picker Modal */}
       <Modal visible={showStatusPicker} transparent animationType="fade" onRequestClose={() => setShowStatusPicker(false)}>
@@ -2288,12 +2255,15 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
     flexGrow: 1,
+    paddingBottom: 140,
   },
   chatScrollContent: {
     padding: 0,
     gap: 0,
+    paddingBottom: 140,
   },
   card: {
+    backgroundColor: 'rgba(15,23,42,0.65)',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
@@ -2850,7 +2820,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 140,
   },
   whatsappChatContainer: {
     display: 'flex',

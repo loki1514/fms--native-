@@ -9,6 +9,7 @@ import { AuthProvider, ThemeProvider } from '@/context';
 import { useColorScheme, View, Text, StyleSheet, Platform } from 'react-native';
 import AutopilotSplash from '@/components/splash/AutopilotSplash';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import NotificationBanner from '@/components/notifications/NotificationBanner';
 
 // Global error handler to catch silent crashes
 if (typeof window !== 'undefined') {
@@ -62,8 +63,7 @@ export default function RootLayout() {
   const [showSplash, setShowSplash] = useState(true);
   const [appReady, setAppReady] = useState(false);
 
-  // Register push notifications (mirrors saas_one FCM registration)
-  usePushNotifications();
+  // Mark app ready when fonts are loaded (or errored)
 
   console.log('[RootLayout] Rendering...');
 
@@ -109,12 +109,24 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <ThemeProvider>
             <AuthProvider>
-              <Stack screenOptions={{ headerShown: false }} />
-              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+              <AppContent colorScheme={colorScheme} />
             </AuthProvider>
           </ThemeProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
+  );
+}
+
+function AppContent({ colorScheme }: { colorScheme: any }) {
+  // Register push notifications inside AuthProvider context
+  usePushNotifications();
+
+  return (
+    <>
+      <NotificationBanner />
+      <Stack screenOptions={{ headerShown: false }} />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+    </>
   );
 }

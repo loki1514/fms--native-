@@ -26,7 +26,8 @@ export type CapabilityDomain =
     | 'dashboards'
     | 'reports'
     | 'vendors'
-    | 'stock';
+    | 'stock'
+    | 'sop';
 
 export type CapabilityAction = 'view' | 'create' | 'update' | 'approve' | 'assign' | 'delete' | 'suspend';
 

@@ -15,7 +15,7 @@ import { RoomBookingTab } from './tabs/RoomBookingTab';
 import { ProfileTab } from './tabs/ProfileTab';
 import { TenantBottomNav } from './TenantBottomNav';
 import { VoiceOrbWrapper } from '../voice/VoiceOrbWrapper';
-import { TenantTicketModal } from './TenantTicketModal';
+import { TicketCreateModal } from '../tickets/TicketCreateModal';
 import { AuroraBackground } from '../shared/AuroraBackground';
 import { useSuperTenantProperties, SuperTenantProperty } from '@/hooks/tenant/useSuperTenantProperties';
 import SuperTenantSidebar from './SuperTenantSidebar';
@@ -194,14 +194,12 @@ export default function TenantDashboard({
       <VoiceOrbWrapper config={voiceConfig} />
 
       {/* Ticket Creation Modal (mirrors POST /api/tickets from web app) */}
-      <TenantTicketModal
-        visible={ticketModalVisible}
+      <TicketCreateModal
+        isOpen={ticketModalVisible}
+        onClose={() => setTicketModalVisible(false)}
         propertyId={selectedPropertyId}
         organizationId={membership?.org_id ?? ''}
-        userId={user?.id ?? ''}
-        userName={userName}
-        propertyName={propertyName}
-        onClose={() => setTicketModalVisible(false)}
+        role="tenant"
         onSuccess={handleTicketCreated}
       />
 

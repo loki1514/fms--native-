@@ -20,12 +20,12 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
 import { AppBottomNav } from '@/components/shared/AppBottomNav';
-import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import { readFileAsArrayBuffer } from '@/utils/mediaUtils';
 import {
   CheckSquare,
@@ -576,6 +576,7 @@ export default function ChecklistScreen() {
   const { user, membership } = useAuth();
   const router = useRouter();
   const colors = Colors[theme];
+  const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
 
   // ── State ────────────────────────────────────────────────────────────────────
@@ -628,7 +629,7 @@ export default function ChecklistScreen() {
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
   const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
   const [expandedCompletions, setExpandedCompletions] = useState<Record<string, SOPCompletion[]>>({});
-  const [showLoggersMenu, setShowLoggersMenu] = useState(false);
+  const [showLoggersMenu] = useState(false);
   const realtimeChannel = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // ── Permissions ──────────────────────────────────────────────────────────────
@@ -1485,7 +1486,7 @@ export default function ChecklistScreen() {
     const sectionKeys = Object.keys(sections);
 
     return (
-      <View style={[styles.container, { backgroundColor: bgColor }]}>
+      <LinearGradient colors={isDark ? ['#0F1419', '#1A1F2E'] : ['#F8FAFC', '#EEF2F6']} style={styles.container}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}
@@ -1807,7 +1808,7 @@ export default function ChecklistScreen() {
           )}
         />
         </KeyboardAvoidingView>
-      </View>
+      </LinearGradient>
     );
   }
 
@@ -1815,7 +1816,7 @@ export default function ChecklistScreen() {
   if (view === 'detail' && historyCompletion) {
     const template = templates.find(t => t.id === historyCompletion.template_id);
     return (
-      <View style={[styles.container, { backgroundColor: bgColor }]}>
+      <LinearGradient colors={isDark ? ['#0F1419', '#1A1F2E'] : ['#F8FAFC', '#EEF2F6']} style={styles.container}>
         <View style={[runnerStyles.header, { backgroundColor: colors.primary, paddingTop: Math.max(insets.top, 16) }]}>
           <View style={runnerStyles.headerRow}>
             <TouchableOpacity style={runnerStyles.backBtn} onPress={() => { setHistoryCompletion(null); setView('history'); }}>
@@ -1903,13 +1904,13 @@ export default function ChecklistScreen() {
             );
           }}
         />
-      </View>
+      </LinearGradient>
     );
   }
 
   // ── Main View ──
   return (
-    <View style={[styles.container, { backgroundColor: bgColor }]}>
+    <LinearGradient colors={isDark ? ['#0F1419', '#1A1F2E'] : ['#F8FAFC', '#EEF2F6']} style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Top nav */}
@@ -2277,16 +2278,11 @@ export default function ChecklistScreen() {
         </>
       )}
 
-      <AppBottomNav 
-        activeTab="loggers"
+      <AppBottomNav
+        activeTab="checklist"
         propertyId={propertyId!}
-        onLoggersPress={() => setShowLoggersMenu(true)}
-      />
-
-      <LoggersMenu
-        visible={showLoggersMenu}
-        onClose={() => setShowLoggersMenu(false)}
-        propertyId={propertyId!}
+        onLoggersPress={() => {}}
+        showChecklist={true}
       />
 
       {/* Create/Edit Template Modal */}
@@ -2466,7 +2462,7 @@ export default function ChecklistScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 

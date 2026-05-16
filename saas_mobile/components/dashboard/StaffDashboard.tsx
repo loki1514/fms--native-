@@ -28,7 +28,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
 import TicketCard from '../shared/TicketCard';
 import SignOutModal from '../ui/SignOutModal';
-import CreateTicketModal from '../shared/CreateTicketModal';
+import { TicketCreateModal } from '../tickets/TicketCreateModal';
 import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
 import { LoggersMenu } from '../shared/LoggersMenu';
 import StockScannerModal from '../stock/StockScannerModal';
@@ -713,7 +713,14 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
         userId={user?.id}
       />
 
-      <CreateTicketModal visible={showCreateModal} onClose={() => setShowCreateModal(false)} onSuccess={() => fetchTickets()} propertyId={propertyId} />
+      <TicketCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        propertyId={propertyId}
+        organizationId={property?.organization_id ?? ''}
+        role="staff"
+        onSuccess={() => fetchTickets()}
+      />
 
       <Modal visible={!!editingTicket} transparent animationType="slide" onRequestClose={() => setEditingTicket(null)}>
         <View style={styles.modalOverlay}>

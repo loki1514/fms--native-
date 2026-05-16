@@ -11,7 +11,8 @@ export const CAPABILITY_MATRIX: Record<RoleKey, CapabilityMatrix> = {
         security: ['view', 'create', 'update', 'delete'],
         dashboards: ['view'],
         reports: ['view'],
-        vendors: ['view', 'create', 'update', 'delete']
+        vendors: ['view', 'create', 'update', 'delete'],
+        sop: ['view', 'create', 'update', 'delete']
     },
     master_admin: {
         users: ['view', 'create', 'update', 'approve', 'assign', 'delete', 'suspend'],
@@ -23,7 +24,8 @@ export const CAPABILITY_MATRIX: Record<RoleKey, CapabilityMatrix> = {
         security: ['view', 'create', 'update', 'delete'],
         dashboards: ['view'],
         reports: ['view'],
-        vendors: ['view', 'create', 'update', 'delete']
+        vendors: ['view', 'create', 'update', 'delete'],
+        sop: ['view', 'create', 'update', 'delete']
     },
     org_admin: {
         users: ['view', 'create', 'update', 'assign', 'suspend'],
@@ -32,7 +34,8 @@ export const CAPABILITY_MATRIX: Record<RoleKey, CapabilityMatrix> = {
         assets: ['view', 'update'],
         procurement: ['view', 'approve'],
         dashboards: ['view'],
-        reports: ['view']
+        reports: ['view'],
+        sop: ['view', 'create', 'update', 'delete']
     },
     owner: {
         users: ['view', 'create', 'update', 'assign', 'suspend'],
@@ -41,7 +44,8 @@ export const CAPABILITY_MATRIX: Record<RoleKey, CapabilityMatrix> = {
         assets: ['view', 'update'],
         procurement: ['view', 'approve'],
         dashboards: ['view'],
-        reports: ['view']
+        reports: ['view'],
+        sop: ['view', 'create', 'update', 'delete']
     },
     property_admin: {
         users: ['view', 'create', 'update', 'assign', 'suspend'],
@@ -50,13 +54,15 @@ export const CAPABILITY_MATRIX: Record<RoleKey, CapabilityMatrix> = {
         assets: ['view', 'update'],
         procurement: ['view', 'approve'],
         dashboards: ['view'],
-        reports: ['view']
+        reports: ['view'],
+        sop: ['view', 'create', 'update', 'delete']
     },
     manager_executive: {
         tickets: ['view', 'approve'],
         assets: ['view'],
         dashboards: ['view'],
-        reports: ['view']
+        reports: ['view'],
+        sop: ['view']
     },
     purchase_manager: {
         procurement: ['view', 'approve'],
@@ -69,29 +75,37 @@ export const CAPABILITY_MATRIX: Record<RoleKey, CapabilityMatrix> = {
     },
     mst: {
         tickets: ['view', 'update'],
-        dashboards: ['view']
+        dashboards: ['view'],
+        sop: ['view', 'update']
     },
     maintenance_staff: {
         tickets: ['view', 'update'],
-        dashboards: ['view']
+        dashboards: ['view'],
+        sop: ['view', 'update']
     },
     hk: {
-        tickets: ['view', 'update']
+        tickets: ['view', 'update'],
+        sop: ['view', 'update']
     },
     fe: {
-        tickets: ['view', 'update']
+        tickets: ['view', 'update'],
+        sop: ['view', 'update']
     },
     se: {
-        tickets: ['view', 'update']
+        tickets: ['view', 'update'],
+        sop: ['view', 'update']
     },
     technician: {
-        tickets: ['view', 'update']
+        tickets: ['view', 'update'],
+        sop: ['view', 'update']
     },
     field_staff: {
-        tickets: ['view']
+        tickets: ['view'],
+        sop: ['view']
     },
     bms_operator: {
-        assets: ['view', 'update']
+        assets: ['view', 'update'],
+        sop: ['view', 'update']
     },
     tenant_user: {
         tickets: ['create', 'view'],
@@ -114,23 +128,27 @@ export const CAPABILITY_MATRIX: Record<RoleKey, CapabilityMatrix> = {
     },
     staff: {
         tickets: ['view', 'create', 'update'],
-        dashboards: ['view']
+        dashboards: ['view'],
+        sop: ['view', 'update']
     },
     soft_service_staff: {
         stock: ['view', 'create', 'update', 'delete'],
-        dashboards: ['view']
+        dashboards: ['view'],
+        sop: ['view', 'update']
     },
     soft_service_supervisor: {
         stock: ['view', 'create', 'update', 'delete'],
         tickets: ['view', 'approve'],
         dashboards: ['view'],
-        reports: ['view']
+        reports: ['view'],
+        sop: ['view', 'update']
     },
     soft_service_manager: {
         stock: ['view', 'create', 'update', 'delete'],
         tickets: ['view', 'approve', 'assign', 'delete'],
         dashboards: ['view'],
-        reports: ['view']
+        reports: ['view'],
+        sop: ['view', 'create', 'update', 'delete']
     },
     security: {
         security: ['view', 'create', 'update', 'delete'],
