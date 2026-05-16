@@ -85,8 +85,8 @@ export const STATUS_COLORS: Record<StatusType, StatusPalette> = {
 // ============================================================================
 
 export const CARD_SURFACES = {
-  cardBg: 'rgba(255, 255, 255, 0.06)',
-  cardBorder: 'rgba(255, 255, 255, 0.12)',
+  cardBg: 'rgba(255, 255, 255, 0.18)',
+  cardBorder: 'rgba(255, 255, 255, 0.25)',
   cardBlur: 20,
   cardRadius: 20,
   cardPadding: 20,

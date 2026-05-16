@@ -98,18 +98,8 @@ export default function PropertySelectionScreen() {
       const prop = properties.find((p) => p.id === selectedId);
       if (!prop) return;
 
-      const role = prop.role;
-      const roleRouteMap: Record<string, string> = {
-        property_admin: 'dashboard',
-        tenant: 'tenant',
-        security: 'security',
-        staff: 'lovable-mst',
-        mst: 'lovable-mst',
-        maintenance_staff: 'lovable-mst',
-        vendor: 'vendor',
-      };
-      const route = roleRouteMap[role] || 'dashboard';
-      router.replace(`/property/${selectedId}/${route}`);
+      // All roles now use the unified sidebar dashboard
+      router.replace(`/property/${selectedId}/dashboard`);
     } catch (err) {
       console.error('Property selection error:', err);
     } finally {

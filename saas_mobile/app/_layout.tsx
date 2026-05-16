@@ -8,6 +8,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, ThemeProvider } from '@/context';
 import { useColorScheme, View, Text, StyleSheet, Platform } from 'react-native';
 import AutopilotSplash from '@/components/splash/AutopilotSplash';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
+import NotificationBanner from '@/components/notifications/NotificationBanner';
 
 // Global error handler to catch silent crashes
 if (typeof window !== 'undefined') {
@@ -60,36 +62,23 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [showSplash, setShowSplash] = useState(true);
   const [appReady, setAppReady] = useState(false);
+
+  // Mark app ready when fonts are loaded (or errored)
+
   console.log('[RootLayout] Rendering...');
 
-  // Inject Google Fonts on web
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Urbanist:wght@400;500;600;700;800&display=swap';
-    document.head.appendChild(link);
-    return () => {
-      if (document.head.contains(link)) document.head.removeChild(link);
-    };
-  }, []);
-
-  // Load custom fonts
-  const [fontsLoaded, fontError] = useFonts(
-    Platform.OS === 'web'
-      ? {}
-      : {
-          'Poppins-Regular': require('../assets/fonts/Poppins-Regular.ttf'),
-          'Poppins-Medium': require('../assets/fonts/Poppins-Medium.ttf'),
-          'Poppins-SemiBold': require('../assets/fonts/Poppins-SemiBold.ttf'),
-          'Poppins-Bold': require('../assets/fonts/Poppins-Bold.ttf'),
-          'Urbanist-Regular': require('../assets/fonts/Urbanist.ttf'),
-          'Urbanist-Medium': require('../assets/fonts/Urbanist.ttf'),
-          'Urbanist-SemiBold': require('../assets/fonts/Urbanist.ttf'),
-          'Urbanist-Bold': require('../assets/fonts/Urbanist.ttf'),
-          'PressStart2P': require('../assets/fonts/PressStart2P.ttf'),
-        }
-  );
+  // Load custom fonts (Consistently on both Web and Native)
+  const [fontsLoaded, fontError] = useFonts({
+    'Poppins-Regular': require('../assets/fonts/Poppins-Regular.ttf'),
+    'Poppins-Medium': require('../assets/fonts/Poppins-Medium.ttf'),
+    'Poppins-SemiBold': require('../assets/fonts/Poppins-SemiBold.ttf'),
+    'Poppins-Bold': require('../assets/fonts/Poppins-Bold.ttf'),
+    'Urbanist-Regular': require('../assets/fonts/Urbanist.ttf'),
+    'Urbanist-Medium': require('../assets/fonts/Urbanist.ttf'),
+    'Urbanist-SemiBold': require('../assets/fonts/Urbanist.ttf'),
+    'Urbanist-Bold': require('../assets/fonts/Urbanist.ttf'),
+    'PressStart2P': require('../assets/fonts/PressStart2P.ttf'),
+  });
 
   // Hide native splash immediately, show our custom splash
   useEffect(() => {
@@ -120,12 +109,24 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <ThemeProvider>
             <AuthProvider>
-              <Stack screenOptions={{ headerShown: false }} />
-              <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+              <AppContent colorScheme={colorScheme} />
             </AuthProvider>
           </ThemeProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
+  );
+}
+
+function AppContent({ colorScheme }: { colorScheme: any }) {
+  // Register push notifications inside AuthProvider context
+  usePushNotifications();
+
+  return (
+    <>
+      <NotificationBanner />
+      <Stack screenOptions={{ headerShown: false }} />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+    </>
   );
 }

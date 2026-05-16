@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 
-export type TabKey = 'overview' | 'requests' | 'loggers' | 'profile' | 'stock';
+export type TabKey = 'overview' | 'requests' | 'loggers' | 'profile' | 'stock' | 'checklist';
 
 interface AppBottomNavProps {
   activeTab: TabKey;
@@ -17,6 +17,8 @@ interface AppBottomNavProps {
   baseRoute?: string;
   /** Show Loggers button (MST/Electricity/Diesel) or Stock button (Staff). Default: true (Loggers) */
   showLoggers?: boolean;
+  /** Show Checklist button instead of Loggers/Stock. Default: false */
+  showChecklist?: boolean;
 }
 
 export function AppBottomNav({
@@ -26,6 +28,7 @@ export function AppBottomNav({
   onCreateRequestPress,
   baseRoute = '/mst',
   showLoggers = true,
+  showChecklist = false,
 }: AppBottomNavProps) {
   const router = useRouter();
   const { theme } = useTheme();
@@ -46,6 +49,9 @@ export function AppBottomNav({
         break;
       case 'stock':
         router.push(`/property/${propertyId}/stock` as any);
+        break;
+      case 'checklist':
+        router.push(`/property/${propertyId}/checklist` as any);
         break;
     }
   };
@@ -75,8 +81,27 @@ export function AppBottomNav({
     );
   };
 
-  // Determine the 4th nav item: Loggers (MST) or Stock (Staff)
+  // Determine the 4th nav item: Checklist, Loggers (MST), or Stock (Staff)
   const FourthNav = () => {
+    if (showChecklist) {
+      const isChecklistActive = activeTab === 'checklist';
+      return (
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => navigate('checklist')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.navIconWrapper, isChecklistActive && { backgroundColor: colors.primary + '1A' }]}>
+            <Ionicons
+              name={isChecklistActive ? 'clipboard' : 'clipboard-outline'}
+              size={24}
+              color={isChecklistActive ? activeColor : inactiveColor}
+            />
+          </View>
+          <Text style={[styles.navText, { color: isChecklistActive ? activeColor : inactiveColor }]}>CHECKLIST</Text>
+        </TouchableOpacity>
+      );
+    }
     if (showLoggers) {
       return (
         <TouchableOpacity

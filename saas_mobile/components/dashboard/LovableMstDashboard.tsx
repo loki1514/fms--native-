@@ -51,7 +51,7 @@ import {
 } from '@/lib/gamification';
 import SidekickFace from '@/components/dashboard/SidekickFace';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
-import CreateTicketModal from '@/components/shared/CreateTicketModal';
+import { TicketCreateModal } from '../tickets/TicketCreateModal';
 import SignOutModal from '@/components/ui/SignOutModal';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import FloatingMenu from '@/components/ui/FloatingMenu';
@@ -933,8 +933,15 @@ export default function LovableMstDashboard({ propertyId }: Props) {
 
       {/* Modals */}
       <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
-      <CreateTicketModal visible={showCreate} onClose={() => setShowCreate(false)} propertyId={propertyId} />
-      <SignOutModal isOpen={showSignOut} onClose={() => setShowSignOut(false)} onConfirm={signOut} />
+      <TicketCreateModal
+        isOpen={showCreate}
+        onClose={() => setShowCreate(false)}
+        propertyId={propertyId}
+        organizationId={membership?.org_id ?? ''}
+        role="staff"
+        onSuccess={fetchData}
+      />
+      <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
     </View>
   );
 }

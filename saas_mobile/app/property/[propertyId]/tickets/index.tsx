@@ -22,16 +22,24 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context';
 import TicketListItem from '@/components/tickets/TicketListItem';
 import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
+import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import AbstractBackground from '@/components/dashboard/AbstractBackground';
+import { GlassCard } from '@/constants/designSystem';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import RotatingBorder from '@/components/shared/RotatingBorder';
+import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
+import { useWeather } from '@/hooks/useWeather';
+import { LinearGradient } from 'expo-linear-gradient';
+import MobileFooter from '@/components/shared/MobileFooter';
 
-type StatusFilter = 'all' | 'open' | 'in_progress' | 'resolved' | 'closed';
+type StatusFilter = 'all' | 'open' | 'in_progress' | 'resolved' | 'closed' | 'pending_validation';
 type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
 
 const FILTER_TABS: { key: StatusFilter; label: string }[] = [
-  { key: 'all',         label: 'All' },
-  { key: 'open',        label: 'Open' },
-  { key: 'in_progress', label: 'In Progress' },
-  { key: 'resolved',    label: 'Resolved' },
-  { key: 'closed',      label: 'Closed' },
+  { key: 'all',                label: 'All' },
+  { key: 'open',               label: 'Opened' },
+  { key: 'closed',             label: 'Closed' },
+  { key: 'pending_validation', label: 'Pending Validation' },
 ];
 
 const DATE_RANGES: { key: DateRangeFilter; label: string }[] = [
@@ -74,6 +82,7 @@ export default function TicketsScreen() {
   const supabase = createClient();
   const { membership, user: authUser } = useAuth();
   const { theme } = useTheme();
+  const { weather } = useWeather();
   const isDark = theme === 'dark';
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -88,16 +97,6 @@ export default function TicketsScreen() {
   });
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createTitle, setCreateTitle] = useState('');
-  const [createDescription, setCreateDescription] = useState('');
-  const [createPriority, setCreatePriority] = useState<string>('medium');
-  const [createCategory, setCreateCategory] = useState<string>('');
-  const [createMedia, setCreateMedia] = useState<MediaFile | null>(null);
-  const [showMediaModal, setShowMediaModal] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createSuccess, setCreateSuccess] = useState(false);
-
   const insets = useSafeAreaInsets();
   const orgId = membership?.org_id ?? '';
 
@@ -256,56 +255,6 @@ export default function TicketsScreen() {
     fetchTickets(true);
   };
 
-  const handleCreateTicket = async () => {
-    if (!createDescription.trim() || !propertyId || !orgId) return;
-    setIsSubmitting(true);
-    setCreateError(null);
-    try {
-      const userId = authUser?.id;
-      const { data, error } = await supabase
-        .from('tickets')
-        .insert({
-          title: createTitle.trim() || createDescription.split('\n')[0].slice(0, 80) || 'Untitled Request',
-          description: createDescription.trim(),
-          priority: createPriority,
-          category: createCategory || null,
-          property_id: propertyId,
-          organization_id: orgId,
-          status: 'open',
-          raised_by: userId,
-        } as any)
-        .select()
-        .single();
-
-      if (error) throw error;
-      setCreateSuccess(true);
-      setTimeout(() => {
-        setShowCreateModal(false);
-        setCreateSuccess(false);
-        setCreateTitle('');
-        setCreateDescription('');
-        setCreatePriority('medium');
-        setCreateCategory('');
-        setCreateMedia(null);
-        fetchTickets(true);
-        fetchStatusCounts();
-      }, 1500);
-    } catch (err: any) {
-      setCreateError(err.message || 'Failed to create ticket');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const resetCreate = () => {
-    setCreateTitle('');
-    setCreateDescription('');
-    setCreatePriority('medium');
-    setCreateCategory('');
-    setCreateMedia(null);
-    setCreateError(null);
-    setCreateSuccess(false);
-  };
 
   const renderTicket = ({ item }: { item: Ticket }) => {
     const logs = item.ticket_escalation_logs;
@@ -349,24 +298,34 @@ export default function TicketsScreen() {
   const borderColor = isDark ? 'rgba(80,100,130,0.30)' : 'rgba(180,195,210,0.35)';
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
-          title: 'Requests',
-          headerBackTitle: 'Back',
-          headerStyle: { backgroundColor: bg },
-          headerTintColor: textPrimary,
-          headerShadowVisible: false,
+          headerShown: false,
         }}
       />
 
-      <View style={[styles.container, { backgroundColor: bg, paddingBottom: insets.bottom }]}>
-        {/* Filter Tabs */}
-        <View style={[styles.tabBar, { backgroundColor: cardBg, borderBottomColor: borderColor }]}>
+      <AbstractBackground />
+
+      <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 100 }]}>
+        {/* Modern Header */}
+        <SafeBlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={[styles.header, { paddingTop: insets.top + 10 }]}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Ionicons name="chevron-back" size={24} color={textPrimary} />
+            </TouchableOpacity>
+            <Text style={[styles.headerTitleMain, { color: textPrimary }]}>Requests</Text>
+            <TouchableOpacity onPress={() => setShowCreateModal(true)} style={styles.headerAddBtn}>
+              <Ionicons name="add" size={24} color={textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Filter Tabs - Glass Style */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tabScroll}
+            style={styles.tabBarContainer}
           >
             {FILTER_TABS.map(tab => (
               <TouchableOpacity
@@ -374,7 +333,7 @@ export default function TicketsScreen() {
                 style={[
                   styles.tab,
                   statusFilter === tab.key && {
-                    backgroundColor: isDark ? 'rgba(124,185,168,0.15)' : 'rgba(124,185,168,0.12)',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.05)',
                   },
                 ]}
                 onPress={() => setStatusFilter(tab.key)}
@@ -382,27 +341,23 @@ export default function TicketsScreen() {
                 <Text
                   style={[
                     styles.tabText,
-                    { color: statusFilter === tab.key ? '#7CB9A8' : textSecondary },
-                    statusFilter === tab.key && { fontWeight: '700' },
+                    { color: statusFilter === tab.key ? textPrimary : textSecondary },
+                    statusFilter === tab.key && { fontWeight: '800' },
                   ]}
                 >
                   {tab.label}
                 </Text>
                 <View style={[styles.countBadge, {
-                  backgroundColor: statusFilter === tab.key
-                    ? '#7CB9A8'
-                    : (isDark ? 'rgba(124,185,168,0.15)' : 'rgba(124,185,168,0.20)'),
+                  backgroundColor: statusFilter === tab.key ? '#7CB9A8' : 'rgba(124,185,168,0.2)',
                 }]}>
-                  <Text style={[styles.countBadgeText, {
-                    color: statusFilter === tab.key ? '#FFF' : '#7CB9A8',
-                  }]}>
+                  <Text style={[styles.countBadgeText, { color: statusFilter === tab.key ? '#FFF' : '#7CB9A8' }]}>
                     {statusCounts[tab.key]}
                   </Text>
                 </View>
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </View>
+        </SafeBlurView>
 
         {/* Date Range Filter */}
         <View style={[styles.dateFilterRow, { borderBottomColor: borderColor }]}>
@@ -475,6 +430,7 @@ export default function TicketsScreen() {
             data={tickets}
             renderItem={renderTicket}
             keyExtractor={item => item.id}
+            showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
             refreshControl={
               <RefreshControl
@@ -510,276 +466,128 @@ export default function TicketsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Create Ticket Modal */}
-      <Modal
-        visible={showCreateModal}
-        animationType="slide"
-        onRequestClose={() => { setShowCreateModal(false); resetCreate(); }}
-      >
-        <View style={[styles.modalContainer, { backgroundColor: isDark ? '#0F1521' : '#FFF', paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
-          >
-            {/* Modal Header */}
-            <View style={[styles.modalHeader, { borderBottomColor: borderColor }]}>
-              <TouchableOpacity
-                onPress={() => { setShowCreateModal(false); resetCreate(); }}
-                style={styles.modalCloseBtn}
-              >
-                <Ionicons name="close" size={22} color={textPrimary} />
-              </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: textPrimary }]}>Raise Request</Text>
-              <View style={{ width: 40 }} />
-            </View>
-
-            <ScrollView
-              style={styles.modalForm}
-              contentContainerStyle={{ padding: 20 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              {createSuccess ? (
-                <View style={styles.successView}>
-                  <Ionicons name="checkmark-circle" size={80} color="#10B981" />
-                  <Text style={[styles.successText, { color: textPrimary }]}>Request Submitted!</Text>
-                  <Text style={[styles.successSubtext, { color: textSecondary }]}>
-                    Your ticket has been created and assigned.
-                  </Text>
-                </View>
-              ) : (
-                <>
-                  {/* Title */}
-                  <View style={styles.field}>
-                    <Text style={[styles.label, { color: textSecondary }]}>Title (optional)</Text>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          backgroundColor: isDark ? '#1E2633' : '#F8FAFC',
-                          color: textPrimary,
-                          borderColor: borderColor,
-                        },
-                      ]}
-                      placeholder="Brief title for the request"
-                      placeholderTextColor={isDark ? '#6E7681' : '#94A3B8'}
-                      value={createTitle}
-                      onChangeText={setCreateTitle}
-                    />
-                  </View>
-
-                  {/* Description */}
-                  <View style={styles.field}>
-                    <Text style={[styles.label, { color: textSecondary }]}>Description *</Text>
-                    <TextInput
-                      style={[
-                        styles.textArea,
-                        {
-                          backgroundColor: isDark ? '#1E2633' : '#F8FAFC',
-                          color: textPrimary,
-                          borderColor: borderColor,
-                        },
-                      ]}
-                      placeholder="Describe the issue in detail..."
-                      placeholderTextColor={isDark ? '#6E7681' : '#94A3B8'}
-                      multiline
-                      value={createDescription}
-                      onChangeText={setCreateDescription}
-                    />
-                  </View>
-
-                  {/* Priority */}
-                  <View style={styles.field}>
-                    <Text style={[styles.label, { color: textSecondary }]}>Priority</Text>
-                    <View style={styles.chipRow}>
-                      {(['low', 'medium', 'high', 'critical'] as const).map(p => (
-                        <TouchableOpacity
-                          key={p}
-                          style={[
-                            styles.chip,
-                            { backgroundColor: isDark ? '#1E2633' : '#F1F5F9', borderColor: borderColor },
-                            createPriority === p && {
-                              backgroundColor: isDark ? 'rgba(124,185,168,0.15)' : 'rgba(124,185,168,0.1)',
-                              borderColor: '#7CB9A8',
-                            },
-                          ]}
-                          onPress={() => setCreatePriority(p)}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              { color: textSecondary },
-                              createPriority === p && { color: '#7CB9A8', fontWeight: '700' },
-                            ]}
-                          >
-                            {p.charAt(0).toUpperCase() + p.slice(1)}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* Category */}
-                  <View style={styles.field}>
-                    <Text style={[styles.label, { color: textSecondary }]}>Category (optional)</Text>
-                    <View style={styles.chipRow}>
-                      {(['electrical', 'plumbing', 'hvac', 'cleaning', 'security', 'other'] as const).map(c => (
-                        <TouchableOpacity
-                          key={c}
-                          style={[
-                            styles.chip,
-                            { backgroundColor: isDark ? '#1E2633' : '#F1F5F9', borderColor: borderColor },
-                            createCategory === c && {
-                              backgroundColor: isDark ? 'rgba(124,185,168,0.15)' : 'rgba(124,185,168,0.1)',
-                              borderColor: '#7CB9A8',
-                            },
-                          ]}
-                          onPress={() => setCreateCategory(createCategory === c ? '' : c)}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              { color: textSecondary },
-                              createCategory === c && { color: '#7CB9A8', fontWeight: '700' },
-                            ]}
-                          >
-                            {c.charAt(0).toUpperCase() + c.slice(1)}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* Media */}
-                  <View style={styles.field}>
-                    <Text style={[styles.label, { color: textSecondary }]}>Attachment (optional)</Text>
-                    {createMedia ? (
-                      <View style={styles.mediaPreview}>
-                        {createMedia.type === 'image' && (
-                          <Image source={{ uri: createMedia.uri }} style={styles.previewImage} />
-                        )}
-                        <TouchableOpacity style={styles.removeMedia} onPress={() => setCreateMedia(null)}>
-                          <Ionicons name="close" size={14} color="#FFF" />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={[styles.mediaPlaceholder, { borderColor }]}
-                        onPress={() => setShowMediaModal(true)}
-                      >
-                        <Ionicons name="camera-outline" size={28} color={isDark ? '#6E7681' : '#94A3B8'} />
-                        <Text style={[styles.mediaPlaceholderText, { color: textSecondary }]}>
-                          Add Photo or Video
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {createError && (
-                    <Text style={styles.errorText}>{createError}</Text>
-                  )}
-
-                  <TouchableOpacity
-                    style={[
-                      styles.submitBtn,
-                      (!createDescription.trim() || isSubmitting) && styles.submitBtnDisabled,
-                    ]}
-                    onPress={handleCreateTicket}
-                    disabled={isSubmitting || !createDescription.trim()}
-                  >
-                    {isSubmitting ? (
-                      <ActivityIndicator color="#FFF" />
-                    ) : (
-                      <>
-                        <Text style={styles.submitBtnText}>Submit Request</Text>
-                        <Ionicons name="arrow-forward" size={18} color="#FFF" />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </>
-              )}
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </View>
-
-        <MediaCaptureModal
-          isOpen={showMediaModal}
-          onClose={() => setShowMediaModal(false)}
-          onCapture={setCreateMedia}
-          title="Capture Evidence"
+        <TicketCreateModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          propertyId={propertyId ?? ''}
+          organizationId={orgId}
+          role={membership?.role === 'org_super_admin' ? 'super_admin' : (membership?.role === 'property_admin' ? 'admin' : 'tenant')}
         />
-      </Modal>
-    </>
+
+        <MobileFooter activeTab="tickets" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  tabBar: {
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    paddingVertical: 8,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitleMain: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  headerAddBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabBarContainer: {
+    marginTop: 0,
   },
   tabScroll: {
-    paddingHorizontal: 12,
-    gap: 6,
+    gap: 8,
     flexDirection: 'row',
   },
   tab: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tabText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   countBadge: {
-    marginLeft: 6,
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 1,
-    minWidth: 24,
+    marginLeft: 8,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    minWidth: 22,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   countBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
   },
   dateFilterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   dateFilterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
     borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   dateFilterLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   dateFilterDropdown: {
-    marginHorizontal: 16,
-    marginTop: 6,
-    borderRadius: 12,
+    position: 'absolute',
+    top: 180,
+    left: 20,
+    right: 20,
+    borderRadius: 16,
     borderWidth: 1,
-    overflow: 'hidden',
+    zIndex: 100,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
   },
   dateFilterOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   dateFilterOptionText: {
-    fontSize: 13,
+    fontSize: 14,
   },
   centered: {
     flex: 1,

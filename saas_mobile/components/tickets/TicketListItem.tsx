@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import StatusBadge from './StatusBadge';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 
 interface TicketListItemProps {
   id: string;
@@ -62,111 +63,119 @@ export default function TicketListItem({
 
   return (
     <TouchableOpacity
-      style={[styles.card, priority?.toLowerCase() === 'critical' && !isClosed && styles.criticalCard]}
+      style={styles.cardWrapper}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      {/* Left accent bar for priority */}
-      <View style={[styles.priorityBar, { backgroundColor: pCfg.dot }]} />
+      <SafeBlurView 
+        intensity={60} 
+        tint="dark" 
+        style={[styles.card, priority?.toLowerCase() === 'critical' && !isClosed && styles.criticalCard]}
+      >
+        {/* Left accent bar for priority */}
+        <View style={[styles.priorityBar, { backgroundColor: pCfg.dot }]} />
 
-      <View style={styles.content}>
-        {/* Top row: ticket number + time */}
-        <View style={styles.topRow}>
-          <Text style={styles.ticketNumber}>{ticketNumber}</Text>
-          <Text style={styles.timeAgo}>{timeAgo}</Text>
-        </View>
+        <View style={styles.content}>
+          {/* Top row: ticket number + time */}
+          <View style={styles.topRow}>
+            <Text style={styles.ticketNumber}>{ticketNumber}</Text>
+            <Text style={styles.timeAgo}>{timeAgo}</Text>
+          </View>
 
-        {/* Title */}
-        <Text style={styles.title} numberOfLines={2}>{title}</Text>
+          {/* Title */}
+          <Text style={styles.title} numberOfLines={2}>{title}</Text>
 
-        {/* Bottom row: badges + assignee */}
-        <View style={styles.bottomRow}>
-          <View style={styles.badgeGroup}>
-            <StatusBadge status={status} size="sm" />
-            <View style={[styles.priorityBadge, { backgroundColor: pCfg.bg }]}>
-              <View style={[styles.priorityDot, { backgroundColor: pCfg.dot }]} />
-              <Text style={[styles.priorityText, { color: pCfg.text }]}>
-                {priority?.toUpperCase()}
-              </Text>
+          {/* Bottom row: badges + assignee */}
+          <View style={styles.bottomRow}>
+            <View style={styles.badgeGroup}>
+              <StatusBadge status={status} size="sm" />
+              <View style={[styles.priorityBadge, { backgroundColor: pCfg.bg }]}>
+                <View style={[styles.priorityDot, { backgroundColor: pCfg.dot }]} />
+                <Text style={[styles.priorityText, { color: pCfg.text }]}>
+                  {priority?.toUpperCase()}
+                </Text>
+              </View>
+              {escalationChain && escalationChain.length > 0 && (
+                <View style={styles.escalatedBadge}>
+                  <Ionicons name="arrow-up" size={10} color="#FFF" />
+                  <Text style={styles.escalatedText}>ESCALATED</Text>
+                </View>
+              )}
             </View>
-            {escalationChain && escalationChain.length > 0 && (
-              <View style={styles.escalatedBadge}>
-                <Ionicons name="arrow-up" size={10} color="#FFF" />
-                <Text style={styles.escalatedText}>ESCALATED</Text>
+
+            {assignedTo && (
+              <View style={styles.assigneeRow}>
+                {assigneePhotoUrl ? (
+                  <Image source={{ uri: assigneePhotoUrl }} style={styles.assigneeAvatar} />
+                ) : (
+                  <View style={styles.assigneeInitials}>
+                    <Text style={styles.assigneeInitialsText}>
+                      {assignedTo.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.assigneeName} numberOfLines={1}>{assignedTo}</Text>
               </View>
             )}
           </View>
 
-          {assignedTo && (
-            <View style={styles.assigneeRow}>
-              {assigneePhotoUrl ? (
-                <Image source={{ uri: assigneePhotoUrl }} style={styles.assigneeAvatar} />
-              ) : (
-                <View style={styles.assigneeInitials}>
-                  <Text style={styles.assigneeInitialsText}>
-                    {assignedTo.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.assigneeName} numberOfLines={1}>{assignedTo}</Text>
+          {/* Escalation chain: avatars with arrows */}
+          {escalationChain && escalationChain.length > 0 && (
+            <View style={styles.escalationChain}>
+              <Text style={styles.escalatedLabel}>Escalated to:</Text>
+              <View style={styles.escalationChainRow}>
+                {escalationChain.map((person, i) => {
+                  const initials = person.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
+                  const isLast = i === escalationChain.length - 1;
+                  return (
+                    <React.Fragment key={i}>
+                      <View style={[styles.escAvatar, { borderColor: isLast ? '#FCA5A5' : '#E2E8F0' }]}>
+                        {person.avatar ? (
+                          <Image source={{ uri: person.avatar }} style={styles.escAvatarImg} />
+                        ) : (
+                          <View style={[styles.escInitials, { backgroundColor: isLast ? '#FEE2E2' : '#F1F5F9' }]}>
+                            <Text style={[styles.escInitialsText, { color: isLast ? '#DC2626' : '#64748B' }]}>
+                              {initials}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      {!isLast && <Ionicons name="arrow-forward" size={10} color="#FCA5A5" style={{ marginHorizontal: 2 }} />}
+                    </React.Fragment>
+                  );
+                })}
+              </View>
             </View>
           )}
         </View>
 
-        {/* Escalation chain: avatars with arrows */}
-        {escalationChain && escalationChain.length > 0 && (
-          <View style={styles.escalationChain}>
-            <Text style={styles.escalatedLabel}>Escalated to:</Text>
-            <View style={styles.escalationChainRow}>
-              {escalationChain.map((person, i) => {
-                const initials = person.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
-                const isLast = i === escalationChain.length - 1;
-                return (
-                  <React.Fragment key={i}>
-                    <View style={[styles.escAvatar, { borderColor: isLast ? '#FCA5A5' : '#E2E8F0' }]}>
-                      {person.avatar ? (
-                        <Image source={{ uri: person.avatar }} style={styles.escAvatarImg} />
-                      ) : (
-                        <View style={[styles.escInitials, { backgroundColor: isLast ? '#FEE2E2' : '#F1F5F9' }]}>
-                          <Text style={[styles.escInitialsText, { color: isLast ? '#DC2626' : '#64748B' }]}>
-                            {initials}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    {!isLast && <Ionicons name="arrow-forward" size={10} color="#FCA5A5" style={{ marginHorizontal: 2 }} />}
-                  </React.Fragment>
-                );
-              })}
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Chevron */}
-      <View style={styles.chevron}>
-        <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
-      </View>
+        {/* Chevron */}
+        <View style={styles.chevron}>
+          <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
+        </View>
+      </SafeBlurView>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
+  cardWrapper: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
+  },
   card: {
-    backgroundColor: '#FFF',
-    borderRadius: 14,
+    backgroundColor: 'rgba(15,23,42,0.65)',
+    borderRadius: 18,
     flexDirection: 'row',
     alignItems: 'stretch',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginHorizontal: 16,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   criticalCard: {
     borderColor: '#F43F5E',
@@ -199,8 +208,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#1A2332',
+    fontWeight: '700',
+    color: '#FFFFFF',
     lineHeight: 20,
   },
   bottomRow: {
@@ -260,8 +269,8 @@ const styles = StyleSheet.create({
   },
   assigneeName: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.7)',
   },
   escalatedBadge: {
     flexDirection: 'row',

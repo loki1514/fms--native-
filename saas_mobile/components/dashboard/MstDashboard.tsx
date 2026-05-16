@@ -44,7 +44,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
 import TicketCard from '../shared/TicketCard';
 import SignOutModal from '../ui/SignOutModal';
-import CreateTicketModal from '../shared/CreateTicketModal';
+import { TicketCreateModal } from '../tickets/TicketCreateModal';
 import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
 import { LoggersMenu } from '../shared/LoggersMenu';
 import { TicketShuffleStack } from '../shared/TicketShuffleStack';
@@ -858,11 +858,13 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
       />
 
       {/* Create Ticket Modal */}
-      <CreateTicketModal
-        visible={showCreateModal}
+      <TicketCreateModal
+        isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={() => fetchTickets()}
         propertyId={propertyId}
+        organizationId={membership?.org_id ?? ''}
+        role="staff"
+        onSuccess={fetchTickets}
       />
 
 
