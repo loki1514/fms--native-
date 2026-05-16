@@ -17,6 +17,8 @@ import {
   getRoleAllowedPaths,
   getRoleDefaultPath,
 } from '@/utils/api/mobileApi';
+import { CAPABILITY_MATRIX } from '@/constants/capabilities';
+import { CapabilityDomain } from '@/types/rbac';
 import {
   LayoutDashboard,
   Ticket,
@@ -43,18 +45,18 @@ import AnimatedLogo from '@/components/shared/AnimatedLogo';
 const SIDEBAR_WIDTH = 288;
 
 // ---- Mobile-only roles (full-screen, no sidebar) ----
-// tenant/super_tenant get the glassmorphism mobile dashboard
-const MOBILE_ROLES = ['tenant', 'super_tenant'];
+// DEPRECATED: All roles now use the unified sidebar layout with capability-based filtering.
+const MOBILE_ROLES: string[] = [];
 
 // ---- Roles that render their own full-screen dashboard with internal sidebar ----
-// NewMstDashboard and PremiumMstDashboard are self-contained (sidebar built in).
-// The property layout sidebar must NOT render alongside them or you get double sidebars.
-// property_admin now uses the mobile-native glassmorphism dashboard with bottom nav
-// and a hamburger drawer — no persistent sidebar.
-const FULL_DASHBOARD_ROLES = ['mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager', 'property_admin'];
+// DEPRECATED: All roles now use the unified sidebar layout with capability-based filtering.
+const FULL_DASHBOARD_ROLES: string[] = [];
 
 // ---- Full-screen routes for full-dashboard roles (no sidebar) ----
-const FULL_SCREEN_ROUTES = ['mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager', 'property_admin', 'settings', 'profile'];
+const FULL_SCREEN_ROUTES = [
+  'mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager', 
+  'property_admin', 'lovable-admin', 'lovable-super-admin', 'lovable-mst', 'settings', 'profile'
+];
 
 // ---- Property Context ----
 export const PropertyContext = React.createContext<{
@@ -74,21 +76,23 @@ type NavItem = {
   label: string;
   route: string;
   icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
+  domain?: CapabilityDomain;
 };
 
 // ---- Navigation Structure (matches web sidebar) ----
+// Each item maps to a capability domain so we can filter by role permissions.
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard',      route: 'dashboard',    icon: LayoutDashboard },
-  { label: 'Requests',       route: 'tickets',     icon: Ticket },
-  { label: 'Flow Map',       route: 'flow-map',    icon: ArrowUpCircle },
-  { label: 'User Management', route: 'users',     icon: Users },
-  { label: 'Visitors',      route: 'visitors',    icon: UserCheck },
-  { label: 'Rooms',         route: 'rooms',       icon: DoorOpen },
-  { label: 'Diesel',        route: 'diesel',      icon: Fuel },
-  { label: 'Electricity',   route: 'electricity', icon: Zap },
-  { label: 'Stock',         route: 'stock',      icon: Package },
-  { label: 'Reports',       route: 'reports',     icon: FileText },
-  { label: 'Settings',      route: 'settings',    icon: Settings },
+  { label: 'Dashboard',       route: 'dashboard',    icon: LayoutDashboard, domain: 'dashboards' },
+  { label: 'Requests',        route: 'tickets',      icon: Ticket,          domain: 'tickets' },
+  { label: 'Flow Map',        route: 'flow-map',     icon: ArrowUpCircle,   domain: 'tickets' },
+  { label: 'User Management', route: 'users',        icon: Users,           domain: 'users' },
+  { label: 'Visitors',        route: 'visitors',     icon: UserCheck,       domain: 'visitors' },
+  { label: 'Rooms',           route: 'rooms',        icon: DoorOpen,        domain: 'properties' },
+  { label: 'Diesel',          route: 'diesel',       icon: Fuel,            domain: 'assets' },
+  { label: 'Electricity',     route: 'electricity',  icon: Zap,             domain: 'assets' },
+  { label: 'Stock',           route: 'stock',        icon: Package,         domain: 'stock' },
+  { label: 'Reports',         route: 'reports',      icon: FileText,        domain: 'reports' },
+  { label: 'Settings',        route: 'settings',     icon: Settings },
 ];
 
 const QUICK_ACTIONS: NavItem[] = [
@@ -195,16 +199,30 @@ function SidebarItem({
 }
 
 // ---- Sidebar ----
+/**
+ * Filter nav items by role capabilities (mirrors saas_one CapabilityWrapper logic).
+ * Settings is always visible (no domain = unrestricted).
+ */
+function getFilteredNavItems(role: string): NavItem[] {
+  const capabilities = CAPABILITY_MATRIX[role as keyof typeof CAPABILITY_MATRIX] || {};
+  return NAV_ITEMS.filter((item) => {
+    if (!item.domain) return true; // Settings etc.
+    return capabilities[item.domain]?.includes('view');
+  });
+}
+
 function Sidebar({
   currentRoute,
   onNewRequest,
   collapsed,
   onToggle,
+  role,
 }: {
   currentRoute: string;
   onNewRequest: () => void;
   collapsed: boolean;
   onToggle: () => void;
+  role: string;
 }) {
   const { user, signOut } = useAuth();
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
@@ -305,7 +323,7 @@ function Sidebar({
         {!collapsed && (
           <Text style={[styles.navSectionLabel, { color: textSecondary }]}>MANAGEMENT</Text>
         )}
-        {NAV_ITEMS.map((item) => (
+        {getFilteredNavItems(role).map((item) => (
           <SidebarItem
             key={item.route}
             item={item}
@@ -353,7 +371,10 @@ function Sidebar({
           <ThemeToggleButton />
           <TouchableOpacity
             style={styles.logoutBtn}
-            onPress={async () => { await signOut(); }}
+            onPress={async () => { 
+              await signOut(); 
+              router.replace('/login');
+            }}
             activeOpacity={0.7}
           >
             <LogOut size={15} color="#EF4444" strokeWidth={1.5} />
@@ -574,43 +595,21 @@ export default function PropertyLayout() {
   }
 
   console.log('[PropertyLayout] Access granted — role:', role);
-  const isMobileRole = MOBILE_ROLES.includes(role);
-  const isFullDashboardRole = FULL_DASHBOARD_ROLES.includes(role);
 
-  // ---- Tenant / Super Tenant: full-screen mobile UI, no sidebar ----
-  // Renders the mobile glassmorphism dashboard (via tenant/index.tsx)
-  console.log('[PropertyLayout] Render — role:', role, 'isMobile:', isMobileRole, 'isFullDashboard:', isFullDashboardRole, 'membership:', membership ? 'exists' : 'null');
-  if (isMobileRole) {
-    console.log('[PropertyLayout] Mobile role — rendering children');
-    return (
-      <PropertyContext.Provider value={propertyInfo}>
-        <Slot />
-      </PropertyContext.Provider>
-    );
-  }
+  const isFullScreen = FULL_SCREEN_ROUTES.includes(currentRoute);
 
-  // ---- Roles with their own full-screen dashboard: no sidebar here ----
-  // NewMstDashboard, PremiumMstDashboard, PropertyAdminDashboard are self-contained.
-  if (isFullDashboardRole) {
+  // ---- Unified sidebar layout for ALL roles (unless full-screen) ----
+  if (isFullScreen) {
     return (
       <PropertyContext.Provider value={propertyInfo}>
         <View style={{ flex: 1, backgroundColor: colors.background }}>
           <Slot />
         </View>
-        <TenantTicketModal
-          visible={ticketModalVisible}
-          propertyId={propertyId ?? ''}
-          organizationId={membership?.org_id ?? ''}
-          userId={user?.id ?? ''}
-          userName={user?.full_name ?? user?.email ?? 'User'}
-          propertyName={propertyInfo.propertyName}
-          onClose={() => setTicketModalVisible(false)}
-        />
       </PropertyContext.Provider>
     );
   }
 
-  // ---- All other roles: sidebar + stack navigator ----
+  // Capability-based module filtering in Sidebar ensures each role only sees permitted modules.
   return (
     <PropertyContext.Provider value={propertyInfo}>
       <View style={styles.container}>
@@ -620,6 +619,7 @@ export default function PropertyLayout() {
           onNewRequest={() => setTicketModalVisible(true)}
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(c => !c)}
+          role={role}
         />
 
         {/* Content — children render here via Expo Router file-based routing */}
