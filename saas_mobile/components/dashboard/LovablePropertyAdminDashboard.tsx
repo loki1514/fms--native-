@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   Modal,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +33,13 @@ import {
   STATUS_COLORS,
   CARD_SURFACES,
 } from '@/constants/designSystem';
+import {
+  PulseDot,
+  GlassTile,
+  MiniBarChart,
+  ProgressBar,
+  AttentionCard,
+} from './DashboardComponents';
 
 const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
@@ -43,138 +51,6 @@ interface Props {
   propertyId: string;
 }
 
-// ─── Pulse Dot ────────────────────────────────────────────────────────────────
-function PulseDot({ color }: { color: string }) {
-  return (
-    <View
-      style={[
-        styles.pulseDot,
-        { backgroundColor: color, shadowColor: color, shadowOpacity: 0.8, shadowRadius: 6 },
-      ]}
-    />
-  );
-}
-
-// ─── Glass Tile ───────────────────────────────────────────────────────────────
-function GlassTile({
-  label,
-  icon,
-  children,
-  onPress,
-  delay,
-  status,
-}: {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  children: React.ReactNode;
-  onPress?: () => void;
-  delay: number;
-  status?: 'optimal' | 'watch' | 'critical';
-}) {
-  const statusColor = status ? STATUS_COLORS[status].bg : undefined;
-
-  return (
-    <Animated.View entering={FadeInUp.delay(delay).duration(500)} style={{ width: '100%' }}>
-      <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={styles.tileWrapper}>
-        <SafeBlurView intensity={40} style={styles.tileBlur} tint="dark">
-          <LinearGradient
-            colors={
-              status === 'critical'
-                ? ['rgba(217,38,28,0.20)', 'rgba(25,20,50,0.3)']
-                : status === 'watch'
-                ? ['rgba(196,160,0,0.20)', 'rgba(25,20,50,0.3)']
-                : ['rgba(255,255,255,0.06)', 'rgba(25,20,50,0.2)']
-            }
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={styles.tileContent}>
-            <View style={styles.tileHeader}>
-              <View style={styles.iconBadge}>
-                <Ionicons name={icon} size={14} color="#FFFFFF" />
-              </View>
-              <Text style={styles.tileLabel}>{label.toUpperCase()}</Text>
-              {status && <PulseDot color={statusColor!} />}
-            </View>
-            <View style={styles.tileBody}>{children}</View>
-          </View>
-        </SafeBlurView>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
-// ─── Mini Bar Chart ───────────────────────────────────────────────────────────
-function MiniBarChart({ data, highlightColor }: { data: number[]; highlightColor?: string }) {
-  const max = Math.max(...data, 1);
-  return (
-    <View style={styles.barChart}>
-      {data.map((v, i) => (
-        <View key={i} style={styles.barCol}>
-          <View style={styles.barTrack}>
-            <View
-              style={[
-                styles.barFill,
-                {
-                  height: `${Math.max((v / max) * 100, 5)}%`,
-                  backgroundColor:
-                    i === data.length - 1 ? highlightColor || 'rgba(112,143,150,0.80)' : 'rgba(0,0,0,0.12)',
-                },
-              ]}
-            />
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-// ─── Progress Bar ─────────────────────────────────────────────────────────────
-function ProgressBar({ percent, color }: { percent: number; color: string }) {
-  return (
-    <View style={styles.progressBar}>
-      <View style={[styles.progressFill, { width: `${percent}%`, backgroundColor: color }]} />
-    </View>
-  );
-}
-
-// ─── Attention Card ───────────────────────────────────────────────────────────
-function AttentionCard({ item, index, onAction }: { item: any; index: number; onAction: () => void }) {
-  const severityColor =
-    item.severity === 'critical' ? '#EF4444' :
-    item.severity === 'high' ? '#F59E0B' :
-    item.severity === 'medium' ? '#3B82F6' : '#6B7280';
-  const iconName =
-    item.type === 'sla_risk' ? 'timer-outline' :
-    item.type === 'unassigned_critical' ? 'alert-circle-outline' :
-    item.type === 'unassigned_high' ? 'warning-outline' :
-    item.type === 'stale_ticket' ? 'time-outline' :
-    item.type === 'sop_missed' ? 'checkbox-outline' : 'information-circle-outline';
-
-  return (
-    <Animated.View entering={FadeInUp.delay(index * 100).duration(500)}>
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={onAction}
-        style={[styles.attentionCard, { borderLeftColor: severityColor, borderLeftWidth: 3 }]}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={[styles.attentionIconBadge, { backgroundColor: severityColor + '15' }]}>
-            <Ionicons name={iconName} size={16} color={severityColor} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.attentionTitle}>{item.title}</Text>
-            <Text style={styles.attentionDesc} numberOfLines={2}>{item.description}</Text>
-          </View>
-          <View style={[styles.attentionActionBadge, { backgroundColor: severityColor + '15' }]}>
-            <Text style={[styles.attentionActionText, { color: severityColor }]}>{item.action_label}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const { user, signOut, membership } = useAuth();
   const insets = useSafeAreaInsets();
@@ -196,6 +72,11 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [energyKwh, setEnergyKwh] = useState(0);
   const [energyTrend, setEnergyTrend] = useState(12);
   const [propertyName, setPropertyName] = useState('Property');
+
+  // New stats state
+  const [vmsStats, setVmsStats] = useState({ total: 0, in: 0, out: 0 });
+  const [vendorStats, setVendorStats] = useState({ revenue: 0, commission: 0 });
+  const [dieselStats, setDieselStats] = useState({ level: 0, consumption: 0 });
 
   // Leadership cockpit state
   const [healthScore, setHealthScore] = useState<any>(null);
@@ -275,6 +156,45 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         p_days: 30,
       });
       if (funnelData) setTicketFunnel(funnelData);
+
+      // --- NEW: VMS Summary ---
+      const { data: vmsData } = await supabase
+        .from('visitor_logs')
+        .select('status', { count: 'exact' })
+        .eq('property_id', propertyId);
+      
+      if (vmsData) {
+        const total = vmsData.length;
+        const checkedIn = vmsData.filter((v: any) => v.status === 'checked_in').length;
+        const checkedOut = vmsData.filter((v: any) => v.status === 'checked_out').length;
+        setVmsStats({ total, in: checkedIn, out: checkedOut });
+      }
+
+      // --- NEW: Vendor Revenue ---
+      const { data: revData } = await supabase
+        .from('vendor_daily_revenue')
+        .select('revenue_amount, vendor_id')
+        .eq('property_id', propertyId);
+      
+      if (revData) {
+        const totalRev = revData.reduce((acc, row) => acc + (row.revenue_amount || 0), 0);
+        // Simplified commission calculation (10% avg if vendors table not joined)
+        setVendorStats({ revenue: totalRev, commission: totalRev * 0.1 });
+      }
+
+      // --- NEW: Diesel Level ---
+      const { data: dieselData } = await supabase
+        .from('diesel_readings')
+        .select('current_fuel_level')
+        .eq('property_id', propertyId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (dieselData) {
+        setDieselStats({ level: (dieselData as any).current_fuel_level || 0, consumption: 0 });
+      }
+
     } catch (_) {
       {/* silent */}
     } finally {
@@ -307,12 +227,38 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
     return tickets;
   }, [tickets, ticketTimeFilter]);
 
-  const openTickets = useMemo(() => filteredTickets.filter((t) => ['open', 'blocked', 'client_raised'].includes(t.status)).length, [filteredTickets]);
-  const resolvedTickets = useMemo(() => filteredTickets.filter((t) => ['resolved', 'closed', 'satisfied'].includes(t.status)).length, [filteredTickets]);
+  const openTickets = useMemo(() => 
+    filteredTickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_validation', 'client_raised', 'waitlist'].includes(t.status)).length, 
+    [filteredTickets]
+  );
+  const resolvedTickets = useMemo(() => 
+    filteredTickets.filter((t) => ['resolved', 'closed', 'satisfied'].includes(t.status)).length, 
+    [filteredTickets]
+  );
   const totalTickets = filteredTickets.length;
+
+  // Dynamically compute funnel from filtered tickets
+  const dynamicFunnel = useMemo(() => {
+    const counts: Record<string, number> = {
+      'assigned': 0,
+      'in_progress': 0,
+      'pending_validation': 0,
+      'closed': 0,
+    };
+    filteredTickets.forEach(t => {
+      if (counts.hasOwnProperty(t.status)) counts[t.status]++;
+    });
+    return Object.entries(counts).map(([status, count]) => ({
+      status_label: status,
+      ticket_count: count
+    }));
+  }, [filteredTickets]);
   const healthStatus: 'optimal' | 'watch' | 'critical' = openTickets > 15 ? 'critical' : openTickets > 5 ? 'watch' : 'optimal';
   const healthColor = STATUS_COLORS[healthStatus].bg;
   const checklistPct = sopTotal > 0 ? Math.round((sopCount / sopTotal) * 100) : 100;
+  
+  // Stats for VMS and Vendor
+  const pendingValidationCount = useMemo(() => tickets.filter(t => t.status === 'pending_validation').length, [tickets]);
 
   // Mock 7-day history for sparklines
   const ticketHistory = useMemo(() => {
@@ -446,9 +392,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
 
   const renderTabContent = () => (
     <>
-      {/* Tickets Intelligence Tile — moved up */}
       <GlassTile label="Tickets" icon="ticket" delay={80} status={healthStatus} onPress={() => setShowTileDetail(tileDetails.tickets)}>
-        {/* Time filter toggle */}
         <View style={styles.timeToggleRow}>
           {(['today', 'month', 'all'] as const).map((f) => (
             <TouchableOpacity
@@ -463,26 +407,23 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             </TouchableOpacity>
           ))}
         </View>
-        <View style={styles.tileTopRow}>
-          <View>
-            <Text style={styles.tileMetricBig}>{totalTickets}</Text>
-            <Text style={styles.tileSubtext}>{openTickets} open · {resolvedTickets} resolved</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <View style={{ alignItems: 'flex-start' }}>
+            <Text style={styles.tileMetricMid}>{totalTickets}</Text>
+            <Text style={[styles.tileSubtext, { marginTop: 0, fontSize: 10, letterSpacing: 1 }]}>TOTAL</Text>
           </View>
-          <MiniBarChart data={ticketHistory} />
+          <View style={{ alignItems: 'center' }}>
+            <Text style={[styles.tileMetricMid, { color: '#FCA5A5' }]}>{openTickets}</Text>
+            <Text style={[styles.tileSubtext, { marginTop: 0, fontSize: 10, letterSpacing: 1 }]}>OPEN</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={[styles.tileMetricMid, { color: '#10B981' }]}>{resolvedTickets}</Text>
+            <Text style={[styles.tileSubtext, { marginTop: 0, fontSize: 10, letterSpacing: 1 }]}>CLOSED</Text>
+          </View>
         </View>
-        {/* Status breakdown row */}
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-          {ticketFunnel.slice(0, 4).map((f: any) => {
-            const shortLabel = f.status_label
-              ?.replace(/_/g, ' ')
-              ?.replace(/pending validation/i, 'Pending')
-              ?.replace(/assigned/i, 'Assigned')
-              ?.replace(/closed/i, 'Closed')
-              ?.replace(/waitlist/i, 'Waitlist')
-              ?.replace(/open/i, 'Open')
-              ?.replace(/resolved/i, 'Resolved')
-              ?.replace(/in progress/i, 'In Progress')
-              || f.status_label;
+          {dynamicFunnel.map((f: any) => {
+            const shortLabel = f.status_label?.replace(/_/g, ' ')?.replace(/pending validation/i, 'Pending')?.replace(/assigned/i, 'Assigned')?.replace(/closed/i, 'Closed')?.replace(/waitlist/i, 'Waitlist')?.replace(/open/i, 'Open')?.replace(/resolved/i, 'Resolved')?.replace(/in progress/i, 'In Progress') || f.status_label;
             return (
               <View key={f.status_label} style={{ flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 2, overflow: 'hidden' }}>
                 <Text style={{ fontFamily: fontDisplay, fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>{f.ticket_count}</Text>
@@ -493,41 +434,19 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         </View>
       </GlassTile>
 
-      {/* Compact Health Score — one line */}
       {healthScore && (
         <Animated.View entering={FadeInUp.delay(120).duration(500)}>
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={[styles.tileWrapper, { minHeight: 64 }]}
-            onPress={() => setShowTileDetail(tileDetails.health)}
-          >
-            <SafeBlurView intensity={40} style={[styles.tileBlur, { minHeight: 64 }]} tint="dark">
-              <LinearGradient
-                colors={['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.2)']}
-                style={StyleSheet.absoluteFillObject}
-              />
-              <View style={[styles.tileContent, { paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
-                <View style={[styles.healthDot, { backgroundColor: (healthScore.score ?? 0) >= 80 ? '#10B981' : (healthScore.score ?? 0) >= 50 ? '#F59E0B' : '#EF4444' }]} />
-                <Text style={[styles.tileLabel, { flex: 0, letterSpacing: 1 }]}>HEALTH</Text>
-                <Text style={[styles.tileMetricMid, { fontSize: 22 }]}>{healthScore.score ?? 0}</Text>
-                <Text style={[styles.tileSuffix, { fontSize: 12 }]}>/ 100</Text>
-                <Text style={[styles.tileSubtext, { color: healthColor, fontWeight: '600', fontSize: 12, marginTop: 0 }]}>
-                  {(healthScore.score ?? 0) >= 80 ? 'Excellent' : (healthScore.score ?? 0) >= 50 ? 'Needs Attention' : 'Critical'}
-                </Text>
+          <TouchableOpacity activeOpacity={0.9} style={[styles.tileWrapper, { minHeight: 64, marginHorizontal: SPACING.xl, marginBottom: 12, borderRadius: 20, overflow: 'hidden' }]} onPress={() => setShowTileDetail(tileDetails.health)}>
+            <SafeBlurView intensity={70} style={{ minHeight: 64 }} tint="dark">
+              <View style={[styles.tileContent, { paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 }]}>
+                <View style={[styles.healthDot, { width: 10, height: 10, borderRadius: 5, backgroundColor: (healthScore.score ?? 0) >= 80 ? '#10B981' : (healthScore.score ?? 0) >= 50 ? '#F59E0B' : '#EF4444' }]} />
+                <Text style={{ fontFamily: fontSans, fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: 1 }}>HEALTH</Text>
+                <Text style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: '700', color: '#FFF' }}>{healthScore.score ?? 0}</Text>
+                <Text style={{ fontFamily: fontSans, fontSize: 12, color: healthColor, fontWeight: '600' }}>{(healthScore.score ?? 0) >= 80 ? 'Excellent' : (healthScore.score ?? 0) >= 50 ? 'Needs Attention' : 'Critical'}</Text>
                 <View style={{ flex: 1 }} />
-                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={[styles.tileMetricSmall, { fontSize: 13 }]}>{healthScore.total_open ?? 0}</Text>
-                    <Text style={[styles.tileSuffix, { fontSize: 9 }]}>Open</Text>
-                  </View>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={[styles.tileMetricSmall, { fontSize: 13, color: '#F59E0B' }]}>{healthScore.sla_risk ?? 0}</Text>
-                    <Text style={[styles.tileSuffix, { fontSize: 9 }]}>Risk</Text>
-                  </View>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={[styles.tileMetricSmall, { fontSize: 13, color: '#EF4444' }]}>{healthScore.stale ?? 0}</Text>
-                    <Text style={[styles.tileSuffix, { fontSize: 9 }]}>Stale</Text>
-                  </View>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                   <View style={{ alignItems: 'center' }}><Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>{healthScore.total_open ?? 0}</Text><Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>Open</Text></View>
+                   <View style={{ alignItems: 'center' }}><Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '700' }}>{healthScore.sla_risk ?? 0}</Text><Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>Risk</Text></View>
                 </View>
               </View>
             </SafeBlurView>
@@ -535,69 +454,78 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         </Animated.View>
       )}
 
-      {/* Attention Feed */}
       {attentionItems.length > 0 && (
         <>
           <Animated.View entering={FadeInUp.delay(160).duration(500)} style={{ paddingHorizontal: SPACING.xl, marginBottom: SPACING.md }}>
-            <Text style={styles.sectionLabel}>⚠️ NEEDS ATTENTION</Text>
+            <Text style={{ fontFamily: fontSans, fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 2, textTransform: 'uppercase' }}>⚠️ NEEDS ATTENTION</Text>
           </Animated.View>
           {attentionItems.slice(0, 3).map((item, index) => (
-            <AttentionCard
-              key={item.id}
-              item={item}
-              index={index}
-              onAction={() => {
-                if (item.entity_type === 'ticket') {
-                  router.push(`/property/${propertyId}/tickets/${item.entity_id}`);
-                }
-              }}
-            />
+            <AttentionCard key={item.id} item={item} index={index} onAction={() => item.entity_type === 'ticket' && router.push(`/property/${propertyId}/tickets/${item.entity_id}`)} />
           ))}
         </>
       )}
 
-      {/* Checklist — full width */}
       <GlassTile label="Checklist" icon="checkbox-outline" delay={200} onPress={() => setShowTileDetail(tileDetails.checklist)}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <View>
-            <Text style={styles.tileMetricMid}>
-              {sopCount} <Text style={styles.tileSuffix}>/ {sopTotal}</Text>
-            </Text>
+            <Text style={styles.tileMetricMid}>{sopCount} <Text style={styles.tileSuffix}>/ {sopTotal}</Text></Text>
             <Text style={styles.tileSubtext}>{checklistPct}% completed</Text>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <ProgressBar percent={checklistPct} color={STATUS_COLORS.optimal.bg} />
-            <Text style={[styles.tileSubtext, { marginTop: 4, color: checklistPct >= 80 ? STATUS_COLORS.optimal.bg : STATUS_COLORS.watch.bg }]}>
-              {checklistPct >= 80 ? 'On track' : checklistPct >= 50 ? 'Behind' : 'Critical'}
-            </Text>
-          </View>
+          <ProgressBar percent={checklistPct} color={STATUS_COLORS.optimal.bg} />
         </View>
       </GlassTile>
 
-      {/* Energy Tile */}
       <GlassTile label="Energy Usage" icon="flash" delay={280} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
-        <View style={styles.tileTopRow}>
-          <View>
-            <Text style={styles.tileMetricMid}>
-              {energyKwh} <Text style={styles.tileSuffix}>kWh</Text>
-            </Text>
-            <Text style={styles.tileSubtext}>Grid + DG consumption today</Text>
-          </View>
-          <View style={styles.trendChip}>
-            <Ionicons name={energyTrend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#1FC26E" />
-            <Text style={styles.trendChipText}>+{energyTrend}%</Text>
-          </View>
-        </View>
+        <View style={styles.tileTopRow}><View><Text style={styles.tileMetricMid}>{energyKwh} <Text style={styles.tileSuffix}>kWh</Text></Text><Text style={styles.tileSubtext}>Grid + DG consumption today</Text></View><View style={styles.trendChip}><Ionicons name={energyTrend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#1FC26E" /><Text style={styles.trendChipText}>+{energyTrend}%</Text></View></View>
         <MiniBarChart data={energyHistory} highlightColor="rgba(214,158,46,0.85)" />
       </GlassTile>
 
-      {/* Quick Actions */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.quickBtn} onPress={() => setShowChat(true)}>
-          <Ionicons name="chatbubble-ellipses" size={20} color="#FFFFFF" />
-          <Text style={styles.quickText}>Ask Cassandra</Text>
-        </TouchableOpacity>
-      </View>
+      {/* NEW: Visitor Stats Tile */}
+      <GlassTile label="Visitors" icon="people-outline" delay={320} onPress={() => router.push(`/property/${propertyId}/visitors`)}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View>
+            <Text style={styles.tileMetricMid}>{vmsStats.total}</Text>
+            <Text style={styles.tileSubtext}>Total Visitors</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#10B981', fontWeight: '700' }}>{vmsStats.in}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>IN</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: 'rgba(255,255,255,0.6)', fontWeight: '700' }}>{vmsStats.out}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>OUT</Text>
+            </View>
+          </View>
+        </View>
+      </GlassTile>
+
+      {/* NEW: Vendor Revenue Tile */}
+      <GlassTile label="Cafeteria Revenue" icon="fast-food-outline" delay={360} onPress={() => router.push(`/property/${propertyId}/vendor`)}>
+        <View style={styles.tileTopRow}>
+          <View>
+            <Text style={styles.tileMetricMid}>₹{vendorStats.revenue.toLocaleString()}</Text>
+            <Text style={styles.tileSubtext}>Total Revenue</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ color: '#F59E0B', fontSize: 16, fontWeight: '800' }}>₹{Math.round(vendorStats.commission).toLocaleString()}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>COMMISSION</Text>
+          </View>
+        </View>
+      </GlassTile>
+
+      {/* NEW: Diesel Level Tile */}
+      <GlassTile label="Diesel Status" icon="water-outline" delay={400} onPress={() => router.push(`/property/${propertyId}/diesel`)}>
+        <View style={{ flexDirection: 'row', gap: 15, alignItems: 'center' }}>
+          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 2, borderColor: 'rgba(245,158,11,0.3)', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '800' }}>{dieselStats.level}%</Text>
+          </View>
+          <View>
+            <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '700' }}>Current Level</Text>
+            <Text style={styles.tileSubtext}>Tank A + Tank B summary</Text>
+          </View>
+        </View>
+      </GlassTile>
     </>
   );
 
@@ -606,478 +534,219 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       <StatusBar barStyle="light-content" />
       <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
       {weather && <WeatherBackground condition={weather.condition} />}
-
-      <ScrollView
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="rgba(255,255,255,0.6)" />
-        }
-        contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}
-      >
-        {/* Header */}
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="rgba(255,255,255,0.6)" />} contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}>
         <Animated.View entering={FadeInUp.duration(500)} style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>{propertyName}</Text>
-            <Text style={styles.headerSubtitle}>Property Admin Dashboard</Text>
-            {lastUpdated && (
-              <Text style={styles.headerUpdated}>Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</Text>
-            )}
-          </View>
-          <TouchableOpacity style={styles.signOutBtn} onPress={() => setShowDrawer(true)}>
-            <Ionicons name="menu" size={22} color="rgba(255,255,255,0.60)" />
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Tab Content */}
-        <View style={{ marginTop: SPACING.lg }}>{renderTabContent()}</View>
-
-        {/* Navigation Drawer */}
-        <Modal visible={showDrawer} transparent animationType="slide" onRequestClose={() => setShowDrawer(false)}>
-          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end' }}>
-            <TouchableOpacity style={styles.drawerBackdrop} onPress={() => setShowDrawer(false)} activeOpacity={1} />
-            <View style={[styles.drawerPanel, { paddingTop: insets.top + 16 }]}>
-              <View style={styles.drawerHeader}>
-                <Text style={styles.drawerTitle}>Menu</Text>
-                <TouchableOpacity onPress={() => setShowDrawer(false)} style={styles.drawerCloseBtn} activeOpacity={0.7}>
-                  <Ionicons name="close" size={24} color="rgba(255,255,255,0.70)" />
-                </TouchableOpacity>
+          <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setShowDrawer(true)} activeOpacity={0.7}><Ionicons name="menu" size={28} color="#FFFFFF" /></TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <TouchableOpacity 
+              style={styles.profileRow} 
+              activeOpacity={0.7}
+              onPress={() => router.push(`/property/${propertyId}/profile`)}
+            >
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}</Text>
               </View>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {[
-                  { label: 'Dashboard', route: 'dashboard', icon: 'grid-outline' },
-                  { label: 'Tickets', route: 'tickets', icon: 'ticket-outline' },
-                  { label: 'Flow Map', route: 'flow-map', icon: 'git-merge-outline' },
-                  { label: 'Visitors', route: 'visitors', icon: 'people-outline' },
-                  { label: 'Rooms', route: 'rooms', icon: 'cube-outline' },
-                  { label: 'Stock', route: 'stock', icon: 'cube-outline' },
-                  { label: 'Diesel', route: 'diesel', icon: 'flame-outline' },
-                  { label: 'Electricity', route: 'electricity', icon: 'flash-outline' },
-                  { label: 'Users', route: 'users', icon: 'person-outline' },
-                  { label: 'Settings', route: 'settings', icon: 'settings-outline' },
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.route}
-                    style={styles.drawerItem}
-                    onPress={() => { setShowDrawer(false); router.push(`/property/${propertyId}/${item.route}` as never); }}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.60)" />
-                    <Text style={styles.drawerItemLabel}>{item.label}</Text>
-                    <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.20)" />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity style={styles.drawerSignOut} onPress={() => { setShowDrawer(false); setShowSignOut(true); }}>
-                <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-                <Text style={styles.drawerSignOutText}>Sign Out</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={[styles.nameContainer, { flex: 1 }]}>
+                <Text style={styles.greetingText} numberOfLines={1}>Hey, {user?.user_metadata?.full_name?.split(' ')[0] || 'Admin'}</Text>
+                <Text style={styles.headerSubtitle} numberOfLines={1}>{propertyName}</Text>
+              </View>
+            </TouchableOpacity>
           </View>
-        </Modal>
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.headerIconBtn}>
+              <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerIconBtn}>
+              <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+              <View style={styles.notificationBadge} />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+        <Animated.View entering={FadeInUp.delay(100).duration(600)} style={styles.overviewHeader}><Text style={styles.overviewTitle}>PROPERTY{"\n"}OVERVIEW</Text></Animated.View>
+        
+        <View style={{ marginTop: SPACING.xs }}>{renderTabContent()}</View>
       </ScrollView>
 
-      {/* Floating bottom nav with Cassandra */}
-      <View style={[styles.bottomNav, { paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 16 }]}>
-        <SafeBlurView intensity={40} style={styles.bottomNavBlur} tint="dark">
-          <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab('overview')}>
-            <Ionicons name={activeTab === 'overview' ? 'grid' : 'grid-outline'} size={22} color={activeTab === 'overview' ? '#FFFFFF' : 'rgba(255,255,255,0.40)'} />
+      <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom }]}>
+        <SafeBlurView intensity={80} style={styles.bottomNavStatic} tint="dark">
+          <TouchableOpacity style={styles.staticNavItem} onPress={() => setActiveTab('overview')}>
+            <Ionicons name={activeTab === 'overview' ? 'grid' : 'grid-outline'} size={22} color={activeTab === 'overview' ? '#FFF' : 'rgba(255,255,255,0.4)'} />
+            <Text style={[styles.staticNavLabel, activeTab === 'overview' && styles.staticNavLabelActive]}>Dashboard</Text>
           </TouchableOpacity>
-          <SidekickFace size={48} state={faceState} compact onClick={() => setShowChat(true)} />
+          
+          <TouchableOpacity style={styles.staticNavItem} onPress={() => setActiveTab('tickets')}>
+            <Ionicons name={activeTab === 'tickets' ? 'ticket' : 'ticket-outline'} size={22} color={activeTab === 'tickets' ? '#FFF' : 'rgba(255,255,255,0.4)'} />
+            <Text style={[styles.staticNavLabel, activeTab === 'tickets' && styles.staticNavLabelActive]}>Tickets</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.staticNavItemCenter} onPress={() => setShowChat(true)}>
+            <View style={styles.cassandraOrbSmall}>
+              <SidekickFace state={faceState} size={32} />
+            </View>
+            <Text style={styles.staticNavLabel}>Cassandra</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.staticNavItem}>
+            <Ionicons name="business-outline" size={22} color="rgba(255,255,255,0.4)" />
+            <Text style={styles.staticNavLabel}>Assets</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.staticNavItem} onPress={() => setShowDrawer(true)}>
+            <Ionicons name="ellipsis-horizontal" size={22} color="rgba(255,255,255,0.4)" />
+            <Text style={styles.staticNavLabel}>More</Text>
+          </TouchableOpacity>
         </SafeBlurView>
       </View>
 
-      {/* Modals */}
+      <DetailModal visible={!!showTileDetail} onClose={() => setShowTileDetail(null)} detail={showTileDetail!} />
+      <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
       <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
-      <SignOutModal isOpen={showSignOut} onClose={() => setShowSignOut(false)} onConfirm={signOut} />
-      <DetailModal detail={showTileDetail} onClose={() => setShowTileDetail(null)} />
+      
+      <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <View style={[styles.drawerPanel, { paddingTop: insets.top + 16 }]}>
+            <View style={styles.drawerHeader}>
+              <View style={styles.drawerLogoContainer}>
+                <Image 
+                  source={require('@/assets/images/autopilot-logo-new.png')} 
+                  style={[styles.drawerLogo, { tintColor: '#FFFFFF' }]} 
+                  resizeMode="contain" 
+                />
+                <Text style={styles.drawerSubtitle}>PROPERTY ADMIN</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDrawer(false)} style={styles.drawerCloseBtn}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.drawerSectionLabel}>OPERATIONS</Text>
+              {[
+                { label: 'Dashboard', route: 'lovable-admin', icon: 'grid-outline' },
+                { label: 'Tickets', route: 'tickets', icon: 'ticket-outline' },
+                { label: 'User Directory', route: 'users', icon: 'people-outline' },
+                { label: 'Visitors', route: 'visitors', icon: 'walk-outline' },
+                { label: 'Meeting Rooms', route: 'rooms', icon: 'calendar-outline' },
+              ].map((item) => (
+                <TouchableOpacity key={item.route} style={styles.drawerItem} onPress={() => { setShowDrawer(false); router.push(`/property/${propertyId}/${item.route}` as any); }}>
+                  <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <Text style={[styles.drawerSectionLabel, { marginTop: 20 }]}>UTILITIES</Text>
+              {[
+                { label: 'Diesel Manager', route: 'diesel', icon: 'fuel-outline' },
+                { label: 'Electricity', route: 'electricity', icon: 'flash-outline' },
+                { label: 'Stock / Inventory', route: 'stock', icon: 'cube-outline' },
+                { label: 'SOPs & Checklists', route: 'checklist', icon: 'clipboard-outline' },
+                { label: 'PPM', route: 'ppm', icon: 'calendar-clear-outline' },
+              ].map((item) => (
+                <TouchableOpacity key={item.route} style={styles.drawerItem} onPress={() => { setShowDrawer(false); router.push(`/property/${propertyId}/${item.route}` as any); }}>
+                  <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <Text style={[styles.drawerSectionLabel, { marginTop: 20 }]}>MANAGEMENT</Text>
+              {[
+                { label: 'Procurement', route: 'soft-service-manager', icon: 'cart-outline' },
+                { label: 'Escalation', route: 'escalation', icon: 'git-branch-outline' },
+                { label: 'Vendor Revenue', route: 'vendor', icon: 'restaurant-outline' },
+                { label: 'Reports', route: 'reports', icon: 'document-text-outline' },
+                { label: 'Settings', route: 'settings', icon: 'settings-outline' },
+              ].map((item) => (
+                <TouchableOpacity key={item.route} style={styles.drawerItem} onPress={() => { setShowDrawer(false); router.push(`/property/${propertyId}/${item.route}` as any); }}>
+                  <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={styles.drawerSignOut} onPress={() => { setShowDrawer(false); setShowSignOut(true); }}>
+              <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+              <Text style={styles.drawerSignOutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={styles.drawerBackdrop} onPress={() => setShowDrawer(false)} />
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  scroll: { flex: 1, zIndex: 10 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
-    marginBottom: SPACING.lg,
+  container: { flex: 1, backgroundColor: '#000' },
+  scroll: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingBottom: 12 },
+  hamburgerBtn: { padding: 4 },
+  headerCenter: { flex: 1, paddingHorizontal: 16 },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  greetingText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  headerSubtitle: { color: 'rgba(255,255,255,0.4)', fontSize: 11 },
+  headerRight: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  headerIconBtn: { position: 'relative' },
+  notificationBadge: { position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+  overviewHeader: { paddingHorizontal: SPACING.xl, marginTop: 20 },
+  overviewTitle: { fontFamily: fontDisplay, fontSize: 24, fontWeight: '800', color: '#FFFFFF', lineHeight: 26, letterSpacing: -0.5 },
+  tileWrapper: { marginHorizontal: SPACING.xl, marginBottom: 12, borderRadius: 20, overflow: 'hidden' },
+  tileBlur: { minHeight: 140 },
+  tileContent: { padding: 16 },
+  tileTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  tileMetricBig: { fontFamily: fontDisplay, fontSize: 42, fontWeight: '800', color: '#FFFFFF' },
+  tileMetricMid: { fontFamily: fontDisplay, fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
+  tileSuffix: { fontSize: 16, color: 'rgba(255,255,255,0.3)', fontWeight: '600' },
+  tileSubtext: { fontFamily: fontSans, fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 },
+  timeToggleRow: { flexDirection: 'row', gap: 6, marginBottom: 14, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 4, width: '100%' },
+  timeToggleBtn: { flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
+  timeToggleBtnActive: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  timeToggleText: { fontSize: 11, color: 'rgba(255,255,255,0.4)' },
+  timeToggleTextActive: { color: '#FFF', fontWeight: '700' },
+  trendChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(31,194,110,0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  trendChipText: { color: '#1FC26E', fontSize: 12, fontWeight: '700' },
+  bottomNavContainer: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', zIndex: 100 },
+  bottomNavStatic: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-around', 
+    width: '100%', 
+    paddingTop: 12,
+    paddingBottom: 4,
+    borderTopWidth: 1, 
+    borderTopColor: 'rgba(255,255,255,0.1)', 
+    backgroundColor: 'rgba(18, 18, 18, 0.8)',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
-  headerTitle: {
-    fontFamily: fontDisplay,
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: -1,
+  staticNavItem: { alignItems: 'center', justifyContent: 'center', flex: 1, gap: 2 },
+  staticNavItemCenter: { alignItems: 'center', justifyContent: 'center', flex: 1.2, gap: 2, marginTop: -4 },
+  staticNavLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '700', fontFamily: fontSans, marginTop: 2 },
+  staticNavLabelActive: { color: '#FFF' },
+  cassandraOrbSmall: { 
+    width: 48, 
+    height: 48, 
+    borderRadius: 24, 
+    backgroundColor: '#000', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    borderWidth: 1.5, 
+    borderColor: 'rgba(255,255,255,0.2)', 
+    shadowColor: '#3B82F6', 
+    shadowOpacity: 0.3, 
+    shadowRadius: 8,
+    elevation: 5
   },
-  headerSubtitle: {
-    fontFamily: fontSans,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.45)',
-    marginTop: 2,
-  },
-  headerUpdated: {
-    fontFamily: fontSans,
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.30)',
-    marginTop: 4,
-  },
-  signOutBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tileWrapper: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: CARD_SURFACES.cardBorder,
-    marginHorizontal: SPACING.xl,
-    marginBottom: SPACING.lg,
-    minHeight: 160,
-  },
-  tileBlur: {
-    minHeight: 160,
-  },
-  tileContent: {
-    padding: 20,
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  tileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  iconBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tileLabel: {
-    fontFamily: fontSans,
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.70)',
-    letterSpacing: 2,
-    flex: 1,
-  },
-  pulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-  },
-  tileBody: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  tileTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  tileMetricBig: {
-    fontFamily: fontDisplay,
-    fontSize: 40,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: -1.5,
-  },
-  tileMetricMid: {
-    fontFamily: fontDisplay,
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: -1,
-  },
-  tileSuffix: {
-    fontSize: 16,
-    fontWeight: '400',
-    color: 'rgba(255,255,255,0.40)',
-  },
-  tileSubtext: {
-    fontFamily: fontSans,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.50)',
-    marginTop: 4,
-  },
-  rowTwo: {
-    flexDirection: 'row',
-    gap: SPACING.lg,
-    paddingHorizontal: SPACING.xl,
-    marginBottom: SPACING.lg,
-  },
-  progressBar: {
-    width: '100%',
-    height: 4,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 2,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.xs,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  healthDotLarge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginTop: SPACING.sm,
-    shadowOpacity: 0.8,
-    shadowRadius: 12,
-  },
-  barChart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 5,
-    height: 50,
-    width: 90,
-  },
-  barCol: { flex: 1, alignItems: 'center' },
-  barTrack: { flex: 1, width: '100%', justifyContent: 'flex-end' },
-  barFill: { width: '100%', borderRadius: 2, minHeight: 2 },
-  trendChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    alignSelf: 'flex-start',
-  },
-  trendChipText: {
-    fontFamily: fontSans,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1FC26E',
-  },
-  quickActions: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    paddingHorizontal: SPACING.xl,
-    marginTop: SPACING.xl,
-  },
-  quickBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: CARD_SURFACES.cardBg,
-    borderWidth: 1,
-    borderColor: CARD_SURFACES.cardBorder,
-    gap: 6,
-  },
-  quickText: {
-    fontFamily: fontSans,
-    fontSize: 12,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.70)',
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 24,
-    alignSelf: 'center',
-    zIndex: 20,
-  },
-  bottomNavBlur: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    gap: 12,
-    overflow: 'hidden',
-  },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  navOrb: {
-    width: 56,
-    height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 4,
-  },
-  sectionLabel: {
-    fontFamily: fontSans,
-    fontSize: 11,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.45)',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  tileMetricSmall: {
-    fontFamily: fontDisplay,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  attentionCard: {
-    backgroundColor: CARD_SURFACES.cardBg,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: CARD_SURFACES.cardBorder,
-    padding: 14,
-    marginHorizontal: SPACING.xl,
-    marginBottom: 10,
-  },
-  attentionIconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attentionTitle: {
-    fontFamily: fontSans,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  attentionDesc: {
-    fontFamily: fontSans,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.55)',
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  attentionActionBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  attentionActionText: {
-    fontFamily: fontSans,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  timeToggleRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 14,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 10,
-    padding: 4,
-    width: '100%',
-  },
-  timeToggleBtn: {
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  timeToggleBtnActive: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  timeToggleText: {
-    fontFamily: fontSans,
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.50)',
-  },
-  timeToggleTextActive: {
-    color: '#FFFFFF',
-  },
-  // Drawer
-  drawerBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-  },
-  drawerPanel: {
-    width: 280,
-    height: '100%',
-    backgroundColor: '#1A1A1A',
-    borderLeftWidth: 1,
-    borderLeftColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
-  drawerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-  },
-  drawerTitle: {
-    fontFamily: fontDisplay,
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  drawerCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  drawerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginBottom: 2,
-  },
-  drawerItemLabel: {
-    flex: 1,
-    fontFamily: fontSans,
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.80)',
-  },
-  drawerSignOut: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 12,
-  },
-  drawerSignOutText: {
-    fontFamily: fontSans,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#EF4444',
-  },
-  healthDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
+  drawerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  drawerPanel: { width: 280, height: '100%', backgroundColor: '#111', borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 20 },
+  drawerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 25, marginTop: 10 },
+  drawerLogoContainer: { flex: 1 },
+  drawerLogo: { width: 140, height: 35, marginLeft: -5 },
+  drawerSubtitle: { color: 'rgba(255,255,255,0.3)', fontSize: 9, fontWeight: '900', letterSpacing: 2, marginTop: 4, marginLeft: 2 },
+  drawerTitle: { fontFamily: fontDisplay, fontSize: 24, fontWeight: '700', color: '#FFF' },
+  drawerCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
+  drawerItem: { flexDirection: 'row', alignItems: 'center', gap: 15, paddingVertical: 15 },
+  drawerItemLabel: { fontFamily: fontSans, fontSize: 16, color: '#FFF' },
+  drawerSectionLabel: { fontFamily: fontSans, fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5, marginBottom: 8, paddingHorizontal: 4 },
+  drawerSignOut: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', marginBottom: 40 },
+  drawerSignOutText: { color: '#EF4444', fontWeight: '700' },
 });
