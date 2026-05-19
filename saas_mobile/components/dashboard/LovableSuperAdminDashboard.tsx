@@ -39,7 +39,7 @@ import {
 
 import PropertyCard from './lovable/PropertyCard';
 import BottomNav from './lovable/BottomNav';
-import PropertyDetailScreen from './lovable/PropertyDetailScreen';
+import LovablePropertyAdminDashboard from './LovablePropertyAdminDashboard';
 import AnalyticsScreen from './lovable/AnalyticsScreen';
 import SkeletonLoader from './lovable/SkeletonLoader';
 import {
@@ -404,14 +404,12 @@ export default function LovableSuperAdminDashboard() {
       {/* Main Content Area */}
       <View style={{ flex: 1 }}>
         {screen === 'property-detail' && activeProperty ? (
-          <PropertyDetailScreen
-            property={activeProperty}
+          <LovablePropertyAdminDashboard
+            propertyId={activeProperty.id}
             onBack={() => {
               setScreen('properties');
               setActiveProperty(null);
             }}
-            onShowChat={() => setShowChat(true)}
-            onShowTileDetail={(detail) => setShowTileDetail(detail)}
           />
         ) : screen === 'properties' ? (
           <Animated.ScrollView

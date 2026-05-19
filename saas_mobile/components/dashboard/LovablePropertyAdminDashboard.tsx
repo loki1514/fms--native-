@@ -51,9 +51,10 @@ type TabKey = 'overview';
 
 interface Props {
   propertyId: string;
+  onBack?: () => void;
 }
 
-export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
+export default function LovablePropertyAdminDashboard({ propertyId, onBack }: Props) {
   const { user, signOut, membership } = useAuth();
   const insets = useSafeAreaInsets();
   const { weather } = useWeather();
@@ -539,7 +540,15 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       {weather && <WeatherBackground condition={weather.condition} />}
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="rgba(255,255,255,0.6)" />} contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}>
         <Animated.View entering={FadeInUp.duration(500)} style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setShowDrawer(true)} activeOpacity={0.7}><Ionicons name="menu" size={28} color="#FFFFFF" /></TouchableOpacity>
+          {onBack ? (
+            <TouchableOpacity style={styles.hamburgerBtn} onPress={onBack} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setShowDrawer(true)} activeOpacity={0.7}>
+              <Ionicons name="menu" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
           <View style={styles.headerCenter}>
             <TouchableOpacity 
               style={styles.profileRow} 
