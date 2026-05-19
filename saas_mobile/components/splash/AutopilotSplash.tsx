@@ -24,6 +24,7 @@ import Animated, {
   SharedValue,
 } from 'react-native-reanimated';
 import Svg, { G, Path, Text as SvgText } from 'react-native-svg';
+import { Image } from 'react-native';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS
@@ -38,6 +39,8 @@ const ACCENT_LO = 'rgba(245,165,36,0.10)';
 const FONT_DISP = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 const FONT_BODY = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 const SCREEN_H = Dimensions.get('window').height;
+
+const LOGO_IMAGE = require('../../assets/images/logo.png');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILS
@@ -386,10 +389,11 @@ export default function AutopilotSplash({ onComplete }: AutopilotSplashProps) {
       <Animated.View style={[styles.content, containerStyle]}>
         {/* Logo */}
         <Animated.View style={[styles.logoWrap, markStyle]}>
-          <AutopilotLogo
-            markColor={markColor}
-            lettersOpacity={lettersOpacity}
-            lettersTranslateX={lettersTranslateX}
+          <Image
+            source={LOGO_IMAGE}
+            style={styles.logoImage}
+            resizeMode="contain"
+            accessibilityLabel="Autopilot"
           />
         </Animated.View>
 
@@ -475,6 +479,12 @@ const styles = StyleSheet.create({
   },
   logoWrap: {
     zIndex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoImage: {
+    width: 320,
+    height: 120,
   },
   underlineContainer: {
     height: 1,
