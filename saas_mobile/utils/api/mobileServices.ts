@@ -422,4 +422,44 @@ export const mobileServices = {
       console.error('[PPM Service] Failed to trigger notifications:', e);
     }
   },
+
+  // ─── SOP (Checklist) Operations ─────────────────────────────────────────────
+
+  async updateSOPChecklistItem(propertyId: string, completionId: string, completionItemId: string, updates: any) {
+    try {
+      const { data, error } = await supabase
+        .from('sop_completion_items')
+        .update(updates)
+        .eq('id', completionItemId)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('[SOP Service] Update item error:', error);
+      throw error;
+    }
+  },
+
+  async submitSOPChecklist(propertyId: string, completionId: string, isLate: boolean = false) {
+    try {
+      const { data, error } = await supabase
+        .from('sop_completions')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          is_late: isLate
+        })
+        .eq('id', completionId)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('[SOP Service] Submit checklist error:', error);
+      throw error;
+    }
+  },
 };

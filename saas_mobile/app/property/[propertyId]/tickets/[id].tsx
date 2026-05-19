@@ -27,7 +27,8 @@ import { createClientFromToken } from '@/utils/supabase/mobile-auth';
 import { useTheme, useAuth } from '@/context';
 import StatusBadge from '@/components/tickets/StatusBadge';
 import SafeBlurView from '@/components/ui/SafeBlurView';
-import MobileFooter from '@/components/shared/MobileFooter';
+
+
 import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
 import MediaActionsSheet from '@/components/shared/MediaActionsSheet';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
@@ -182,6 +183,7 @@ export default function TicketDetailScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [availableMSTs, setAvailableMSTs] = useState<{ id: string; full_name: string }[]>([]);
   const [showMaterialModal, setShowMaterialModal] = useState(false);
@@ -1868,7 +1870,7 @@ export default function TicketDetailScreen() {
         )}
       </KeyboardAvoidingView>
 
-      <MobileFooter activeTab="tickets" />
+
 
       {/* Status Picker Modal */}
       <Modal visible={showStatusPicker} transparent animationType="fade" onRequestClose={() => setShowStatusPicker(false)}>
@@ -2239,6 +2241,7 @@ export default function TicketDetailScreen() {
         onClose={() => setShowVideoPreview(false)}
         videoUrl={previewMediaUrl}
       />
+
     </View>
   );
 }

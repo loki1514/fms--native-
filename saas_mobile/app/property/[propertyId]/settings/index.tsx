@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Colors, DASHBOARD_BACKGROUNDS, type DashboardBgKey } from '@/constants/Colors';
 import { createClient } from '@/utils/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
+
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import {
   User,
@@ -61,6 +62,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
 
   const [property, setProperty] = React.useState<Property | null>(null);
+
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
@@ -363,48 +365,7 @@ export default function SettingsScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <SafeBlurView intensity={60} tint="dark" style={[styles.bottomNav, {
-        borderTopColor: colors.glassBorder,
-        paddingBottom: Math.max(insets.bottom, 12)
-      }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="grid-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>OVERVIEW</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/tickets` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="ticket-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>REQUESTS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItemCenter}
-          onPress={() => router.push(`/property/${propertyId}/mst` as any)}
-        >
-          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
-            <Ionicons name="add" size={32} color="#FFF" />
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/electricity` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="flash-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>LOGGERS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/settings`)}>
-          <View style={[styles.navIconWrapper, { backgroundColor: theme === 'dark' ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
-            <Ionicons name="settings-outline" size={22} color={colors.primary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.primary }]}>SETTINGS</Text>
-        </TouchableOpacity>
-      </SafeBlurView>
 
       {/* Dashboard Background Picker Modal */}
       {showBgPicker && (
@@ -447,6 +408,7 @@ export default function SettingsScreen() {
           </View>
         </Modal>
       )}
+
     </View>
   );
 }
@@ -531,6 +493,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
+    paddingBottom: 100,
   },
   sectionCard: {
     borderRadius: 16,

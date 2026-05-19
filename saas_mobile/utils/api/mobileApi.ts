@@ -801,11 +801,11 @@ export async function listPendingApprovals(
     `/api/procurement/requests?${params.toString()}`
   );
 
-  if ('error' in data && data.error) {
-    throw new Error(data.error);
+  if (!Array.isArray(data)) {
+    throw new Error('Failed to load pending requests');
   }
 
-  return (data as MaterialRequest[]) || [];
+  return data;
 }
 
 /**

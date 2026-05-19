@@ -27,7 +27,8 @@ import { toast } from '@/lib/toast';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { mobileServices } from '@/utils/api/mobileServices';
-import MobileFooter from '@/components/shared/MobileFooter';
+
+
 
 import { formatDateTime } from '@/lib/utils';
 import {
@@ -883,7 +884,7 @@ export default function VisitorsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Nav states
-  const [drawerOpen, setDrawerOpen] = useState(false);
+
   const [showLoggersMenu, setShowLoggersMenu] = useState(false);
 
   const [selectedVisitor, setSelectedVisitor] = useState<VisitorLog | null>(null);
@@ -1236,7 +1237,9 @@ export default function VisitorsScreen() {
         </Pressable>
       </Modal>
       {/* Standard Bottom Navigation */}
-      <MobileFooter activeTab="dashboard" />
+
+
+
     </View>
   );
 }

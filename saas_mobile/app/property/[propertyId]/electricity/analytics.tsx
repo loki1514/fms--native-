@@ -853,7 +853,7 @@ export default function ElectricityAnalyticsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { padding: 16, paddingTop: 8 },
+  scrollContent: { padding: 16, paddingTop: 8, paddingBottom: 100 },
 
   // Glass Card
   glassCard: {

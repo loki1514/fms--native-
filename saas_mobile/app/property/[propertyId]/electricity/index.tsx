@@ -23,7 +23,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useAuth } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
-import MobileFooter from '@/components/shared/MobileFooter';
+
+
 import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1198,6 +1199,7 @@ export default function ElectricityScreen() {
   const insets = useSafeAreaInsets();
 
   const [meters, setMeters] = useState<ElectricityMeter[]>([]);
+
   const [readings, setReadings] = useState<ElectricityReading[]>([]);
   const [previousClosings, setPreviousClosings] = useState<Record<string, number>>({});
   const [activeTariff, setActiveTariff] = useState<GridTariff | null>(null);
@@ -1627,7 +1629,7 @@ export default function ElectricityScreen() {
         </View>
       </Modal>
 
-      <MobileFooter activeTab="more" />
+
 
       <LoggersMenu
         visible={showLoggersMenu}
@@ -1713,6 +1715,7 @@ export default function ElectricityScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
     </View>
   );
 }

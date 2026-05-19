@@ -24,7 +24,7 @@ import { supabase } from '@/utils/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import SafeBlurView from '@/components/ui/SafeBlurView';
-import MobileFooter from '@/components/shared/MobileFooter';
+
 import {
   STATUS_COLORS,
   CARD_SURFACES,
@@ -711,7 +711,7 @@ export default function StockScreen() {
           </View>
         </View>
       </Modal>
-      <MobileFooter activeTab="assets" />
+
     </View>
   );
 }

@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useTheme } from '@/context';
+import { Colors } from '@/constants/Colors';
 
 interface SignOutModalProps {
   visible: boolean;
@@ -18,6 +20,9 @@ interface SignOutModalProps {
 
 export default function SignOutModal({ visible, onClose, onSignOut }: SignOutModalProps) {
   const router = useRouter();
+  const { theme } = useTheme();
+  const colors = Colors[theme];
+  const isDark = theme === 'dark';
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleConfirm = async () => {
@@ -40,29 +45,29 @@ export default function SignOutModal({ visible, onClose, onSignOut }: SignOutMod
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
+      <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.65)' : 'rgba(15, 23, 42, 0.4)' }]}>
+        <View style={[styles.modal, { backgroundColor: isDark ? 'rgba(30,30,40,0.98)' : 'rgba(255,255,255,0.95)', borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'transparent', borderWidth: isDark ? 1 : 0 }]}>
           {/* Close button */}
           {!isLoggingOut && (
             <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-              <Ionicons name="close" size={20} color="#94A3B8" />
+              <Ionicons name="close" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
             </TouchableOpacity>
           )}
 
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <Ionicons name="log-out-outline" size={32} color="#F43F5E" />
+            <Ionicons name="log-out-outline" size={32} color="#EF4444" />
           </View>
 
           {/* Text */}
-          <Text style={styles.title}>Wait, Don't Go!</Text>
-          <Text style={styles.subtitle}>
-            Are you sure you want to sign out of your dashboard?
+          <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>Wait, Don't Go!</Text>
+          <Text style={[styles.subtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+            Are you sure you want to sign out?
           </Text>
 
           {/* Buttons */}
           <TouchableOpacity
-            style={styles.confirmButton}
+            style={[styles.confirmButton, { backgroundColor: '#EF4444' }]}
             onPress={handleConfirm}
             disabled={isLoggingOut}
             activeOpacity={0.8}
@@ -79,11 +84,11 @@ export default function SignOutModal({ visible, onClose, onSignOut }: SignOutMod
 
           {!isLoggingOut && (
             <TouchableOpacity
-              style={styles.cancelButton}
+              style={[styles.cancelButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}
               onPress={onClose}
               activeOpacity={0.8}
             >
-              <Text style={styles.cancelText}>Stay Logged In</Text>
+              <Text style={[styles.cancelText, { color: isDark ? '#E2E8F0' : '#475569' }]}>Stay Logged In</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -103,7 +108,6 @@ const styles = StyleSheet.create({
   modal: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 24,
     padding: 32,
     alignItems: 'center',
@@ -131,14 +135,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1A2332',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#64748B',
     textAlign: 'center',
     marginBottom: 32,
     lineHeight: 22,
@@ -146,7 +148,6 @@ const styles = StyleSheet.create({
   confirmButton: {
     width: '100%',
     height: 52,
-    backgroundColor: '#EF4444',
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
@@ -170,13 +171,11 @@ const styles = StyleSheet.create({
   cancelButton: {
     width: '100%',
     height: 52,
-    backgroundColor: '#F1F5F9',
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cancelText: {
-    color: '#475569',
     fontSize: 14,
     fontWeight: '800',
   },

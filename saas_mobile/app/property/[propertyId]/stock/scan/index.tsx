@@ -309,7 +309,7 @@ export default function StockScanScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingTop: 8, gap: 14 },
+  scrollContent: { padding: 16, paddingTop: 8, paddingBottom: 100, gap: 14 },
 
   // Header
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8, borderBottomWidth: 1, borderRadius: 0 },

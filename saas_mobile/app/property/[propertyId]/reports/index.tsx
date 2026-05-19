@@ -10,6 +10,7 @@ import {
   List,
   ChevronRight,
   LayoutDashboard,
+  ArrowLeft,
 } from 'lucide-react-native';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -66,7 +67,12 @@ export default function ReportsScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>Reports</Text>
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
+              <ArrowLeft size={22} color={isDark ? '#F8FAFC' : '#1A2332'} />
+            </TouchableOpacity>
+            <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>Reports</Text>
+          </View>
           <Text style={[styles.subtitle, { color: isDark ? '#708F96' : '#708F96' }]}>
             Property analytics and performance insights
           </Text>
@@ -119,6 +125,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 100 },
   header: { marginBottom: 24 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  backBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
   title: { fontSize: 28, fontFamily: 'Poppins-Bold', marginBottom: 4 },
   subtitle: { fontSize: 14, fontFamily: 'Urbanist-Regular' },
   section: { gap: 12 },

@@ -20,7 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
-import MobileFooter from '@/components/shared/MobileFooter';
+
+
 import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import GeneratorConfigModal from '@/components/diesel/GeneratorConfigModal';
 import DGTariffModal from '@/components/diesel/DGTariffModal';
@@ -796,6 +797,7 @@ export default function DieselScreen() {
   const insets = useSafeAreaInsets();
 
   const [generators, setGenerators] = useState<Generator[]>([]);
+
   const [readings, setReadings] = useState<DieselReading[]>([]);
   const [lastClosings, setLastClosings] = useState<Record<string, LastClosing>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -1200,7 +1202,7 @@ export default function DieselScreen() {
         </View>
       </Modal>
 
-      <MobileFooter activeTab="more" />
+
 
       <LoggersMenu
         visible={showLoggersMenu}
@@ -1237,6 +1239,7 @@ export default function DieselScreen() {
         propertyId={propertyId!}
         generators={generators}
       />
+
 
     </View>
   );

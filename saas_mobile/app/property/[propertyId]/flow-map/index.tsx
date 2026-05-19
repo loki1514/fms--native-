@@ -18,6 +18,7 @@ import { useTheme } from '@/context';
 import TicketCard from '@/components/shared/TicketCard';
 import { LinearGradient } from 'expo-linear-gradient';
 
+
 const supabase = createClient();
 
 const { width: FLOWMAP_WIDTH, height: FLOWMAP_HEIGHT } = Dimensions.get('window');
@@ -72,6 +73,7 @@ export default function LiveFlowMap() {
   const router = useRouter();
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [propertyName, setPropertyName] = useState('Property');
@@ -461,6 +463,7 @@ export default function LiveFlowMap() {
           })}
         </ScrollView>
       </View>
+
     </GestureHandlerRootView>
   );
 }

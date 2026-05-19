@@ -26,7 +26,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { Ionicons } from '@expo/vector-icons';
-import MobileFooter from '@/components/shared/MobileFooter';
+
+
 import BottomSheet, {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
@@ -480,138 +481,51 @@ function UserDetailSheet({
       snapPoints={snapPoints}
       enablePanDownToClose
       backdropComponent={renderBackdrop}
-      backgroundStyle={{ backgroundColor: colors.card }}
-      handleIndicatorStyle={{ backgroundColor: colors.border }}
+      backgroundStyle={{ backgroundColor: '#0a0f1e' }}
+      handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.25)', width: 40 }}
     >
       <BottomSheetScrollView contentContainerStyle={styles.sheetContent}>
         {/* Header */}
-        <View style={styles.sheetHeader}>
-          <View
-            style={[
-              styles.sheetAvatar,
-              { backgroundColor: colors.primaryLight },
-            ]}
-          >
-            {user.user_photo_url || user.avatar_url ? (
-              <Image
-                source={{ uri: user.user_photo_url || user.avatar_url }}
-                style={styles.sheetAvatarImage}
-              />
-            ) : (
-              <Text style={[styles.sheetAvatarText, { color: colors.primary }]}>
-                {initials}
-              </Text>
-            )}
+        <LinearGradient colors={['rgba(112,143,150,0.18)', 'rgba(0,0,0,0)']} style={styles.sheetHeaderGrad}>
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetAvatarGlow}>
+              <View style={styles.sheetAvatar}>
+                {user.user_photo_url || user.avatar_url ? (
+                  <Image source={{ uri: user.user_photo_url || user.avatar_url }} style={styles.sheetAvatarImage} />
+                ) : (
+                  <Text style={styles.sheetAvatarText}>{initials}</Text>
+                )}
+              </View>
+            </View>
+            <Text style={styles.sheetName}>{user.full_name || 'Unknown'}</Text>
+            <View style={[styles.sheetRoleBadge, { backgroundColor: roleBadge.bg + '22', borderColor: roleBadge.border + '88' }]}>
+              <Text style={[styles.sheetRoleBadgeText, { color: roleBadge.border }]}>{formatRole(user.propertyRole || user.role)}</Text>
+            </View>
+            <View style={[styles.sheetStatusBadge, { backgroundColor: user.is_active ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)' }]}>
+              <View style={[styles.sheetStatusDot, { backgroundColor: user.is_active ? '#10B981' : '#EF4444', shadowColor: user.is_active ? '#10B981' : '#EF4444', shadowOpacity: 0.8, shadowRadius: 4 }]} />
+              <Text style={[styles.sheetStatusText, { color: user.is_active ? '#10B981' : '#EF4444' }]}>{user.is_active ? 'Active' : 'Inactive'}</Text>
+            </View>
           </View>
-          <Text style={[styles.sheetName, { color: colors.text }]}>
-            {user.full_name || 'Unknown'}
-          </Text>
-          <View
-            style={[
-              styles.sheetRoleBadge,
-              { backgroundColor: roleBadge.bg, borderColor: roleBadge.border },
-            ]}
-          >
-            <Text style={[styles.sheetRoleBadgeText, { color: roleBadge.text }]}>
-              {formatRole(user.propertyRole || user.role)}
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.sheetStatusBadge,
-              {
-                backgroundColor: user.is_active
-                  ? colors.successBg
-                  : colors.errorBg,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.sheetStatusDot,
-                {
-                  backgroundColor: user.is_active
-                    ? colors.success
-                    : colors.error,
-                },
-              ]}
-            />
-            <Text
-              style={[
-                styles.sheetStatusText,
-                {
-                  color: user.is_active ? colors.success : colors.error,
-                },
-              ]}
-            >
-              {user.is_active ? 'Active' : 'Inactive'}
-            </Text>
-          </View>
-        </View>
+        </LinearGradient>
 
         {/* User Details */}
-        <View
-          style={[
-            styles.sheetSection,
-            { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-          ]}
-        >
-          <DetailRow
-            icon={<Mail size={14} color={colors.textSecondary} />}
-            label="Email"
-            value={user.email}
-            colors={colors}
-          />
-          {user.phone && (
-            <DetailRow
-              icon={<Phone size={14} color={colors.textSecondary} />}
-              label="Phone"
-              value={user.phone}
-              colors={colors}
-            />
-          )}
-          <DetailRow
-            icon={<Building2 size={14} color={colors.textSecondary} />}
-            label="Role"
-            value={formatRole(user.propertyRole || user.role)}
-            colors={colors}
-          />
-          {user.joined_at && (
-            <DetailRow
-              icon={<Calendar size={14} color={colors.textSecondary} />}
-              label="Joined"
-              value={new Date(user.joined_at).toLocaleDateString()}
-              colors={colors}
-            />
-          )}
-          {skills.length > 0 && (
-            <DetailRow
-              icon={<Wrench size={14} color={colors.textSecondary} />}
-              label="Skills"
-              value={skills.join(', ')}
-              colors={colors}
-            />
-          )}
+        <View style={styles.sheetSection}>
+          <DetailRow icon={<Mail size={14} color="#708F96" />} label="Email" value={user.email} colors={colors} />
+          {user.phone && <DetailRow icon={<Phone size={14} color="#708F96" />} label="Phone" value={user.phone} colors={colors} />}
+          <DetailRow icon={<Building2 size={14} color="#708F96" />} label="Role" value={formatRole(user.propertyRole || user.role)} colors={colors} />
+          {user.joined_at && <DetailRow icon={<Calendar size={14} color="#708F96" />} label="Joined" value={new Date(user.joined_at).toLocaleDateString()} colors={colors} />}
+          {skills.length > 0 && <DetailRow icon={<Wrench size={14} color="#708F96" />} label="Skills" value={skills.join(', ')} colors={colors} />}
         </View>
 
         {/* Actions */}
         <View style={styles.sheetActions}>
           {/* Change Role */}
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-            ]}
-            onPress={() => setShowRolePicker(!showRolePicker)}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowRolePicker(!showRolePicker)} activeOpacity={0.75}>
             <View style={styles.actionLeft}>
-              <Shield size={18} color={colors.primary} />
-              <Text style={[styles.actionText, { color: colors.text }]}>
-                Change Role
-              </Text>
+              <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(112,143,150,0.18)' }]}><Shield size={16} color="#708F96" /></View>
+              <Text style={styles.actionText}>Change Role</Text>
             </View>
-            <ChevronRight size={16} color={colors.textTertiary} />
+            <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
           </TouchableOpacity>
 
           {showRolePicker && (
@@ -664,86 +578,39 @@ function UserDetailSheet({
           )}
 
           {/* Reset Password */}
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-            ]}
-            onPress={handleResetPassword}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.actionButton} onPress={handleResetPassword} activeOpacity={0.75}>
             <View style={styles.actionLeft}>
-              <Key size={18} color={colors.textSecondary} />
-              <Text style={[styles.actionText, { color: colors.text }]}>
-                Reset Password
-              </Text>
+              <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(59,130,246,0.15)' }]}><Key size={16} color="#3B82F6" /></View>
+              <Text style={styles.actionText}>Reset Password</Text>
             </View>
-            <ChevronRight size={16} color={colors.textTertiary} />
+            <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
           </TouchableOpacity>
 
           {/* Deactivate / Activate */}
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-            ]}
-            onPress={handleToggleActive}
-            activeOpacity={0.7}
-            disabled={isLoading}
-          >
+          <TouchableOpacity style={styles.actionButton} onPress={handleToggleActive} activeOpacity={0.75} disabled={isLoading}>
             <View style={styles.actionLeft}>
-              <RefreshCw size={18} color={colors.textSecondary} />
-              <Text style={[styles.actionText, { color: colors.text }]}>
-                {user.is_active ? 'Deactivate' : 'Activate'}
-              </Text>
+              <View style={[styles.actionIconWrap, { backgroundColor: user.is_active ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)' }]}><RefreshCw size={16} color={user.is_active ? '#EF4444' : '#10B981'} /></View>
+              <Text style={[styles.actionText, { color: user.is_active ? '#EF4444' : '#10B981' }]}>{user.is_active ? 'Deactivate' : 'Activate'}</Text>
             </View>
-            <ChevronRight size={16} color={colors.textTertiary} />
+            <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
           </TouchableOpacity>
 
           {/* Remove */}
           {showConfirmDelete ? (
-            <View
-              style={[
-                styles.confirmDeleteContainer,
-                { backgroundColor: colors.errorBg, borderColor: colors.errorBorder },
-              ]}
-            >
-              <Text style={[styles.confirmDeleteText, { color: colors.error }]}>
-                Remove {user.full_name} from this property?
-              </Text>
+            <View style={styles.confirmDeleteContainer}>
+              <Text style={styles.confirmDeleteText}>Remove {user.full_name} from this property?</Text>
               <View style={styles.confirmDeleteButtons}>
-                <Button
-                  title="Cancel"
-                  variant="ghost"
-                  size="sm"
-                  onPress={() => setShowConfirmDelete(false)}
-                />
-                <Button
-                  title="Remove"
-                  variant="danger"
-                  size="sm"
-                  onPress={handleRemoveUser}
-                  loading={isLoading}
-                />
+                <Button title="Cancel" variant="ghost" size="sm" onPress={() => setShowConfirmDelete(false)} />
+                <Button title="Remove" variant="danger" size="sm" onPress={handleRemoveUser} loading={isLoading} />
               </View>
             </View>
           ) : (
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.actionButtonDanger,
-                { backgroundColor: colors.errorBg, borderColor: colors.errorBorder },
-              ]}
-              onPress={() => setShowConfirmDelete(true)}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={[styles.actionButton, { borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)' }]} onPress={() => setShowConfirmDelete(true)} activeOpacity={0.75}>
               <View style={styles.actionLeft}>
-                <Trash2 size={18} color={colors.error} />
-                <Text style={[styles.actionText, { color: colors.error }]}>
-                  Remove from Property
-                </Text>
+                <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(239,68,68,0.15)' }]}><Trash2 size={16} color="#EF4444" /></View>
+                <Text style={[styles.actionText, { color: '#EF4444' }]}>Remove from Property</Text>
               </View>
-              <ChevronRight size={16} color={colors.error} />
+              <ChevronRight size={16} color="rgba(239,68,68,0.5)" />
             </TouchableOpacity>
           )}
         </View>
@@ -1219,6 +1086,7 @@ export default function UsersScreen() {
   const insets = useSafeAreaInsets();
 
   const [users, setUsers] = useState<UserWithMembership[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1507,7 +1375,9 @@ export default function UsersScreen() {
       )}
 
       {/* Mobile Footer */}
-      <MobileFooter activeTab="more" />
+
+
+
     </View>
   );
 }
@@ -1765,163 +1635,77 @@ const styles = StyleSheet.create({
     fontFamily: 'Urbanist-Medium',
     marginTop: 16,
   },
-  // Bottom Sheet styles
-  sheetContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  sheetHeader: {
-    alignItems: 'center',
-    paddingVertical: 20,
+  // Bottom Sheet styles — Glassmorphic Dark
+  sheetContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  sheetHeaderGrad: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 8 },
+  sheetHeader: { alignItems: 'center', paddingTop: 24, paddingBottom: 16 },
+  sheetAvatarGlow: {
+    width: 96, height: 96, borderRadius: 48,
+    borderWidth: 1.5, borderColor: 'rgba(112,143,150,0.5)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+    shadowColor: '#708F96', shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 0 },
   },
   sheetAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    overflow: 'hidden',
+    width: 82, height: 82, borderRadius: 41,
+    backgroundColor: 'rgba(112,143,150,0.2)',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  sheetAvatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  sheetAvatarText: {
-    fontSize: 28,
-    fontFamily: 'Poppins-Bold',
-  },
-  sheetName: {
-    fontSize: 20,
-    fontFamily: 'Poppins-Bold',
-    marginBottom: 6,
-  },
-  sheetRoleBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 6,
-  },
-  sheetRoleBadgeText: {
-    fontSize: 11,
-    fontFamily: 'Poppins-Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sheetStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  sheetStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  sheetStatusText: {
-    fontSize: 11,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+  sheetAvatarImage: { width: '100%', height: '100%' },
+  sheetAvatarText: { fontSize: 30, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  sheetName: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#FFFFFF', marginBottom: 8, letterSpacing: -0.3 },
+  sheetRoleBadge: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, borderWidth: 1, marginBottom: 8 },
+  sheetRoleBadgeText: { fontSize: 10, fontFamily: 'Poppins-Bold', textTransform: 'uppercase', letterSpacing: 1 },
+  sheetStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+  sheetStatusDot: { width: 7, height: 7, borderRadius: 4 },
+  sheetStatusText: { fontSize: 12, fontFamily: 'Urbanist-SemiBold' },
   sheetSection: {
-    borderRadius: 14,
-    borderWidth: 1,
-    overflow: 'hidden',
-    marginBottom: 16,
+    borderRadius: 18, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    overflow: 'hidden', marginBottom: 16,
   },
   detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 13, paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    borderBottomColor: 'rgba(255,255,255,0.07)',
   },
-  detailIcon: {
-    width: 28,
-    alignItems: 'center',
-  },
-  detailContent: {
-    flex: 1,
-    marginLeft: 10,
-  },
-  detailLabel: {
-    fontSize: 10,
-    fontFamily: 'Urbanist-Medium',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 1,
-  },
-  detailValue: {
-    fontSize: 14,
-    fontFamily: 'Urbanist-Regular',
-  },
-  sheetActions: {
-    gap: 8,
-  },
+  detailIcon: { width: 28, alignItems: 'center' },
+  detailContent: { flex: 1, marginLeft: 10 },
+  detailLabel: { fontSize: 9, fontFamily: 'Urbanist-Medium', textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(255,255,255,0.4)', marginBottom: 2 },
+  detailValue: { fontSize: 14, fontFamily: 'Urbanist-Regular', color: '#FFFFFF' },
+  sheetActions: { gap: 10 },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 14, paddingHorizontal: 16,
+    borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  actionButtonDanger: {
-    borderWidth: 1,
-  },
-  actionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  actionText: {
-    fontSize: 14,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+  actionButtonDanger: { borderWidth: 1 },
+  actionIconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  actionLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  actionText: { fontSize: 15, fontFamily: 'Urbanist-SemiBold', color: '#FFFFFF' },
   rolePickerContainer: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 8,
-    marginBottom: 4,
+    borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: 10, marginBottom: 4,
   },
   roleOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12,
   },
-  roleOptionText: {
-    fontSize: 14,
-    fontFamily: 'Urbanist-Medium',
-  },
-  roleOptionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
+  roleOptionText: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: '#FFFFFF' },
+  roleOptionDot: { width: 8, height: 8, borderRadius: 4 },
   confirmDeleteContainer: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
+    borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    padding: 18,
   },
-  confirmDeleteText: {
-    fontSize: 14,
-    fontFamily: 'Urbanist-Medium',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  confirmDeleteButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'center',
-  },
+  confirmDeleteText: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: '#FCA5A5', textAlign: 'center', marginBottom: 14 },
+  confirmDeleteButtons: { flexDirection: 'row', gap: 10, justifyContent: 'center' },
   // Invite Sheet styles
   inviteHeader: {
     alignItems: 'center',

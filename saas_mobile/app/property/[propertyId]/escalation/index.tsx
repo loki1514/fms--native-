@@ -14,7 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
@@ -31,6 +31,7 @@ import {
   Save,
   Trash2,
   AlertCircle,
+  ArrowLeft,
 } from 'lucide-react-native';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -74,6 +75,7 @@ function formatResponseTime(minutes: number): string {
 
 export default function EscalationScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const router = useRouter();
   const { theme } = useTheme();
   const { membership, user } = useAuth();
   const colors = Colors[theme];
@@ -486,6 +488,9 @@ export default function EscalationScreen() {
       {/* ── Header ── */}
       <View style={[styles.headerSection, { backgroundColor: '#708F96' }]}>
         <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <ArrowLeft size={22} color="#FFFFFF" />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Escalation Matrix</Text>
           {isAdmin && (
             <TouchableOpacity
@@ -638,6 +643,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 24, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.3 },
   headerSubtitle: { fontSize: 12, fontFamily: 'Urbanist-Regular', color: 'rgba(255,255,255,0.65)', marginTop: 4 },
   headerBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  backBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)' },
 
   listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },

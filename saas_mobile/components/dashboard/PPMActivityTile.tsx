@@ -78,6 +78,8 @@ export const PPMActivityTile: React.FC<PPMActivityTileProps> = ({
     }
   };
 
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
   const grouped = useMemo(() => {
     const groups: Record<string, PPMSchedule[]> = {
       daily: [],
@@ -86,12 +88,17 @@ export const PPMActivityTile: React.FC<PPMActivityTileProps> = ({
     };
     schedules.forEach((s) => {
       if (!s || !s.schedule_type) return;
-      if (groups[s.schedule_type]) {
-        groups[s.schedule_type].push(s);
+      const type = s.schedule_type.toLowerCase();
+      if (groups[type]) {
+        groups[type].push(s);
       }
     });
     return groups;
   }, [schedules]);
+
+  const todayCount = useMemo(() => {
+    return schedules.filter((s) => s.next_due && s.next_due.startsWith(todayStr)).length;
+  }, [schedules, todayStr]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, Record<string, number>> = {};
@@ -146,13 +153,16 @@ export const PPMActivityTile: React.FC<PPMActivityTileProps> = ({
 
           {/* Period rows */}
           <View style={styles.periodsRow}>
-            {(['daily', 'monthly', 'quarterly'] as const).map((period) => {
-              const count = grouped[period]?.length || 0;
-              const counts = statusCounts[period] || {};
+            {([
+              { key: 'today', label: 'Today', count: todayCount },
+              { key: 'monthly', label: 'Monthly', count: grouped['monthly']?.length || 0 },
+              { key: 'quarterly', label: 'Quarterly', count: grouped['quarterly']?.length || 0 },
+            ] as const).map((period) => {
+              const counts = statusCounts[period.key] || {};
               return (
-                <View key={period} style={styles.periodCard}>
-                  <Text style={styles.periodLabel}>{PERIOD_LABELS[period]}</Text>
-                  <Text style={styles.periodCount}>{count}</Text>
+                <View key={period.key} style={styles.periodCard}>
+                  <Text style={styles.periodLabel}>{period.label}</Text>
+                  <Text style={styles.periodCount}>{period.count}</Text>
                   <View style={styles.dotsRow}>
                     {Object.entries(counts).map(([status, num]) =>
                       num > 0 ? (

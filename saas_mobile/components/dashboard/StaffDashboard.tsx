@@ -704,7 +704,7 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
 
       <LoggersMenu visible={showLoggersMenu} onClose={() => setShowLoggersMenu(false)} propertyId={propertyId} />
 
-      <SignOutModal isOpen={showSignOutModal} onClose={() => setShowSignOutModal(false)} onConfirm={signOut} />
+      <SignOutModal visible={showSignOutModal} onClose={() => setShowSignOutModal(false)} onSignOut={signOut} />
 
       <StockScannerModal
         isOpen={showScanner}

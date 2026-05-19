@@ -45,6 +45,7 @@ import { TicketCreateModal } from '../../../components/tickets/TicketCreateModal
 import AnimatedLogo from '@/components/shared/AnimatedLogo';
 import NotificationBell from '@/components/dashboard/NotificationBell';
 import SafeBlurView from '@/components/ui/SafeBlurView';
+import GlobalBottomNav from '@/components/shared/GlobalBottomNav';
 
 // ---- Layout Constants ----
 const SIDEBAR_WIDTH = 288;
@@ -642,6 +643,7 @@ export default function PropertyLayout() {
       <PropertyContext.Provider value={propertyInfo}>
         <View style={{ flex: 1, backgroundColor: colors.background }}>
           <Slot />
+          <GlobalBottomNav />
         </View>
       </PropertyContext.Provider>
     );
@@ -686,6 +688,7 @@ export default function PropertyLayout() {
           organizationId={membership?.org_id ?? ''}
           role={membership?.role === 'org_super_admin' ? 'super_admin' : (membership?.role === 'property_admin' ? 'admin' : 'tenant')}
         />
+        <GlobalBottomNav />
       </View>
     </PropertyContext.Provider>
   );
