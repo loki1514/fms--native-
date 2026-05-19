@@ -547,7 +547,7 @@ function CircularProgress({ progress, size = 40, strokeWidth = 4, color = '#3B82
           stroke={color}
           strokeWidth={strokeWidth}
           fill="none"
-          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDasharray={[circumference, circumference]}
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
           rotation={-90}

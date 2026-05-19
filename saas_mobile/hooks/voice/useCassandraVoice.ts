@@ -450,6 +450,16 @@ export function useCassandraVoice(
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
+    // Connection timeout — if nothing happens in 8s, bail out
+    const connectionTimeout = setTimeout(() => {
+      if (socketGenerationRef.current !== generation) return;
+      if (ws.readyState !== WebSocket.OPEN) {
+        onError?.('Connection timed out');
+        setVoiceState('error');
+        try { ws.close(); } catch { /* ignore */ }
+      }
+    }, 8000);
+
     ws.onopen = () => {
       if (socketGenerationRef.current !== generation) return;
       // Send session_start with token (V2 protocol — token in JSON frame, NOT URL param)
@@ -467,12 +477,14 @@ export function useCassandraVoice(
 
     ws.onerror = () => {
       if (socketGenerationRef.current !== generation) return;
+      clearTimeout(connectionTimeout);
       onError?.('WebSocket connection failed');
       setVoiceState('error');
     };
 
     ws.onclose = () => {
       if (socketGenerationRef.current !== generation) return;
+      clearTimeout(connectionTimeout);
       wsRef.current = null;
       setIsConnected(false);
 

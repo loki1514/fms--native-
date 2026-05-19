@@ -86,11 +86,35 @@ export default function CassandraHomeScreen() {
 
   const orgId = membership?.org_id ?? '';
 
-  // Health check on mount
+  // Health check with retry — polls every 5s until server is reachable
   useEffect(() => {
-    healthCheck()
-      .then((ok) => setIsConnected(ok))
-      .catch(() => setIsConnected(false));
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const check = async () => {
+      try {
+        const ok = await healthCheck();
+        if (!cancelled) {
+          setIsConnected(ok);
+          if (ok && intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+        }
+      } catch {
+        if (!cancelled) setIsConnected(false);
+      }
+    };
+
+    // Immediate first check
+    check();
+    // Keep polling every 5s until we get a positive response
+    intervalId = setInterval(check, 5000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   // ─── Dock button handlers ────────────────────────────────────────────────

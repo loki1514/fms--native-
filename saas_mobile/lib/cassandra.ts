@@ -17,6 +17,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { toast } from './toast';
+import { supabase } from '@/utils/supabase/client';
 import {
   getValidToken,
   withTokenRetry,
@@ -318,6 +319,72 @@ export async function opexEstimate(propertyId: string, orgId: string) {
   return res.json();
 }
 
+// ─── MST Features ──────────────────────────────────────────────────────────
+export async function mstQuery(query: string, orgId: string, propertyId: string) {
+  const res = await fetchWithAuth('/api/v1/features/voice/mst', {
+    method: 'POST',
+    body: JSON.stringify({ query_text: query, org_id: orgId, property_id: propertyId }),
+  });
+  return res.json();
+}
+
+export async function fetchMstShiftStatus(propertyId: string, userId: string): Promise<string> {
+  try {
+    const { data, error } = await (supabase
+      .from('resolver_stats') as any)
+      .select('is_checked_in, checked_in_at')
+      .eq('property_id', propertyId)
+      .eq('user_id', userId)
+      .single();
+    if (error || !data) return 'No shift data found for you at this property.';
+    return data.is_checked_in
+      ? `✅ You are checked in since ${new Date(data.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`
+      : `⚠️ You are not checked in. Tap the shift toggle on your dashboard to check in.`;
+  } catch {
+    return 'Unable to fetch shift status right now.';
+  }
+}
+
+export async function fetchMstMyTickets(propertyId: string, userId: string): Promise<string> {
+  try {
+    const { data, error } = await (supabase
+      .from('tickets') as any)
+      .select('id, ticket_number, title, status, priority')
+      .eq('property_id', propertyId)
+      .eq('assigned_to', userId)
+      .not('status', 'in', '(resolved,closed)')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (error || !data?.length) return 'No active tickets assigned to you. Great job!';
+    const lines = data.map((t: any) => {
+      const prio = t.priority ? ` [${t.priority.toUpperCase()}]` : '';
+      return `• #${t.ticket_number}: ${t.title}${prio} (${t.status})`;
+    });
+    return `Your active tickets (${data.length}):\n${lines.join('\n')}`;
+  } catch {
+    return 'Unable to fetch your tickets right now.';
+  }
+}
+
+export async function fetchMstLeaderboard(propertyId: string): Promise<string> {
+  try {
+    const { data, error } = await (supabase
+      .from('mst_daily_scores') as any)
+      .select('user_id, xp, tickets_resolved, rank, users(full_name)')
+      .eq('property_id', propertyId)
+      .order('xp', { ascending: false })
+      .limit(5);
+    if (error || !data?.length) return 'No leaderboard data available yet.';
+    const lines = data.map((entry: any, i: number) => {
+      const name = entry.users?.full_name || 'Staff Member';
+      return `${i + 1}. ${name} — ${entry.xp} XP, ${entry.tickets_resolved} resolved`;
+    });
+    return `🏆 Today's Team Leaderboard:\n${lines.join('\n')}`;
+  } catch {
+    return 'Unable to fetch leaderboard right now.';
+  }
+}
+
 // ─── Export the raw fetch helper for extensibility ─────────────────────────
 // ─── Memory ───────────────────────────────────────────────────────────────────
 
@@ -350,6 +417,75 @@ export async function writeMemory(body: WriteMemoryBody): Promise<any> {
     console.warn('[Cassandra] Memory write not yet available:', err);
     return { status: 'pending', _stub: true, body };
   }
+}
+
+// ─── Chat Sessions ───────────────────────────────────────────────────────────
+
+export interface ChatSession {
+  id: string;
+  user_id: string;
+  org_id: string;
+  property_id?: string;
+  title: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  session_id: string;
+  role: string;
+  text: string;
+  created_at: number;
+}
+
+export interface ChatSessionDetail extends ChatSession {
+  messages: ChatMessage[];
+}
+
+export async function createChatSession(
+  userId: string,
+  orgId: string,
+  title?: string,
+  propertyId?: string
+): Promise<ChatSession> {
+  const res = await fetchWithAuth('/chat/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId, org_id: orgId, title: title || 'New Chat', property_id: propertyId }),
+  });
+  return res.json();
+}
+
+export async function listChatSessions(userId: string, orgId?: string): Promise<ChatSession[]> {
+  const qs = orgId ? `?user_id=${encodeURIComponent(userId)}&org_id=${encodeURIComponent(orgId)}` : `?user_id=${encodeURIComponent(userId)}`;
+  const res = await fetchWithAuth(`/chat/sessions${qs}`);
+  return res.json();
+}
+
+export async function getChatSession(sessionId: string): Promise<ChatSessionDetail> {
+  const res = await fetchWithAuth(`/chat/sessions/${encodeURIComponent(sessionId)}`);
+  return res.json();
+}
+
+export async function addChatMessage(sessionId: string, role: string, text: string): Promise<ChatMessage> {
+  const res = await fetchWithAuth(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: 'PUT',
+    body: JSON.stringify({ role, text }),
+  });
+  return res.json();
+}
+
+export async function updateChatSessionTitle(sessionId: string, title: string): Promise<void> {
+  await fetchWithAuth(`/chat/sessions/${encodeURIComponent(sessionId)}/title`, {
+    method: 'PUT',
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  await fetchWithAuth(`/chat/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+  });
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
