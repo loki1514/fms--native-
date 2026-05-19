@@ -527,7 +527,7 @@ export default function LovableSuperAdminDashboard() {
       />
 
       {/* Modals */}
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="voice" />
       <SignOutModal
         isOpen={showSignOut}
         onClose={() => setShowSignOut(false)}

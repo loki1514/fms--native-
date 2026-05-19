@@ -525,6 +525,7 @@ function DashboardInner() {
         visible={showCassandraChat}
         onClose={() => setShowCassandraChat(false)}
         orgId={membership?.org_id ?? ''}
+        initialMode="voice"
       />
     </View>
   );

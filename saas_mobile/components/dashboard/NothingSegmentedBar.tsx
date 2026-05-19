@@ -157,7 +157,7 @@ export function NothingArcGauge({
           stroke={fillColor}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
-          strokeDasharray={`${circumference}`}
+          strokeDasharray={[circumference]}
           strokeDashoffset={dashOffset}
         />
       </Svg>

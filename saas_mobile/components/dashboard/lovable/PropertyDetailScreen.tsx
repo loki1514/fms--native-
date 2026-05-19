@@ -13,6 +13,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useWeather } from '@/hooks/useWeather';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
+import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
 import MiniBarChart from './MiniBarChart';
 import PulseDot from './PulseDot';
 import { Property, TileDetail } from './types';
@@ -236,6 +238,10 @@ export default function PropertyDetailScreen({
           </View>
         </View>
 
+        <ChecklistProgressCard completed={property.checklist?.completed ?? 0} total={property.checklist?.total ?? 0} delay={80} onPress={() => onShowTileDetail(tileDetails.checklist)} />
+
+        <PPMActivityTile propertyId={property.id} delay={120} />
+
         {/* ── Tickets Card (full-width) ── */}
         <Animated.View style={{ marginBottom: SPACING.lg, marginHorizontal: SPACING.xl }} entering={FadeInUp.delay(100).duration(500)}>
           <TouchableOpacity
@@ -272,39 +278,10 @@ export default function PropertyDetailScreen({
           </TouchableOpacity>
         </Animated.View>
 
-        {/* ── Checklist + Health row ── */}
+        {/* ── Health row ── */}
         <Animated.View entering={FadeInUp.delay(180).duration(500)}>
           <View style={styles.rowTwo}>
-            {/* Checklist */}
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => onShowTileDetail(tileDetails.checklist)}
-              style={{ flex: 1 }}
-            >
-              <StatusGradient status="optimal">
-                <GlassCard status="optimal" style={styles.fixedCard}>
-                  <View style={styles.cardTopRow}>
-                    <View style={styles.labelRow}>
-                      <View style={styles.iconBadge}>
-                        <Ionicons name="checkmark-circle-outline" size={14} color={STATUS_COLORS.optimal.bg} />
-                      </View>
-                      <Text style={styles.cardLabel}>CHECKLIST</Text>
-                    </View>
-                    <StatusPill status="optimal" />
-                  </View>
-                  <Text style={styles.midNumber}>
-                    {property.checklist.completed}{' '}
-                    <Text style={styles.midSuffix}>/ {property.checklist.total}</Text>
-                  </Text>
-                  <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: `${property.checklist.percent}%` }]} />
-                  </View>
-                  <Text style={styles.cardSubtext}>{property.checklist.percent}% completed</Text>
-                </GlassCard>
-              </StatusGradient>
-            </TouchableOpacity>
-
-            {/* Health */}
+            {/* Health -- now full width */}
             <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => onShowTileDetail(tileDetails.health)}

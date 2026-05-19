@@ -26,6 +26,8 @@ import SignOutModal from '@/components/ui/SignOutModal';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 import SidekickFace from '@/components/dashboard/SidekickFace';
 import DetailModal, { type TileDetail } from '@/components/dashboard/DetailModal';
+import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
+import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import {
   SPACING,
@@ -465,15 +467,9 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         </>
       )}
 
-      <GlassTile label="Checklist" icon="checkbox-outline" delay={200} onPress={() => setShowTileDetail(tileDetails.checklist)}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <View>
-            <Text style={styles.tileMetricMid}>{sopCount} <Text style={styles.tileSuffix}>/ {sopTotal}</Text></Text>
-            <Text style={styles.tileSubtext}>{checklistPct}% completed</Text>
-          </View>
-          <ProgressBar percent={checklistPct} color={STATUS_COLORS.optimal.bg} />
-        </View>
-      </GlassTile>
+      <ChecklistProgressCard completed={sopCount} total={sopTotal} delay={200} onPress={() => setShowTileDetail(tileDetails.checklist)} />
+
+      <PPMActivityTile propertyId={propertyId} delay={240} />
 
       <GlassTile label="Energy Usage" icon="flash" delay={280} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
         <View style={styles.tileTopRow}><View><Text style={styles.tileMetricMid}>{energyKwh} <Text style={styles.tileSuffix}>kWh</Text></Text><Text style={styles.tileSubtext}>Grid + DG consumption today</Text></View><View style={styles.trendChip}><Ionicons name={energyTrend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#1FC26E" /><Text style={styles.trendChipText}>+{energyTrend}%</Text></View></View>
@@ -581,7 +577,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
 
           <TouchableOpacity style={styles.staticNavItemCenter} onPress={() => setShowChat(true)}>
             <View style={styles.cassandraOrbSmall}>
-              <SidekickFace state={faceState} size={32} />
+              <SidekickFace state={faceState} size={32} onClick={() => setShowChat(true)} />
             </View>
             <Text style={styles.staticNavLabel}>Cassandra</Text>
           </TouchableOpacity>
@@ -599,8 +595,8 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       </View>
 
       <DetailModal visible={!!showTileDetail} onClose={() => setShowTileDetail(null)} detail={showTileDetail!} />
-      <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
+      <SignOutModal isOpen={showSignOut} onClose={() => setShowSignOut(false)} onConfirm={signOut} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="voice" />
       
       <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
         <View style={{ flex: 1, flexDirection: 'row' }}>

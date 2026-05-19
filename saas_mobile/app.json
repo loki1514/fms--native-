@@ -17,7 +17,18 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#708F96"
       },
-      "package": "com.autopilot.app"
+      "package": "com.autopilot.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -58,6 +69,12 @@
     "runtimeVersion": "1.0.0",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b65febb3-1c94-4ecd-9521-deb79e521c5e"
+      }
     }
   }
 }
