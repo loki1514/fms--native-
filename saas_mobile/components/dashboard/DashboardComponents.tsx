@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Platform,
   Dimensions,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -140,10 +141,14 @@ export function AttentionCard({ item, index, onAction }: { item: any; index: num
         <View style={styles.attentionCardInner}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={[styles.attentionIconBadge, { backgroundColor: severityColor + '15' }]}>
-              <Ionicons name={iconName} size={16} color={severityColor} />
+              {item.photoBeforeUrl ? (
+                <Image source={{ uri: item.photoBeforeUrl }} style={styles.badgeImage} resizeMode="cover" />
+              ) : (
+                <Ionicons name={iconName} size={14} color={severityColor} />
+              )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.attentionTitle}>{item.title}</Text>
+              <Text style={styles.attentionTitle} numberOfLines={1}>{item.title}</Text>
               <Text style={styles.attentionDesc} numberOfLines={2}>{item.description}</Text>
             </View>
             <View style={[styles.attentionActionBadge, { backgroundColor: severityColor + '15' }]}>
@@ -281,37 +286,43 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: CARD_SURFACES.cardBorder,
     marginHorizontal: SPACING.xl,
-    marginBottom: 10,
+    marginBottom: 8,
     overflow: 'hidden',
   },
-  attentionCardInner: { padding: 14 },
+  attentionCardInner: { padding: 10 },
   attentionIconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  badgeImage: {
+    width: '100%',
+    height: '100%',
   },
   attentionTitle: {
     fontFamily: fontDisplay,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   attentionDesc: {
     fontFamily: fontSans,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.50)',
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.55)',
     marginTop: 1,
+    lineHeight: 16,
   },
   attentionActionBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   attentionActionText: {
     fontFamily: fontSans,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
   // Stat Columns

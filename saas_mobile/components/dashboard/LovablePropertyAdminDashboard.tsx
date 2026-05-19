@@ -26,7 +26,10 @@ import SignOutModal from '@/components/ui/SignOutModal';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 import SidekickFace from '@/components/dashboard/SidekickFace';
 import DetailModal, { type TileDetail } from '@/components/dashboard/DetailModal';
-import MobileFooter from '@/components/shared/MobileFooter';
+import NeedsAttentionModal from '@/components/dashboard/NeedsAttentionModal';
+import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
+import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
+import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import {
   SPACING,
@@ -41,13 +44,12 @@ import {
   ProgressBar,
   AttentionCard,
 } from './DashboardComponents';
-import { TicketCreateModal } from '../tickets/TicketCreateModal';
 
 const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 const BG = '#121212';
 
-type TabKey = 'overview';
+type TabKey = 'overview' | 'tickets';
 
 interface Props {
   propertyId: string;
@@ -65,8 +67,9 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [showChat, setShowChat] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
   const [showTileDetail, setShowTileDetail] = useState<TileDetail | null>(null);
+  const [showNeedsAttention, setShowNeedsAttention] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
-  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Data state
   const [tickets, setTickets] = useState<any[]>([]);
@@ -87,6 +90,128 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [ticketFunnel, setTicketFunnel] = useState<any[]>([]);
   const [ticketTimeFilter, setTicketTimeFilter] = useState<'today' | 'month' | 'all'>('all');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // ─── Needs Attention: merge RPC items with property-scoped ticket logic ───────
+  // Matches saas_one web dashboard rules:
+  //   1. Tenant tickets      (internal === false, not resolved/closed/satisfied)   → severity: high
+  //   2. Critical tickets    (priority === 'critical', active)                      → severity: critical
+  //   3. Urgent/High tickets (priority in ['urgent','high'], active)               → severity: high
+  //   4. Stale tickets       (>3 days open with active status)                     → severity: medium
+  const needsAttentionTickets = useMemo(() => {
+    // Drop RPC attention items for tickets that are now resolved/closed/satisfied
+    const RESOLVED_STATUSES = ['resolved', 'closed', 'satisfied'];
+    const ACTIVE_STATUSES = ['open', 'assigned', 'in_progress', 'paused', 'waitlist', 'blocked', 'client_raised', 'work_started'];
+
+    const activeAttentionItems = (attentionItems || []).filter((item) => {
+      if (item.entity_type === 'ticket') {
+        const t = tickets.find((tk) => tk.id === item.entity_id);
+        if (t && RESOLVED_STATUSES.includes(t.status)) return false;
+      }
+      return true;
+    });
+
+    const items: any[] = [...activeAttentionItems];
+    const seenIds = new Set(items.map((i) => i.entity_id));
+
+    tickets.forEach((t) => {
+      // Skip already-closed tickets
+      if (RESOLVED_STATUSES.includes(t.status)) return;
+
+      // 1. Tenant (external) tickets
+      if (t.internal === false && !seenIds.has(t.id)) {
+        items.push({
+          id: `tenant-${t.id}`,
+          entity_id: t.id,
+          entity_type: 'ticket',
+          severity: 'high',
+          type: 'tenant_ticket',
+          title: 'Tenant Ticket',
+          description: t.title || 'Tenant raised ticket',
+          action_label: 'View',
+        });
+        seenIds.add(t.id);
+      }
+
+      // 2. Critical priority tickets
+      if (t.priority === 'critical' && !seenIds.has(t.id)) {
+        items.push({
+          id: `critical-${t.id}`,
+          entity_id: t.id,
+          entity_type: 'ticket',
+          severity: 'critical',
+          type: 'critical_ticket',
+          title: 'Critical Ticket',
+          description: t.title || 'Critical priority ticket',
+          action_label: 'Urgent',
+        });
+        seenIds.add(t.id);
+      }
+
+      // 3. High / Urgent priority tickets (not already captured above)
+      if (['urgent', 'high'].includes(t.priority) && !seenIds.has(t.id)) {
+        items.push({
+          id: `urgent-${t.id}`,
+          entity_id: t.id,
+          entity_type: 'ticket',
+          severity: 'high',
+          type: 'critical_ticket',
+          title: t.priority === 'urgent' ? 'Urgent Ticket' : 'High Priority Ticket',
+          description: t.title || `${t.priority} priority ticket`,
+          action_label: 'Review',
+        });
+        seenIds.add(t.id);
+      }
+
+      // 4. Stale tickets — open for more than 3 days with an active status
+      if (!seenIds.has(t.id) && ACTIVE_STATUSES.includes(t.status)) {
+        const daysOpen = (Date.now() - new Date(t.created_at).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysOpen > 3) {
+          items.push({
+            id: `stale-${t.id}`,
+            entity_id: t.id,
+            entity_type: 'ticket',
+            severity: 'medium',
+            type: 'stale_ticket',
+            title: 'Stale Ticket',
+            description: `${t.title || 'Ticket'} · Open ${Math.floor(daysOpen)}d`,
+            action_label: 'Follow Up',
+          });
+          seenIds.add(t.id);
+        }
+      }
+    });
+
+    return items;
+  }, [attentionItems, tickets]);
+
+  const prioritizedAttentionItems = useMemo(() => {
+    if (!needsAttentionTickets.length) return [];
+    return [...needsAttentionTickets].map((item) => {
+      const matchingTicket = tickets.find((t) => t.id === item.entity_id);
+      const isTenant = matchingTicket ? matchingTicket.internal === false : false;
+      const isCritical = item.severity === 'critical';
+      const isHighUrgent = ['urgent', 'high'].includes(matchingTicket?.priority ?? '');
+      const isStale = item.type === 'stale_ticket';
+
+      // Priority scoring matches saas_one web logic
+      let priorityScore = 0;
+      if (isCritical) priorityScore += 15;
+      if (isTenant) priorityScore += 10;
+      if (isHighUrgent) priorityScore += 8;
+      if (isStale) priorityScore += 3;
+
+      const cleanDescription = item.description
+        ? item.description.replace(/^Ticket\s+#\S+\s+/i, '')
+        : '';
+
+      return {
+        ...item,
+        description: cleanDescription,
+        photoBeforeUrl: matchingTicket?.photo_before_url || null,
+        priorityScore,
+      };
+    }).sort((a, b) => b.priorityScore - a.priorityScore);
+  }, [needsAttentionTickets, tickets]);
 
   // Cassandra voice state
   const voiceState = useCassandraStore((s) => s.voiceState);
@@ -112,22 +237,37 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         .single();
       if (propData) setPropertyName((propData as any).name);
 
-      // Tickets
+      // Tickets — fetch all active tickets for this property (not resolved/closed/satisfied)
+      // so that urgent/high/critical/tenant/stale logic in needsAttentionTickets is accurate.
+      // Also include resolved internal tickets for historical stats.
       const { data: ticketData } = await supabase
         .from('tickets')
-        .select('*')
+        .select('id, title, status, priority, created_at, internal, photo_before_url')
         .eq('property_id', propertyId)
         .order('created_at', { ascending: false });
       if (ticketData) setTickets(ticketData);
 
-      // SOP completions
-      const { data: sopData } = await supabase
+      // SOP templates (total active checklists)
+      const { data: sopTemplatesData } = await supabase
+        .from('sop_templates')
+        .select('id')
+        .eq('property_id', propertyId)
+        .eq('is_active', true);
+
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // SOP completions for today
+      const { data: sopCompletionsToday } = await supabase
         .from('sop_completions')
         .select('status')
-        .eq('property_id', propertyId);
-      if (sopData) {
-        setSopTotal(sopData.length);
-        setSopCount(sopData.filter((s: any) => s.status === 'completed').length);
+        .eq('property_id', propertyId)
+        .eq('completion_date', todayStr);
+
+      if (sopTemplatesData) {
+        setSopTotal(sopTemplatesData.length);
+      }
+      if (sopCompletionsToday) {
+        setSopCount(sopCompletionsToday.filter((s: any) => s.status === 'completed').length);
       }
 
       // Electricity
@@ -141,23 +281,23 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       if (elecData) setEnergyKwh(Math.round((elecData as any).final_units || 0));
 
       // Health score
-      const { data: healthData } = await supabase.rpc('get_property_health_score', {
+      const { data: healthData } = await supabase.rpc('get_property_health_score' as any, {
         p_property_id: propertyId,
-      });
+      } as any);
       if (healthData) setHealthScore(healthData);
 
       // Attention items
-      const { data: attentionData } = await supabase.rpc('get_attention_items', {
+      const { data: attentionData } = await supabase.rpc('get_attention_items' as any, {
         p_property_id: propertyId,
         p_limit: 10,
-      });
+      } as any);
       if (attentionData) setAttentionItems(attentionData);
 
       // Ticket funnel
-      const { data: funnelData } = await supabase.rpc('get_ticket_funnel', {
+      const { data: funnelData } = await supabase.rpc('get_ticket_funnel' as any, {
         p_property_id: propertyId,
         p_days: 30,
-      });
+      } as any);
       if (funnelData) setTicketFunnel(funnelData);
 
       // --- NEW: VMS Summary ---
@@ -180,7 +320,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         .eq('property_id', propertyId);
       
       if (revData) {
-        const totalRev = revData.reduce((acc, row) => acc + (row.revenue_amount || 0), 0);
+        const totalRev = (revData as any[]).reduce((acc: number, row: any) => acc + (row.revenue_amount || 0), 0);
         // Simplified commission calculation (10% avg if vendors table not joined)
         setVendorStats({ revenue: totalRev, commission: totalRev * 0.1 });
       }
@@ -424,59 +564,25 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             <Text style={[styles.tileSubtext, { marginTop: 0, fontSize: 10, letterSpacing: 1 }]}>CLOSED</Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-          {dynamicFunnel.map((f: any) => {
-            const shortLabel = f.status_label?.replace(/_/g, ' ')?.replace(/pending validation/i, 'Pending')?.replace(/assigned/i, 'Assigned')?.replace(/closed/i, 'Closed')?.replace(/waitlist/i, 'Waitlist')?.replace(/open/i, 'Open')?.replace(/resolved/i, 'Resolved')?.replace(/in progress/i, 'In Progress') || f.status_label;
-            return (
-              <View key={f.status_label} style={{ flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 2, overflow: 'hidden' }}>
-                <Text style={{ fontFamily: fontDisplay, fontSize: 14, fontWeight: '700', color: '#FFFFFF' }}>{f.ticket_count}</Text>
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontFamily: fontSans, fontSize: 9, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginTop: 2, textAlign: 'center', maxWidth: '100%' }}>{shortLabel}</Text>
-              </View>
-            );
-          })}
-        </View>
       </GlassTile>
 
-      {healthScore && (
-        <Animated.View entering={FadeInUp.delay(120).duration(500)}>
-          <TouchableOpacity activeOpacity={0.9} style={[styles.tileWrapper, { minHeight: 64, marginHorizontal: SPACING.xl, marginBottom: 12, borderRadius: 20, overflow: 'hidden' }]} onPress={() => setShowTileDetail(tileDetails.health)}>
-            <SafeBlurView intensity={70} style={{ minHeight: 64 }} tint="dark">
-              <View style={[styles.tileContent, { paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 }]}>
-                <View style={[styles.healthDot, { width: 10, height: 10, borderRadius: 5, backgroundColor: (healthScore.score ?? 0) >= 80 ? '#10B981' : (healthScore.score ?? 0) >= 50 ? '#F59E0B' : '#EF4444' }]} />
-                <Text style={{ fontFamily: fontSans, fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: 1 }}>HEALTH</Text>
-                <Text style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: '700', color: '#FFF' }}>{healthScore.score ?? 0}</Text>
-                <Text style={{ fontFamily: fontSans, fontSize: 12, color: healthColor, fontWeight: '600' }}>{(healthScore.score ?? 0) >= 80 ? 'Excellent' : (healthScore.score ?? 0) >= 50 ? 'Needs Attention' : 'Critical'}</Text>
-                <View style={{ flex: 1 }} />
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                   <View style={{ alignItems: 'center' }}><Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>{healthScore.total_open ?? 0}</Text><Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>Open</Text></View>
-                   <View style={{ alignItems: 'center' }}><Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '700' }}>{healthScore.sla_risk ?? 0}</Text><Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>Risk</Text></View>
-                </View>
-              </View>
-            </SafeBlurView>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-
-      {attentionItems.length > 0 && (
+      {prioritizedAttentionItems.length > 0 && (
         <>
-          <Animated.View entering={FadeInUp.delay(160).duration(500)} style={{ paddingHorizontal: SPACING.xl, marginBottom: SPACING.md }}>
+          <Animated.View entering={FadeInUp.delay(160).duration(500)} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, marginBottom: SPACING.md }}>
             <Text style={{ fontFamily: fontSans, fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 2, textTransform: 'uppercase' }}>⚠️ NEEDS ATTENTION</Text>
+            <TouchableOpacity onPress={() => setShowNeedsAttention(true)}>
+              <Text style={{ fontFamily: fontSans, fontSize: 11, fontWeight: '700', color: '#3B82F6' }}>VIEW ALL</Text>
+            </TouchableOpacity>
           </Animated.View>
-          {attentionItems.slice(0, 3).map((item, index) => (
+          {prioritizedAttentionItems.slice(0, 3).map((item, index) => (
             <AttentionCard key={item.id} item={item} index={index} onAction={() => item.entity_type === 'ticket' && router.push(`/property/${propertyId}/tickets/${item.entity_id}`)} />
           ))}
         </>
       )}
 
-      <GlassTile label="Checklist" icon="checkbox-outline" delay={200} onPress={() => setShowTileDetail(tileDetails.checklist)}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <View>
-            <Text style={styles.tileMetricMid}>{sopCount} <Text style={styles.tileSuffix}>/ {sopTotal}</Text></Text>
-            <Text style={styles.tileSubtext}>{checklistPct}% completed</Text>
-          </View>
-          <ProgressBar percent={checklistPct} color={STATUS_COLORS.optimal.bg} />
-        </View>
-      </GlassTile>
+      <ChecklistProgressCard completed={sopCount} total={sopTotal} delay={200} onPress={() => setShowTileDetail(tileDetails.checklist)} />
+
+      <PPMActivityTile propertyId={propertyId} delay={240} />
 
       <GlassTile label="Energy Usage" icon="flash" delay={280} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
         <View style={styles.tileTopRow}><View><Text style={styles.tileMetricMid}>{energyKwh} <Text style={styles.tileSuffix}>kWh</Text></Text><Text style={styles.tileSubtext}>Grid + DG consumption today</Text></View><View style={styles.trendChip}><Ionicons name={energyTrend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#1FC26E" /><Text style={styles.trendChipText}>+{energyTrend}%</Text></View></View>
@@ -556,7 +662,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             </TouchableOpacity>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowTicketModal(true)}>
+            <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.7}>
               <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.headerIconBtn}>
@@ -565,15 +671,34 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             </TouchableOpacity>
           </View>
         </Animated.View>
-        <Animated.View entering={FadeInUp.delay(100).duration(600)} style={styles.overviewHeader}><Text style={styles.overviewTitle}>PROPERTY{"\n"}OVERVIEW</Text></Animated.View>
+        <Animated.View entering={FadeInUp.delay(100).duration(600)} style={styles.overviewHeader}><Text style={styles.overviewTitle}>PROPERTY OVERVIEW</Text></Animated.View>
         
-        <View style={{ marginTop: SPACING.xs }}>{renderTabContent()}</View>
+        <View style={{ marginTop: SPACING.lg }}>{renderTabContent()}</View>
       </ScrollView>
-      <MobileFooter activeTab="dashboard" />
 
-      <DetailModal visible={!!showTileDetail} onClose={() => setShowTileDetail(null)} detail={showTileDetail!} />
+      {showTileDetail && <DetailModal onClose={() => setShowTileDetail(null)} detail={showTileDetail} />}
+      <NeedsAttentionModal
+        visible={showNeedsAttention}
+        onClose={() => setShowNeedsAttention(false)}
+        items={prioritizedAttentionItems}
+        propertyName={propertyName}
+        onItemPress={(item) => {
+          setShowNeedsAttention(false);
+          if (item.entity_type === 'ticket') {
+            router.push(`/property/${propertyId}/tickets/${item.entity_id}` as any);
+          }
+        }}
+      />
       <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="voice" />
+      <TicketCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        propertyId={propertyId}
+        organizationId={orgId}
+        role="admin"
+        onSuccess={fetchData}
+      />
       
       <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
         <View style={{ flex: 1, flexDirection: 'row' }}>
@@ -594,7 +719,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.drawerSectionLabel}>OPERATIONS</Text>
               {[
-                { label: 'Dashboard', route: 'lovable-admin', icon: 'grid-outline' },
+                { label: 'Dashboard', route: 'dashboard', icon: 'grid-outline' },
                 { label: 'Tickets', route: 'tickets', icon: 'ticket-outline' },
                 { label: 'User Directory', route: 'users', icon: 'people-outline' },
                 { label: 'Visitors', route: 'visitors', icon: 'walk-outline' },
@@ -642,16 +767,6 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
           <TouchableOpacity style={styles.drawerBackdrop} onPress={() => setShowDrawer(false)} />
         </View>
       </Modal>
-
-      {/* Create Request Modal */}
-      <TicketCreateModal
-        isOpen={showTicketModal}
-        onClose={() => setShowTicketModal(false)}
-        propertyId={propertyId}
-        organizationId={orgId}
-        role="admin"
-        onSuccess={fetchData}
-      />
     </View>
   );
 }
@@ -687,38 +802,6 @@ const styles = StyleSheet.create({
   timeToggleTextActive: { color: '#FFF', fontWeight: '700' },
   trendChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(31,194,110,0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   trendChipText: { color: '#1FC26E', fontSize: 12, fontWeight: '700' },
-  bottomNavContainer: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', zIndex: 100 },
-  bottomNavStatic: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-around', 
-    width: '100%', 
-    paddingTop: 12,
-    paddingBottom: 4,
-    borderTopWidth: 1, 
-    borderTopColor: 'rgba(255,255,255,0.1)', 
-    backgroundColor: 'rgba(18, 18, 18, 0.8)',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  staticNavItem: { alignItems: 'center', justifyContent: 'center', flex: 1, gap: 2 },
-  staticNavItemCenter: { alignItems: 'center', justifyContent: 'center', flex: 1.2, gap: 2, marginTop: -4 },
-  staticNavLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: '700', fontFamily: fontSans, marginTop: 2 },
-  staticNavLabelActive: { color: '#FFF' },
-  cassandraOrbSmall: { 
-    width: 48, 
-    height: 48, 
-    borderRadius: 24, 
-    backgroundColor: '#000', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    borderWidth: 1.5, 
-    borderColor: 'rgba(255,255,255,0.2)', 
-    shadowColor: '#3B82F6', 
-    shadowOpacity: 0.3, 
-    shadowRadius: 8,
-    elevation: 5
-  },
   drawerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   drawerPanel: { width: 280, height: '100%', backgroundColor: '#111', borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 20 },
   drawerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 25, marginTop: 10 },
@@ -732,4 +815,6 @@ const styles = StyleSheet.create({
   drawerSectionLabel: { fontFamily: fontSans, fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5, marginBottom: 8, paddingHorizontal: 4 },
   drawerSignOut: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', marginBottom: 40 },
   drawerSignOutText: { color: '#EF4444', fontWeight: '700' },
+  nameContainer: { flexDirection: 'column' as const },
+  healthDot: { width: 10, height: 10, borderRadius: 5 },
 });

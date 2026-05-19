@@ -16,6 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useWeather } from '@/hooks/useWeather';
+import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -51,7 +53,9 @@ import {
 } from '@/lib/gamification';
 import SidekickFace from '@/components/dashboard/SidekickFace';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
-import { TicketCreateModal } from '../tickets/TicketCreateModal';
+import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
+import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
+import CreateTicketModal from '@/components/shared/CreateTicketModal';
 import SignOutModal from '@/components/ui/SignOutModal';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import FloatingMenu from '@/components/ui/FloatingMenu';
@@ -396,6 +400,7 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
 export default function LovableMstDashboard({ propertyId }: Props) {
   const insets = useSafeAreaInsets();
   const { user, signOut, membership } = useAuth();
+  const { weather } = useWeather();
   const router = useRouter();
 
   const supabase = useMemo(() => createClient(), []);
@@ -650,6 +655,10 @@ export default function LovableMstDashboard({ propertyId }: Props) {
         </View>
       </Animated.View>
 
+      <ChecklistProgressCard completed={stats.completed} total={stats.total} delay={280} />
+
+      <PPMActivityTile propertyId={propertyId} delay={340} />
+
       {/* Property Requests */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionHeaderTitle}>Property Requests</Text>
@@ -815,7 +824,8 @@ export default function LovableMstDashboard({ propertyId }: Props) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <StatusBar barStyle="light-content" />
-        <LinearGradient colors={['#F2B134', '#D96B2B', '#4A1A1A']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFillObject} />
+        <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
+        {weather && <WeatherBackground condition={weather.condition} />}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#8B5CF6" />
           <Text style={styles.loadingText}>Loading dashboard...</Text>
@@ -827,8 +837,8 @@ export default function LovableMstDashboard({ propertyId }: Props) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#F2B134', '#D96B2B', '#4A1A1A']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFillObject} />
-      {/* Sunny orange gradient background — no weather overlay */}
+      <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
+      {weather && <WeatherBackground condition={weather.condition} />}
 
       {/* Floating Menu */}
       <FloatingMenu
@@ -932,16 +942,9 @@ export default function LovableMstDashboard({ propertyId }: Props) {
       </View>
 
       {/* Modals */}
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
-      <TicketCreateModal
-        isOpen={showCreate}
-        onClose={() => setShowCreate(false)}
-        propertyId={propertyId}
-        organizationId={membership?.org_id ?? ''}
-        role="staff"
-        onSuccess={fetchData}
-      />
-      <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} propertyId={propertyId} initialMode="voice" />
+      <CreateTicketModal visible={showCreate} onClose={() => setShowCreate(false)} propertyId={propertyId} />
+      <SignOutModal isOpen={showSignOut} onClose={() => setShowSignOut(false)} onConfirm={signOut} />
     </View>
   );
 }
