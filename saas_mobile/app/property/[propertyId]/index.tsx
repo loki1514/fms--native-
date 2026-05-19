@@ -50,7 +50,7 @@ export default function PropertyIndex() {
     return <Redirect href={`/property/${propertyId}/lovable-mst`} />;
   }
   if (userEmail === 'lohitexplores@gmail.com') {
-    return <Redirect href={`/property/${propertyId}/lovable-admin`} />;
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
 
   if (isOrgSuperAdmin) {
@@ -58,7 +58,7 @@ export default function PropertyIndex() {
   }
 
   if (isPropertyAdmin) {
-    return <Redirect href={`/property/${propertyId}/lovable-admin`} />;
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
 
   if (isMst) {

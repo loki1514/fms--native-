@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import SidekickFace from '@/components/dashboard/SidekickFace';
+import { useAuth } from '@/hooks/useAuth';
+import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 
 interface MobileFooterProps {
   activeTab?: 'dashboard' | 'tickets' | 'assets' | 'more';
@@ -15,6 +17,12 @@ export default function MobileFooter({ activeTab: propActiveTab }: MobileFooterP
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { membership } = useAuth();
+  const [showCassandraChat, setShowCassandraChat] = useState(false);
+
+  const orgId = membership?.org_id ?? '211e1330-ad83-446d-941f-dcea48396798';
+
+  console.log('[MobileFooter] render. activeTab:', propActiveTab, 'showCassandraChat:', showCassandraChat, 'orgId:', orgId);
 
   const activeTab = propActiveTab || (pathname.includes('/tickets') ? 'tickets' : pathname.includes('/dashboard') ? 'dashboard' : 'dashboard');
 
@@ -52,10 +60,21 @@ export default function MobileFooter({ activeTab: propActiveTab }: MobileFooterP
         </TouchableOpacity>
         <TouchableOpacity 
           style={styles.navItemCenter} 
-          onPress={() => router.push('/cassandra' as any)}
+          onPress={() => {
+            console.log('[MobileFooter] Orb tapped! Setting showCassandraChat to true...');
+            setShowCassandraChat(true);
+          }}
         >
           <View style={styles.orbWrapper}>
-             <SidekickFace size={48} state="idle" compact />
+             <SidekickFace 
+               size={48} 
+               state="idle" 
+               compact 
+               onClick={() => {
+                 console.log('[MobileFooter] SidekickFace clicked directly! Setting showCassandraChat to true...');
+                 setShowCassandraChat(true);
+               }}
+             />
           </View>
           <Text style={[styles.navLabel, { marginTop: 4 }]}>AI Assistant</Text>
         </TouchableOpacity>
@@ -77,6 +96,13 @@ export default function MobileFooter({ activeTab: propActiveTab }: MobileFooterP
           <Text style={styles.navLabel}>More</Text>
         </TouchableOpacity>
       </SafeBlurView>
+
+      <CassandraSessionModal
+        visible={showCassandraChat}
+        onClose={() => setShowCassandraChat(false)}
+        orgId={orgId}
+        initialMode="voice"
+      />
     </View>
   );
 }
