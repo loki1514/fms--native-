@@ -24,21 +24,9 @@ export default function Index() {
     return <Redirect href="/login" />;
   }
 
-  // Lovable Super Admin — email-gated redirect
-  if (user?.email?.toLowerCase() === 'sanyog@gmail.com') {
-    return <Redirect href="/super-admin" />;
-  }
-
-  // Lovable test dashboards — email-gated redirect
-  if (membership && membership.properties && membership.properties.length > 0) {
-    const firstProperty = membership.properties[0];
-    const email = user?.email?.toLowerCase() ?? '';
-    if (email === 'srustikarta2022@gmail.com') {
-      return <Redirect href={`/property/${firstProperty.id}/lovable-mst`} />;
-    }
-    if (email === 'lohitexplores@gmail.com') {
-      return <Redirect href={`/property/${firstProperty.id}/lovable-admin`} />;
-    }
+  // Super Admin — master admin check
+  if (user?.user_metadata?.is_master_admin) {
+    return <Redirect href="/master" />;
   }
 
   // User is authenticated — redirect to their first property's index (which has role-based routing)

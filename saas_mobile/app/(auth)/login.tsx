@@ -253,18 +253,8 @@ export default function LoginScreen() {
 
     if (activePropMemberships.length === 1) {
       const { property_id: pId } = activePropMemberships[0];
-      const userEmail = authUserData?.email?.toLowerCase() ?? '';
-      if (userEmail === 'srustikarta2022@gmail.com') {
-        router.replace(`/property/${pId}/lovable-mst`);
-        return;
-      }
-      if (userEmail === 'lohitexplores@gmail.com') {
-        router.replace(`/property/${pId}/lovable-admin`);
-        return;
-      }
-
-      // All roles now use the unified sidebar dashboard
-      router.replace(`/property/${pId}/dashboard`);
+      // Route through /property/[id] which handles role-based dashboard selection
+      router.replace(`/property/${pId}`);
       return;
     }
 
