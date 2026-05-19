@@ -23,23 +23,18 @@ import Animated, {
   runOnJS,
   SharedValue,
 } from 'react-native-reanimated';
-import Svg, { G, Path, Text as SvgText } from 'react-native-svg';
-import { Image } from 'react-native';
+import { Image, ImageBackground } from 'react-native';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DESIGN TOKENS
 // ═══════════════════════════════════════════════════════════════════════════
 
 const BG = '#0B1220';
-const BG_MID = '#11203A';
 const INK = '#F7F8FA';
 const INK_DIM = '#8A95A8';
 const ACCENT = '#F5A524';
-const ACCENT_LO = 'rgba(245,165,36,0.10)';
-const FONT_DISP = Platform.OS === 'ios' ? 'System' : 'sans-serif';
-const FONT_BODY = Platform.OS === 'ios' ? 'System' : 'sans-serif';
-const SCREEN_H = Dimensions.get('window').height;
 
+const BG_IMAGE = require('../../assets/images/launch-bg.png');
 const LOGO_IMAGE = require('../../assets/images/logo.png');
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -376,17 +371,8 @@ export default function AutopilotSplash({ onComplete }: AutopilotSplashProps) {
   // ═══════════════════════════════════════════════════════════════════════
 
   return (
-    <View style={styles.root}>
-      {/* Radial gradient background */}
-      <View style={styles.bgOuter}>
-        <View style={styles.bgInner} />
-      </View>
-
-      {/* Ambient amber glow */}
-      <Animated.View style={[styles.glow, glowStyle]} />
-
-      {/* Main content */}
-      <Animated.View style={[styles.content, containerStyle]}>
+    <ImageBackground source={BG_IMAGE} style={styles.root} resizeMode="cover">
+      <Animated.View style={[styles.overlay, containerStyle]}>
         {/* Logo */}
         <Animated.View style={[styles.logoWrap, markStyle]}>
           <Image
@@ -397,41 +383,17 @@ export default function AutopilotSplash({ onComplete }: AutopilotSplashProps) {
           />
         </Animated.View>
 
-        {/* Accent underline */}
-        <View style={styles.underlineContainer}>
-          <Animated.View style={[styles.underline, underlineStyle]} />
-        </View>
-
-        {/* Counter */}
-        <Counter
-          value={counterValue}
-          opacity={counterOpacity}
-          translateY={counterTranslateY}
-        />
-
-        {/* Caption */}
-        <Animated.Text
-          style={[styles.caption, { opacity: captionOpacity }]}
-        >
-          SQ FT UNDER MANAGEMENT
-        </Animated.Text>
-
-        {/* Taglines */}
-        <View style={styles.taglines}>
-          <Animated.Text style={[styles.tagline1, { opacity: tagline1Opacity, transform: [{ translateY: tagline1TranslateY }] }]}>
-            Tailored enterprise workspaces.
-          </Animated.Text>
-          <Animated.Text style={[styles.tagline2, { opacity: tagline2Opacity, transform: [{ translateY: tagline2TranslateY }] }]}>
-            Designed for you.
-          </Animated.Text>
-        </View>
+        {/* Spinner ring */}
+        <Animated.View style={[styles.spinnerWrap, spinnerStyle]}>
+          <View style={styles.spinnerRing} />
+        </Animated.View>
 
         {/* Tap to continue */}
         <Pressable onPress={handleDismiss} style={styles.tapButton}>
           <Text style={styles.tapText}>Tap to continue</Text>
         </Pressable>
       </Animated.View>
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -442,43 +404,16 @@ export default function AutopilotSplash({ onComplete }: AutopilotSplashProps) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: BG,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  bgOuter: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: BG,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: -2,
-  },
-  bgInner: {
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: BG_MID,
-    opacity: 0.4,
-    position: 'absolute',
-  },
-  glow: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: ACCENT_LO,
-    shadowColor: ACCENT,
-    shadowRadius: 60,
-    shadowOpacity: 0.3,
-    elevation: 0,
-    zIndex: 0,
-  },
-  content: {
-    alignItems: 'center',
-    zIndex: 1,
+    backgroundColor: 'rgba(0,0,0,0.25)',
   },
   logoWrap: {
-    zIndex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -486,60 +421,20 @@ const styles = StyleSheet.create({
     width: 320,
     height: 120,
   },
-  underlineContainer: {
-    height: 1,
-    marginTop: 16,
+  spinnerWrap: {
+    marginTop: 32,
+    width: 40,
+    height: 40,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  underline: {
-    height: 1,
-    backgroundColor: ACCENT,
-  },
-  counterContainer: {
-    marginTop: 44,
-    alignItems: 'center',
-  },
-  counterText: {
-    fontFamily: FONT_DISP,
-    fontSize: 52,
-    fontWeight: '800',
-    color: INK,
-    fontVariant: ['tabular-nums'],
-    textAlign: 'center',
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-    padding: 0,
-    margin: 0,
-    includeFontPadding: false,
-  },
-  caption: {
-    fontFamily: FONT_BODY,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 2.5,
-    color: INK_DIM,
-    textTransform: 'uppercase',
-    marginTop: 6,
-    textAlign: 'center',
-  },
-  taglines: {
-    marginTop: 40,
-    alignItems: 'center',
-  },
-  tagline1: {
-    fontFamily: FONT_BODY,
-    fontSize: 14,
-    fontWeight: '500',
-    color: INK,
-    textAlign: 'center',
-  },
-  tagline2: {
-    fontFamily: FONT_BODY,
-    fontSize: 14,
-    fontWeight: '500',
-    color: INK_DIM,
-    textAlign: 'center',
-    marginTop: 4,
+  spinnerRing: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderTopColor: '#FFFFFF',
   },
   tapButton: {
     marginTop: 48,
