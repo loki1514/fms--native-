@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, Image, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import PremiumSun from './PremiumSun';
 
 export type WeatherCondition = 'clear-day' | 'clear-night' | 'cloudy-day' | 'cloudy-night' | 'rainy' | 'dawn' | 'dusk';
 
@@ -10,50 +11,49 @@ interface WeatherBackgroundProps {
 }
 
 const ASSETS = {
-  SUN: require('@/assets/images/premium-sun.png'),
   MOON: { uri: 'https://pngimg.com/uploads/moon/moon_PNG52.png' },
   CLOUD: { uri: 'https://pngimg.com/uploads/cloud/cloud_PNG4.png' },
 };
 
-const THEMES: Record<WeatherCondition, { colors: string[]; celestial: 'SUN' | 'MOON' | null; overlayCloud: boolean; showStars: boolean }> = {
+const THEMES: Record<WeatherCondition, { colors: [string, string, string]; celestial: 'SUN' | 'MOON' | null; overlayCloud: boolean; showStars: boolean }> = {
   'clear-day': {
-    colors: ['#00B4DB', '#0083B0', '#74ebd5'], 
+    colors: ['#4A8FD4', '#6BAEE8', '#A8D4F5'],
     celestial: 'SUN',
     overlayCloud: false,
     showStars: false,
   },
   'clear-night': {
-    colors: ['#0A0D14', '#181C2A', '#2D3B54'], 
+    colors: ['#0A1628', '#122440', '#1E3A5F'],
     celestial: 'MOON',
     overlayCloud: false,
     showStars: true,
   },
   'cloudy-day': {
-    colors: ['#4b6584', '#778ca3', '#a5b1c2'], 
+    colors: ['#5A7A96', '#7A9AB6', '#9ABAD6'],
     celestial: null,
     overlayCloud: true,
     showStars: false,
   },
   'cloudy-night': {
-    colors: ['#0d111a', '#212738', '#404a5e'], 
+    colors: ['#0D1A2A', '#1A2E42', '#2A4460'],
     celestial: 'MOON',
     overlayCloud: true,
     showStars: true,
   },
   'rainy': {
-    colors: ['#070A11', '#141E33', '#2B3F56'], 
+    colors: ['#0D1B2A', '#1A2E42', '#2A4A66'],
     celestial: null,
     overlayCloud: true,
     showStars: false,
   },
   'dawn': {
-    colors: ['#2c3e50', '#8e44ad', '#fd9644'], 
+    colors: ['#3A6FA0', '#5A9AD0', '#8AC4F0'],
     celestial: 'SUN',
     overlayCloud: false,
     showStars: false,
   },
   'dusk': {
-    colors: ['#f39c12', '#e67e22', '#d35400'], 
+    colors: ['#2A5A8A', '#4A8AC0', '#7AB8E8'],
     celestial: 'SUN',
     overlayCloud: false,
     showStars: false,
@@ -216,24 +216,28 @@ export default function WeatherBackground({ condition }: WeatherBackgroundProps)
         {condition === 'clear-day' && <SunBeams />}
         {condition === 'rainy' && <RainEffect />}
 
-        {theme.celestial && (
-          <Image
-            source={ASSETS[theme.celestial]}
-            style={[
-              styles.celestialObject,
-              theme.celestial === 'MOON' ? styles.moonPosition : styles.sunPosition
-            ]}
+        {theme.celestial === 'SUN' && (
+          <View style={[styles.celestialObject, styles.sunPosition]} pointerEvents="none">
+            <PremiumSun size={220} />
+          </View>
+        )}
+        {theme.celestial === 'MOON' && (
+          <Animated.Image
+            source={ASSETS.MOON}
+            style={[styles.celestialObject, styles.moonPosition]}
             resizeMode="contain"
+            entering={FadeIn.duration(1000)}
           />
         )}
 
         {theme.overlayCloud && (
-          <Image
-            source={ASSETS.CLOUD}
-            style={styles.cloudOverlay}
-            resizeMode="contain"
-            opacity={0.2}
-          />
+          <View style={[styles.cloudOverlay, { opacity: 0.2 }]}>
+            <Image
+              source={ASSETS.CLOUD}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="contain"
+            />
+          </View>
         )}
       </Animated.View>
     </View>

@@ -319,7 +319,8 @@ function NativeCrystalOrb({
             stroke={primaryColor}
             strokeWidth={s * 0.022}
             strokeOpacity={0.5}
-            transform={`rotate(-25, ${s / 2}, ${s / 2})`}
+            transform={[{ rotate: '-25deg' }]}
+            origin={`${s / 2}, ${s / 2}`}
           />
           <Ellipse
             cx={s / 2}
@@ -330,7 +331,8 @@ function NativeCrystalOrb({
             stroke="#ffffff"
             strokeWidth={s * 0.008}
             strokeOpacity={0.35}
-            transform={`rotate(-25, ${s / 2}, ${s / 2})`}
+            transform={[{ rotate: '-25deg' }]}
+            origin={`${s / 2}, ${s / 2}`}
           />
         </Svg>
       </Animated.View>

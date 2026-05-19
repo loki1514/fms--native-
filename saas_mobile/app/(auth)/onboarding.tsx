@@ -310,6 +310,10 @@ export default function OnboardingScreen() {
 
   const goBack = () => {
     setError('');
+    if (step === 0) {
+      router.replace('/login');
+      return;
+    }
     if (step === 4 && (selectedRole === 'mst' || selectedRole === 'staff')) {
       animateToStep(3);
     } else if (step === 5) {
@@ -779,12 +783,12 @@ export default function OnboardingScreen() {
         {/* Navigation */}
         <View style={styles.navRow}>
           <TouchableOpacity
-            style={[styles.backButton, step === 0 && styles.backButtonHidden]}
+            style={styles.backButton}
             onPress={goBack}
             activeOpacity={0.7}
           >
             <Ionicons name="arrow-back" size={18} color={theme.primary} />
-            <Text style={[styles.backText, { color: theme.primary }]}>Back</Text>
+            <Text style={[styles.backText, { color: theme.primary }]}>{step === 0 ? 'Back to Login' : 'Back'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -808,6 +812,19 @@ export default function OnboardingScreen() {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Dev skip — only on welcome screen */}
+        {step === 0 && (
+          <TouchableOpacity
+            onPress={async () => {
+              await supabase.auth.updateUser({ data: { onboarding_completed: true } });
+              router.replace('/(auth)/property-selection');
+            }}
+            style={{ alignSelf: 'center', marginTop: 16, padding: 8 }}
+          >
+            <Text style={{ color: theme.textTertiary, fontSize: 12 }}>Skip onboarding (dev)</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );

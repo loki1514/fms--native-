@@ -133,10 +133,11 @@ function SkiaCircularProgress({
           fill="none"
           stroke={bgColor}
           strokeWidth={strokeWidth}
-          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDasharray={[circumference, circumference]}
           strokeDashoffset={0}
           strokeLinecap="round"
-          transform={`rotate(-90 ${center} ${center})`}
+          rotation={-90}
+          origin={`${center}, ${center}`}
         />
         {/* Progress circle */}
         <SvgCircle
@@ -146,10 +147,11 @@ function SkiaCircularProgress({
           fill="none"
           stroke={color}
           strokeWidth={strokeWidth}
-          strokeDasharray={`${dash} ${circumference}`}
+          strokeDasharray={[dash, circumference]}
           strokeDashoffset={0}
           strokeLinecap="round"
-          transform={`rotate(-90 ${center} ${center})`}
+          rotation={-90}
+          origin={`${center}, ${center}`}
         />
       </Svg>
     </View>
@@ -183,29 +185,29 @@ function DonutChart({
           </SvgGradient>
         ))}
       </Defs>
-      <G transform={`rotate(-90 ${center} ${center})`}>
-        {data.map((item, index) => {
-          const percentage = item.value / total;
-          const strokeDasharray = `${circumference * percentage} ${circumference}`;
-          const strokeDashoffset = -currentOffset * circumference;
-          currentOffset += percentage;
+      {data.map((item, index) => {
+        const percentage = item.value / total;
+        const strokeDasharray = [circumference * percentage, circumference];
+        const strokeDashoffset = -currentOffset * circumference;
+        currentOffset += percentage;
 
-          return (
-            <SvgCircle
-              key={index}
-              cx={center}
-              cy={center}
-              r={radius}
-              fill="none"
-              stroke={`url(#grad${index})`}
-              strokeWidth={strokeWidth}
-              strokeDasharray={strokeDasharray}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-            />
-          );
-        })}
-      </G>
+        return (
+          <SvgCircle
+            key={index}
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="none"
+            stroke={`url(#grad${index})`}
+            strokeWidth={strokeWidth}
+            strokeDasharray={strokeDasharray}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            rotation={-90}
+            origin={`${center}, ${center}`}
+          />
+        );
+      })}
     </Svg>
   );
 }

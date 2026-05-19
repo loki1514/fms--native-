@@ -21,15 +21,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCassandraStore } from '@/stores/cassandraStore';
-import {
-  smartQuery,
-  createTicketNL,
-  researchQuery,
-  generateReport,
-} from '@/lib/cassandra';
+import { useAuth } from '@/hooks/useAuth';
+// All chat goes through ONE endpoint: POST /chat
+// No client-side tool routing.
 import { useTextToSpeech } from '@/hooks/voice/useTextToSpeech';
 import { useCassandraVoice } from '@/hooks/voice/useCassandraVoice';
 import { toast } from '@/lib/toast';
@@ -46,7 +44,17 @@ import {
   CARD_SURFACES,
 } from '@/constants/designSystem';
 import SidekickFace, { type FaceState } from '@/components/dashboard/SidekickFace';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
+import { streamChat } from '@/services/cassandra/chat';
+import {
+  createChatSession,
+  listChatSessions,
+  getChatSession,
+  addChatMessage,
+  updateChatSessionTitle,
+  deleteChatSession,
+} from '@/lib/cassandra';
+import type { ChatSession, ChatMessage as ChatMessageType } from '@/lib/cassandra';
 
 // ─── Icons ─────────────────────────────────────────────────────────────────
 const SendIcon = ({ size = 20, color = '#fff' }: { size?: number; color?: string }) => (
@@ -78,7 +86,7 @@ const AttachmentIcon = ({ size = 20, color = '#9CA3AF' }: { size?: number; color
 const PersonIcon = ({ size = 20, color = '#9CA3AF' }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
+    <Circle cx="12" cy="7" r="4" />
   </Svg>
 );
 
@@ -156,18 +164,24 @@ const StatusRing = ({ voiceState }: { voiceState: string }) => {
 
 // ─── Capability Grid ───────────────────────────────────────────────────────
 const WHAT_I_CAN_DO = [
-  { label: 'Triage tickets', action: 'Triage open tickets', endpoint: 'ticket' as const },
-  { label: 'Explain energy spikes', action: 'Explain recent energy spikes', endpoint: 'research' as const },
-  { label: 'Find on-call staff', action: 'Who is on call right now?', endpoint: undefined },
-  { label: 'Summarise reports', action: 'Summarise this week\'s reports', endpoint: 'report' as const },
+  { label: 'Triage tickets', message: 'Show me critical and high-priority open tickets' },
+  { label: 'Explain energy spikes', message: 'Explain recent energy spikes at this property' },
+  { label: 'Find on-call staff', message: 'Who is on call right now?' },
+  { label: 'Summarise reports', message: 'Summarise this week\'s reports' },
+];
+
+const MST_SKILLS = [
+  { label: 'My tickets', message: 'Show my active tickets' },
+  { label: 'Shift status', message: 'Am I checked in?' },
+  { label: 'Leaderboard', message: 'Show team leaderboard' },
 ];
 
 const RECENT_CHATS = [
-  { label: 'Show critical tickets at SS Plaza', action: 'Show critical tickets at SS Plaza', endpoint: 'ticket' as const },
-  { label: 'Energy spike yesterday — why?', action: 'Why was there an energy spike yesterday?', endpoint: 'research' as const },
-  { label: 'Open checklist items for today', action: 'Open checklist items for today', endpoint: undefined },
-  { label: 'Compare health across properties', action: 'Compare health scores across properties', endpoint: 'research' as const },
-  { label: 'Who\'s on call for Bajaj Kolkata?', action: 'Who is on call for Bajaj Kolkata?', endpoint: undefined },
+  { label: 'Show critical tickets at SS Plaza', message: 'Show critical tickets at SS Plaza' },
+  { label: 'Energy spike yesterday — why?', message: 'Why was there an energy spike yesterday?' },
+  { label: 'Open checklist items for today', message: 'Open checklist items for today' },
+  { label: 'Compare health across properties', message: 'Compare health scores across properties' },
+  { label: 'Who\'s on call for Bajaj Kolkata?', message: 'Who is on call for Bajaj Kolkata?' },
 ];
 
 // ─── Main Modal ────────────────────────────────────────────────────────────
@@ -175,6 +189,7 @@ interface CassandraSessionModalProps {
   visible: boolean;
   onClose: () => void;
   orgId: string;
+  propertyId?: string;
   initialMode?: 'text' | 'voice';
 }
 
@@ -182,8 +197,10 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   visible,
   onClose,
   orgId,
+  propertyId,
   initialMode = 'text',
 }) => {
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const {
     voiceState,
@@ -196,8 +213,16 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   } = useCassandraStore();
   const [inputText, setInputText] = useState('');
   const [inputMode, setInputMode] = useState<'text' | 'voice'>(initialMode);
+  const [isTyping, setIsTyping] = useState(false);
+  const [currentResponse, setCurrentResponse] = useState('');
+  const [view, setView] = useState<'home' | 'chat' | 'history'>('home');
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const sessionId = useRef(Math.random().toString(36).slice(2)).current;
   const scrollRef = useRef<ScrollView>(null);
   const orbScale = useRef(new Animated.Value(1)).current;
+  const abortRef = useRef<AbortController | null>(null);
   const { speak, stop: stopSpeaking } = useTextToSpeech();
 
   const voice = useCassandraVoice(orgId, {
@@ -235,6 +260,80 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     return () => breathe.stop();
   }, [voiceState, visible]);
 
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  // ─── Session management ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (visible && view === 'home' && !currentSessionId && user?.id) {
+      createChatSession(user.id, orgId, 'New Chat', propertyId).then((session) => {
+        setCurrentSessionId(session.id);
+      }).catch(() => {
+        // Fallback: use local session id
+        setCurrentSessionId(sessionId);
+      });
+    }
+  }, [visible, view, currentSessionId, user?.id, orgId, propertyId]);
+
+  useEffect(() => {
+    if (!visible) {
+      setView('home');
+      setCurrentSessionId(null);
+      voice.endSession();
+      stopSpeaking();
+      setVoiceState('idle');
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible && initialMode === 'voice' && voiceState === 'idle') {
+      setInputMode('voice');
+      voice.startSession();
+    }
+  }, [visible, initialMode]);
+
+  const loadHistory = useCallback(async () => {
+    if (!user?.id) return;
+    setIsLoadingHistory(true);
+    try {
+      const data = await listChatSessions(user.id, orgId);
+      setSessions(data);
+    } catch (err) {
+      toast.error('Failed to load chat history');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [user?.id, orgId]);
+
+  const persistMessage = useCallback(async (role: string, text: string) => {
+    if (!currentSessionId) return;
+    try {
+      await addChatMessage(currentSessionId, role, text);
+    } catch {
+      // Silently fail persistence — local state is source of truth
+    }
+  }, [currentSessionId]);
+
+  const loadSession = useCallback(async (sessionId: string) => {
+    try {
+      const session = await getChatSession(sessionId);
+      useCassandraStore.getState().clearMessages();
+      session.messages.forEach((msg) => {
+        useCassandraStore.getState().addMessage({ role: msg.role as 'user' | 'cassandra', text: msg.text });
+      });
+      setCurrentSessionId(session.id);
+      setView('chat');
+    } catch {
+      toast.error('Failed to load session');
+    }
+  }, []);
+
+  const handleNewChat = useCallback(() => {
+    useCassandraStore.getState().clearMessages();
+    setCurrentSessionId(null);
+    setView('home');
+  }, []);
+
   const handleOrbPress = () => {
     if (voiceState === 'speaking') {
       stopSpeaking();
@@ -259,66 +358,41 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     }
   };
 
-  const handleSend = useCallback(async () => {
-    if (!inputText.trim()) return;
-    const text = inputText.trim();
-    addMessage({ role: 'user', text });
-    setInputText('');
-    setVoiceState('processing');
+  const handleSend = useCallback((message: string) => {
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    setIsTyping(true);
+    setView('chat');
+    let fullResponse = '';
 
-    try {
-      const res = await smartQuery(text, orgId);
-      const responseText = (res as any)?.response ?? (res as any)?.message ?? "I'm not sure how to answer that.";
-      addMessage({ role: 'cassandra', text: responseText });
-      setVoiceState('speaking');
-      await speak(responseText);
-      setVoiceState('idle');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong.';
-      addMessage({ role: 'cassandra', text: `Error: ${msg}` });
-      toast.error(msg);
-      setVoiceState('idle');
-    }
-  }, [inputText, orgId, speak, addMessage, setVoiceState]);
-
-  const handleSkill = useCallback((skill: string, endpoint?: 'research' | 'report' | 'ticket') => {
-    addMessage({ role: 'user', text: skill });
-    setVoiceState('processing');
-
-    const runSkill = async () => {
-      try {
-        let responseText: string;
-        if (endpoint === 'research') {
-          responseText = 'Researching…';
-          const res = await researchQuery(skill, orgId);
-          responseText = (res as any)?.response ?? (res as any)?.message ?? 'Research complete.';
-        } else if (endpoint === 'report') {
-          const res = await generateReport('weekly', '', '7d', orgId);
-          responseText = (res as any)?.response ?? (res as any)?.summary ?? 'Report generated successfully.';
-        } else if (endpoint === 'ticket') {
-          const res = await createTicketNL(skill, orgId);
-          responseText = (res as any)?.response ?? (res as any)?.message ?? 'Ticket created.';
-          if ((res as any)?.ticket_id) {
-            toast.success(`Ticket created: ${(res as any).ticket_id}`);
-          }
-        } else {
-          const res = await smartQuery(skill, orgId);
-          responseText = (res as any)?.response ?? (res as any)?.message ?? "I'm not sure how to answer that.";
+    streamChat(
+      message,
+      sessionId,
+      (token) => {
+        fullResponse += token;
+        setCurrentResponse(fullResponse);
+      },
+      async () => {
+        addMessage({ role: 'cassandra', text: fullResponse });
+        persistMessage('cassandra', fullResponse);
+        setCurrentResponse('');
+        setIsTyping(false);
+        // Speak the response if voice mode is active
+        if (inputMode === 'voice') {
+          setVoiceState('speaking');
+          await speak(fullResponse);
+          setVoiceState('idle');
         }
-        addMessage({ role: 'cassandra', text: responseText });
-        setVoiceState('speaking');
-        await speak(responseText);
-        setVoiceState('idle');
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Something went wrong.';
-        addMessage({ role: 'cassandra', text: `Error: ${msg}` });
-        toast.error(msg);
-        setVoiceState('idle');
-      }
-    };
+      },
+      (err) => {
+        setCurrentResponse(err);
+        setIsTyping(false);
+      },
+      abortRef.current.signal
+    );
+  }, [sessionId, addMessage, inputMode, speak, setVoiceState]);
 
-    runSkill();
-  }, [orgId, speak, addMessage, setVoiceState]);
+  // All skill chips just send a pre-filled message to /chat — no client-side routing.
 
   const statusLabels: Record<string, string> = {
     idle: 'Tap face to speak',
@@ -346,18 +420,48 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
         {/* Header */}
         <View style={styles.headerSurface}>
           <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View
-                style={[
-                  styles.statusDot,
-                  { backgroundColor: isConnected ? Colors.success : Colors.error },
-                ]}
-              />
-              <Text style={styles.headerTitle}>Cassandra</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
-              <CloseIcon />
-            </TouchableOpacity>
+            {view === 'chat' ? (
+              <>
+                <TouchableOpacity onPress={() => setView('home')} activeOpacity={0.7} style={styles.headerBackBtn}>
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={Colors.textPrimary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M19 12H5M12 19l-7-7 7-7" />
+                  </Svg>
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Cassandra</Text>
+                <TouchableOpacity onPress={() => { loadHistory(); setView('history'); }} activeOpacity={0.7} style={styles.headerMenuBtn}>
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={Colors.textPrimary} strokeWidth="2" strokeLinecap="round">
+                    <Path d="M3 12h18M3 6h18M3 18h18" />
+                  </Svg>
+                </TouchableOpacity>
+              </>
+            ) : view === 'history' ? (
+              <>
+                <TouchableOpacity onPress={() => setView('chat')} activeOpacity={0.7} style={styles.headerBackBtn}>
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={Colors.textPrimary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M19 12H5M12 19l-7-7 7-7" />
+                  </Svg>
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Chat History</Text>
+                <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
+                  <CloseIcon />
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <View style={styles.headerLeft}>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: isConnected ? Colors.success : Colors.error },
+                    ]}
+                  />
+                  <Text style={styles.headerTitle}>Cassandra</Text>
+                </View>
+                <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
+                  <CloseIcon />
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
 
@@ -366,7 +470,48 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={80}
         >
-          {hasMessages ? (
+          {view === 'history' ? (
+            /* ─── HISTORY VIEW: previous sessions ─── */
+            <View style={styles.flex}>
+              <View style={styles.historyHeader}>
+                <TouchableOpacity onPress={handleNewChat} activeOpacity={0.7} style={styles.newChatBtn}>
+                  <Text style={styles.newChatBtnText}>+ New Chat</Text>
+                </TouchableOpacity>
+              </View>
+              {isLoadingHistory ? (
+                <View style={styles.centered}>
+                  <Text style={styles.loadingText}>Loading…</Text>
+                </View>
+              ) : sessions.length === 0 ? (
+                <View style={styles.centered}>
+                  <Text style={styles.emptyText}>No previous chats</Text>
+                </View>
+              ) : (
+                <ScrollView style={styles.flex} showsVerticalScrollIndicator={false}>
+                  {sessions.map((session) => (
+                    <TouchableOpacity
+                      key={session.id}
+                      style={styles.historyItem}
+                      onPress={() => loadSession(session.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.historyItemContent}>
+                        <Text style={styles.historyItemTitle} numberOfLines={1}>{session.title}</Text>
+                        <Text style={styles.historyItemDate}>{new Date(session.updated_at * 1000).toLocaleDateString()}</Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={(e) => { e.stopPropagation(); deleteChatSession(session.id).then(() => loadHistory()).catch(() => {}); }}
+                        activeOpacity={0.7}
+                        style={styles.historyDeleteBtn}
+                      >
+                        <Text style={styles.historyDeleteText}>×</Text>
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          ) : view === 'chat' ? (
             /* ─── CHAT MODE: bottom-aligned messages ─── */
             <ScrollView
               ref={scrollRef}
@@ -375,12 +520,34 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {[...messageHistory].reverse().map((msg) => (
+              {messageHistory.map((msg) => (
                 <ChatBubble key={msg.id} message={msg as ChatMessage} />
               ))}
+              {isTyping && (
+                <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
+                  <View style={[styles.bubble, styles.bubbleBot]}>
+                    <Text style={[styles.bubbleText, styles.bubbleTextBot]}>
+                      {currentResponse || 'Cassandra is typing…'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              {/* Suggestions strip at bottom of chat */}
+              {!isTyping && (
+                <View style={styles.suggestionsStrip}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionsStripContent}>
+                    {WHAT_I_CAN_DO.map((item) => (
+                      <SkillChip key={item.label} label={item.label} onPress={() => { addMessage({ role: 'user', text: item.message }); setView('chat'); handleSend(item.message); }} />
+                    ))}
+                    {propertyId && MST_SKILLS.map((item) => (
+                      <SkillChip key={item.label} label={item.label} onPress={() => { addMessage({ role: 'user', text: item.message }); setView('chat'); handleSend(item.message); }} />
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
             </ScrollView>
           ) : (
-            /* ─── EMPTY STATE: orb + suggestions ─── */
+            /* ─── HOME VIEW: orb + suggestions ─── */
             <ScrollView
               style={styles.flex}
               contentContainerStyle={styles.emptyScrollContent}
@@ -412,7 +579,15 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
                       key={item.label}
                       label={item.label}
                       variant="muted"
-                      onPress={() => handleSkill(item.action, item.endpoint)}
+                      onPress={() => { addMessage({ role: 'user', text: item.message }); setView('chat'); handleSend(item.message); }}
+                    />
+                  ))}
+                  {propertyId && MST_SKILLS.map((item) => (
+                    <SkillChip
+                      key={item.label}
+                      label={item.label}
+                      variant="muted"
+                      onPress={() => { addMessage({ role: 'user', text: item.message }); setView('chat'); handleSend(item.message); }}
                     />
                   ))}
                 </View>
@@ -427,7 +602,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
                       key={item.label}
                       label={item.label}
                       variant="muted"
-                      onPress={() => handleSkill(item.action, item.endpoint)}
+                      onPress={() => { addMessage({ role: 'user', text: item.message }); setView('chat'); handleSend(item.message); }}
                     />
                   ))}
                 </View>
@@ -442,27 +617,24 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
               { paddingBottom: Math.max(insets.bottom, SPACING.md) },
             ]}
           >
-            <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}>
-              <AttachmentIcon size={20} />
-            </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}>
-              <PersonIcon size={20} />
-            </TouchableOpacity>
+            {/* Attachment & mention buttons hidden until wired */}
+            {/* <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}><AttachmentIcon size={20} /></TouchableOpacity> */}
+            {/* <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}><PersonIcon size={20} /></TouchableOpacity> */}
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
                 value={inputText}
                 onChangeText={setInputText}
-                placeholder="Ask Cassandra anything…"
+                placeholder="Ask Sidekick anything…"
                 placeholderTextColor={Colors.textMuted}
-                onSubmitEditing={handleSend}
+                onSubmitEditing={() => { const text = inputText.trim(); if (text) { addMessage({ role: 'user', text }); setInputText(''); setView('chat'); handleSend(text); } }}
                 returnKeyType="send"
               />
               <TouchableOpacity onPress={handleOrbPress} activeOpacity={0.8} style={styles.micBtnInline}>
                 <MicIcon size={16} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={handleSend} activeOpacity={0.7} style={styles.sendBtn}>
+            <TouchableOpacity onPress={() => { const text = inputText.trim(); if (text) { addMessage({ role: 'user', text }); setInputText(''); setView('chat'); handleSend(text); } }} activeOpacity={0.7} style={styles.sendBtn}>
               <SendIcon />
             </TouchableOpacity>
           </View>
@@ -518,12 +690,11 @@ const styles = StyleSheet.create({
   },
   /* ─── Chat (bottom-aligned) ─── */
   chatScrollContent: {
-    flexDirection: 'column-reverse',
     paddingHorizontal: CassSpacing.lg,
     paddingTop: SPACING.lg,
     paddingBottom: SPACING.md,
     flexGrow: 1,
-    justifyContent: 'flex-start',
+    justifyContent: 'flex-end',
   },
   bubbleRow: {
     width: '100%',
@@ -680,6 +851,96 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.violet,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: CARD_SURFACES.cardBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+  },
+  headerMenuBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: CARD_SURFACES.cardBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+  },
+  historyHeader: {
+    paddingHorizontal: CassSpacing.lg,
+    paddingVertical: CassSpacing.md,
+  },
+  newChatBtn: {
+    backgroundColor: Colors.violet,
+    borderRadius: Radius.lg,
+    paddingHorizontal: CassSpacing.lg,
+    paddingVertical: CassSpacing.md,
+    alignItems: 'center',
+  },
+  newChatBtnText: {
+    ...Typography.body,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.textMuted,
+  },
+  emptyText: {
+    ...Typography.body,
+    color: Colors.textMuted,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: CassSpacing.lg,
+    paddingVertical: CassSpacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_SURFACES.cardBorder,
+  },
+  historyItemContent: {
+    flex: 1,
+  },
+  historyItemTitle: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    fontWeight: '500',
+  },
+  historyItemDate: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  historyDeleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyDeleteText: {
+    color: '#ef4444',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  suggestionsStrip: {
+    paddingVertical: CassSpacing.md,
+    paddingHorizontal: CassSpacing.lg,
+  },
+  suggestionsStripContent: {
+    gap: CassSpacing.sm,
   },
 });
 

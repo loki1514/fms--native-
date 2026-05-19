@@ -1,4 +1,4 @@
-import React, { useEffect, Component, ReactNode, useState, useCallback } from 'react';
+import React, { useEffect, Component, ReactNode, useState, useCallback, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -62,8 +62,12 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [showSplash, setShowSplash] = useState(true);
   const [appReady, setAppReady] = useState(false);
+  const appReadyRef = useRef(false);
 
-  // Mark app ready when fonts are loaded (or errored)
+  // Always reset splash to visible on mount (handles Fast Refresh / reload)
+  useEffect(() => {
+    setShowSplash(true);
+  }, []);
 
   console.log('[RootLayout] Rendering...');
 
@@ -89,9 +93,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded || fontError) {
       setAppReady(true);
+      appReadyRef.current = true;
     }
   }, [fontsLoaded, fontError]);
 
+  // Dismiss splash when animation completes — uses ref to avoid stale closure
   const handleSplashComplete = useCallback(() => {
     setShowSplash(false);
   }, []);
@@ -99,7 +105,11 @@ export default function RootLayout() {
   // Show custom splash immediately on first mount
   if (showSplash) {
     return (
-      <AutopilotSplash onComplete={handleSplashComplete} />
+      <AutopilotSplash
+        key="splash"
+        onComplete={handleSplashComplete}
+        isReady={appReady}
+      />
     );
   }
 

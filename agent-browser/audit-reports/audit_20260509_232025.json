@@ -1,0 +1,12 @@
+{
+  "audit_id": "20260509_232025",
+  "url": "http://localhost:8081",
+  "page_title": "",
+  "page_url": "http://localhost:8081/login",
+  "screenshot": "./screenshots/audit-login-v2.png",
+  "overall": "FAIL",
+  "pass_count": 0,
+  "fail_count": 2,
+  "total_checks": 2,
+  "criteria": "page shows 'Welcome Back'; page shows 'Sign In'"
+}

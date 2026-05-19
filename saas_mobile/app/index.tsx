@@ -48,6 +48,11 @@ export default function Index() {
     return <Redirect href={`/property/${firstProperty.id}`} />;
   }
 
+  // User has no properties but already completed onboarding — send to property selection
+  if (user?.user_metadata?.onboarding_completed) {
+    return <Redirect href="/(auth)/property-selection" />;
+  }
+
   // User is authenticated but has no property access — send to onboarding to complete setup
   return <Redirect href="/onboarding" />;
 }
