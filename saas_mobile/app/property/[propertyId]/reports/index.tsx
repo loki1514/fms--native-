@@ -10,7 +10,10 @@ import {
   List,
   ChevronRight,
   LayoutDashboard,
+  ArrowLeft,
 } from 'lucide-react-native';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface ReportCardProps {
   title: string;
@@ -22,13 +25,12 @@ interface ReportCardProps {
 
 function ReportCard({ title, description, icon, onPress, color = '#708F96' }: ReportCardProps) {
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
-  const bg = isDark ? '#1E2535' : '#FFFFFF';
-  const border = isDark ? '#2D3748' : '#E2E8F0';
+  const bg = 'rgba(255, 255, 255, 0.08)';
+  const border = 'rgba(255, 255, 255, 0.15)';
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: bg, borderColor: border }]}
+      style={[styles.card, { backgroundColor: bg, borderColor: border, borderWidth: 1 }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -36,8 +38,8 @@ function ReportCard({ title, description, icon, onPress, color = '#708F96' }: Re
         {icon}
       </View>
       <View style={styles.cardContent}>
-        <Text style={[styles.cardTitle, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>{title}</Text>
-        <Text style={[styles.cardDesc, { color: isDark ? '#708F96' : '#708F96' }]}>{description}</Text>
+        <Text style={[styles.cardTitle, { color: theme === 'dark' ? '#F8FAFC' : '#1A2332' }]}>{title}</Text>
+        <Text style={[styles.cardDesc, { color: '#708F96' }]}>{description}</Text>
       </View>
       <ChevronRight size={18} color={color} strokeWidth={1.5} />
     </TouchableOpacity>
@@ -52,15 +54,25 @@ export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const isDark = theme === 'dark';
 
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <LinearGradient 
+        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
+        style={StyleSheet.absoluteFillObject} 
+      />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>Reports</Text>
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
+              <ArrowLeft size={22} color={isDark ? '#F8FAFC' : '#1A2332'} />
+            </TouchableOpacity>
+            <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>Reports</Text>
+          </View>
           <Text style={[styles.subtitle, { color: isDark ? '#708F96' : '#708F96' }]}>
             Property analytics and performance insights
           </Text>
@@ -113,6 +125,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 100 },
   header: { marginBottom: 24 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  backBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
   title: { fontSize: 28, fontFamily: 'Poppins-Bold', marginBottom: 4 },
   subtitle: { fontSize: 14, fontFamily: 'Urbanist-Regular' },
   section: { gap: 12 },

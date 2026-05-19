@@ -13,15 +13,21 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
+import { fetchUsersList, createMemberUser } from '@/utils/api/mobileApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useAuth } from '@/hooks/useAuth';
+import { LinearGradient } from 'expo-linear-gradient';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import { Ionicons } from '@expo/vector-icons';
+
+
 import BottomSheet, {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
@@ -104,54 +110,62 @@ function getRoleBadgeColor(role: string): {
 
 // ─── Segmented Control ────────────────────────────────────────────────────────
 
-const TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'property_admin', label: 'Admins' },
-  { key: 'staff', label: 'Staff' },
-  { key: 'mst', label: 'MST' },
-];
-
 function SegmentedControl({
   selected,
   onSelect,
   colors,
+  tabs,
 }: {
   selected: string;
   onSelect: (key: string) => void;
   colors: typeof Colors.light;
+  tabs: Array<{ key: string; label: string }>;
 }) {
   return (
-    <View
-      style={[
-        styles.segmentContainer,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-      ]}
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.segmentScroll}
+      contentContainerStyle={styles.segmentScrollContent}
     >
-      {TABS.map((tab) => {
-        const isSelected = selected === tab.key;
-        return (
-          <TouchableOpacity
-            key={tab.key}
-            style={[
-              styles.segmentItem,
-              isSelected && { backgroundColor: colors.primary },
-            ]}
-            onPress={() => onSelect(tab.key)}
-            activeOpacity={0.7}
-          >
-            <Text
+      <SafeBlurView
+        intensity={60}
+        tint="dark"
+        style={[
+          styles.segmentContainer,
+          { borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(15,23,42,0.65)', overflow: 'hidden' },
+        ]}
+      >
+        <LinearGradient
+          colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.04)', 'rgba(0,0,0,0.05)']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        {tabs.map((tab) => {
+          const isSelected = selected === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
               style={[
-                styles.segmentText,
-                { color: isSelected ? '#FFFFFF' : colors.textSecondary },
-                isSelected && styles.segmentTextSelected,
+                styles.segmentItemScroll,
+                isSelected && { backgroundColor: 'rgba(255,255,255,0.15)' },
               ]}
+              onPress={() => onSelect(tab.key)}
+              activeOpacity={0.7}
             >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
+              <Text
+                style={[
+                  styles.segmentText,
+                  { color: isSelected ? '#FFFFFF' : '#94A3B8' },
+                  isSelected && styles.segmentTextSelected,
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </SafeBlurView>
+    </ScrollView>
   );
 }
 
@@ -178,92 +192,99 @@ function UserCard({
 
   return (
     <TouchableOpacity
-      style={[
-        styles.userCard,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
+      style={[styles.userCardWrapper]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      {/* Avatar */}
-      <View
-        style={[
-          styles.avatarCircle,
-          { backgroundColor: colors.primaryLight, borderColor: colors.border },
-        ]}
+      <SafeBlurView
+        intensity={60}
+        tint="dark"
+        style={styles.userCard}
       >
-        {user.user_photo_url || user.avatar_url ? (
-          <Image
-            source={{ uri: user.user_photo_url || user.avatar_url }}
-            style={styles.avatarImage}
-          />
-        ) : (
-          <Text style={[styles.avatarInitials, { color: colors.primary }]}>
-            {initials}
-          </Text>
-        )}
-      </View>
+        <LinearGradient
+          colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.04)', 'rgba(0,0,0,0.05)']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        {/* Avatar */}
+        <View
+          style={[
+            styles.avatarCircle,
+            { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)' },
+          ]}
+        >
+          {user.user_photo_url || user.avatar_url ? (
+            <Image
+              source={{ uri: user.user_photo_url || user.avatar_url }}
+              style={styles.avatarImage}
+            />
+          ) : (
+            <Text style={[styles.avatarInitials, { color: '#FFFFFF' }]}>
+              {initials}
+            </Text>
+          )}
+        </View>
 
-      {/* User Info */}
-      <View style={styles.userCardInfo}>
-        <View style={styles.userCardNameRow}>
+        {/* User Info */}
+        <View style={styles.userCardInfo}>
+          <View style={styles.userCardNameRow}>
+            <Text
+              style={[styles.userCardName, { color: '#FFFFFF' }]}
+              numberOfLines={1}
+            >
+              {user.full_name || 'Unknown'}
+            </Text>
+            <View
+              style={[
+                styles.roleBadge,
+                { backgroundColor: roleBadge.bg, borderColor: roleBadge.border },
+              ]}
+            >
+              <Text style={[styles.roleBadgeText, { color: roleBadge.text }]}>
+                {formatRole(user.propertyRole || user.role)}
+              </Text>
+            </View>
+          </View>
+
           <Text
-            style={[styles.userCardName, { color: colors.text }]}
+            style={[styles.userCardEmail, { color: '#94A3B8' }]}
             numberOfLines={1}
           >
-            {user.full_name || 'Unknown'}
+            {user.email}
           </Text>
-          <View
-            style={[
-              styles.roleBadge,
-              { backgroundColor: roleBadge.bg, borderColor: roleBadge.border },
-            ]}
-          >
-            <Text style={[styles.roleBadgeText, { color: roleBadge.text }]}>
-              {formatRole(user.propertyRole || user.role)}
+
+          <View style={styles.userCardMeta}>
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor: user.is_active ? '#10B981' : '#94A3B8',
+                },
+              ]}
+            />
+            <Text style={[styles.statusText, { color: '#94A3B8' }]}>
+              {user.is_active ? 'Active' : 'Inactive'}
             </Text>
+            {user.joined_at && (
+              <>
+                <Text style={[styles.metaDivider, { color: 'rgba(255,255,255,0.3)' }]}>
+                  {' '}
+                  ·{' '}
+                </Text>
+                <Text style={[styles.statusText, { color: '#94A3B8' }]}>
+                  Joined {formatJoinDate(user.joined_at)}
+                </Text>
+              </>
+            )}
           </View>
         </View>
 
-        <Text
-          style={[styles.userCardEmail, { color: colors.textSecondary }]}
-          numberOfLines={1}
-        >
-          {user.email}
-        </Text>
-
-        <View style={styles.userCardMeta}>
-          <View
-            style={[
-              styles.statusDot,
-              {
-                backgroundColor: user.is_active ? colors.success : '#94A3B8',
-              },
-            ]}
-          />
-          <Text style={[styles.statusText, { color: colors.textSecondary }]}>
-            {user.is_active ? 'Active' : 'Inactive'}
-          </Text>
-          {user.joined_at && (
-            <>
-              <Text style={[styles.metaDivider, { color: colors.textTertiary }]}>
-                {' '}
-                ·{' '}
-              </Text>
-              <Text style={[styles.statusText, { color: colors.textSecondary }]}>
-                Joined {formatJoinDate(user.joined_at)}
-              </Text>
-            </>
-          )}
-        </View>
-      </View>
-
-      {/* Chevron */}
-      <ChevronRight
-        size={18}
-        color={colors.textTertiary}
-        style={styles.chevron}
-      />
+        {/* Chevron */}
+        <ChevronRight
+          size={18}
+          color="rgba(255,255,255,0.4)"
+          style={styles.chevron}
+        />
+      </SafeBlurView>
     </TouchableOpacity>
   );
 }
@@ -288,14 +309,20 @@ function formatJoinDate(dateStr: string): string {
 function EmptyState({ colors }: { colors: typeof Colors.light }) {
   return (
     <View style={styles.emptyState}>
-      <View
+      <SafeBlurView
+        intensity={40}
+        tint="dark"
         style={[
           styles.emptyIconWrap,
-          { backgroundColor: colors.primaryLight },
+          { borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
         ]}
       >
+        <LinearGradient
+          colors={['rgba(255,255,255,0.12)', 'rgba(255,255,255,0.05)', 'rgba(0,0,0,0.05)']}
+          style={StyleSheet.absoluteFillObject}
+        />
         <Search size={32} color={colors.primary} />
-      </View>
+      </SafeBlurView>
       <Text style={[styles.emptyTitle, { color: colors.text }]}>
         No team members found
       </Text>
@@ -454,138 +481,51 @@ function UserDetailSheet({
       snapPoints={snapPoints}
       enablePanDownToClose
       backdropComponent={renderBackdrop}
-      backgroundStyle={{ backgroundColor: colors.card }}
-      handleIndicatorStyle={{ backgroundColor: colors.border }}
+      backgroundStyle={{ backgroundColor: '#0a0f1e' }}
+      handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.25)', width: 40 }}
     >
       <BottomSheetScrollView contentContainerStyle={styles.sheetContent}>
         {/* Header */}
-        <View style={styles.sheetHeader}>
-          <View
-            style={[
-              styles.sheetAvatar,
-              { backgroundColor: colors.primaryLight },
-            ]}
-          >
-            {user.user_photo_url || user.avatar_url ? (
-              <Image
-                source={{ uri: user.user_photo_url || user.avatar_url }}
-                style={styles.sheetAvatarImage}
-              />
-            ) : (
-              <Text style={[styles.sheetAvatarText, { color: colors.primary }]}>
-                {initials}
-              </Text>
-            )}
+        <LinearGradient colors={['rgba(112,143,150,0.18)', 'rgba(0,0,0,0)']} style={styles.sheetHeaderGrad}>
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetAvatarGlow}>
+              <View style={styles.sheetAvatar}>
+                {user.user_photo_url || user.avatar_url ? (
+                  <Image source={{ uri: user.user_photo_url || user.avatar_url }} style={styles.sheetAvatarImage} />
+                ) : (
+                  <Text style={styles.sheetAvatarText}>{initials}</Text>
+                )}
+              </View>
+            </View>
+            <Text style={styles.sheetName}>{user.full_name || 'Unknown'}</Text>
+            <View style={[styles.sheetRoleBadge, { backgroundColor: roleBadge.bg + '22', borderColor: roleBadge.border + '88' }]}>
+              <Text style={[styles.sheetRoleBadgeText, { color: roleBadge.border }]}>{formatRole(user.propertyRole || user.role)}</Text>
+            </View>
+            <View style={[styles.sheetStatusBadge, { backgroundColor: user.is_active ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)' }]}>
+              <View style={[styles.sheetStatusDot, { backgroundColor: user.is_active ? '#10B981' : '#EF4444', shadowColor: user.is_active ? '#10B981' : '#EF4444', shadowOpacity: 0.8, shadowRadius: 4 }]} />
+              <Text style={[styles.sheetStatusText, { color: user.is_active ? '#10B981' : '#EF4444' }]}>{user.is_active ? 'Active' : 'Inactive'}</Text>
+            </View>
           </View>
-          <Text style={[styles.sheetName, { color: colors.text }]}>
-            {user.full_name || 'Unknown'}
-          </Text>
-          <View
-            style={[
-              styles.sheetRoleBadge,
-              { backgroundColor: roleBadge.bg, borderColor: roleBadge.border },
-            ]}
-          >
-            <Text style={[styles.sheetRoleBadgeText, { color: roleBadge.text }]}>
-              {formatRole(user.propertyRole || user.role)}
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.sheetStatusBadge,
-              {
-                backgroundColor: user.is_active
-                  ? colors.successBg
-                  : colors.errorBg,
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.sheetStatusDot,
-                {
-                  backgroundColor: user.is_active
-                    ? colors.success
-                    : colors.error,
-                },
-              ]}
-            />
-            <Text
-              style={[
-                styles.sheetStatusText,
-                {
-                  color: user.is_active ? colors.success : colors.error,
-                },
-              ]}
-            >
-              {user.is_active ? 'Active' : 'Inactive'}
-            </Text>
-          </View>
-        </View>
+        </LinearGradient>
 
         {/* User Details */}
-        <View
-          style={[
-            styles.sheetSection,
-            { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-          ]}
-        >
-          <DetailRow
-            icon={<Mail size={14} color={colors.textSecondary} />}
-            label="Email"
-            value={user.email}
-            colors={colors}
-          />
-          {user.phone && (
-            <DetailRow
-              icon={<Phone size={14} color={colors.textSecondary} />}
-              label="Phone"
-              value={user.phone}
-              colors={colors}
-            />
-          )}
-          <DetailRow
-            icon={<Building2 size={14} color={colors.textSecondary} />}
-            label="Role"
-            value={formatRole(user.propertyRole || user.role)}
-            colors={colors}
-          />
-          {user.joined_at && (
-            <DetailRow
-              icon={<Calendar size={14} color={colors.textSecondary} />}
-              label="Joined"
-              value={new Date(user.joined_at).toLocaleDateString()}
-              colors={colors}
-            />
-          )}
-          {skills.length > 0 && (
-            <DetailRow
-              icon={<Wrench size={14} color={colors.textSecondary} />}
-              label="Skills"
-              value={skills.join(', ')}
-              colors={colors}
-            />
-          )}
+        <View style={styles.sheetSection}>
+          <DetailRow icon={<Mail size={14} color="#708F96" />} label="Email" value={user.email} colors={colors} />
+          {user.phone && <DetailRow icon={<Phone size={14} color="#708F96" />} label="Phone" value={user.phone} colors={colors} />}
+          <DetailRow icon={<Building2 size={14} color="#708F96" />} label="Role" value={formatRole(user.propertyRole || user.role)} colors={colors} />
+          {user.joined_at && <DetailRow icon={<Calendar size={14} color="#708F96" />} label="Joined" value={new Date(user.joined_at).toLocaleDateString()} colors={colors} />}
+          {skills.length > 0 && <DetailRow icon={<Wrench size={14} color="#708F96" />} label="Skills" value={skills.join(', ')} colors={colors} />}
         </View>
 
         {/* Actions */}
         <View style={styles.sheetActions}>
           {/* Change Role */}
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-            ]}
-            onPress={() => setShowRolePicker(!showRolePicker)}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowRolePicker(!showRolePicker)} activeOpacity={0.75}>
             <View style={styles.actionLeft}>
-              <Shield size={18} color={colors.primary} />
-              <Text style={[styles.actionText, { color: colors.text }]}>
-                Change Role
-              </Text>
+              <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(112,143,150,0.18)' }]}><Shield size={16} color="#708F96" /></View>
+              <Text style={styles.actionText}>Change Role</Text>
             </View>
-            <ChevronRight size={16} color={colors.textTertiary} />
+            <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
           </TouchableOpacity>
 
           {showRolePicker && (
@@ -638,86 +578,39 @@ function UserDetailSheet({
           )}
 
           {/* Reset Password */}
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-            ]}
-            onPress={handleResetPassword}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.actionButton} onPress={handleResetPassword} activeOpacity={0.75}>
             <View style={styles.actionLeft}>
-              <Key size={18} color={colors.textSecondary} />
-              <Text style={[styles.actionText, { color: colors.text }]}>
-                Reset Password
-              </Text>
+              <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(59,130,246,0.15)' }]}><Key size={16} color="#3B82F6" /></View>
+              <Text style={styles.actionText}>Reset Password</Text>
             </View>
-            <ChevronRight size={16} color={colors.textTertiary} />
+            <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
           </TouchableOpacity>
 
           {/* Deactivate / Activate */}
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-            ]}
-            onPress={handleToggleActive}
-            activeOpacity={0.7}
-            disabled={isLoading}
-          >
+          <TouchableOpacity style={styles.actionButton} onPress={handleToggleActive} activeOpacity={0.75} disabled={isLoading}>
             <View style={styles.actionLeft}>
-              <RefreshCw size={18} color={colors.textSecondary} />
-              <Text style={[styles.actionText, { color: colors.text }]}>
-                {user.is_active ? 'Deactivate' : 'Activate'}
-              </Text>
+              <View style={[styles.actionIconWrap, { backgroundColor: user.is_active ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)' }]}><RefreshCw size={16} color={user.is_active ? '#EF4444' : '#10B981'} /></View>
+              <Text style={[styles.actionText, { color: user.is_active ? '#EF4444' : '#10B981' }]}>{user.is_active ? 'Deactivate' : 'Activate'}</Text>
             </View>
-            <ChevronRight size={16} color={colors.textTertiary} />
+            <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
           </TouchableOpacity>
 
           {/* Remove */}
           {showConfirmDelete ? (
-            <View
-              style={[
-                styles.confirmDeleteContainer,
-                { backgroundColor: colors.errorBg, borderColor: colors.errorBorder },
-              ]}
-            >
-              <Text style={[styles.confirmDeleteText, { color: colors.error }]}>
-                Remove {user.full_name} from this property?
-              </Text>
+            <View style={styles.confirmDeleteContainer}>
+              <Text style={styles.confirmDeleteText}>Remove {user.full_name} from this property?</Text>
               <View style={styles.confirmDeleteButtons}>
-                <Button
-                  title="Cancel"
-                  variant="ghost"
-                  size="sm"
-                  onPress={() => setShowConfirmDelete(false)}
-                />
-                <Button
-                  title="Remove"
-                  variant="danger"
-                  size="sm"
-                  onPress={handleRemoveUser}
-                  loading={isLoading}
-                />
+                <Button title="Cancel" variant="ghost" size="sm" onPress={() => setShowConfirmDelete(false)} />
+                <Button title="Remove" variant="danger" size="sm" onPress={handleRemoveUser} loading={isLoading} />
               </View>
             </View>
           ) : (
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.actionButtonDanger,
-                { backgroundColor: colors.errorBg, borderColor: colors.errorBorder },
-              ]}
-              onPress={() => setShowConfirmDelete(true)}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={[styles.actionButton, { borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)' }]} onPress={() => setShowConfirmDelete(true)} activeOpacity={0.75}>
               <View style={styles.actionLeft}>
-                <Trash2 size={18} color={colors.error} />
-                <Text style={[styles.actionText, { color: colors.error }]}>
-                  Remove from Property
-                </Text>
+                <View style={[styles.actionIconWrap, { backgroundColor: 'rgba(239,68,68,0.15)' }]}><Trash2 size={16} color="#EF4444" /></View>
+                <Text style={[styles.actionText, { color: '#EF4444' }]}>Remove from Property</Text>
               </View>
-              <ChevronRight size={16} color={colors.error} />
+              <ChevronRight size={16} color="rgba(239,68,68,0.5)" />
             </TouchableOpacity>
           )}
         </View>
@@ -752,23 +645,32 @@ function DetailRow({
 
 // ─── Invite Member Bottom Sheet ───────────────────────────────────────────────
 
+// ─── Invite Member Bottom Sheet ───────────────────────────────────────────────
+
 function InviteMemberSheet({
   bottomSheetRef,
   propertyId,
+  organizationId,
   colors,
   onSuccess,
 }: {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
   propertyId: string;
+  organizationId: string;
   colors: typeof Colors.light;
   onSuccess: () => void;
 }) {
-  const snapPoints = useMemo(() => ['60%'], []);
+  const snapPoints = useMemo(() => ['85%'], []);
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('staff');
+  const [specialization, setSpecialization] = useState('');
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const { user: authUser } = useAuth();
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -782,8 +684,37 @@ function InviteMemberSheet({
     []
   );
 
+  const SPEC_OPTIONS = [
+    { code: '', label: 'General' },
+    { code: 'soft_service', label: 'Soft Services' },
+    { code: 'technical', label: 'Technical' },
+    { code: 'plumbing', label: 'Plumbing' },
+    { code: 'electrical', label: 'Electrical' },
+  ];
+
+  const SKILL_OPTIONS = useMemo(() => {
+    if (role === 'mst') {
+      return [
+        { code: 'technical', label: 'Technical' },
+        { code: 'plumbing', label: 'Plumbing' },
+        { code: 'vendor', label: 'Vendor Coordination' },
+      ];
+    }
+    if (role === 'staff') {
+      return [
+        { code: 'technical', label: 'Technical' },
+        { code: 'soft_services', label: 'Soft Services' },
+      ];
+    }
+    return [];
+  }, [role]);
+
   async function handleInvite() {
     setError('');
+    if (!fullName.trim()) {
+      setError('Full Name is required');
+      return;
+    }
     if (!email.trim()) {
       setError('Email is required');
       return;
@@ -792,55 +723,40 @@ function InviteMemberSheet({
       setError('Please enter a valid email address');
       return;
     }
+    if (!organizationId) {
+      setError('Failed to resolve Organization ID. Please wait a moment or reload.');
+      return;
+    }
 
     setIsLoading(true);
     try {
-      // First check if user exists by email
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', email.trim().toLowerCase())
-        .single();
+      const response = await createMemberUser({
+        email: email.trim().toLowerCase(),
+        password: password.trim() || undefined,
+        full_name: fullName.trim(),
+        phone: phone.trim() || undefined,
+        organization_id: organizationId,
+        role: role,
+        property_id: propertyId,
+        specialization: role === 'staff' ? (specialization || undefined) : undefined,
+        skills: (role === 'staff' || role === 'mst') ? selectedSkills : undefined,
+      });
 
-      if (existingUser) {
-        // User exists — add to property_memberships
-        const { error: memberError } = await (supabase
-          .from('property_memberships') as any)
-          .insert({
-            user_id: (existingUser as any).id,
-            property_id: propertyId,
-            role: role,
-            is_active: true,
-            is_accepted: true,
-            joined_at: new Date().toISOString(),
-          });
-        if (memberError) {
-          if (memberError.code === '23505') {
-            setError('This user is already a member of this property.');
-          } else {
-            throw memberError;
-          }
-          return;
-        }
-      } else {
-        // User doesn't exist — create invite (stored as pending membership)
-        const { error: inviteError } = await (supabase
-          .from('property_invites') as any)
-          .insert({
-            email: email.trim().toLowerCase(),
-            property_id: propertyId,
-            role: role,
-            invited_by: authUser?.id,
-          });
-        if (inviteError) throw inviteError;
+      if (response.error) {
+        throw new Error(response.error);
       }
 
       bottomSheetRef.current?.close();
+      setFullName('');
       setEmail('');
+      setPassword('');
+      setPhone('');
       setRole('staff');
+      setSpecialization('');
+      setSelectedSkills([]);
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Failed to send invite');
+      setError(err.message || 'Failed to create member');
     } finally {
       setIsLoading(false);
     }
@@ -868,15 +784,43 @@ function InviteMemberSheet({
             <UserPlus size={24} color={colors.primary} />
           </View>
           <Text style={[styles.inviteTitle, { color: colors.text }]}>
-            Invite Team Member
+            Add Team Member
           </Text>
           <Text style={[styles.inviteSubtitle, { color: colors.textSecondary }]}>
-            Add a new member to this property by email.
+            Create an account for this property using mobile APIs.
           </Text>
         </View>
 
         {/* Form */}
         <View style={styles.inviteForm}>
+          {error ? (
+            <Text style={[styles.inputError, { color: colors.error, textAlign: 'center', marginBottom: 8 }]}>
+              {error}
+            </Text>
+          ) : null}
+
+          {/* Full Name */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+              Full Name
+            </Text>
+            <TextInput
+              style={[
+                styles.emailInput,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="John Doe"
+              placeholderTextColor={colors.textTertiary}
+              value={fullName}
+              onChangeText={setFullName}
+            />
+          </View>
+
+          {/* Email Address */}
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
               Email Address
@@ -886,7 +830,7 @@ function InviteMemberSheet({
                 styles.emailInput,
                 {
                   backgroundColor: colors.surfaceElevated,
-                  borderColor: error ? colors.error : colors.border,
+                  borderColor: colors.border,
                   color: colors.text,
                 },
               ]}
@@ -901,13 +845,68 @@ function InviteMemberSheet({
               autoCapitalize="none"
               autoCorrect={false}
             />
-            {error ? (
-              <Text style={[styles.inputError, { color: colors.error }]}>
-                {error}
-              </Text>
-            ) : null}
           </View>
 
+          {/* Password */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+              Password (Optional)
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TextInput
+                style={[
+                  styles.emailInput,
+                  {
+                    flex: 1,
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    paddingRight: 40,
+                  },
+                ]}
+                placeholder="•••••••• (Temp password generated if blank)"
+                placeholderTextColor={colors.textTertiary}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={{ position: 'absolute', right: 12 }}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Phone Number */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+              Phone Number (Optional)
+            </Text>
+            <TextInput
+              style={[
+                styles.emailInput,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="+1234567890"
+              placeholderTextColor={colors.textTertiary}
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* Role */}
           <View style={styles.inputGroup}>
             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
               Role
@@ -929,7 +928,11 @@ function InviteMemberSheet({
                           : colors.border,
                       },
                     ]}
-                    onPress={() => setRole(r)}
+                    onPress={() => {
+                      setRole(r);
+                      setSelectedSkills([]);
+                      setSpecialization('');
+                    }}
                     activeOpacity={0.7}
                   >
                     <Text
@@ -947,17 +950,107 @@ function InviteMemberSheet({
               })}
             </View>
           </View>
+
+          {/* Specialization Selection */}
+          {role === 'staff' && (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                Specialization
+              </Text>
+              <View style={styles.roleSelectorContainer}>
+                {SPEC_OPTIONS.map((spec) => {
+                  const isSelected = specialization === spec.code;
+                  return (
+                    <TouchableOpacity
+                      key={spec.code}
+                      style={[
+                        styles.roleChip,
+                        {
+                          backgroundColor: isSelected
+                            ? colors.primary
+                            : colors.surfaceElevated,
+                          borderColor: isSelected
+                            ? colors.primary
+                            : colors.border,
+                        },
+                      ]}
+                      onPress={() => setSpecialization(spec.code)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.roleChipText,
+                          {
+                            color: isSelected ? '#FFFFFF' : colors.textSecondary,
+                          },
+                        ]}
+                      >
+                        {spec.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* Skills Selection */}
+          {(role === 'mst' || role === 'staff') && (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                Member Skills
+              </Text>
+              <View style={styles.skillListContainer}>
+                {SKILL_OPTIONS.map((skill) => {
+                  const isSelected = selectedSkills.includes(skill.code);
+                  return (
+                    <TouchableOpacity
+                      key={skill.code}
+                      style={[
+                        styles.skillItem,
+                        {
+                          backgroundColor: isSelected ? colors.primaryLight : colors.surfaceElevated,
+                          borderColor: isSelected ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => {
+                        setSelectedSkills((prev) =>
+                          isSelected ? prev.filter((s) => s !== skill.code) : [...prev, skill.code]
+                        );
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.skillItemText, { color: isSelected ? colors.primary : colors.text }]}>
+                        {skill.label}
+                      </Text>
+                      <View
+                        style={[
+                          styles.skillCheckbox,
+                          {
+                            backgroundColor: isSelected ? colors.primary : colors.card,
+                            borderColor: isSelected ? colors.primary : colors.border,
+                          },
+                        ]}
+                      >
+                        {isSelected && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Actions */}
         <View style={styles.inviteActions}>
           <Button
-            title="Send Invite"
+            title="Create Member Account"
             variant="primary"
             size="lg"
             onPress={handleInvite}
             loading={isLoading}
-            leftIcon={<Mail size={16} color="#FFFFFF" />}
+            leftIcon={<UserPlus size={16} color="#FFFFFF" />}
             style={styles.inviteButton}
           />
           <Button
@@ -966,8 +1059,13 @@ function InviteMemberSheet({
             size="md"
             onPress={() => {
               bottomSheetRef.current?.close();
+              setFullName('');
               setEmail('');
+              setPassword('');
+              setPhone('');
               setRole('staff');
+              setSpecialization('');
+              setSelectedSkills([]);
               setError('');
             }}
           />
@@ -981,20 +1079,76 @@ function InviteMemberSheet({
 
 export default function UsersScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
 
   const [users, setUsers] = useState<UserWithMembership[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTab, setSelectedTab] = useState('all');
   const [selectedUser, setSelectedUser] = useState<UserWithMembership | null>(null);
 
+  // Dynamically extract all unique roles present in the team
+  const availableRoles = useMemo(() => {
+    const unique = new Set<string>();
+    users.forEach((u) => {
+      const r = u.propertyRole || u.role;
+      if (r) unique.add(r);
+    });
+
+    const activeRoles = Array.from(unique);
+
+    return [
+      { key: 'all', label: 'All' },
+      ...activeRoles.map((r) => {
+        let label = formatRole(r);
+        if (r === 'property_admin') label = 'Admins';
+        else if (r === 'staff') label = 'Staff';
+        else if (r === 'mst') label = 'MST';
+        else if (r === 'security') label = 'Security';
+        else if (r === 'tenant') label = 'Clients';
+        else if (r === 'super_tenant') label = 'Super Clients';
+        else {
+          if (!label.endsWith('s')) {
+            label = label + 's';
+          }
+        }
+        return { key: r, label };
+      }),
+    ];
+  }, [users]);
+
+  // If the selected tab is no longer available in the roles list, reset it to 'all'
+  useEffect(() => {
+    if (selectedTab !== 'all' && !availableRoles.some((r) => r.key === selectedTab)) {
+      setSelectedTab('all');
+    }
+  }, [availableRoles, selectedTab]);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+
   // Bottom sheet refs
   const userDetailSheetRef = useRef<BottomSheet>(null);
   const inviteSheetRef = useRef<BottomSheet>(null);
+
+  useEffect(() => {
+    if (propertyId) {
+      supabase
+        .from('properties')
+        .select('organization_id')
+        .eq('id', propertyId)
+        .single()
+        .then(({ data }: any) => {
+          if (data?.organization_id) {
+            setOrganizationId(data.organization_id);
+          }
+        });
+    }
+  }, [propertyId]);
 
   useEffect(() => {
     if (propertyId) {
@@ -1013,28 +1167,27 @@ export default function UsersScreen() {
           `
           role,
           is_active,
-          is_accepted,
-          joined_at,
-          user:users(id, email, full_name, phone, avatar_url, user_photo_url)
+          created_at,
+          user:users(id, email, full_name, phone, user_photo_url)
         `
         )
         .eq('property_id', propertyId)
-        .order('joined_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       const mapped: UserWithMembership[] = (data || []).map((m: any) => ({
         id: m.user?.id || '',
-        full_name: m.user?.full_name || m.user?.name || 'Unknown',
+        full_name: m.user?.full_name || 'Unknown',
         email: m.user?.email || '',
-        avatar_url: m.user?.avatar_url,
+        avatar_url: m.user?.user_photo_url,
         user_photo_url: m.user?.user_photo_url,
         phone: m.user?.phone,
         propertyRole: m.role,
         role: m.role,
         is_active: m.is_active ?? true,
-        is_accepted: m.is_accepted ?? true,
-        joined_at: m.joined_at || new Date().toISOString(),
+        is_accepted: true,
+        joined_at: m.created_at || new Date().toISOString(),
       }));
 
       setUsers(mapped);
@@ -1081,50 +1234,83 @@ export default function UsersScreen() {
 
   return (
     <View
-      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.title, { color: colors.text }]}>Team</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {totalCount} members · {activeCount} active
-          </Text>
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
+      />
+
+      <LinearGradient
+        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      {/* Modern Header */}
+      <SafeBlurView
+        intensity={80}
+        tint="dark"
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.headerTitleWrap}>
+            <Text style={[styles.headerTitleMain, { color: '#FFFFFF' }]}>Team</Text>
+            <Text style={[styles.headerSubtitleMain, { color: '#94A3B8' }]}>
+              {totalCount} members · {activeCount} active
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.headerAddBtn, { backgroundColor: colors.primary }]}
+            onPress={handleAddMember}
+            activeOpacity={0.8}
+          >
+            <UserPlus size={18} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={handleAddMember}
-          activeOpacity={0.8}
-        >
-          <UserPlus size={18} color="#FFFFFF" />
-          <Text style={styles.addButtonText}>Add Member</Text>
-        </TouchableOpacity>
-      </View>
+      </SafeBlurView>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <View
+        <SafeBlurView
+          intensity={60}
+          tint="dark"
           style={[
             styles.searchBar,
-            { backgroundColor: colors.surface, borderColor: colors.border },
+            { borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(15,23,42,0.65)', overflow: 'hidden' },
           ]}
         >
-          <Search size={16} color={colors.textTertiary} />
+          <LinearGradient
+            colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.04)', 'rgba(0,0,0,0.05)']}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <TouchableOpacity
+            onPress={() => Keyboard.dismiss()}
+            activeOpacity={0.7}
+            style={styles.searchIconBtn}
+          >
+            <Search size={16} color="#94A3B8" />
+          </TouchableOpacity>
           <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
+            style={[styles.searchInput, { color: '#FFFFFF' }]}
             placeholder="Search members..."
-            placeholderTextColor={colors.textTertiary}
+            placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
             autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={() => Keyboard.dismiss()}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <X size={16} color={colors.textTertiary} />
+              <X size={16} color="#94A3B8" />
             </TouchableOpacity>
           )}
-        </View>
+        </SafeBlurView>
       </View>
 
       {/* Segmented Control */}
@@ -1133,6 +1319,7 @@ export default function UsersScreen() {
           selected={selectedTab}
           onSelect={setSelectedTab}
           colors={colors}
+          tabs={availableRoles}
         />
       </View>
 
@@ -1157,7 +1344,8 @@ export default function UsersScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={colors.primary}
+              tintColor="#7CB9A8"
+              colors={['#7CB9A8']}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -1180,10 +1368,16 @@ export default function UsersScreen() {
         <InviteMemberSheet
           bottomSheetRef={inviteSheetRef}
           propertyId={propertyId}
+          organizationId={organizationId || ''}
           colors={colors}
           onSuccess={fetchUsers}
         />
       )}
+
+      {/* Mobile Footer */}
+
+
+
     </View>
   );
 }
@@ -1195,39 +1389,57 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingBottom: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+    zIndex: 10,
   },
-  title: {
-    fontSize: 28,
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  headerTitleWrap: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  headerTitleMain: {
+    fontSize: 20,
     fontFamily: 'Poppins-Bold',
     letterSpacing: -0.5,
+    textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 13,
+  headerSubtitleMain: {
+    fontSize: 12,
     fontFamily: 'Urbanist-Medium',
-    marginTop: 2,
+    marginTop: 1,
+    textAlign: 'center',
   },
-  addButton: {
-    flexDirection: 'row',
+  headerAddBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   searchContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    marginTop: 12,
   },
   searchBar: {
     flexDirection: 'row',
@@ -1236,7 +1448,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 44,
     borderRadius: 12,
-    borderWidth: 1,
+    overflow: 'hidden',
   },
   searchInput: {
     flex: 1,
@@ -1248,11 +1460,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
+  segmentScroll: {
+    flexGrow: 0,
+  },
+  segmentScrollContent: {
+    paddingRight: 16,
+  },
   segmentContainer: {
     flexDirection: 'row',
     borderRadius: 12,
-    borderWidth: 1,
     padding: 3,
+    overflow: 'hidden',
   },
   segmentItem: {
     flex: 1,
@@ -1260,26 +1478,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 9,
   },
+  segmentItemScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 9,
+    justifyContent: 'center',
+    minWidth: 80,
+  },
   segmentText: {
     fontSize: 13,
     fontFamily: 'Urbanist-SemiBold',
+  },
+  searchIconBtn: {
+    padding: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   segmentTextSelected: {
     fontFamily: 'Poppins-Bold',
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   separator: {
     height: 10,
+  },
+  userCardWrapper: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
   },
   userCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    borderRadius: 16,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(15,23,42,0.65)',
     borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   avatarCircle: {
     width: 48,
@@ -1367,6 +1610,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+    overflow: 'hidden',
   },
   emptyTitle: {
     fontSize: 18,
@@ -1391,163 +1635,77 @@ const styles = StyleSheet.create({
     fontFamily: 'Urbanist-Medium',
     marginTop: 16,
   },
-  // Bottom Sheet styles
-  sheetContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  sheetHeader: {
-    alignItems: 'center',
-    paddingVertical: 20,
+  // Bottom Sheet styles — Glassmorphic Dark
+  sheetContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  sheetHeaderGrad: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 8 },
+  sheetHeader: { alignItems: 'center', paddingTop: 24, paddingBottom: 16 },
+  sheetAvatarGlow: {
+    width: 96, height: 96, borderRadius: 48,
+    borderWidth: 1.5, borderColor: 'rgba(112,143,150,0.5)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+    shadowColor: '#708F96', shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 0 },
   },
   sheetAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    overflow: 'hidden',
+    width: 82, height: 82, borderRadius: 41,
+    backgroundColor: 'rgba(112,143,150,0.2)',
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  sheetAvatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  sheetAvatarText: {
-    fontSize: 28,
-    fontFamily: 'Poppins-Bold',
-  },
-  sheetName: {
-    fontSize: 20,
-    fontFamily: 'Poppins-Bold',
-    marginBottom: 6,
-  },
-  sheetRoleBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 6,
-  },
-  sheetRoleBadgeText: {
-    fontSize: 11,
-    fontFamily: 'Poppins-Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sheetStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  sheetStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  sheetStatusText: {
-    fontSize: 11,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+  sheetAvatarImage: { width: '100%', height: '100%' },
+  sheetAvatarText: { fontSize: 30, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  sheetName: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#FFFFFF', marginBottom: 8, letterSpacing: -0.3 },
+  sheetRoleBadge: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, borderWidth: 1, marginBottom: 8 },
+  sheetRoleBadgeText: { fontSize: 10, fontFamily: 'Poppins-Bold', textTransform: 'uppercase', letterSpacing: 1 },
+  sheetStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+  sheetStatusDot: { width: 7, height: 7, borderRadius: 4 },
+  sheetStatusText: { fontSize: 12, fontFamily: 'Urbanist-SemiBold' },
   sheetSection: {
-    borderRadius: 14,
-    borderWidth: 1,
-    overflow: 'hidden',
-    marginBottom: 16,
+    borderRadius: 18, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    overflow: 'hidden', marginBottom: 16,
   },
   detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 13, paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    borderBottomColor: 'rgba(255,255,255,0.07)',
   },
-  detailIcon: {
-    width: 28,
-    alignItems: 'center',
-  },
-  detailContent: {
-    flex: 1,
-    marginLeft: 10,
-  },
-  detailLabel: {
-    fontSize: 10,
-    fontFamily: 'Urbanist-Medium',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 1,
-  },
-  detailValue: {
-    fontSize: 14,
-    fontFamily: 'Urbanist-Regular',
-  },
-  sheetActions: {
-    gap: 8,
-  },
+  detailIcon: { width: 28, alignItems: 'center' },
+  detailContent: { flex: 1, marginLeft: 10 },
+  detailLabel: { fontSize: 9, fontFamily: 'Urbanist-Medium', textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(255,255,255,0.4)', marginBottom: 2 },
+  detailValue: { fontSize: 14, fontFamily: 'Urbanist-Regular', color: '#FFFFFF' },
+  sheetActions: { gap: 10 },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 14, paddingHorizontal: 16,
+    borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  actionButtonDanger: {
-    borderWidth: 1,
-  },
-  actionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  actionText: {
-    fontSize: 14,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+  actionButtonDanger: { borderWidth: 1 },
+  actionIconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  actionLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  actionText: { fontSize: 15, fontFamily: 'Urbanist-SemiBold', color: '#FFFFFF' },
   rolePickerContainer: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 8,
-    marginBottom: 4,
+    borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: 10, marginBottom: 4,
   },
   roleOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12,
   },
-  roleOptionText: {
-    fontSize: 14,
-    fontFamily: 'Urbanist-Medium',
-  },
-  roleOptionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
+  roleOptionText: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: '#FFFFFF' },
+  roleOptionDot: { width: 8, height: 8, borderRadius: 4 },
   confirmDeleteContainer: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
+    borderRadius: 16, borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    padding: 18,
   },
-  confirmDeleteText: {
-    fontSize: 14,
-    fontFamily: 'Urbanist-Medium',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  confirmDeleteButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'center',
-  },
+  confirmDeleteText: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: '#FCA5A5', textAlign: 'center', marginBottom: 14 },
+  confirmDeleteButtons: { flexDirection: 'row', gap: 10, justifyContent: 'center' },
   // Invite Sheet styles
   inviteHeader: {
     alignItems: 'center',
@@ -1617,4 +1775,30 @@ const styles = StyleSheet.create({
   inviteButton: {
     width: '100%',
   },
+  skillListContainer: {
+    gap: 8,
+    marginTop: 4,
+  },
+  skillItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  skillItemText: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-SemiBold',
+  },
+  skillCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
+

@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -8,6 +8,9 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import Svg, { Path, Circle } from 'react-native-svg';
+
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 
 interface TenantStatsCardProps {
   value: string | number;
@@ -237,13 +240,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.5,
     marginBottom: 2,
-    fontFamily: 'Poppins-Bold',
+    fontFamily: fontDisplay,
   },
   label: {
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.2,
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   sublabelRow: {
     flexDirection: 'row',
@@ -254,6 +257,6 @@ const styles = StyleSheet.create({
   sublabel: {
     fontSize: 10,
     fontWeight: '500',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
 });

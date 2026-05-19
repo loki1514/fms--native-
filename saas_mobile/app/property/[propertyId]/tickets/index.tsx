@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,15 +22,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context';
 import TicketListItem from '@/components/tickets/TicketListItem';
 import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
-import WeatherBackground from '@/components/dashboard/WeatherBackground';
-import AbstractBackground from '@/components/dashboard/AbstractBackground';
 import { GlassCard } from '@/constants/designSystem';
 import SafeBlurView from '@/components/ui/SafeBlurView';
-import RotatingBorder from '@/components/shared/RotatingBorder';
+import { RotatingBorder } from '@/components/shared/RotatingBorder';
 import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
-import { useWeather } from '@/hooks/useWeather';
 import { LinearGradient } from 'expo-linear-gradient';
-import MobileFooter from '@/components/shared/MobileFooter';
+
+
 
 type StatusFilter = 'all' | 'open' | 'in_progress' | 'resolved' | 'closed' | 'pending_validation';
 type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
@@ -71,21 +69,23 @@ interface Ticket {
   assignee: { id: string; full_name: string; user_photo_url?: string | null } | null;
   creator:  { id: string; full_name: string } | null;
   photo_before_url?: string | null;
+  internal?: boolean | null;
   ticket_escalation_logs?: TicketEscalationLog[];
 }
 
 const PAGE_SIZE = 20;
 
 export default function TicketsScreen() {
-  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const { propertyId, filter } = useLocalSearchParams<{ propertyId: string; filter?: string }>();
   const router = useRouter();
+  const isNeedsAttentionMode = filter === 'needs_attention';
   const supabase = createClient();
   const { membership, user: authUser } = useAuth();
   const { theme } = useTheme();
-  const { weather } = useWeather();
   const isDark = theme === 'dark';
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -93,29 +93,50 @@ export default function TicketsScreen() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [dateRange, setDateRange] = useState<DateRangeFilter>('all');
   const [statusCounts, setStatusCounts] = useState<Record<StatusFilter, number>>({
-    all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0,
+    all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0, pending_validation: 0,
   });
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const insets = useSafeAreaInsets();
   const orgId = membership?.org_id ?? '';
 
+  // Client-side filter for needs-attention mode
+  const displayedTickets = useMemo(() => {
+    if (!isNeedsAttentionMode) return tickets;
+    return tickets.filter((t) => {
+      // Critical priority
+      if (t.priority === 'critical') return true;
+      // High priority + active
+      if (t.priority === 'high' && !['resolved', 'closed', 'satisfied'].includes(t.status)) return true;
+      // Tenant ticket + active
+      if (t.internal === false && !['resolved', 'closed', 'satisfied'].includes(t.status)) return true;
+      // Stale ticket (>3 days open)
+      const daysOpen = (Date.now() - new Date(t.created_at).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysOpen > 3 && ['open', 'assigned', 'in_progress'].includes(t.status)) return true;
+      return false;
+    });
+  }, [tickets, isNeedsAttentionMode]);
+
   const buildQuery = useCallback((offset: number, limit: number) => {
     if (!propertyId) return null;
     let q = supabase
       .from('tickets')
       .select(`id, title, description, status, priority, ticket_number, created_at, updated_at,
-               property_id, organization_id, photo_before_url,
+               property_id, organization_id, photo_before_url, internal,
                assignee:users!assigned_to(id, full_name, user_photo_url),
                creator:users!raised_by(id, full_name),
                ticket_escalation_logs(from_level, to_level, escalated_at,
                  from_employee:users!from_employee_id(full_name, user_photo_url),
                  to_employee:users!to_employee_id(full_name, user_photo_url))`)
       .eq('property_id', propertyId)
+      .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (statusFilter === 'open') {
+    if (isNeedsAttentionMode) {
+      // Fetch all active tickets so we can client-side filter for needs attention
+      q = q.not('status', 'in', '("resolved","closed","satisfied")');
+    } else if (statusFilter === 'open') {
       q = q.in('status', ['open', 'assigned']);
     } else if (statusFilter === 'in_progress') {
       q = q.in('status', ['in_progress', 'paused', 'pending_validation']);
@@ -142,7 +163,7 @@ export default function TicketsScreen() {
     }
 
     return q;
-  }, [propertyId, statusFilter, dateRange, supabase]);
+  }, [propertyId, statusFilter, dateRange, supabase, isNeedsAttentionMode]);
 
   const fetchTickets = useCallback(async (reset = false) => {
     if (!propertyId) return;
@@ -172,12 +193,12 @@ export default function TicketsScreen() {
 
   useEffect(() => {
     fetchTickets(true);
-    fetchStatusCounts();
-  }, [statusFilter]);
+    if (!isNeedsAttentionMode) fetchStatusCounts();
+  }, [statusFilter, isNeedsAttentionMode]);
 
   useEffect(() => {
-    fetchStatusCounts();
-  }, [dateRange]);
+    if (!isNeedsAttentionMode) fetchStatusCounts();
+  }, [dateRange, isNeedsAttentionMode]);
 
   const loadMore = async () => {
     if (loadingMore || !hasMore || !propertyId) return;
@@ -202,7 +223,7 @@ export default function TicketsScreen() {
     if (!propertyId) return;
     try {
       const counts: Record<StatusFilter, number> = {
-        all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0,
+        all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0, pending_validation: 0,
       };
 
       const getDateRange = (range: DateRangeFilter) => {
@@ -217,32 +238,45 @@ export default function TicketsScreen() {
 
       const { count: allCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
-        .eq('property_id', propertyId).gte('created_at', start).lte('created_at', end) as any;
+        .eq('property_id', propertyId)
+        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
+        .gte('created_at', start).lte('created_at', end) as any;
       counts.all = allCount ?? 0;
 
       const { count: openCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
         .eq('property_id', propertyId).in('status', ['open', 'assigned'])
+        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
         .gte('created_at', start).lte('created_at', end) as any;
       counts.open = openCount ?? 0;
 
       const { count: progressCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
         .eq('property_id', propertyId).in('status', ['in_progress', 'paused', 'pending_validation'])
+        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
         .gte('created_at', start).lte('created_at', end) as any;
       counts.in_progress = progressCount ?? 0;
 
       const { count: resolvedCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
         .eq('property_id', propertyId).eq('status', 'resolved')
+        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
         .gte('created_at', start).lte('created_at', end) as any;
       counts.resolved = resolvedCount ?? 0;
 
       const { count: closedCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
         .eq('property_id', propertyId).eq('status', 'closed')
+        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
         .gte('created_at', start).lte('created_at', end) as any;
       counts.closed = closedCount ?? 0;
+
+      const { count: pendingValidationCount } = await supabase
+        .from('tickets').select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId).eq('status', 'pending_validation')
+        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
+        .gte('created_at', start).lte('created_at', end) as any;
+      counts.pending_validation = pendingValidationCount ?? 0;
 
       setStatusCounts(counts);
     } catch (err) {
@@ -255,6 +289,13 @@ export default function TicketsScreen() {
     fetchTickets(true);
   };
 
+
+  // Override status filter to 'all' when entering needs-attention mode
+  useEffect(() => {
+    if (isNeedsAttentionMode && statusFilter !== 'all') {
+      setStatusFilter('all');
+    }
+  }, [isNeedsAttentionMode]);
 
   const renderTicket = ({ item }: { item: Ticket }) => {
     const logs = item.ticket_escalation_logs;
@@ -305,58 +346,72 @@ export default function TicketsScreen() {
         }}
       />
 
-      <AbstractBackground />
+      <LinearGradient 
+        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
+        style={StyleSheet.absoluteFillObject} 
+      />
 
-      <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 100 }]}>
+      <View style={[styles.container, { paddingBottom: 0 }]}>
         {/* Modern Header */}
         <SafeBlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
               <Ionicons name="chevron-back" size={24} color={textPrimary} />
             </TouchableOpacity>
-            <Text style={[styles.headerTitleMain, { color: textPrimary }]}>Requests</Text>
+            <Text style={[styles.headerTitleMain, { color: textPrimary }]}>
+              {isNeedsAttentionMode ? 'Needs Attention' : 'Requests'}
+            </Text>
             <TouchableOpacity onPress={() => setShowCreateModal(true)} style={styles.headerAddBtn}>
               <Ionicons name="add" size={24} color={textPrimary} />
             </TouchableOpacity>
           </View>
 
           {/* Filter Tabs - Glass Style */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabScroll}
-            style={styles.tabBarContainer}
-          >
-            {FILTER_TABS.map(tab => (
-              <TouchableOpacity
-                key={tab.key}
-                style={[
-                  styles.tab,
-                  statusFilter === tab.key && {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.05)',
-                  },
-                ]}
-                onPress={() => setStatusFilter(tab.key)}
-              >
-                <Text
+          {!isNeedsAttentionMode && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tabScroll}
+              style={styles.tabBarContainer}
+            >
+              {FILTER_TABS.map(tab => (
+                <TouchableOpacity
+                  key={tab.key}
                   style={[
-                    styles.tabText,
-                    { color: statusFilter === tab.key ? textPrimary : textSecondary },
-                    statusFilter === tab.key && { fontWeight: '800' },
+                    styles.tab,
+                    statusFilter === tab.key && {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.05)',
+                    },
                   ]}
+                  onPress={() => setStatusFilter(tab.key)}
                 >
-                  {tab.label}
-                </Text>
-                <View style={[styles.countBadge, {
-                  backgroundColor: statusFilter === tab.key ? '#7CB9A8' : 'rgba(124,185,168,0.2)',
-                }]}>
-                  <Text style={[styles.countBadgeText, { color: statusFilter === tab.key ? '#FFF' : '#7CB9A8' }]}>
-                    {statusCounts[tab.key]}
+                  <Text
+                    style={[
+                      styles.tabText,
+                      { color: statusFilter === tab.key ? textPrimary : textSecondary },
+                      statusFilter === tab.key && { fontWeight: '800' },
+                    ]}
+                  >
+                    {tab.label}
                   </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                  <View style={[styles.countBadge, {
+                    backgroundColor: statusFilter === tab.key ? '#7CB9A8' : 'rgba(124,185,168,0.2)',
+                  }]}>
+                    <Text style={[styles.countBadgeText, { color: statusFilter === tab.key ? '#FFF' : '#7CB9A8' }]}>
+                      {statusCounts[tab.key]}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+          {isNeedsAttentionMode && (
+            <View style={{ marginTop: 8 }}>
+              <Text style={{ fontSize: 12, color: textSecondary, fontWeight: '600' }}>
+                Critical, tenant & stale tickets
+              </Text>
+            </View>
+          )}
         </SafeBlurView>
 
         {/* Date Range Filter */}
@@ -409,14 +464,16 @@ export default function TicketsScreen() {
           <View style={styles.centered}>
             <ActivityIndicator size="large" color="#7CB9A8" />
           </View>
-        ) : tickets.length === 0 ? (
+        ) : displayedTickets.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="ticket-outline" size={64} color={isDark ? '#4B5563' : '#CBD5E1'} />
             <Text style={[styles.emptyTitle, { color: textPrimary }]}>No Requests</Text>
             <Text style={[styles.emptySubtitle, { color: textSecondary }]}>
-              {statusFilter === 'all'
-                ? 'No requests found for this property.'
-                : `No ${statusFilter.replace('_', ' ')} requests.`}
+              {isNeedsAttentionMode
+                ? 'No tickets need attention right now. Great job!'
+                : statusFilter === 'all'
+                  ? 'No requests found for this property.'
+                  : `No ${statusFilter.replace('_', ' ')} requests.`}
             </Text>
             <TouchableOpacity
               style={styles.emptyCreateBtn}
@@ -427,7 +484,7 @@ export default function TicketsScreen() {
           </View>
         ) : (
           <FlatList
-            data={tickets}
+            data={displayedTickets}
             renderItem={renderTicket}
             keyExtractor={item => item.id}
             showsVerticalScrollIndicator={false}
@@ -456,14 +513,7 @@ export default function TicketsScreen() {
           />
         )}
 
-        {/* Floating Create Button */}
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setShowCreateModal(true)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={28} color="#FFF" />
-        </TouchableOpacity>
+
       </View>
 
         <TicketCreateModal
@@ -471,10 +521,12 @@ export default function TicketsScreen() {
           onClose={() => setShowCreateModal(false)}
           propertyId={propertyId ?? ''}
           organizationId={orgId}
-          role={membership?.role === 'org_super_admin' ? 'super_admin' : (membership?.role === 'property_admin' ? 'admin' : 'tenant')}
+          role={(membership as any)?.role === 'org_super_admin' ? 'super_admin' : ((membership as any)?.role === 'property_admin' ? 'admin' : 'tenant')}
         />
 
-        <MobileFooter activeTab="tickets" />
+
+
+
     </View>
   );
 }

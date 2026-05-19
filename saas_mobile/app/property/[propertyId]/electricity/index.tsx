@@ -23,8 +23,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useAuth } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
-import { AppBottomNav } from '@/components/shared/AppBottomNav';
+
+
 import { LoggersMenu } from '@/components/shared/LoggersMenu';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   Zap,
   ChevronDown,
@@ -206,67 +209,95 @@ function MeterCard({
   colors: typeof Colors.light;
   onPress?: () => void;
 }) {
-  const current = latestReading?.closing_reading ?? meter.last_reading ?? 0;
-  // Cost and units now passed from parent as period-aware values
+  const isLive = meter.status === 'active';
+  const statusColor = isLive ? '#10B981' : '#EF4444';
+  const statusLabel = isLive ? 'Live' : 'Idle';
+
+  // Compute energy percentage against a reasonable max scale (e.g. 5000 units, or dynamic relative scale)
+  const maxScale = 5000;
+  const pct = Math.min(100, Math.max(0, (units / maxScale) * 100));
+
+  const lastReadingTime = latestReading?.created_at
+    ? formatRelative(latestReading.created_at)
+    : 'No reading yet';
+
+  // Format dynamic numbers nicely
+  const formattedUnits = units.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   return (
     <TouchableOpacity activeOpacity={onPress ? 0.7 : 1} onPress={onPress}>
-      <View style={[styles.meterCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.meterCard, { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1 }]}>
         <View style={styles.meterCardHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.meterCardName, { color: colors.text }]}>{meter.name}</Text>
-          <Text style={[styles.meterCardMeta, { color: colors.textSecondary }]}>
-            {meter.meter_type === 'main' ? 'Main Grid' : meter.meter_type || 'Meter'} · {meter.meter_number || 'No #'}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.meterCardName, { color: colors.text }]}>{meter.name}</Text>
+            <Text style={[styles.meterCardMeta, { color: 'rgba(255, 255, 255, 0.4)' }]}>
+              {meter.meter_type === 'main' ? 'Main Grid' : meter.meter_type || 'Meter'} - {meter.meter_number || 'No #'}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={[styles.meterStatusBadge, { backgroundColor: isLive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)' }]}>
+              <View style={[styles.meterStatusDot, { backgroundColor: statusColor }]} />
+              <Text style={[styles.meterStatusText, { color: statusColor }]}>{statusLabel}</Text>
+            </View>
+            <Ionicons name="open-outline" size={18} color="rgba(255, 255, 255, 0.5)" />
+          </View>
         </View>
-        <View style={[styles.meterStatusBadge, {
-          backgroundColor: meter.status === 'active' ? colors.success + '18' : colors.error + '18',
-        }]}>
-          <View style={[styles.meterStatusDot, {
-            backgroundColor: meter.status === 'active' ? colors.success : colors.error,
-          }]} />
-          <Text style={[styles.meterStatusText, {
-            color: meter.status === 'active' ? colors.success : colors.error,
-          }]}>
-            {meter.status === 'active' ? 'Active' : 'Inactive'}
-          </Text>
-        </View>
-      </View>
 
-      {/* Readings Row */}
-      <View style={styles.readingsRow}>
-        <View style={styles.readingItem}>
-          <Text style={[styles.readingLabel, { color: colors.textTertiary }]}>Previous</Text>
-          <Text style={[styles.readingValue, { color: colors.textSecondary }]}>
-            {latestReading?.opening_reading?.toFixed(0) ?? meter.last_reading?.toFixed(0) ?? '0'}
+        <View style={styles.genCardFuel}>
+          <View style={styles.genCardFuelHeader}>
+            <Ionicons name="flash-outline" size={14} color="rgba(255, 255, 255, 0.6)" />
+            <Text style={[styles.genCardFuelLabel, { color: 'rgba(255, 255, 255, 0.5)' }]}>Energy Consumed</Text>
+          </View>
+          
+          {/* gradient progress bar */}
+          <View style={[styles.gaugeTrack, { height: 8, backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: 4, overflow: 'hidden', marginVertical: 8 }]}>
+            {pct > 0 && (
+              <LinearGradient
+                colors={['#8B5CF6', '#3B82F6', '#10B981']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ width: `${pct}%`, height: '100%', borderRadius: 4 }}
+              />
+            )}
+          </View>
+          
+          <Text style={[styles.gaugeLabel, { color: 'rgba(255, 255, 255, 0.5)', fontSize: 13, fontFamily: 'Urbanist-Medium' }]}>
+            {formattedUnits} kVAh / {maxScale.toLocaleString()}
           </Text>
-          <Text style={[styles.readingUnit, { color: colors.textTertiary }]}>kVAh</Text>
         </View>
-        <View style={[styles.readingDivider, { backgroundColor: colors.border }]} />
-        <View style={styles.readingItem}>
-          <Text style={[styles.readingLabel, { color: colors.textTertiary }]}>Consumed</Text>
-          <Text style={[styles.readingValue, { color: colors.primary }]}>
-            {units.toFixed(1)}
-          </Text>
-          <Text style={[styles.readingUnit, { color: colors.textTertiary }]}>kVAh</Text>
-        </View>
-      </View>
 
-      {/* Cost Row */}
-      <View style={[styles.costRow, { backgroundColor: colors.surface }]}>
-        <View style={styles.costItem}>
-          <Text style={[styles.costLabel, { color: colors.textTertiary }]}>Tariff</Text>
-          <Text style={[styles.costValue, { color: colors.text }]}>
-            {tariffRate > 0 ? `₹${tariffRate.toFixed(2)}/kVAh` : 'N/A'}
-          </Text>
+        {/* Cost Estimation Panel */}
+        <View style={[styles.costRow, { backgroundColor: 'rgba(255, 255, 255, 0.03)', borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.05)' }]}>
+          <View style={styles.costItem}>
+            <Text style={[styles.costLabel, { color: 'rgba(255, 255, 255, 0.4)' }]}>Tariff Rate</Text>
+            <Text style={[styles.costValue, { color: '#FFFFFF' }]}>
+              {tariffRate > 0 ? `₹${tariffRate.toFixed(2)}` : 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.costItem}>
+            <Text style={[styles.costLabel, { color: 'rgba(255, 255, 255, 0.4)' }]}>Est. Cost</Text>
+            <Text style={[styles.costValue, { color: '#10B981' }]}>
+              {cost > 0 ? `₹${cost.toFixed(2)}` : '-'}
+            </Text>
+          </View>
         </View>
-        <View style={styles.costItem}>
-          <Text style={[styles.costLabel, { color: colors.textTertiary }]}>Est. Cost</Text>
-          <Text style={[styles.costValue, { color: colors.success }]}>
-            {cost > 0 ? `₹${cost.toFixed(2)}` : '-'}
-          </Text>
+
+        <View style={styles.genCardFooter}>
+          <View style={styles.genCardFooterItem}>
+            <Ionicons name="time-outline" size={14} color="rgba(255, 255, 255, 0.4)" />
+            <Text style={[styles.genCardFooterText, { color: 'rgba(255, 255, 255, 0.4)', fontFamily: 'Urbanist-Medium' }]}>{lastReadingTime}</Text>
+          </View>
+          
+          <View style={{ flex: 1 }} />
+          
+          {/* arrow indicators */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name="arrow-forward-outline" size={12} color="rgba(255, 255, 255, 0.2)" />
+            <Ionicons name="pulse-outline" size={12} color="rgba(255, 255, 255, 0.2)" />
+            <Ionicons name="stats-chart-outline" size={12} color="rgba(255, 255, 255, 0.2)" />
+            <Ionicons name="arrow-forward-outline" size={12} color="rgba(255, 255, 255, 0.2)" />
+          </View>
         </View>
-      </View>
       </View>
     </TouchableOpacity>
   );
@@ -699,8 +730,7 @@ function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: T
       const dayBeforeStr = dayBefore.toISOString().split('T')[0];
 
       // Close existing active tariff
-      await supabase
-        .from('grid_tariffs')
+      await (supabase.from('grid_tariffs') as any)
         .update({ effective_to: dayBeforeStr } as any)
         .eq('property_id', propertyId)
         .is('effective_to', null)
@@ -741,8 +771,7 @@ function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: T
           setDeletingId(id);
           try {
             // 1. Reset readings
-            await supabase
-              .from('electricity_readings')
+            await (supabase.from('electricity_readings') as any)
               .update({
                 tariff_id: null,
                 tariff_rate_used: null,
@@ -1164,11 +1193,13 @@ export default function ElectricityScreen() {
   const { propertyId, mode } = useLocalSearchParams<{ propertyId: string, mode?: string }>();
   const router = useRouter();
   const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const { user: authUser } = useAuth();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
 
   const [meters, setMeters] = useState<ElectricityMeter[]>([]);
+
   const [readings, setReadings] = useState<ElectricityReading[]>([]);
   const [previousClosings, setPreviousClosings] = useState<Record<string, number>>({});
   const [activeTariff, setActiveTariff] = useState<GridTariff | null>(null);
@@ -1288,32 +1319,33 @@ export default function ElectricityScreen() {
       });
       setPreviousClosings(closings);
 
-      // Fetch active tariff (non-blocking — don't block loading)
       // Fetch active tariff (non-blocking)
       const todayStr = new Date().toISOString().split('T')[0];
-      supabase.rpc('get_active_grid_tariff', {
-        p_property_id: propertyId,
-        p_date: todayStr
-      }).then(({ data: rpcData }) => {
-        if (rpcData && (rpcData as any[]).length > 0) {
-          setActiveTariff((rpcData as any[])[0]);
-        } else {
-          // Fallback fetch all
-          return supabase
-            .from('grid_tariffs')
-            .select('*')
-            .eq('property_id', propertyId)
-            .order('effective_from', { ascending: false })
-            .then(({ data: allData }) => {
-              if (allData && allData.length > 0) {
-                const active = allData.find((t: any) => 
-                  !t.effective_to && t.effective_from <= todayStr
-                ) || allData[0];
-                setActiveTariff(active);
-              }
-            });
+      (async () => {
+        try {
+          const { data: rpcData } = await (supabase.rpc as any)('get_active_grid_tariff', {
+            p_property_id: propertyId,
+            p_date: todayStr
+          });
+          if (rpcData && (rpcData as any[]).length > 0) {
+            setActiveTariff((rpcData as any[])[0]);
+          } else {
+            const { data: allData } = await supabase
+              .from('grid_tariffs')
+              .select('*')
+              .eq('property_id', propertyId)
+              .order('effective_from', { ascending: false });
+            if (allData && allData.length > 0) {
+              const active = allData.find((t: any) => 
+                !t.effective_to && t.effective_from <= todayStr
+              ) || allData[0];
+              setActiveTariff(active);
+            }
+          }
+        } catch (err) {
+          console.error('Tariff fetch error:', err);
         }
-      }).catch(err => console.error('Tariff fetch error:', err));
+      })();
     } catch (e) {
       console.error('Electricity fetch error:', e);
     } finally {
@@ -1370,80 +1402,104 @@ export default function ElectricityScreen() {
     return result;
   }, [readings]);
 
+
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: 0 }]}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}>
       <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient 
+        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
+        style={StyleSheet.absoluteFillObject} 
+      />
       
       {/* Top Navigation */}
-      <View style={[styles.topNav, {
-        backgroundColor: colors.surface,
-        borderBottomColor: colors.border,
-        paddingTop: Math.max(insets.top, 16)
-      }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={{ padding: 4 }}>
-          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
+      <SafeBlurView
+        intensity={80}
+        tint={theme === 'dark' ? 'dark' : 'light'}
+        style={[styles.topNav, {
+          backgroundColor: 'transparent',
+          borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+          paddingTop: Math.max(insets.top, 16)
+        }]}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          style={styles.backCircleBtn}
+        >
+          <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={[styles.topNavTitle, { color: colors.textPrimary }]}>Electricity Logger</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitleLine1} numberOfLines={1} adjustsFontSizeToFit={true}>Electricity</Text>
+          <Text style={styles.headerTitleLine2}>Logger</Text>
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
-            style={styles.bellButton}
-            onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
+            style={styles.headerCircularBtn}
+            onPress={() => setShowMeterModal(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
+            <Ionicons name="apps-outline" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerCircularBtn}
+            onPress={() => { fetchHistoryReadings(); setShowHistoryModal(true); }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="time-outline" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerCircularBtn}
+            onPress={() => router.push(`/property/${propertyId}/electricity/analytics` as any)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="analytics-outline" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerCircularBtn}
+            onPress={() => setShowTariffModal(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="bar-chart-outline" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeBlurView>
 
-      {/* Header Banner */}
-      <View style={[styles.header, { backgroundColor: '#708F96' }]}>
-        <Text style={styles.headerSubtitle}>
-          {meters.length} meter{meters.length !== 1 ? 's' : ''}
-        </Text>
-        {/* Period Selector */}
-        <View style={styles.periodRow}>
-          {PERIODS.map(p => (
-            <TouchableOpacity
-              key={p.value}
-              style={[styles.periodBtn, period === p.value && styles.periodBtnActive]}
-              onPress={() => setPeriod(p.value)}
-            >
-              <Text style={[styles.periodBtnText, period === p.value && styles.periodBtnTextActive]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      {/* Parameters Card */}
+      <View style={[styles.paramCard, { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+        <View style={styles.paramHeader}>
+          <Ionicons name="options-outline" size={14} color="rgba(255, 255, 255, 0.4)" />
+          <Text style={styles.paramTitle}>Parameters</Text>
         </View>
-        {/* Quick Stats */}
-        <View style={styles.quickStatsRow}>
-          <View style={styles.quickStat}>
-            <Zap size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.quickStatText}>{totalUnits.toFixed(1)} kVAh</Text>
-          </View>
-          <View style={styles.quickStat}>
-            <TrendingUp size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.quickStatText}>
-              {totalCost > 0 ? `₹${totalCost.toFixed(2)}` : '-'}
-            </Text>
-          </View>
+
+        {/* Period Selector Pill */}
+        <View style={styles.paramSelectorContainer}>
+          {PERIODS.map(p => {
+            const isActive = period === p.value;
+            return (
+              <TouchableOpacity
+                key={p.value}
+                style={[styles.paramSelectorBtn, isActive && styles.paramSelectorBtnActive]}
+                onPress={() => setPeriod(p.value)}
+              >
+                <Text style={[styles.paramSelectorBtnText, isActive && styles.paramSelectorBtnTextActive]}>
+                  {p.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
-        {tariffRate > 0 && (
-          <Text style={styles.tariffInfo}>Tariff: ₹${tariffRate.toFixed(2)}/kVAh</Text>
-        )}
-        {/* Action Buttons Row */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => { fetchHistoryReadings(); setShowHistoryModal(true); }}>
-            <Ionicons name="time-outline" size={15} color="rgba(255,255,255,0.9)" />
-            <Text style={styles.actionBtnText}>History</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => setShowTariffModal(true)}>
-            <Ionicons name="receipt-outline" size={15} color="rgba(255,255,255,0.9)" />
-            <Text style={styles.actionBtnText}>Tariff</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => setShowMeterModal(true)}>
-            <Ionicons name="flash-outline" size={15} color="rgba(255,255,255,0.9)" />
-            <Text style={styles.actionBtnText}>Add Meter</Text>
-          </TouchableOpacity>
+
+        <View style={styles.oilUsedRow}>
+          <Text style={styles.oilUsedLabel}>Energy Used  :</Text>
+          <Text style={styles.oilUsedValue}>{totalUnits.toFixed(1)}kVAh</Text>
+        </View>
+
+        <View style={styles.liveRankRow}>
+          <Ionicons name="flash-outline" size={14} color="#FBBF24" />
+          <Text style={styles.liveRankText}>
+            Live Rank in {meters.map(m => m.name).join('-')}
+          </Text>
         </View>
       </View>
 
@@ -1573,11 +1629,7 @@ export default function ElectricityScreen() {
         </View>
       </Modal>
 
-      <AppBottomNav 
-        activeTab="loggers"
-        propertyId={propertyId!}
-        onLoggersPress={() => setShowLoggersMenu(true)}
-      />
+
 
       <LoggersMenu
         visible={showLoggersMenu}
@@ -1610,7 +1662,7 @@ export default function ElectricityScreen() {
         onTariffChange={async () => {
           const todayStr = new Date().toISOString().split('T')[0];
           try {
-            const { data: rpcData } = await supabase.rpc('get_active_grid_tariff', {
+            const { data: rpcData } = await (supabase.rpc as any)('get_active_grid_tariff', {
               p_property_id: propertyId,
               p_date: todayStr
             });
@@ -1663,6 +1715,7 @@ export default function ElectricityScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
     </View>
   );
 }
@@ -1824,22 +1877,154 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
     zIndex: 10,
   },
-  topNavTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  bellButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  backCircleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: 'center',
+  },
+  headerTitleLine1: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-Bold',
+    color: 'rgba(255, 255, 255, 0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  headerTitleLine2: {
+    fontSize: 22,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    marginTop: -2,
+  },
+  headerCircularBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  paramCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  paramHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  paramTitle: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Bold',
+    color: 'rgba(255, 255, 255, 0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  paramSelectorContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 14,
+  },
+  paramSelectorBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  paramSelectorBtnActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  paramSelectorBtnText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Bold',
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  paramSelectorBtnTextActive: {
+    color: '#0F1521',
+  },
+  oilUsedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  oilUsedLabel: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-Medium',
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  oilUsedValue: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-Bold',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  liveRankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  liveRankText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Medium',
+    color: '#FBBF24',
+  },
+  genCardFuel: {
+    marginTop: 14,
+    marginBottom: 14,
+  },
+  genCardFuelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  genCardFuelLabel: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  gaugeTrack: {},
+  gaugeLabel: {},
+  genCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    paddingTop: 12,
+    marginTop: 4,
+  },
+  genCardFooterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  genCardFooterText: {
+    fontSize: 12,
   },
   bottomNav: {
     flexDirection: 'row',

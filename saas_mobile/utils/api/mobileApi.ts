@@ -483,7 +483,14 @@ const PROPERTY_ADMIN_ROLES = [
 export function getRoleAllowedPaths(role: string, propertyId: string): string[] {
   const basePath = `/property/${propertyId}`;
   const capabilities = CAPABILITY_MATRIX[role as keyof typeof CAPABILITY_MATRIX] || {};
-  const paths: string[] = [`${basePath}/dashboard`];
+  const paths: string[] = [
+    basePath,
+    `${basePath}/dashboard`,
+    `${basePath}/lovable-mst`,
+    `${basePath}/lovable-admin`,
+    `${basePath}/lovable-super-admin`,
+    `${basePath}/tenant`,
+  ];
 
   if (capabilities.tickets) {
     paths.push(`${basePath}/tickets`);
@@ -515,12 +522,25 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
   return paths;
 }
 
-/**
- * Get the default redirect path for a given role.
- * All roles now land on the unified sidebar dashboard.
- */
 export function getRoleDefaultPath(role: string, propertyId: string): string {
-  return `/property/${propertyId}/dashboard`;
+  const normalizedRole = (role ?? '').toLowerCase().trim();
+  if (['mst', 'maintenance_staff', 'staff'].includes(normalizedRole)) {
+    return `/property/${propertyId}/lovable-mst`;
+  }
+  if ([
+    'property_admin', 'admin', 'manager', 'property manager',
+    'property_manager', 'facility_manager', 'facility manager',
+    'spoc', 'administrator'
+  ].includes(normalizedRole)) {
+    return `/property/${propertyId}/lovable-admin`;
+  }
+  if (['org_admin', 'org_super_admin', 'owner'].includes(normalizedRole)) {
+    return `/property/${propertyId}/lovable-super-admin`;
+  }
+  if (['tenant', 'super_tenant'].includes(normalizedRole)) {
+    return `/property/${propertyId}/tenant`;
+  }
+  return `/property/${propertyId}/lovable-mst`; // Fallback to Lovable MST
 }
 
 /**
@@ -781,11 +801,11 @@ export async function listPendingApprovals(
     `/api/procurement/requests?${params.toString()}`
   );
 
-  if ('error' in data && data.error) {
-    throw new Error(data.error);
+  if (!Array.isArray(data)) {
+    throw new Error('Failed to load pending requests');
   }
 
-  return (data as MaterialRequest[]) || [];
+  return data;
 }
 
 /**
@@ -855,3 +875,70 @@ export async function uploadTicketPhoto(
     return { success: false, error: err instanceof Error ? err.message : 'Network error' };
   }
 }
+
+// ---------------------------------------------------------------------
+// User Management & Add Member APIs (Unified with saas_one web)
+// ---------------------------------------------------------------------
+
+export interface UserListResponse {
+  users: Array<{
+    id: string;
+    full_name: string;
+    email: string;
+    user_photo_url?: string;
+    propertyRole?: string;
+    orgRole?: string;
+    propertyName?: string;
+    propertyId?: string;
+    is_active: boolean;
+    joined_at: string;
+    phone?: string;
+  }>;
+}
+
+export interface CreateUserRequest {
+  email: string;
+  password?: string;
+  full_name: string;
+  phone?: string;
+  organization_id: string;
+  role?: string;
+  property_id?: string;
+  specialization?: string;
+  skills?: string[];
+}
+
+export interface CreateUserResponse {
+  success?: boolean;
+  message?: string;
+  user?: {
+    id: string;
+    email: string;
+    full_name: string;
+    role: string;
+  };
+  error?: string;
+}
+
+/**
+ * Fetch all users for an organization or property using NextJS service API.
+ * Mirrors GET /api/users/list
+ */
+export async function fetchUsersList(orgId?: string, propertyId?: string): Promise<UserListResponse> {
+  const params = new URLSearchParams();
+  if (orgId) params.set('orgId', orgId);
+  if (propertyId) params.set('propertyId', propertyId);
+  return apiFetch<UserListResponse>(`/api/users/list?${params.toString()}`);
+}
+
+/**
+ * Directly create a user account and add them to an organization/property.
+ * Mirrors POST /api/users/create
+ */
+export async function createMemberUser(data: CreateUserRequest): Promise<CreateUserResponse> {
+  return apiFetch<CreateUserResponse>('/api/users/create', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+

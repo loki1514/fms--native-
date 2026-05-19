@@ -1,6 +1,10 @@
-import React from 'react';
-import UnifiedDashboard from '@/components/dashboard/UnifiedDashboard';
+'use client';
 
-export default function DashboardPage() {
-  return <UnifiedDashboard />;
+import React from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import LovablePropertyAdminDashboard from '@/components/dashboard/LovablePropertyAdminDashboard';
+
+export default function DashboardScreen() {
+  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  return <LovablePropertyAdminDashboard propertyId={propertyId ?? ''} />;
 }

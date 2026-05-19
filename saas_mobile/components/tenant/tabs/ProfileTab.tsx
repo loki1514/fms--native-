@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,6 +8,9 @@ import { useAuth } from '@/hooks/useAuth';
 interface ProfileTabProps {
   onSignOut?: () => void;
 }
+
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 
 function SettingRow({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
@@ -181,7 +184,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: fontDisplay,
   },
   avatarCard: {
     alignItems: 'center',
@@ -232,12 +235,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.3,
+    fontFamily: fontDisplay,
   },
   userEmail: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 3,
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   roleBadge: {
     flexDirection: 'row',
@@ -259,7 +263,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#708F96',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   card: {
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -282,7 +286,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   infoRow: {
     flexDirection: 'row',
@@ -307,7 +311,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255,255,255,0.85)',
     fontWeight: '500',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   infoValue: {
     fontSize: 14,
@@ -315,7 +319,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     maxWidth: '50%',
     textAlign: 'right',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   divider: {
     height: 1,
@@ -339,6 +343,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#EF4444',
+    fontFamily: fontSans,
   },
   version: {
     textAlign: 'center',
@@ -346,6 +351,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.35)',
     marginBottom: 24,
     fontWeight: '500',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
 });

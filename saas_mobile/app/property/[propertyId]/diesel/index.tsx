@@ -20,10 +20,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
-import { AppBottomNav } from '@/components/shared/AppBottomNav';
+
+
 import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import GeneratorConfigModal from '@/components/diesel/GeneratorConfigModal';
 import DGTariffModal from '@/components/diesel/DGTariffModal';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   Fuel,
   ChevronDown,
@@ -254,67 +257,83 @@ function GeneratorCard({
   onPress: () => void;
   onEdit: () => void;
 }) {
-  const statusColor =
-    generator.status === 'active' ? colors.success :
-    generator.status === 'inactive' ? colors.error : colors.textTertiary;
-
   const fuelLevel = latestReading?.closing_diesel_level ?? lastClosing?.diesel ?? 0;
-  const kwhReading = latestReading?.closing_kwh ?? lastClosing?.kwh ?? 0;
   const tankCapacity = generator.tank_capacity_litres ?? 1000;
+  const pct = tankCapacity > 0 ? Math.min(100, Math.max(0, (fuelLevel / tankCapacity) * 100)) : 0;
+  
   const lastReadingTime = latestReading?.created_at
     ? formatRelative(latestReading.created_at)
     : 'No reading yet';
-  const statusLabel =
-    fuelLevel > 0 ? 'Running' : 'Idle';
+
+  const isLive = generator.status === 'active';
+  const statusColor = isLive ? '#10B981' : '#EF4444';
+  const statusLabel = isLive ? 'Live' : 'Idle';
+
+  // Format fuel level with padding if needed
+  const formattedLevel = fuelLevel.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <TouchableOpacity
-      style={[styles.genCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      style={[styles.genCard, { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1 }]}
       onPress={onPress}
       activeOpacity={0.72}
     >
       <View style={styles.genCardHeader}>
         <View style={styles.genCardHeaderLeft}>
           <Text style={[styles.genCardName, { color: colors.text }]}>{generator.name}</Text>
-          <Text style={[styles.genCardMeta, { color: colors.textSecondary }]}>
-            {generator.make || 'DG'} · {generator.capacity_kva ?? '?'} KVA
+          <Text style={[styles.genCardMeta, { color: 'rgba(255, 255, 255, 0.4)' }]}>
+            {generator.make || 'DG'} - {generator.capacity_kva ?? '?'} KVA
           </Text>
         </View>
-        <View style={[styles.genStatusBadge, { backgroundColor: statusColor + '18' }]}>
-          <View style={[styles.genStatusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.genStatusText, { color: statusColor }]}>{statusLabel}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={[styles.genStatusBadge, { backgroundColor: isLive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)' }]}>
+            <View style={[styles.genStatusDot, { backgroundColor: statusColor }]} />
+            <Text style={[styles.genStatusText, { color: statusColor }]}>{statusLabel}</Text>
+          </View>
+          <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="open-outline" size={18} color="rgba(255, 255, 255, 0.5)" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={onEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="create-outline" size={18} color={colors.textTertiary} />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.genCardFuel}>
         <View style={styles.genCardFuelHeader}>
-          <Fuel size={14} color={colors.primary} />
-          <Text style={[styles.genCardFuelLabel, { color: colors.textSecondary }]}>Fuel Level</Text>
+          <Ionicons name="color-filter-outline" size={14} color="rgba(255, 255, 255, 0.6)" />
+          <Text style={[styles.genCardFuelLabel, { color: 'rgba(255, 255, 255, 0.5)' }]}>Fuel Level</Text>
         </View>
-        <FuelGauge level={fuelLevel} maxLitres={tankCapacity} size="normal" />
+        
+        {/* sleeker progress bar track */}
+        <View style={[styles.gaugeTrack, { height: 8, backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: 4, overflow: 'hidden', marginVertical: 8 }]}>
+          {pct > 0 && (
+            <LinearGradient
+              colors={['#8B5CF6', '#3B82F6', '#10B981']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ width: `${pct}%`, height: '100%', borderRadius: 4 }}
+            />
+          )}
+        </View>
+        
+        <Text style={[styles.gaugeLabel, { color: 'rgba(255, 255, 255, 0.5)', fontSize: 13, fontFamily: 'Urbanist-Medium' }]}>
+          {formattedLevel} L / {tankCapacity.toLocaleString()}
+        </Text>
       </View>
 
       <View style={styles.genCardFooter}>
         <View style={styles.genCardFooterItem}>
-          <Clock size={12} color={colors.textTertiary} />
-          <Text style={[styles.genCardFooterText, { color: colors.textTertiary }]}>{lastReadingTime}</Text>
+          <Ionicons name="time-outline" size={14} color="rgba(255, 255, 255, 0.4)" />
+          <Text style={[styles.genCardFooterText, { color: 'rgba(255, 255, 255, 0.4)', fontFamily: 'Urbanist-Medium' }]}>{lastReadingTime}</Text>
         </View>
-        <View style={styles.genCardFooterItem}>
-          <TrendingUp size={12} color={colors.textTertiary} />
-          <Text style={[styles.genCardFooterText, { color: colors.textTertiary }]}>
-            {periodHours > 0 ? `${periodHours.toFixed(1)}h` : '-'}
-          </Text>
+        
+        <View style={{ flex: 1 }} />
+        
+        {/* mock direction indicators from reference mockup */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Ionicons name="arrow-forward-outline" size={12} color="rgba(255, 255, 255, 0.2)" />
+          <Ionicons name="pulse-outline" size={12} color="rgba(255, 255, 255, 0.2)" />
+          <Ionicons name="stats-chart-outline" size={12} color="rgba(255, 255, 255, 0.2)" />
+          <Ionicons name="arrow-forward-outline" size={12} color="rgba(255, 255, 255, 0.2)" />
         </View>
-        <View style={styles.genCardFooterItem}>
-          <Zap size={12} color={colors.textTertiary} />
-          <Text style={[styles.genCardFooterText, { color: colors.textTertiary }]}>
-            {periodConsumption > 0 ? `${periodConsumption.toFixed(0)} L` : '-'}
-          </Text>
-        </View>
-        <ArrowRight size={14} color={colors.textTertiary} />
       </View>
     </TouchableOpacity>
   );
@@ -773,10 +792,12 @@ export default function DieselScreen() {
   const { propertyId, mode } = useLocalSearchParams<{ propertyId: string, mode?: string }>();
   const router = useRouter();
   const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
 
   const [generators, setGenerators] = useState<Generator[]>([]);
+
   const [readings, setReadings] = useState<DieselReading[]>([]);
   const [lastClosings, setLastClosings] = useState<Record<string, LastClosing>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -961,91 +982,105 @@ export default function DieselScreen() {
     return (level / cap) < 0.2;
   });
 
+
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: 0 }]}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}>
       <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient 
+        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
+        style={StyleSheet.absoluteFillObject} 
+      />
       
       {/* Top Navigation */}
-      <View style={[styles.topNav, {
-        backgroundColor: colors.surface,
-        borderBottomColor: colors.border,
-        paddingTop: Math.max(insets.top, 16)
-      }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={{ padding: 4 }}>
-          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
+      <SafeBlurView
+        intensity={80}
+        tint={theme === 'dark' ? 'dark' : 'light'}
+        style={[styles.topNav, {
+          backgroundColor: 'transparent',
+          borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+          paddingTop: Math.max(insets.top, 16)
+        }]}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          style={styles.backCircleBtn}
+        >
+          <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={[styles.topNavTitle, { color: colors.textPrimary }]}>Diesel Logger</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitleLine1} numberOfLines={1} adjustsFontSizeToFit={true}>Diesel</Text>
+          <Text style={styles.headerTitleLine2}>Logger</Text>
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
-            style={[styles.bellButton, { marginRight: 8 }]}
+            style={styles.headerCircularBtn}
             onPress={() => router.push('/property/' + propertyId + '/stock/scan' as any)}
             activeOpacity={0.7}
           >
-            <Ionicons name="qr-code-outline" size={24} color={colors.textSecondary} />
+            <Ionicons name="apps-outline" size={18} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.bellButton, { marginRight: 4 }]}
-            onPress={() => { setEditingGenerator(undefined); setShowGenConfigModal(true); }}
+            style={styles.headerCircularBtn}
+            onPress={() => setShowHistoryModal(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="add-circle-outline" size={26} color={colors.textSecondary} />
+            <Ionicons name="time-outline" size={18} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.bellButton, { marginRight: 4 }]}
+            style={styles.headerCircularBtn}
+            onPress={() => router.push(`/property/${propertyId}/diesel/analytics` as any)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="analytics-outline" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerCircularBtn}
             onPress={() => setShowTariffModal(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="cash-outline" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.bellButton}
-            onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
+            <Ionicons name="bar-chart-outline" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeBlurView>
 
-      {/* Header Banner */}
-      <View style={[styles.header, { backgroundColor: '#708F96' }]}>
-        <Text style={styles.headerSubtitle}>
-          {generators.length} generator{generators.length !== 1 ? 's' : ''}
-        </Text>
-        {/* Period Selector */}
-        <View style={styles.periodRow}>
-          {PERIODS.map(p => (
-            <TouchableOpacity
-              key={p.value}
-              style={[styles.periodBtn, period === p.value && styles.periodBtnActive]}
-              onPress={() => setPeriod(p.value)}
-            >
-              <Text style={[styles.periodBtnText, period === p.value && styles.periodBtnTextActive]}>
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      {/* Parameters Card */}
+      <View style={[styles.paramCard, { backgroundColor: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1 }]}>
+        <View style={styles.paramHeader}>
+          <Ionicons name="options-outline" size={14} color="rgba(255, 255, 255, 0.4)" />
+          <Text style={styles.paramTitle}>Parameters</Text>
         </View>
-        {/* Quick Stats */}
-        <View style={styles.quickStatsRow}>
-          <View style={styles.quickStat}>
-            <Fuel size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.quickStatText}>{totalConsumption.toFixed(0)} L used</Text>
-          </View>
-          <View style={styles.quickStat}>
-            <Clock size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.quickStatText}>{totalRunHours.toFixed(1)}h run</Text>
-          </View>
+
+        {/* Period Selector Pill */}
+        <View style={styles.paramSelectorContainer}>
+          {PERIODS.map(p => {
+            const isActive = period === p.value;
+            return (
+              <TouchableOpacity
+                key={p.value}
+                style={[styles.paramSelectorBtn, isActive && styles.paramSelectorBtnActive]}
+                onPress={() => setPeriod(p.value)}
+              >
+                <Text style={[styles.paramSelectorBtnText, isActive && styles.paramSelectorBtnTextActive]}>
+                  {p.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
-        {/* Low fuel alerts */}
-        {lowFuelGens.length > 0 && (
-          <View style={styles.lowFuelAlertRow}>
-            <AlertTriangle size={12} color={colors.warning} />
-            <Text style={styles.lowFuelAlertText}>
-              Low fuel in: {lowFuelGens.map(g => g.name).join(', ')}
-            </Text>
-          </View>
-        )}
+
+        <View style={styles.oilUsedRow}>
+          <Text style={styles.oilUsedLabel}>IS Oil Used  :</Text>
+          <Text style={styles.oilUsedValue}>{totalConsumption.toFixed(2)}Ltrs</Text>
+        </View>
+
+        <View style={styles.liveRankRow}>
+          <Ionicons name="water-outline" size={14} color="#FBBF24" />
+          <Text style={styles.liveRankText}>
+            Live Rank in {generators.map(g => g.name).join('-')}
+          </Text>
+        </View>
       </View>
 
       {isLoading ? (
@@ -1167,11 +1202,7 @@ export default function DieselScreen() {
         </View>
       </Modal>
 
-      <AppBottomNav 
-        activeTab="loggers"
-        propertyId={propertyId!}
-        onLoggersPress={() => setShowLoggersMenu(true)}
-      />
+
 
       <LoggersMenu
         visible={showLoggersMenu}
@@ -1208,6 +1239,7 @@ export default function DieselScreen() {
         propertyId={propertyId!}
         generators={generators}
       />
+
 
     </View>
   );
@@ -1333,22 +1365,121 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
     zIndex: 10,
   },
-  topNavTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  bellButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  backCircleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: 'center',
+  },
+  headerTitleLine1: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-Bold',
+    color: 'rgba(255, 255, 255, 0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  headerTitleLine2: {
+    fontSize: 22,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    marginTop: -2,
+  },
+  headerCircularBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  paramCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  paramHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  paramTitle: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Bold',
+    color: 'rgba(255, 255, 255, 0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  paramSelectorContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 14,
+  },
+  paramSelectorBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  paramSelectorBtnActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  paramSelectorBtnText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Bold',
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  paramSelectorBtnTextActive: {
+    color: '#0F1521',
+  },
+  oilUsedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  oilUsedLabel: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-Medium',
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  oilUsedValue: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-Bold',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  liveRankRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  liveRankText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Medium',
+    color: '#FBBF24',
   },
   bottomNav: {
     flexDirection: 'row',

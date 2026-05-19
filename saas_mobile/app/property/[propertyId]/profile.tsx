@@ -20,7 +20,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
 import { createClient } from '@/utils/supabase/client';
 import { readFileAsArrayBuffer, compressImage } from '@/utils/mediaUtils';
-import { AppBottomNav } from '@/components/shared/AppBottomNav';
+
 import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import {
   ArrowLeft,
@@ -409,11 +409,7 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-      <AppBottomNav 
-        activeTab="profile"
-        propertyId={propertyId!}
-        onLoggersPress={() => setShowLoggersMenu(true)}
-      />
+
 
       <LoggersMenu
         visible={showLoggersMenu}
@@ -486,6 +482,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 16,
+    paddingBottom: 100,
   },
   photoSection: {
     alignItems: 'center',

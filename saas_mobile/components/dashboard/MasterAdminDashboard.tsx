@@ -20,7 +20,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '../../utils/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
-import { AuroraBackground } from '../shared/AuroraBackground';
+import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import { useWeather } from '@/hooks/useWeather';
 import { useTheme } from '@/context';
 import SignOutModal from '../ui/SignOutModal';
@@ -70,6 +71,7 @@ export default function MasterAdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [manualCondition, setManualCondition] = useState<import('@/hooks/useWeather').WeatherCondition | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     entities: 0,
     activeSessions: 0,
@@ -546,7 +548,7 @@ export default function MasterAdminDashboard() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#060912' : '#F8FAFC' }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-      {weather && <AuroraBackground colors={weather.auroraColors} />}
+      {weather && <WeatherBackground condition={manualCondition || weather.condition} />}
 
       {/* Top Navigation — clean, floating style */}
       <View style={styles.topNav}>
@@ -554,12 +556,22 @@ export default function MasterAdminDashboard() {
           <Text style={styles.topNavTitle}>Master Control</Text>
           <Text style={styles.topNavSubtitle}>System Administration</Text>
         </View>
-        <TouchableOpacity
-          style={styles.topNavButton}
-          onPress={() => setShowSignOutModal(true)}
-        >
-          <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.60)" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          {weather && (
+            <WeatherBadge
+              condition={manualCondition || weather.condition}
+              temperature={weather.temperature}
+              locationName={weather.locationName}
+              onChange={setManualCondition}
+            />
+          )}
+          <TouchableOpacity
+            style={styles.topNavButton}
+            onPress={() => setShowSignOutModal(true)}
+          >
+            <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.60)" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Main Content */}

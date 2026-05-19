@@ -1,12 +1,11 @@
 'use client';
 
 /**
- * OrgPropertyDashboard — Atmospheric Glass Design
+ * OrgPropertyDashboard — Lovable Glassmorphism Design
  *
  * Route: /org/[orgId]
- * Design: Deep night-sky bg with aurora orbs, glass-effect property cards,
- *         glowing status dots, Apple Weather-inspired layout.
- *         Full dark/light mode support via useTheme context.
+ * Design: Deep gradient bg with glass-effect property cards,
+ *         glowing status dots, matching Property Admin dashboard style.
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -23,10 +22,12 @@ import {
   Pressable,
   Dimensions,
   ImageBackground,
+  Modal,
+  TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -34,20 +35,25 @@ import Animated, {
   withSpring,
   FadeInUp,
 } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '@/utils/supabase/client';
 import { useTheme } from '@/context';
-import { useWeather } from '@/hooks/useWeather';
-import { AuroraBackground } from '@/components/shared/AuroraBackground';
-import {
-  STATUS_COLORS,
-  SPACING,
-  type StatusType,
-} from '@/constants/designSystem';
+import { useAuth } from '@/hooks/useAuth';
+import { STATUS_COLORS, SPACING, type StatusType } from '@/constants/designSystem';
+import MobileFooter from '@/components/shared/MobileFooter';
+import SignOutModal from '@/components/ui/SignOutModal';
+import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
+const fontDisplay = Platform.select({
+  web: '"SF Pro Display", system-ui, -apple-system, sans-serif',
+  ios: 'System',
+  android: 'sans-serif',
+  default: 'System',
+});
 
-// ---- Sky gradients for property cards (fallback when no image) ----
+// ---- Sky gradients for property cards ----
 const SKY_GRADIENTS = [
   ['#4A6FA5', '#6B8FC4', '#8BAFD4'],
   ['#2D4A6F', '#4A6FA5', '#7A9FC4'],
@@ -75,28 +81,6 @@ interface OrgProperty {
   totalTickets?: number;
 }
 
-// ---- Icons ----
-const IconSearch = ({ size = 16, color = 'rgba(255,255,255,0.5)' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round">
-    <Circle cx="11" cy="11" r="8" />
-    <Path d="M21 21l-4.35-4.35" />
-  </Svg>
-);
-
-const IconMic = ({ size = 16, color = 'rgba(255,255,255,0.5)' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
-    <Path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-    <Path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-    <Path d="M12 19v4M8 23h8" />
-  </Svg>
-);
-
-const IconMenu = ({ size = 20, color = 'rgba(255,255,255,0.7)' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round">
-    <Path d="M4 6h16M4 12h16M4 18h16" />
-  </Svg>
-);
-
 /** Map health status string to design system StatusType */
 function getStatusType(healthStatus: string): StatusType {
   if (healthStatus === 'critical') return 'critical';
@@ -104,7 +88,7 @@ function getStatusType(healthStatus: string): StatusType {
   return 'optimal';
 }
 
-// ---- Glowing Status Dot using design system tokens ----
+// ---- Glowing Status Dot ----
 function StatusDot({ status }: { status: StatusType }) {
   const palette = STATUS_COLORS[status];
   return (
@@ -127,7 +111,7 @@ function StatusDot({ status }: { status: StatusType }) {
 // ---- Animated Property Card ----
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-function WeatherPropertyCard({ property, index }: { property: OrgProperty; index: number }) {
+function GlassPropertyCard({ property, index }: { property: OrgProperty; index: number }) {
   const router = useRouter();
   const { orgId } = useLocalSearchParams<{ orgId: string }>();
   const gradient = getSkyGradient(property.name);
@@ -166,7 +150,6 @@ function WeatherPropertyCard({ property, index }: { property: OrgProperty; index
             style={styles.cardImageBg}
             resizeMode="cover"
           >
-            {/* Single dark gradient: transparent top → dark bottom for text readability */}
             <LinearGradient
               colors={['rgba(0,0,0,0.00)', 'rgba(0,0,0,0.40)', 'rgba(0,0,0,0.70)']}
               locations={[0, 0.5, 1]}
@@ -212,7 +195,6 @@ function CardContent({ property, open, resolved, statusText, statusType }: {
   const palette = STATUS_COLORS[statusType];
   return (
     <View style={{ flex: 1, justifyContent: 'space-between' }}>
-      {/* Top: Name + Code on left, large number on right */}
       <View style={styles.cardTopRow}>
         <View style={styles.cardLeft}>
           <Text style={styles.cardName} numberOfLines={1}>{property.name}</Text>
@@ -220,8 +202,6 @@ function CardContent({ property, open, resolved, statusText, statusType }: {
         </View>
         <Text style={styles.cardMetric}>{open}</Text>
       </View>
-
-      {/* Bottom: Status dot + label on left, H/L on right */}
       <View style={styles.cardBottomRow}>
         <View style={styles.statusRow}>
           <StatusDot status={statusType} />
@@ -239,12 +219,20 @@ export default function OrgPropertyDashboard() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const { weather } = useWeather();
+
+  const { user, signOut, membership } = useAuth();
+  const router = useRouter();
 
   const [properties, setProperties] = useState<OrgProperty[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showDrawer, setShowDrawer] = useState(false);
+
+  const [showSignOut, setShowSignOut] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+
+  const orgName = membership?.org_name || 'Organization';
 
   const fetchProperties = useCallback(async () => {
     if (!orgId) { setIsLoading(false); setIsRefreshing(false); return; }
@@ -259,7 +247,6 @@ export default function OrgPropertyDashboard() {
     if (error) console.error('[OrgPropertyDashboard] fetch error:', error.message);
 
     if (!error && data) {
-      // Also fetch ticket counts for each property
       const propertyIds = data.map((p: any) => p.id);
       const { data: ticketData } = await supabase
         .from('tickets')
@@ -307,156 +294,244 @@ export default function OrgPropertyDashboard() {
     );
   }, [properties, searchQuery]);
 
-  // ---- Theme-aware tokens ----
-  const bg = isDark ? '#060912' : '#F8FAFC';
-  const textPrimary = isDark ? '#FFFFFF' : '#1D1D1F';
-  const searchBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-  const searchBorder = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)';
-  const searchIcon = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.35)';
-  const searchText = isDark ? '#FFFFFF' : '#1D1D1F';
-  const placeholderColor = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)';
-  const menuBg = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)';
-  const menuIcon = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)';
-  const mutedText = isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.40)';
+  const totalOpen = properties.reduce((sum, p) => sum + (p.openTickets || 0), 0);
+  const totalResolved = properties.reduce((sum, p) => sum + (p.resolvedTickets || 0), 0);
 
   if (isLoading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: bg }]}>
-        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
         <ActivityIndicator size="large" color="#708F96" />
+        <Text style={{ color: 'rgba(255,255,255,0.55)', marginTop: 16, fontFamily: fontSans }}>Loading organization...</Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-
-      {/* Aurora background — ambient animated orbs */}
-      {isDark && weather && <AuroraBackground colors={weather.auroraColors} />}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            tintColor={isDark ? 'rgba(255,255,255,0.6)' : '#708F96'}
-          />
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="rgba(255,255,255,0.6)" />
         }
       >
-        {/* Tight header — menu + title */}
-        <View style={[styles.headerRow, { paddingTop: insets.top + 12 }]}>
-          <Pressable style={[styles.menuButton, { backgroundColor: menuBg }]}>
-            <IconMenu color={menuIcon} />
-          </Pressable>
-          <Text style={[styles.title, { color: textPrimary }]}>Properties</Text>
-        </View>
+        {/* ─── Header ─────────────────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInUp.duration(500)} style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+          <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setShowDrawer(true)} activeOpacity={0.7}>
+            <Ionicons name="menu" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
 
-        {/* Search bar — glass style */}
-        <View style={[styles.searchBar, { backgroundColor: searchBg, borderColor: searchBorder }]}>
-          <IconSearch color={searchIcon} />
-          <TextInput
-            style={[styles.searchInput, { color: searchText }]}
-            placeholder="Search for a property"
-            placeholderTextColor={placeholderColor}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <IconMic color={searchIcon} />
-        </View>
+          <View style={styles.headerCenter}>
+            <TouchableOpacity style={styles.profileRow} activeOpacity={0.7}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2) : 'SU'}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.greetingText} numberOfLines={1}>Hey, {user?.user_metadata?.full_name?.split(' ')[0] || 'Super'}</Text>
+                <Text style={styles.headerSubtitle} numberOfLines={1}>{orgName}</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
 
-        {/* Property cards */}
+          <View style={styles.headerRight}>
+
+            <TouchableOpacity style={styles.headerIconBtn}>
+              <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerIconBtn}>
+              <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+              <View style={styles.notificationBadge} />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        {/* ─── Hero Overview ──────────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInUp.delay(100).duration(600)} style={styles.overviewHeader}>
+          <Text style={styles.overviewTitle}>ORGANIZATION{'\n'}OVERVIEW</Text>
+        </Animated.View>
+
+        {/* ─── Stats Row ──────────────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInUp.delay(150).duration(500)} style={styles.statsRow}>
+          <View style={styles.statPill}>
+            <Text style={styles.statPillValue}>{properties.length}</Text>
+            <Text style={styles.statPillLabel}>Properties</Text>
+          </View>
+          <View style={styles.statPill}>
+            <Text style={[styles.statPillValue, { color: '#FCA5A5' }]}>{totalOpen}</Text>
+            <Text style={styles.statPillLabel}>Open Tickets</Text>
+          </View>
+          <View style={styles.statPill}>
+            <Text style={[styles.statPillValue, { color: '#6EE7B7' }]}>{totalResolved}</Text>
+            <Text style={styles.statPillLabel}>Resolved</Text>
+          </View>
+        </Animated.View>
+
+        {/* ─── Search bar ─────────────────────────────────────────────────────── */}
+        <Animated.View entering={FadeInUp.delay(200).duration(500)} style={styles.searchWrap}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={18} color="rgba(255,255,255,0.4)" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search properties..."
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.4)" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </Animated.View>
+
+        {/* ─── Property Cards ─────────────────────────────────────────────────── */}
         <View style={styles.list}>
           {filteredProperties.map((property, i) => (
-            <WeatherPropertyCard key={property.id} property={property} index={i} />
+            <GlassPropertyCard key={property.id} property={property} index={i} />
           ))}
 
           {filteredProperties.length === 0 && (
             <View style={styles.emptyState}>
-              <Text style={[styles.emptyText, { color: mutedText }]}>
+              <Ionicons name="business-outline" size={48} color="rgba(255,255,255,0.15)" />
+              <Text style={styles.emptyText}>
                 {searchQuery ? 'No matching properties' : 'No properties yet'}
               </Text>
             </View>
           )}
         </View>
       </ScrollView>
+
+      {/* ─── Bottom Navigation ──────────────────────────────────────────────── */}
+      <MobileFooter activeTab="dashboard" />
+
+      <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
+
+      {/* ─── Side Drawer ────────────────────────────────────────────────────── */}
+      <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <View style={[styles.drawerPanel, { paddingTop: insets.top + 16 }]}>
+            <View style={styles.drawerHeader}>
+              <View style={styles.drawerLogoContainer}>
+                <Image
+                  source={require('@/assets/images/autopilot-logo-new.png')}
+                  style={[styles.drawerLogo, { tintColor: '#FFFFFF' }]}
+                  resizeMode="contain"
+                />
+                <Text style={styles.drawerSubtitle}>ORGANIZATION ADMIN</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDrawer(false)} style={styles.drawerCloseBtn}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.drawerSectionLabel}>OPERATIONS</Text>
+              {[
+                { label: 'Dashboard', icon: 'grid-outline' },
+                { label: 'Properties', icon: 'business-outline' },
+                { label: 'Users', icon: 'people-outline' },
+                { label: 'Visitors', icon: 'walk-outline' },
+              ].map((item) => (
+                <TouchableOpacity key={item.label} style={styles.drawerItem} onPress={() => setShowDrawer(false)}>
+                  <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <Text style={[styles.drawerSectionLabel, { marginTop: 20 }]}>SYSTEM</Text>
+              <TouchableOpacity style={styles.drawerItem} onPress={() => { setShowDrawer(false); setShowSignOut(true); }}>
+                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                <Text style={[styles.drawerItemLabel, { color: '#EF4444' }]}>Logout</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+          <TouchableOpacity style={styles.drawerBackdrop} onPress={() => setShowDrawer(false)} />
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-    zIndex: 10,
-  },
+  container: { flex: 1, backgroundColor: '#000' },
+  scrollView: { flex: 1 },
 
-  // Header
-  headerRow: {
+  // Header (matches Property Admin)
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
     paddingHorizontal: 20,
     paddingBottom: 12,
   },
-  menuButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontFamily: fontSans,
-    fontSize: 36,
-    fontWeight: '700',
-    letterSpacing: -1.4,
-    lineHeight: 42,
-  },
+  hamburgerBtn: { padding: 4 },
+  headerCenter: { flex: 1, paddingHorizontal: 12 },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  avatarText: { color: '#FFF', fontSize: 13, fontWeight: '700', fontFamily: fontSans },
+  greetingText: { color: '#FFF', fontSize: 14, fontWeight: '700', fontFamily: fontSans },
+  headerSubtitle: { color: 'rgba(255,255,255,0.40)', fontSize: 11, fontFamily: fontSans, marginTop: 1 },
+  headerRight: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  headerIconBtn: { position: 'relative' },
+  notificationBadge: { position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
 
-  // Search bar
+  // Hero
+  overviewHeader: { paddingHorizontal: 20, marginTop: 8, marginBottom: 16 },
+  overviewTitle: { fontFamily: fontDisplay, fontSize: 26, fontWeight: '800', color: '#FFFFFF', lineHeight: 28, letterSpacing: -0.5 },
+
+  // Stats
+  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 18 },
+  statPill: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+  },
+  statPillValue: { fontFamily: fontDisplay, fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
+  statPillLabel: { fontFamily: fontSans, fontSize: 10, color: 'rgba(255,255,255,0.40)', marginTop: 4, fontWeight: '600' },
+
+  // Search
+  searchWrap: { paddingHorizontal: 20, marginBottom: 16 },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: 16,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 12,
     gap: 10,
-    marginHorizontal: 16,
-    marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
   },
   searchInput: {
     flex: 1,
     fontFamily: fontSans,
-    fontSize: 16,
+    fontSize: 14,
+    color: '#FFFFFF',
     paddingVertical: 0,
   },
 
   // Card list
-  list: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
+  list: { paddingHorizontal: 20, gap: 12 },
 
   // Card
   cardContainer: {
     borderRadius: 22,
     overflow: 'hidden',
     height: 132,
-    // Subtle card shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
@@ -489,11 +564,11 @@ const styles = StyleSheet.create({
   },
   cardName: {
     fontFamily: fontSans,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    lineHeight: 28,
+    lineHeight: 26,
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
@@ -502,19 +577,19 @@ const styles = StyleSheet.create({
     fontFamily: fontSans,
     fontSize: 13,
     fontWeight: '500',
-    color: 'rgba(255,255,255,0.70)',
+    color: 'rgba(255,255,255,0.80)',
     marginTop: 3,
     textShadowColor: 'rgba(0,0,0,0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   cardMetric: {
-    fontFamily: fontSans,
-    fontSize: 54,
+    fontFamily: fontDisplay,
+    fontSize: 48,
     fontWeight: '200',
     color: '#FFFFFF',
     letterSpacing: -1.5,
-    lineHeight: 58,
+    lineHeight: 52,
     textShadowColor: 'rgba(0,0,0,0.15)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
@@ -536,16 +611,15 @@ const styles = StyleSheet.create({
   },
   cardStatus: {
     fontFamily: fontSans,
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
     textShadowColor: 'rgba(0,0,0,0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   cardRange: {
     fontFamily: fontSans,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.85)',
     textShadowColor: 'rgba(0,0,0,0.2)',
@@ -557,11 +631,25 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
+    paddingVertical: 60,
+    gap: 12,
   },
   emptyText: {
     fontFamily: fontSans,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.40)',
   },
+
+  // Drawer
+  drawerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  drawerPanel: { width: 280, height: '100%', backgroundColor: '#111', borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 20 },
+  drawerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, marginTop: 10 },
+  drawerLogoContainer: { flex: 1 },
+  drawerLogo: { width: 140, height: 35, marginLeft: -5 },
+  drawerSubtitle: { color: 'rgba(255,255,255,0.3)', fontSize: 9, fontWeight: '900', letterSpacing: 2, marginTop: 4, marginLeft: 2 },
+  drawerCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
+  drawerSectionLabel: { fontFamily: fontSans, fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5, marginBottom: 8, paddingHorizontal: 4 },
+  drawerItem: { flexDirection: 'row', alignItems: 'center', gap: 15, paddingVertical: 14 },
+  drawerItemLabel: { fontFamily: fontSans, fontSize: 15, color: '#FFF', fontWeight: '600' },
 });

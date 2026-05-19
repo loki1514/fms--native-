@@ -24,8 +24,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+
+import { LoggersMenu } from '@/components/shared/LoggersMenu';
 import { supabase } from '@/utils/supabase/client';
-import { AppBottomNav } from '@/components/shared/AppBottomNav';
+import { mobileServices } from '@/utils/api/mobileServices';
+
 import { readFileAsArrayBuffer } from '@/utils/mediaUtils';
 import {
   CheckSquare,
@@ -581,6 +585,7 @@ export default function ChecklistScreen() {
 
   // ── State ────────────────────────────────────────────────────────────────────
   const [view, setView] = useState<SubView>('history');
+
   const [templates, setTemplates] = useState<SOPTemplate[]>([]);
   const [completions, setCompletions] = useState<SOPCompletion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1076,9 +1081,7 @@ export default function ChecklistScreen() {
           is_checked: newChecked,
           ...(newChecked ? { checked_at: new Date().toISOString(), checked_by: user?.id } : {}),
         };
-        await (supabase.from('sop_completion_items') as any)
-          .update(updates)
-          .eq('id', compItem.id);
+        await mobileServices.updateSOPChecklistItem(propertyId as string, activeCompletion.id, compItem.id, updates);
       }
     } catch {
       setItemStates(prev => ({
@@ -1094,9 +1097,7 @@ export default function ChecklistScreen() {
     if (!compItem) return;
     setItemStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], comment } }));
     try {
-      await (supabase.from('sop_completion_items') as any)
-        .update({ comment })
-        .eq('id', compItem.id);
+      await mobileServices.updateSOPChecklistItem(propertyId as string, activeCompletion.id, compItem.id, { comment });
     } catch {}
   };
 
@@ -1106,9 +1107,7 @@ export default function ChecklistScreen() {
     if (!compItem) return;
     setItemStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], value } }));
     try {
-      await (supabase.from('sop_completion_items') as any)
-        .update({ value })
-        .eq('id', compItem.id);
+      await mobileServices.updateSOPChecklistItem(propertyId as string, activeCompletion.id, compItem.id, { value });
     } catch {}
   };
 
@@ -1204,9 +1203,7 @@ export default function ChecklistScreen() {
         if (type === 'photo') updateData.photo_url = publicUrl;
         else updateData.video_url = publicUrl;
 
-        await (supabase.from('sop_completion_items') as any)
-          .update(updateData)
-          .eq('id', compItem.id);
+        await mobileServices.updateSOPChecklistItem(propertyId as string, activeCompletion.id, compItem.id, updateData);
       }
     } catch (err: any) {
       setItemStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], [stateKey]: false } }));
@@ -1227,11 +1224,7 @@ export default function ChecklistScreen() {
           if (type === 'photo') updateData.photo_url = null;
           else updateData.video_url = null;
 
-          const { error } = await (supabase.from('sop_completion_items') as any)
-            .update(updateData)
-            .eq('id', compItem.id);
-
-          if (error) throw error;
+          await mobileServices.updateSOPChecklistItem(propertyId as string, activeCompletion.id, compItem.id, updateData);
 
           // Delete from storage
           const filePath = (type === 'photo' ? compItem.photo_url : compItem.video_url)?.split(bucket + '/')[1];
@@ -1271,10 +1264,7 @@ export default function ChecklistScreen() {
       const now = new Date();
       const nowMins = now.getHours() * 60 + now.getMinutes();
       const isLate = activeTemplate.start_time && activeTemplate.end_time && !isWithinTimeWindow(nowMins, activeTemplate.start_time, activeTemplate.end_time);
-      const { error } = await (supabase.from('sop_completions') as any)
-        .update({ status: 'completed', completed_at: new Date().toISOString(), is_late: isLate })
-        .eq('id', activeCompletion.id);
-      if (error) throw error;
+      await mobileServices.submitSOPChecklist(propertyId as string, activeCompletion.id, isLate);
       if (realtimeChannel.current) { supabase.removeChannel(realtimeChannel.current); realtimeChannel.current = null; }
       setActiveTemplate(null);
       setActiveCompletion(null);
@@ -1450,7 +1440,7 @@ export default function ChecklistScreen() {
     return liveNow.getTime() > slotEnd.getTime();
   }, [activeTemplate, activeCompletion, liveNow, runnerWindowClosed]);
 
-  const runnerIsReadOnly = (activeCompletion?.status === 'completed' || runnerWindowClosed) && !adminUnlocked;
+  const runnerIsReadOnly = false; // Logic updated per user request to allow editing anytime
 
   const runnerCheckedCount = useMemo(() => {
     if (!activeCompletion || !activeTemplate) return 0;
@@ -1551,19 +1541,19 @@ export default function ChecklistScreen() {
         </View>
 
         {/* Status Banner */}
-        {adminUnlocked && (
+        {false && adminUnlocked && (
           <View style={runnerStyles.bannerAmber}>
             <Lock size={12} color="#B45309" />
             <Text style={runnerStyles.bannerAmberText}>Admin Override Active — Edits are allowed</Text>
           </View>
         )}
-        {runnerWindowClosed && !adminUnlocked && (
+        {false && runnerWindowClosed && !adminUnlocked && (
           <View style={runnerStyles.bannerRed}>
             <Lock size={12} color="#B91C1C" />
             <Text style={runnerStyles.bannerRedText}>Time Window Closed — Read-only</Text>
           </View>
         )}
-        {runnerSlotOverdue && !runnerWindowClosed && !adminUnlocked && (
+        {false && runnerSlotOverdue && !runnerWindowClosed && !adminUnlocked && (
           <View style={runnerStyles.bannerAmber}>
             <Lock size={12} color="#B45309" />
             <Text style={runnerStyles.bannerAmberText}>Overdue — Submit Now</Text>
@@ -1840,7 +1830,7 @@ export default function ChecklistScreen() {
         <FlatList
           data={template?.items || []}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 }}
           renderItem={({ item }) => {
             const compItem = historyCompletion.items?.find(ci => ci.checklist_item_id === item.id);
             return (
@@ -1910,380 +1900,293 @@ export default function ChecklistScreen() {
 
   // ── Main View ──
   return (
-    <LinearGradient colors={isDark ? ['#0F1419', '#1A1F2E'] : ['#F8FAFC', '#EEF2F6']} style={styles.container}>
+    <LinearGradient colors={['#0a0f1e', '#12182b']} style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Top nav */}
-      <View style={[styles.topNav, { backgroundColor: colors.surface, borderBottomColor: colors.border, paddingTop: Math.max(insets.top, 16) }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
-          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
+      <View style={[styles.topNav, { paddingTop: Math.max(insets.top, 16) }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.navIconBtn}>
+          <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={[styles.topNavTitle, { color: colors.textPrimary }]}>Checklists</Text>
-        <View style={{ width: 44 }} />
-      </View>
-
-      {/* Header */}
-      <View style={[styles.headerSection, { backgroundColor: colors.primary }]}>
-        <View style={styles.headerTop}>
-          <View style={styles.headerLeft}>
-            <View style={styles.headerIconWrap}>
-              <ClipboardList size={16} color="#FFFFFF" />
-            </View>
-            <Text style={styles.headerTitle}>{isAdmin ? 'Checklist Manager' : 'My Checklists'}</Text>
-          </View>
-          {isAdmin && (
-            <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: 'rgba(255,255,255,0.25)' }]}
-              onPress={() => { resetTemplateForm(); setShowCreateTemplate(true); }}
-            >
-              <Plus size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* View tabs */}
-        <View style={styles.viewToggle}>
-          <TouchableOpacity
-            style={[styles.toggleTab, view === 'history' && { backgroundColor: 'rgba(255,255,255,0.25)' }]}
-            onPress={() => setView('history')}
-          >
-            <History size={12} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.toggleTabText}>History</Text>
-          </TouchableOpacity>
-          {isAdmin && (
-            <TouchableOpacity
-              style={[styles.toggleTab, view === 'templates' && { backgroundColor: 'rgba(255,255,255,0.25)' }]}
-              onPress={() => setView('templates')}
-            >
-              <LayoutGrid size={12} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.toggleTabText}>Templates</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        <Text style={styles.topNavTitle}>Checklists</Text>
+        <TouchableOpacity onPress={() => router.push(`/property/${propertyId}/checklist/scan` as any)} style={styles.navIconBtn}>
+          <Ionicons name="scan-outline" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
 
       {isLoading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color="#4F93E4" />
         </View>
       ) : (
-        <>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}>
+          
+          {/* Header Card */}
+          <LinearGradient
+            colors={['rgba(59, 130, 246, 0.15)', 'rgba(255, 255, 255, 0.03)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.headerCard}
+          >
+            <View style={styles.headerTop}>
+              <View style={styles.headerLeft}>
+                <View style={styles.headerIconWrap}>
+                  <ClipboardList size={18} color="#FFFFFF" />
+                </View>
+                <Text style={styles.headerTitle}>{isAdmin ? 'Checklist Manager' : 'My Checklists'}</Text>
+              </View>
+              {isAdmin && (
+                <TouchableOpacity
+                  style={styles.addBtn}
+                  onPress={() => { resetTemplateForm(); setShowCreateTemplate(true); }}
+                >
+                  <Plus size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.viewToggle}>
+              <TouchableOpacity
+                style={[styles.toggleTab, view === 'history' && styles.toggleTabActive]}
+                onPress={() => setView('history')}
+              >
+                <History size={12} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.toggleTabText}>History</Text>
+              </TouchableOpacity>
+              {isAdmin && (
+                <TouchableOpacity
+                  style={[styles.toggleTab, view === 'templates' && styles.toggleTabActive]}
+                  onPress={() => setView('templates')}
+                >
+                  <LayoutGrid size={12} color="rgba(255,255,255,0.8)" />
+                  <Text style={styles.toggleTabText}>Templates</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </LinearGradient>
+
           {/* ── Templates Tab ── */}
           {view === 'templates' && isAdmin && (
-            <FlatList
-              data={filteredTemplates}
-              keyExtractor={item => item.id}
-              refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
-              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100 }}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
+            <View>
+             {filteredTemplates.length === 0 ? (
                 <View style={{ alignItems: 'center', paddingTop: 80, gap: 12 }}>
-                  <ClipboardList size={48} color={colors.textTertiary} />
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.textSecondary }}>No templates yet</Text>
-                  <TouchableOpacity style={[styles.createFirstBtn, { backgroundColor: colors.primary }]} onPress={() => { resetTemplateForm(); setShowCreateTemplate(true); }}>
+                  <ClipboardList size={48} color="rgba(255,255,255,0.2)" />
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#FFF' }}>No templates yet</Text>
+                  <TouchableOpacity style={styles.startBtn} onPress={() => { resetTemplateForm(); setShowCreateTemplate(true); }}>
                     <Plus size={14} color="#FFFFFF" />
                     <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700', marginLeft: 6 }}>Create Template</Text>
                   </TouchableOpacity>
                 </View>
-              }
-              renderItem={({ item: template }) => {
-                const ds = dueStatusMap[template.id];
-                const lastDone = template.completions.filter(c => c.status === 'completed')
-                  .sort((a, b) => new Date(b.completed_at || b.completion_date || 0).getTime() - new Date(a.completed_at || a.completion_date || 0).getTime())[0];
-                const inProgress = template.completions.find(c => c.status === 'in_progress');
-                const checkedCount = inProgress?.items?.filter((i: any) => i.is_checked || i.value).length || 0;
-                const totalPoints = template.items.length;
-                const prog = totalPoints > 0 ? checkedCount / totalPoints : 0;
-                const isExpanded = expandedTemplateId === template.id;
-                const showBadge = ds?.label && (ds.due || ds.label.startsWith('Next') || ds.label.startsWith('Starts'));
-                const expandedComps = expandedCompletions[template.id] || [];
-
-                return (
-                  <View style={{ marginBottom: 8 }}>
-                    <TouchableOpacity
-                      style={[styles.templateCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                      onPress={() => handleToggleExpand(template)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.templateCardRow}>
-                        {/* Progress circle */}
-                        <CircularProgress
-                          progress={prog}
-                          size={42}
-                          strokeWidth={4}
-                          color={prog === 1 ? (colors.success || '#10B981') : '#3B82F6'}
-                          bgColor={colors.border}
-                        />
-                        <View style={styles.templateCardContent}>
-                          <Text style={styles.templateName} numberOfLines={1}>{template.title}</Text>
-                          <View style={styles.templateMetaRow}>
-                            {template.category && (
-                              <View style={[styles.catBadge, { backgroundColor: (colors.primary || '#708F96') + '15' }]}>
-                                <Text style={[styles.catBadgeText, { color: colors.primary || '#708F96' }]}>{template.category}</Text>
-                              </View>
-                            )}
-                            <Text style={styles.templateMeta}>
-                              {frequencyLabel(template.frequency)}
-                              {(template.start_time || template.end_time) && ` (${fmt12h(template.start_time)} – ${fmt12h(template.end_time)})`}
-                              {' · '}{totalPoints} pts
-                            </Text>
-                          </View>
-                          <View style={styles.templateMetaRow}>
-                            <Text style={styles.templateMeta}>
-                              {lastDone ? `Last: ${new Date(lastDone.completion_date || lastDone.created_at).toLocaleDateString()}` : 'No audit'}
-                            </Text>
-                            {!template.is_running && (
-                              <View style={[styles.pausedBadge]}>
-                                <Text style={{ fontSize: 8, fontWeight: '900', color: colors.textTertiary, textTransform: 'uppercase' }}>Paused</Text>
-                              </View>
-                            )}
-                            {showBadge && (
-                              <View style={[styles.dueBadge, {
-                                backgroundColor: ds.due ? '#FEE2E2' : ds.label.startsWith('Next') ? '#DBEAFE' : '#FEF3C7',
-                              }]}>
-                                <Text style={[styles.dueBadgeText, {
-                                  color: ds.due ? '#DC2626' : ds.label.startsWith('Next') ? '#2563EB' : '#D97706',
-                                }]}>{ds.label}</Text>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-                        <View style={styles.templateCardRight}>
-                          <ChevronRight size={16} color={colors.textTertiary} />
-                        </View>
-                      </View>
-
-                      {/* Action buttons */}
-                      <View style={[styles.templateActions, { borderTopColor: colors.border }]}>
-                        {template.is_running && (
-                          <>
-                            {template.frequency === 'on_demand' && (
-                              <TouchableOpacity
-                                style={[styles.actionBtn, { backgroundColor: '#1F2937' }]}
-                                onPress={() => handleStartChecklist(template, inProgress)}
-                              >
-                                <Play size={10} color="#FFFFFF" />
-                                <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>Run Now</Text>
-                              </TouchableOpacity>
-                            )}
-                            <TouchableOpacity
-                              style={[styles.actionBtn, { backgroundColor: '#FEF3C7' }]}
-                              onPress={() => handleStartChecklist(template, inProgress)}
-                            >
-                              <Play size={10} color="#B45309" />
-                              <Text style={{ color: '#B45309', fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 }}>{inProgress ? 'Resume' : 'Start'}</Text>
-                            </TouchableOpacity>
-                          </>
-                        )}
-                        <TouchableOpacity style={[styles.iconActionBtn]} onPress={() => openEditTemplate(template)}>
-                          <Edit3 size={14} color={colors.primary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.iconActionBtn]} onPress={() => handleDeleteTemplate(template)}>
-                          <Trash2 size={14} color={colors.error || '#EF4444'} />
-                        </TouchableOpacity>
-                      </View>
-                    </TouchableOpacity>
-
-                    {/* Expanded completions */}
-                    {isExpanded && (
-                      <View style={{ paddingHorizontal: 0, paddingTop: 4 }}>
-                        {expandedComps.length > 0 ? expandedComps.map(comp => (
-                          <TouchableOpacity
-                            key={comp.id}
-                            style={[styles.compRow, { backgroundColor: colors.card, borderColor: colors.border }]}
-                            onPress={() => { setHistoryCompletion(comp); setView('detail'); }}
-                          >
-                            <View style={[styles.compStatusDot, { backgroundColor: comp.status === 'completed' ? colors.success : '#3B82F6' }]} />
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.compDate}>{new Date(comp.completion_date || comp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
-                              <Text style={styles.compMeta}>{comp.user?.full_name || 'Unknown'}{comp.slot_time ? ` · ${fmt12h(comp.slot_time)}` : ''}</Text>
-                            </View>
-                            <ChevronRight size={14} color={colors.textTertiary} />
-                          </TouchableOpacity>
-                        )) : (
-                          <View style={[styles.compRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                            <Text style={{ color: colors.textTertiary, fontSize: 12, paddingVertical: 12 }}>No completion history</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                );
-              }}
-            />
-          )}
-
-          {/* ── History Tab ── */}
-          {view === 'history' && (
-            <FlatList<HistoryItem>
-              data={filteredHistoryList}
-              keyExtractor={(item, idx) => `${item.type}-${item.data.id}-${idx}`}
-              refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
-              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100 }}
-              showsVerticalScrollIndicator={false}
-              ListHeaderComponent={
-                <>
-                  {/* Stats Grid */}
-                  <View style={styles.statsGrid}>
-                    <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      <Text style={styles.statLabel}>Total History</Text>
-                      <Text style={styles.statValue}>{historyStats.total}</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' }]}>
-                      <Text style={[styles.statLabel, { color: '#059669' }]}>Shift Done</Text>
-                      <Text style={[styles.statValue, { color: '#059669' }]}>{historyStats.completed}</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-                      <Text style={[styles.statLabel, { color: '#D97706' }]}>Due Now</Text>
-                      <Text style={[styles.statValue, { color: '#D97706' }]}>{historyStats.due}</Text>
-                    </View>
-                    <View style={[styles.statCard, { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
-                      <Text style={[styles.statLabel, { color: '#DC2626' }]}>Missed</Text>
-                      <Text style={[styles.statValue, { color: '#DC2626' }]}>{historyStats.missed}</Text>
-                    </View>
-                  </View>
-
-                  {/* Filter tabs */}
-                  <View style={styles.filterRow}>
-                    {(['all', 'due', 'upcoming', 'missed', 'completed'] as HistoryFilter[]).map(f => (
-                      <TouchableOpacity
-                        key={f}
-                        style={[styles.filterChip, historyFilter === f && { backgroundColor: colors.primary + '18', borderColor: colors.primary }]}
-                        onPress={() => setHistoryFilter(f)}
-                      >
-                        <Text style={[styles.filterChipText, { color: historyFilter === f ? colors.primary : colors.textSecondary }]}>
-                          {f.charAt(0).toUpperCase() + f.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
-              }
-              ListEmptyComponent={
-                <View style={{ alignItems: 'center', paddingTop: 80, gap: 12 }}>
-                  <History size={48} color={colors.textTertiary} />
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.textSecondary }}>No records</Text>
-                  <Text style={{ fontSize: 13, color: colors.textTertiary, textAlign: 'center' }}>
-                    {isAdmin ? 'Create a template to get started' : 'No checklists assigned to you'}
-                  </Text>
-                </View>
-              }
-              renderItem={({ item }) => {
-                if (item.type === 'missed_occurrence') {
-                  const m = item.data;
-                  return (
-                    <View style={[styles.templateCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: 0.8 }]}>
-                      <View style={styles.templateCardRow}>
-                        <View style={[styles.completedIcon, { backgroundColor: '#FEE2E2' }]}>
-                          <Clock size={20} color="#DC2626" />
-                        </View>
-                        <View style={styles.templateCardContent}>
-                          <Text style={styles.templateName} numberOfLines={1}>{m.template.title}</Text>
-                          <Text style={[styles.templateMeta, { color: '#B91C1C', fontWeight: 'bold' }]}>
-                            MISSED: {m.label}
-                          </Text>
-                        </View>
-                        <View style={styles.templateCardRight}>
-                          <TouchableOpacity
-                            style={[styles.startBtn, { backgroundColor: '#1F2937' }]}
-                            onPress={() => handleStartChecklist(m.template, undefined, m.date, m.slotTime || undefined)}
-                          >
-                            <Repeat size={13} color="#FFFFFF" />
-                            <Text style={styles.startBtnText}>Backfill</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                }
-
-                if (item.type === 'template') {
-                  const template = item.data;
+             ) : (
+                filteredTemplates.map((template) => {
                   const ds = dueStatusMap[template.id];
                   const lastDone = template.completions.filter(c => c.status === 'completed')
                     .sort((a, b) => new Date(b.completed_at || b.completion_date || 0).getTime() - new Date(a.completed_at || a.completion_date || 0).getTime())[0];
                   const inProgress = template.completions.find(c => c.status === 'in_progress');
                   const checkedCount = inProgress?.items?.filter((i: any) => i.is_checked || i.value).length || 0;
-                  const prog = template.items.length > 0 ? checkedCount / template.items.length : 0;
+                  const totalPoints = template.items.length;
+                  const prog = totalPoints > 0 ? checkedCount / totalPoints : 0;
+                  const showBadge = ds?.label && (ds.due || ds.label.startsWith('Next') || ds.label.startsWith('Starts'));
 
                   return (
-                    <View style={[styles.templateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      <View style={styles.templateCardRow}>
-                        <CircularProgress
-                          progress={prog}
-                          size={42}
-                          strokeWidth={4}
-                          color={prog === 1 ? (colors.success || '#10B981') : '#3B82F6'}
-                          bgColor={colors.border}
-                        />
-                        <View style={styles.templateCardContent}>
-                          <Text style={styles.templateName} numberOfLines={1}>{template.title}</Text>
-                          <Text style={styles.templateMeta}>
-                            {frequencyLabel(template.frequency)}
-                            {(template.start_time || template.end_time) && ` (${fmt12h(template.start_time)} – ${fmt12h(template.end_time)})`}
-                          </Text>
-                          {lastDone && (
-                            <Text style={styles.templateMeta}>{formatRelative(lastDone.completed_at || lastDone.completion_date || '')}</Text>
-                          )}
+                    <View key={template.id} style={{ marginBottom: 8 }}>
+                      <TouchableOpacity
+                        style={styles.historyCard}
+                        onPress={() => handleToggleExpand(template)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.historyCardRow}>
+                          <View style={styles.iconCircle}>
+                            <Circle size={10} color="#4F93E4" fill="#4F93E4" />
+                          </View>
+                          <View style={styles.historyCardContent}>
+                            <Text style={styles.historyTitle} numberOfLines={1}>{template.title}</Text>
+                            <Text style={styles.historyMeta}>
+                              {frequencyLabel(template.frequency)}
+                              {(template.start_time || template.end_time) && ` • ${fmt12h(template.start_time)} – ${fmt12h(template.end_time)}`}
+                            </Text>
+                            <Text style={styles.historyMeta}>
+                              {lastDone ? `Last: ${new Date(lastDone.completion_date || lastDone.created_at).toLocaleDateString()}` : 'No audit'}
+                            </Text>
+                          </View>
+                          <View style={styles.historyCardRight}>
+                            {showBadge && (
+                              <View style={[styles.statusBadge, { backgroundColor: ds.due ? 'rgba(239,68,68,0.2)' : ds.label.startsWith('Next') ? 'rgba(59,130,246,0.2)' : 'rgba(245,158,11,0.2)' }]}>
+                                <Text style={[styles.statusBadgeText, { color: ds.due ? '#FCA5A5' : ds.label.startsWith('Next') ? '#93C5FD' : '#FCD34D' }]}>{ds.label.toUpperCase()}</Text>
+                              </View>
+                            )}
+                            <TouchableOpacity style={styles.startBtn} onPress={() => handleStartChecklist(template, inProgress)}>
+                              <Play size={12} color="#FFFFFF" fill="#FFFFFF" />
+                              <Text style={styles.startBtnText}>{inProgress ? 'Resume' : 'Start'}</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
-                        <View style={styles.templateCardRight}>
-                          {ds?.label && (
-                            <View style={[styles.dueBadge, { backgroundColor: ds.due ? '#FEE2E2' : ds.status === 'upcoming' ? '#DBEAFE' : '#FEF3C7' }]}>
-                              <Text style={[styles.dueBadgeText, { color: ds.due ? '#DC2626' : ds.status === 'upcoming' ? '#2563EB' : '#D97706' }]}>{ds.label}</Text>
-                            </View>
-                          )}
-                          <TouchableOpacity
-                            style={[styles.startBtn, { backgroundColor: inProgress ? '#3B82F6' : colors.primary }]}
-                            onPress={() => handleStartChecklist(template, inProgress)}
-                          >
-                            <Play size={13} color="#FFFFFF" fill="#FFFFFF" />
-                            <Text style={styles.startBtnText}>{inProgress ? 'Resume' : 'Start'}</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
+                      </TouchableOpacity>
                     </View>
                   );
-                }
-
-                // Completion record
-                const comp = item.data;
-                const tmpl = templates.find(t => t.id === comp.template_id);
-                const checkedCount = comp.items?.filter((i: any) => i.is_checked || i.value).length || 0;
-                const total = tmpl?.items.length || 0;
-                return (
-                  <TouchableOpacity
-                    style={[styles.templateCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                    onPress={() => { setHistoryCompletion(comp); setView('detail'); }}
-                  >
-                    <View style={styles.templateCardRow}>
-                      <View style={[styles.completedIcon, { backgroundColor: colors.success + '18' }]}>
-                        <CheckCircle2 size={20} color={colors.success} />
-                      </View>
-                      <View style={styles.templateCardContent}>
-                        <Text style={styles.templateName} numberOfLines={1}>{tmpl?.title || 'Checklist'}</Text>
-                        <Text style={styles.templateMeta}>
-                          {comp.completion_date ? new Date(comp.completion_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
-                          {comp.slot_time ? ` · ${fmt12h(comp.slot_time)}` : ''}
-                          {' · '}{comp.user?.full_name || 'Unknown'}
-                        </Text>
-                        <Text style={styles.templateMeta}>{checkedCount}/{total} pts</Text>
-                      </View>
-                      <ChevronRight size={16} color={colors.textTertiary} />
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-            />
+                })
+             )}
+            </View>
           )}
-        </>
+
+          {/* ── History Tab ── */}
+          {view === 'history' && (
+            <>
+              {/* Stats Grid */}
+              <View style={styles.statsGrid}>
+                <LinearGradient colors={['rgba(59, 130, 246, 0.1)', 'rgba(59, 130, 246, 0.05)']} style={[styles.statCard, { borderColor: 'rgba(59, 130, 246, 0.2)' }]}>
+                  <Text style={[styles.statLabel, { color: '#94A3B8' }]}>TOTAL ACTIONS</Text>
+                  <Text style={[styles.statValue, { color: '#60A5FA' }]}>{historyStats.total}</Text>
+                </LinearGradient>
+                <LinearGradient colors={['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.05)']} style={[styles.statCard, { borderColor: 'rgba(16, 185, 129, 0.2)' }]}>
+                  <Text style={[styles.statLabel, { color: '#94A3B8' }]}>SAFE TO AIM</Text>
+                  <Text style={[styles.statValue, { color: '#34D399' }]}>{historyStats.completed}</Text>
+                </LinearGradient>
+                <LinearGradient colors={['rgba(245, 158, 11, 0.1)', 'rgba(245, 158, 11, 0.05)']} style={[styles.statCard, { borderColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                  <Text style={[styles.statLabel, { color: '#94A3B8' }]}>ON HOLD</Text>
+                  <Text style={[styles.statValue, { color: '#FBBF24' }]}>{historyStats.upcoming}</Text>
+                </LinearGradient>
+                <LinearGradient colors={['rgba(239, 68, 68, 0.1)', 'rgba(239, 68, 68, 0.05)']} style={[styles.statCard, { borderColor: 'rgba(239, 68, 68, 0.2)' }]}>
+                  <Text style={[styles.statLabel, { color: '#94A3B8' }]}>AT RISK</Text>
+                  <Text style={[styles.statValue, { color: '#F87171' }]}>{historyStats.due + historyStats.missed}</Text>
+                </LinearGradient>
+              </View>
+
+              {/* Filter Row */}
+              <View style={styles.filterRow}>
+                {(['all', 'due', 'upcoming', 'paused', 'completed'] as HistoryFilter[]).map(f => (
+                  <TouchableOpacity
+                    key={f}
+                    style={[styles.filterChip, historyFilter === f && styles.filterChipActive]}
+                    onPress={() => setHistoryFilter(f)}
+                  >
+                    <Text style={[styles.filterChipText, historyFilter === f && { color: '#FFFFFF' }]}>
+                      {f.charAt(0).toUpperCase() + f.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* List */}
+              {filteredHistoryList.length === 0 ? (
+                <View style={{ alignItems: 'center', paddingTop: 60, gap: 12 }}>
+                  <History size={48} color="rgba(255,255,255,0.2)" />
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#FFF' }}>No records</Text>
+                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+                    {isAdmin ? 'Create a template to get started' : 'No checklists assigned to you'}
+                  </Text>
+                </View>
+              ) : (
+                filteredHistoryList.map((item, idx) => {
+                  if (item.type === 'missed_occurrence') {
+                    const m = item.data;
+                    return (
+                      <View key={`missed-${idx}`} style={[styles.historyCard, { opacity: 0.8 }]}>
+                        <View style={styles.historyCardRow}>
+                          <View style={[styles.iconCircle, { borderColor: 'rgba(239,68,68,0.3)' }]}>
+                            <Circle size={10} color="#F87171" fill="#F87171" />
+                          </View>
+                          <View style={styles.historyCardContent}>
+                            <Text style={styles.historyTitle} numberOfLines={1}>{m.template.title}</Text>
+                            <Text style={styles.historyMeta}>MISSED: {m.label}</Text>
+                          </View>
+                          <View style={styles.historyCardRight}>
+                            <View style={[styles.statusBadge, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
+                              <Text style={[styles.statusBadgeText, { color: '#FCA5A5' }]}>AT RISK</Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.startBtn}
+                              onPress={() => handleStartChecklist(m.template, undefined, m.date, m.slotTime || undefined)}
+                            >
+                              <Play size={12} color="#FFFFFF" fill="#FFFFFF" />
+                              <Text style={styles.startBtnText}>Start</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  }
+
+                  if (item.type === 'template') {
+                    const template = item.data;
+                    const ds = dueStatusMap[template.id];
+                    const inProgress = template.completions.find(c => c.status === 'in_progress');
+                    
+                    return (
+                      <View key={`tmpl-${template.id}`} style={styles.historyCard}>
+                        <View style={styles.historyCardRow}>
+                          <View style={styles.iconCircle}>
+                            <Circle size={10} color="#4F93E4" fill="transparent" />
+                          </View>
+                          <View style={styles.historyCardContent}>
+                            <Text style={styles.historyTitle} numberOfLines={1}>{template.title}</Text>
+                            <Text style={styles.historyMeta}>
+                              {frequencyLabel(template.frequency)}
+                              {(template.start_time || template.end_time) && ` • ${fmt12h(template.start_time)} – ${fmt12h(template.end_time)}`}
+                            </Text>
+                            <Text style={styles.historyMeta}>Today</Text>
+                          </View>
+                          <View style={styles.historyCardRight}>
+                            {ds?.label && (
+                              <View style={[styles.statusBadge, { backgroundColor: ds.due ? 'rgba(239,68,68,0.2)' : ds.status === 'upcoming' ? 'rgba(59,130,246,0.2)' : 'rgba(16,185,129,0.2)' }]}>
+                                <Text style={[styles.statusBadgeText, { color: ds.due ? '#FCA5A5' : ds.status === 'upcoming' ? '#93C5FD' : '#6EE7B7' }]}>
+                                  {ds.due ? 'AT RISK' : ds.status === 'upcoming' ? 'ON HOLD' : 'SAFE TO AIM'}
+                                </Text>
+                              </View>
+                            )}
+                            <TouchableOpacity
+                              style={styles.startBtn}
+                              onPress={() => handleStartChecklist(template, inProgress)}
+                            >
+                              <Play size={12} color="#FFFFFF" fill="#FFFFFF" />
+                              <Text style={styles.startBtnText}>{inProgress ? 'Resume' : 'Start'}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  }
+
+                  // Completion record
+                  const comp = item.data;
+                  const tmpl = templates.find(t => t.id === comp.template_id);
+                  return (
+                    <TouchableOpacity
+                      key={`comp-${comp.id}`}
+                      style={styles.historyCard}
+                      onPress={() => { setHistoryCompletion(comp); setView('detail'); }}
+                    >
+                      <View style={styles.historyCardRow}>
+                        <View style={[styles.iconCircle, { borderColor: 'rgba(16,185,129,0.3)' }]}>
+                          <CheckCircle2 size={12} color="#6EE7B7" />
+                        </View>
+                        <View style={styles.historyCardContent}>
+                          <Text style={styles.historyTitle} numberOfLines={1}>{tmpl?.title || 'Checklist'}</Text>
+                          <Text style={styles.historyMeta}>
+                            {comp.completion_date ? new Date(comp.completion_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                            {comp.slot_time ? ` • ${fmt12h(comp.slot_time)}` : ''}
+                          </Text>
+                          <Text style={styles.historyMeta}>{comp.user?.full_name || 'Unknown'}</Text>
+                        </View>
+                        <View style={styles.historyCardRight}>
+                          <View style={[styles.statusBadge, { backgroundColor: 'rgba(16,185,129,0.2)' }]}>
+                            <Text style={[styles.statusBadgeText, { color: '#6EE7B7' }]}>SAFE TO AIM</Text>
+                          </View>
+                          <View style={[styles.startBtn, { backgroundColor: 'transparent', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1 }]}>
+                            <Text style={styles.startBtnText}>View</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </>
+          )}
+        </ScrollView>
       )}
 
-      <AppBottomNav
-        activeTab="checklist"
-        propertyId={propertyId!}
-        onLoggersPress={() => {}}
-        showChecklist={true}
-      />
+
 
       {/* Create/Edit Template Modal */}
       <Modal visible={showCreateTemplate} animationType="slide" transparent>
@@ -2462,6 +2365,7 @@ export default function ChecklistScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
     </LinearGradient>
   );
 }
@@ -2470,41 +2374,48 @@ export default function ChecklistScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
-  topNavTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.5 },
+  topNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16 },
+  topNavTitle: { fontSize: 18, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.5 },
+  navIconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
 
-  headerSection: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerIconWrap: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.3 },
-  addBtn: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  headerCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 20, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.3 },
+  addBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
 
-  viewToggle: { flexDirection: 'row', gap: 8 },
-  toggleTab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  toggleTabText: { fontSize: 11, fontFamily: 'Urbanist-Bold', color: 'rgba(255,255,255,0.8)' },
+  viewToggle: { flexDirection: 'row', gap: 10 },
+  toggleTab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)' },
+  toggleTabActive: { backgroundColor: 'rgba(59,130,246,0.2)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.5)' },
+  toggleTabText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: '#FFFFFF' },
 
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  statCard: { width: (SCREEN_W - 48) / 2, padding: 12, borderRadius: 14, borderWidth: 1 },
-  statLabel: { fontSize: 9, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 1, color: '#64748B', marginBottom: 4 },
-  statValue: { fontSize: 28, fontFamily: 'Poppins-Bold', color: '#1A2332' },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16, justifyContent: 'space-between' },
+  statCard: { width: '48%', padding: 16, borderRadius: 12, borderWidth: 1 },
+  statLabel: { fontSize: 10, fontFamily: 'Urbanist-Bold', letterSpacing: 1, marginBottom: 6 },
+  statValue: { fontSize: 32, fontFamily: 'Poppins-Bold' },
 
-  filterRow: { flexDirection: 'row', gap: 6, marginBottom: 8, flexWrap: 'wrap' },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0' },
-  filterChipText: { fontSize: 11, fontFamily: 'Urbanist-Bold' },
+  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 16, paddingHorizontal: 4 },
+  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'transparent' },
+  filterChipActive: { backgroundColor: 'rgba(59, 130, 246, 0.2)', borderColor: '#3B82F6' },
+  filterChipText: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: 'rgba(255,255,255,0.6)' },
 
-  templateCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 8 },
-  templateCardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  templateCardContent: { flex: 1 },
-  templateCardRight: { alignItems: 'flex-end', gap: 6 },
-  templateName: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#1A2332', marginBottom: 3 },
-  templateMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
-  templateMeta: { fontSize: 10, fontFamily: 'Urbanist-Regular', color: '#64748B' },
-  catBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 },
-  catBadgeText: { fontSize: 8, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
-  dueBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  dueBadgeText: { fontSize: 8, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
-  pausedBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: '#F1F5F9' },
+  historyCard: { borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', padding: 14, marginBottom: 10 },
+  historyCardRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  iconCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
+  historyCardContent: { flex: 1 },
+  historyTitle: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#4F93E4', marginBottom: 2 },
+  historyMeta: { fontSize: 11, fontFamily: 'Urbanist-Regular', color: 'rgba(255,255,255,0.5)' },
+  
+  historyCardRight: { alignItems: 'flex-end', gap: 8 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  statusBadgeText: { fontSize: 9, fontFamily: 'Urbanist-Bold', letterSpacing: 0.5 },
   startBtn: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -2513,33 +2424,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, 
     paddingVertical: 8, 
     borderRadius: 20,
-    minWidth: 85,
+    minWidth: 80,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   startBtnText: { 
     color: '#FFFFFF', 
-    fontSize: 11, 
+    fontSize: 12, 
     fontFamily: 'Poppins-Bold',
-    lineHeight: 14,
+    lineHeight: 16,
     includeFontPadding: false,
   },
-  templateActions: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 6, borderTopWidth: 1, paddingTop: 10 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16 },
-  iconActionBtn: { padding: 6 },
-
-  completedIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-
-  compRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
-  compStatusDot: { width: 8, height: 8, borderRadius: 4 },
-  compDate: { fontSize: 13, fontFamily: 'Poppins-Bold', color: '#1A2332' },
-  compMeta: { fontSize: 10, fontFamily: 'Urbanist-Regular', color: '#64748B' },
-
-  createFirstBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, gap: 6 },
-
-  bottomNav: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 8, paddingTop: 8, borderTopWidth: 1 },
-  navItem: { flex: 1, alignItems: 'center', paddingVertical: 4 },
-  navItemCenter: { flex: 1, alignItems: 'center' },
-  centerFab: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginTop: -20 },
-  navText: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 2 },
 });
 
 const runnerStyles = StyleSheet.create({

@@ -24,6 +24,12 @@ import { useTheme } from '@/context';
 import { Colors, DesignTokens } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
 import { toast } from '@/lib/toast';
+import { LinearGradient } from 'expo-linear-gradient';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import { mobileServices } from '@/utils/api/mobileServices';
+
+
+
 import { formatDateTime } from '@/lib/utils';
 import {
   Users,
@@ -140,19 +146,27 @@ function StatCard({
   const colors = Colors[theme];
   return (
     <TouchableOpacity
-      style={[
-        styles.statCard,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
+      style={[styles.statCard]}
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
     >
+      <SafeBlurView
+        intensity={40}
+        tint="dark"
+        style={[StyleSheet.absoluteFillObject, { borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }]}
+      >
+        <LinearGradient
+          colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </SafeBlurView>
       <View style={[styles.statIcon, { backgroundColor: bgColor }]}>{icon}</View>
-      <Text style={[styles.statLabel, { color: colors.textTertiary }]}>{label}</Text>
+      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
     </TouchableOpacity>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // Visitor Card Component
@@ -171,19 +185,31 @@ function VisitorCard({
 
   return (
     <TouchableOpacity
-      style={[styles.visitorCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      style={[styles.visitorCard]}
       onPress={onPress}
       activeOpacity={0.7}
     >
+      <SafeBlurView
+        intensity={40}
+        tint="dark"
+        style={[StyleSheet.absoluteFillObject, { borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }]}
+      >
+        <LinearGradient
+          colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </SafeBlurView>
+
       <View style={styles.visitorCardRow}>
         {/* Photo */}
-        <View style={[styles.visitorAvatar, { backgroundColor: colors.surface }]}>
+        <SafeBlurView intensity={30} tint="dark" style={[styles.visitorAvatar, { borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }]}>
+          <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.05)']} style={StyleSheet.absoluteFillObject} />
           {visitor.photo_url ? (
             <Image source={{ uri: visitor.photo_url }} style={styles.visitorAvatarImg} />
           ) : (
             <User size={22} color={colors.textTertiary} />
           )}
-        </View>
+        </SafeBlurView>
 
         {/* Info */}
         <View style={styles.visitorInfo}>
@@ -381,11 +407,13 @@ function CheckInForm({
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
   const [hostName, setHostName] = useState('');
+  const [hostUid, setHostUid] = useState<string | null>(null);
   const [hostSuggestions, setHostSuggestions] = useState<StaffMember[]>([]);
   const [purpose, setPurpose] = useState('meeting');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [takingPhoto, setTakingPhoto] = useState(false);
+
 
   const purposes = [
     { label: 'Meeting', value: 'meeting' },
@@ -445,36 +473,36 @@ function CheckInForm({
     }
     setLoading(true);
     try {
-      const visitorId = `VIS-${Date.now()}`;
-      const { error } = await (supabase.from('visitor_logs') as any).insert({
-        visitor_id: visitorId,
-        property_id: propertyId,
+      const res = await mobileServices.vmsCheckIn({
+        propertyId,
         name: name.trim(),
-        mobile: mobile.trim(),
-        email: email.trim() || null,
-        whom_to_meet: hostName.trim(),
-        purpose: purpose,
+        mobile: mobile.trim() || undefined,
         category: purpose === 'delivery' || purpose === 'vendor' ? purpose : 'visitor',
-        status: 'checked_in',
-        checkin_time: new Date().toISOString(),
-        photo_url: null,
-      } as any);
-      if (error) throw error;
-      toast.success(`${name} checked in successfully`);
-      // Reset form
-      setName('');
-      setMobile('');
-      setEmail('');
-      setHostName('');
-      setPurpose('meeting');
-      setPhotoUri(null);
-      onSuccess();
+        whom_to_meet: hostName.trim(),
+        whom_to_meet_uid: hostUid || undefined,
+        purpose: purpose,
+        photo_url: photoUri || undefined,
+      });
+
+      if (res.success) {
+        toast.success(res.message);
+        // Reset form
+        setName('');
+        setMobile('');
+        setEmail('');
+        setHostName('');
+        setHostUid(null);
+        setPurpose('meeting');
+        setPhotoUri(null);
+        onSuccess();
+      }
     } catch (err: any) {
       toast.error(err.message || 'Check-in failed');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <KeyboardAvoidingView
@@ -490,7 +518,7 @@ function CheckInForm({
         {/* Visitor Name */}
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Visitor Name *</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+          style={[styles.input, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.15)', color: colors.text }]}
           placeholder="Full name"
           placeholderTextColor={colors.textTertiary}
           value={name}
@@ -500,7 +528,7 @@ function CheckInForm({
         {/* Mobile */}
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Phone (optional)</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+          style={[styles.input, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.15)', color: colors.text }]}
           placeholder="Mobile number"
           placeholderTextColor={colors.textTertiary}
           value={mobile}
@@ -511,7 +539,7 @@ function CheckInForm({
         {/* Email */}
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Email (optional)</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+          style={[styles.input, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.15)', color: colors.text }]}
           placeholder="Email address"
           placeholderTextColor={colors.textTertiary}
           value={email}
@@ -523,20 +551,25 @@ function CheckInForm({
         {/* Host */}
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Host / Whom to Meet *</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+          style={[styles.input, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.15)', color: colors.text }]}
           placeholder="Host name"
           placeholderTextColor={colors.textTertiary}
           value={hostName}
-          onChangeText={setHostName}
+          onChangeText={(val) => {
+            setHostName(val);
+            setHostUid(null);
+          }}
         />
         {hostSuggestions.length > 0 && (
-          <View style={[styles.suggestionsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SafeBlurView intensity={45} tint="dark" style={[styles.suggestionsList, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+            <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.15)']} style={StyleSheet.absoluteFillObject} />
             {hostSuggestions.map((s) => (
               <TouchableOpacity
                 key={s.id}
                 style={styles.suggestionItem}
                 onPress={() => {
                   setHostName(s.full_name || s.name || '');
+                  setHostUid(s.id);
                   setHostSuggestions([]);
                 }}
               >
@@ -551,7 +584,7 @@ function CheckInForm({
                 )}
               </TouchableOpacity>
             ))}
-          </View>
+          </SafeBlurView>
         )}
 
         {/* Purpose */}
@@ -563,8 +596,8 @@ function CheckInForm({
               style={[
                 styles.purposeChip,
                 {
-                  backgroundColor: purpose === p.value ? colors.primary : colors.card,
-                  borderColor: purpose === p.value ? colors.primary : colors.border,
+                  backgroundColor: purpose === p.value ? colors.primary : 'rgba(255,255,255,0.06)',
+                  borderColor: purpose === p.value ? colors.primary : colors.glassBorder,
                 },
               ]}
               onPress={() => setPurpose(p.value)}
@@ -584,7 +617,7 @@ function CheckInForm({
         {/* Photo */}
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Visitor Photo</Text>
         <TouchableOpacity
-          style={[styles.photoBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.photoBtn, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.15)' }]}
           onPress={handleTakePhoto}
           disabled={takingPhoto}
         >
@@ -635,12 +668,14 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [hostName, setHostName] = useState('');
+  const [hostUid, setHostUid] = useState<string | null>(null);
   const [hostSuggestions, setHostSuggestions] = useState<StaffMember[]>([]);
   const [purpose, setPurpose] = useState('meeting');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [confirmedName, setConfirmedName] = useState('');
+
 
   useEffect(() => {
     const fetchHosts = async () => {
@@ -661,22 +696,20 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
     if (!hostName.trim()) { Alert.alert('Required', 'Please enter the host name'); return; }
     setLoading(true);
     try {
-      const visitorId = `VIS-${Date.now()}`;
-      const { error } = await (supabase.from('visitor_logs') as any).insert({
-        visitor_id: visitorId,
-        property_id: propertyId,
+      const res = await mobileServices.vmsCheckIn({
+        propertyId,
         name: name.trim(),
-        mobile: mobile.trim(),
-        whom_to_meet: hostName.trim(),
-        purpose,
+        mobile: mobile.trim() || undefined,
         category: purpose === 'delivery' || purpose === 'vendor' ? purpose : 'visitor',
-        status: 'checked_in',
-        checkin_time: new Date().toISOString(),
-        photo_url: null,
-      } as any);
-      if (error) throw error;
-      setConfirmedName(name.trim());
-      setStep('success');
+        whom_to_meet: hostName.trim(),
+        whom_to_meet_uid: hostUid || undefined,
+        purpose,
+      });
+
+      if (res.success) {
+        setConfirmedName(name.trim());
+        setStep('success');
+      }
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Check-in failed');
     } finally {
@@ -684,8 +717,9 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
     }
   };
 
+
   const resetForm = () => {
-    setName(''); setMobile(''); setHostName(''); setPurpose('meeting');
+    setName(''); setMobile(''); setHostName(''); setHostUid(null); setPurpose('meeting');
     setPhotoUri(null); setStep('form'); setHostSuggestions([]);
   };
 
@@ -721,7 +755,8 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1 }}
     >
-      <View style={[styles.kioskContainer, { backgroundColor: colors.background }]}>
+      <View style={[styles.kioskContainer]}>
+        <LinearGradient colors={['#0f172a', '#1e1b4b', '#0f172a']} style={StyleSheet.absoluteFillObject} />
         {/* Header */}
         <View style={[styles.kioskHeader, { backgroundColor: colors.primary }]}>
           <Text style={styles.kioskTitle}>Visitor Check-In</Text>
@@ -737,7 +772,7 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
         >
           <Text style={[styles.kioskFieldLabel, { color: colors.textSecondary }]}>Your Name *</Text>
           <TextInput
-            style={[styles.kioskInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+            style={[styles.kioskInput, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.15)', color: colors.text }]}
             placeholder="Enter your full name"
             placeholderTextColor={colors.textTertiary}
             value={name}
@@ -747,7 +782,7 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
 
           <Text style={[styles.kioskFieldLabel, { color: colors.textSecondary }]}>Phone (optional)</Text>
           <TextInput
-            style={[styles.kioskInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+            style={[styles.kioskInput, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.15)', color: colors.text }]}
             placeholder="Mobile number"
             placeholderTextColor={colors.textTertiary}
             value={mobile}
@@ -757,25 +792,29 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
 
           <Text style={[styles.kioskFieldLabel, { color: colors.textSecondary }]}>Whom to Meet *</Text>
           <TextInput
-            style={[styles.kioskInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+            style={[styles.kioskInput, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.15)', color: colors.text }]}
             placeholder="Host name"
             placeholderTextColor={colors.textTertiary}
             value={hostName}
-            onChangeText={setHostName}
+            onChangeText={(val) => {
+              setHostName(val);
+              setHostUid(null);
+            }}
           />
           {hostSuggestions.length > 0 && (
-            <View style={[styles.suggestionsList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <SafeBlurView intensity={45} tint="dark" style={[styles.suggestionsList, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+              <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.15)']} style={StyleSheet.absoluteFillObject} />
               {hostSuggestions.map((s) => (
                 <TouchableOpacity
                   key={s.id}
                   style={styles.suggestionItem}
-                  onPress={() => { setHostName(s.full_name || s.name || ''); setHostSuggestions([]); }}
+                  onPress={() => { setHostName(s.full_name || s.name || ''); setHostUid(s.id); setHostSuggestions([]); }}
                 >
                   <User size={14} color={colors.textSecondary} />
                   <Text style={[styles.suggestionText, { color: colors.text }]}>{s.full_name || s.name}</Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </SafeBlurView>
           )}
 
           <Text style={[styles.kioskFieldLabel, { color: colors.textSecondary }]}>Purpose of Visit</Text>
@@ -790,8 +829,8 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
                 key={p.value}
                 style={[
                   styles.purposeChip,
-                  { backgroundColor: purpose === p.value ? colors.primary : colors.card,
-                    borderColor: purpose === p.value ? colors.primary : colors.border },
+                  { backgroundColor: purpose === p.value ? colors.primary : 'rgba(255,255,255,0.06)',
+                    borderColor: purpose === p.value ? colors.primary : colors.glassBorder },
                 ]}
                 onPress={() => setPurpose(p.value)}
               >
@@ -831,6 +870,7 @@ export default function VisitorsScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const router = useRouter();
   const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const [property, setProperty] = useState<any>(null);
@@ -844,7 +884,7 @@ export default function VisitorsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Nav states
-  const [drawerOpen, setDrawerOpen] = useState(false);
+
   const [showLoggersMenu, setShowLoggersMenu] = useState(false);
 
   const [selectedVisitor, setSelectedVisitor] = useState<VisitorLog | null>(null);
@@ -890,9 +930,11 @@ export default function VisitorsScreen() {
       }
 
       setVisitors(filtered);
+
+      const statsData = await mobileServices.vmsFetchTodayStats(propertyId);
       setStats({
-        total: logs.length,
-        checked_in: logs.filter((v) => v.status === 'checked_in').length,
+        total: statsData.total,
+        checked_in: statsData.checked_in,
         pending: logs.filter((v) => v.status === 'pending').length,
       });
     } catch (err) {
@@ -901,6 +943,7 @@ export default function VisitorsScreen() {
       setIsLoading(false);
     }
   }, [propertyId, statusFilter, searchQuery]);
+
 
   useEffect(() => {
     fetchVisitors();
@@ -925,20 +968,20 @@ export default function VisitorsScreen() {
     if (!selectedVisitor) return;
     setCheckoutLoading(true);
     try {
-      const { error } = await (supabase.from('visitor_logs') as any)
-        .update({ status: 'checked_out', checkout_time: new Date().toISOString() } as any)
-        .eq('id', selectedVisitor.id);
-      if (error) throw error;
-      toast.success(`${selectedVisitor.name} checked out`);
-      setIsVisitorDetailVisible(false);
-      setSelectedVisitor(null);
-      fetchVisitors();
+      const res = await mobileServices.vmsCheckOut(selectedVisitor.visitor_id, propertyId);
+      if (res.success) {
+        toast.success(`${selectedVisitor.name} checked out`);
+        setIsVisitorDetailVisible(false);
+        setSelectedVisitor(null);
+        fetchVisitors();
+      }
     } catch (err: any) {
       toast.error(err.message || 'Checkout failed');
     } finally {
       setCheckoutLoading(false);
     }
   };
+
 
   const handleVisitorPress = (visitor: VisitorLog) => {
     setSelectedVisitor(visitor);
@@ -962,68 +1005,71 @@ export default function VisitorsScreen() {
 
   const filteredAll = visitors;
 
+
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: 0 }]}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}>
       <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient 
+        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
+        style={StyleSheet.absoluteFillObject} 
+      />
       
       {/* Top Navigation */}
-      <View style={[styles.topNav, {
-        backgroundColor: colors.surface,
-        borderBottomColor: colors.border,
-        paddingTop: Math.max(insets.top, 16)
-      }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={{ padding: 4 }}>
-          <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
-        </TouchableOpacity>
-        
-        <Text style={[styles.topNavTitle, { 
-          color: colors.textPrimary, 
-          fontFamily: 'PressStart2P',
-          fontSize: 11,
-          letterSpacing: 0.5,
-          fontWeight: '400',
-          lineHeight: 18,
-        }]}>
-          {property?.name || 'Head Office'}
-        </Text>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            style={[styles.bellButton, { marginRight: 8 }]}
-            onPress={() => router.push('/property/' + propertyId + '/stock/scan' as any)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="qr-code-outline" size={24} color={colors.textSecondary} />
+      <SafeBlurView
+        intensity={80}
+        tint="dark"
+        style={[styles.topNav, {
+          backgroundColor: 'transparent',
+          borderBottomColor: 'rgba(255,255,255,0.12)',
+          paddingTop: insets.top + 10,
+          paddingBottom: 16
+        }]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={{ fontSize: 18, fontFamily: 'Poppins-Bold', color: '#FFFFFF' }} numberOfLines={1} adjustsFontSizeToFit>
+              {property?.name || 'Visitors'}
+            </Text>
+            <Text style={{ fontSize: 11, fontFamily: 'Urbanist-Medium', color: '#94A3B8' }}>
+              Visitor Management System
+            </Text>
+          </View>
           <TouchableOpacity
-            style={styles.bellButton}
-            onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
+            style={styles.backBtn}
+            onPress={() => router.push(`/property/${propertyId}/stock/scan` as any)}
             activeOpacity={0.7}
           >
-            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
+            <Ionicons name="qr-code-outline" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeBlurView>
+
 
       {/* Hero Header */}
-      <View style={[styles.heroHeader, { backgroundColor: colors.primary }]}>
+      <SafeBlurView intensity={40} tint="dark" style={[styles.heroHeader, { borderColor: 'rgba(255,255,255,0.15)', borderBottomWidth: 1, overflow: 'hidden' }]}>
+        <LinearGradient colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']} style={StyleSheet.absoluteFillObject} />
         <View style={styles.heroContent}>
           <View>
-            <Text style={styles.heroTitle}>Visitors</Text>
-            <Text style={styles.heroSub}>
+            <Text style={[styles.heroTitle, { color: colors.text }]}>Visitors</Text>
+            <Text style={[styles.heroSub, { color: colors.textSecondary }]}>
               {stats.checked_in} currently on premise
             </Text>
           </View>
           <TouchableOpacity
-            style={styles.kioskBtnHero}
+            style={[styles.kioskBtnHero, { backgroundColor: colors.primary }]}
             onPress={() => setKioskMode(true)}
             activeOpacity={0.8}
           >
-            <Monitor size={18} color={colors.primary} />
-            <Text style={[styles.kioskBtnTextHero, { color: colors.primary }]}>Kiosk Mode</Text>
+            <Monitor size={18} color="#fff" />
+            <Text style={[styles.kioskBtnTextHero, { color: '#fff' }]}>Kiosk Mode</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeBlurView>
+
 
       {/* Stats Row */}
       <View style={styles.statsRow}>
@@ -1053,7 +1099,8 @@ export default function VisitorsScreen() {
       </View>
 
       {/* Tabs */}
-      <View style={[styles.tabBar, { borderColor: colors.border }]}>
+      <SafeBlurView intensity={45} tint="dark" style={[styles.tabBar, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+        <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']} style={StyleSheet.absoluteFillObject} />
         {([
           { key: 'all', label: 'All Visitors', icon: <ClipboardList size={14} /> },
           { key: 'checkin', label: 'Check In', icon: <LogIn size={14} /> },
@@ -1067,7 +1114,9 @@ export default function VisitorsScreen() {
             onPress={() => setActiveTab(tab.key)}
             activeOpacity={0.7}
           >
-            <View style={{ marginRight: 4 }}>{tab.icon}</View>
+            <View style={{ marginRight: 4 }}>
+              {React.cloneElement(tab.icon, { color: activeTab === tab.key ? '#fff' : colors.textSecondary })}
+            </View>
             <Text
               style={[
                 styles.tabText,
@@ -1078,15 +1127,17 @@ export default function VisitorsScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </SafeBlurView>
+
 
       {/* Content */}
       {activeTab === 'all' ? (
         <>
           {/* Search + Filter */}
           <View style={styles.filterRow}>
-            <View style={[styles.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Search size={16} color={colors.textTertiary} style={{ marginRight: 8 }} />
+            <SafeBlurView intensity={45} tint="dark" style={[styles.searchWrap, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+              <LinearGradient colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']} style={StyleSheet.absoluteFillObject} />
+              <Search size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.searchInput, { color: colors.text }]}
                 placeholder="Search by name, phone, host..."
@@ -1094,15 +1145,16 @@ export default function VisitorsScreen() {
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
-            </View>
+            </SafeBlurView>
             <TouchableOpacity
               style={[
                 styles.filterChip,
                 {
-                  backgroundColor: statusFilter !== 'all' ? colors.primaryLight : colors.card,
-                  borderColor: statusFilter !== 'all' ? colors.primary : colors.border,
+                  backgroundColor: statusFilter !== 'all' ? colors.primary : 'rgba(255,255,255,0.08)',
+                  borderColor: statusFilter !== 'all' ? colors.primary : 'rgba(255,255,255,0.15)',
                 },
               ]}
+
               onPress={() =>
                 setStatusFilter(
                   statusFilter === 'all'
@@ -1118,13 +1170,14 @@ export default function VisitorsScreen() {
               <Text
                 style={[
                   styles.filterChipText,
-                  { color: statusFilter !== 'all' ? colors.primary : colors.textSecondary },
+                  { color: '#fff' },
                 ]}
               >
                 {statusFilter === 'all' ? 'All' : STATUS_LABELS[statusFilter]}
               </Text>
             </TouchableOpacity>
           </View>
+
 
           {/* Visitor List */}
           {isLoading ? (
@@ -1170,7 +1223,8 @@ export default function VisitorsScreen() {
           style={styles.modalOverlay} 
           onPress={() => setIsVisitorDetailVisible(false)}
         >
-          <View style={[styles.detailModalContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SafeBlurView intensity={50} tint="dark" style={[styles.detailModalContainer, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+            <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.15)']} style={StyleSheet.absoluteFillObject} />
             {selectedVisitor && (
               <VisitorDetailSheet
                 visitor={selectedVisitor}
@@ -1179,109 +1233,13 @@ export default function VisitorsScreen() {
                 loading={checkoutLoading}
               />
             )}
-          </View>
+          </SafeBlurView>
         </Pressable>
       </Modal>
-
       {/* Standard Bottom Navigation */}
-      <View style={[styles.bottomNav, { 
-        backgroundColor: colors.surface, 
-        borderTopColor: colors.border,
-        paddingBottom: Math.max(insets.bottom, 12)
-      }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="grid-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>OVERVIEW</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="ticket-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>REQUESTS</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.navItemCenter} 
-          onPress={() => { Alert.alert('Create Request', 'Please go back to the dashboard to create new requests.'); }}
-        >
-          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
-            <Ionicons name="add" size={32} color="#FFF" />
-          </View>
-        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => setShowLoggersMenu(true)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="options-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>LOGGERS</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/profile`)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="person-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>PROFILE</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Loggers Menu Modal */}
-      <Modal
-        visible={showLoggersMenu}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowLoggersMenu(false)}
-      >
-        <Pressable 
-          style={styles.modalOverlay} 
-          onPress={() => setShowLoggersMenu(false)}
-        >
-          <View style={[styles.loggersMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.loggersHeader}>
-              <Text style={[styles.loggersTitle, { color: colors.text }]}>Select Logger</Text>
-              <TouchableOpacity onPress={() => setShowLoggersMenu(false)}>
-                <Ionicons name="close" size={24} color={colors.textTertiary} />
-              </TouchableOpacity>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.loggerOption}
-              onPress={() => {
-                setShowLoggersMenu(false);
-                router.push(`/property/${propertyId}/electricity` as any);
-              }}
-            >
-              <View style={[styles.loggerIcon, { backgroundColor: 'rgba(52,199,89,0.1)' }]}>
-                <Ionicons name="flash" size={24} color="#34C759" />
-              </View>
-              <View style={styles.loggerInfo}>
-                <Text style={[styles.loggerName, { color: colors.text }]}>Electricity Meter</Text>
-                <Text style={[styles.loggerSub, { color: colors.textTertiary }]}>Log daily meter readings</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.loggerOption}
-              onPress={() => {
-                setShowLoggersMenu(false);
-                router.push(`/property/${propertyId}/diesel` as any);
-              }}
-            >
-              <View style={[styles.loggerIcon, { backgroundColor: 'rgba(255,149,0,0.1)' }]}>
-                <Ionicons name="water" size={24} color="#FF9500" />
-              </View>
-              <View style={styles.loggerInfo}>
-                <Text style={[styles.loggerName, { color: colors.text }]}>Diesel Generator</Text>
-                <Text style={[styles.loggerSub, { color: colors.textTertiary }]}>Log fuel and run hours</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -1294,6 +1252,14 @@ const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   topNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',

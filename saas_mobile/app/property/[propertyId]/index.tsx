@@ -24,13 +24,49 @@ export default function PropertyIndex() {
     return <Redirect href="/login" />;
   }
 
-  // Lovable test dashboards — email-gated redirect (before role logic)
+  // Role-based dashboard routing
+  const propMembership = membership.properties?.find(
+    (p) => p.id.toLowerCase() === propertyId.toLowerCase()
+  );
+  const propRole = propMembership?.role?.trim()?.toLowerCase();
+  const orgRole = (membership.org_role ?? '').trim().toLowerCase();
+
+  const isOrgSuperAdmin = ['org_admin', 'org_super_admin', 'owner'].includes(propRole ?? '') ||
+                         ['org_admin', 'org_super_admin', 'owner'].includes(orgRole);
+
+  const isPropertyAdmin = [
+    'property_admin', 'admin', 'manager', 'property manager',
+    'property_manager', 'facility_manager', 'facility manager',
+    'spoc', 'administrator'
+  ].includes(propRole ?? '');
+
+  const isMst = ['mst', 'maintenance_staff', 'staff'].includes(propRole ?? '');
+
+  const isTenant = ['tenant', 'super_tenant'].includes(propRole ?? '');
+
+  // Lovable test dashboards — email-gated override
   const userEmail = user.email?.toLowerCase() ?? '';
   if (userEmail === 'srustikarta2022@gmail.com') {
     return <Redirect href={`/property/${propertyId}/lovable-mst`} />;
   }
   if (userEmail === 'lohitexplores@gmail.com') {
-    return <Redirect href={`/property/${propertyId}/lovable-admin`} />;
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
+  }
+
+  if (isOrgSuperAdmin) {
+    return <Redirect href={`/property/${propertyId}/lovable-super-admin`} />;
+  }
+
+  if (isPropertyAdmin) {
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
+  }
+
+  if (isMst) {
+    return <Redirect href={`/property/${propertyId}/lovable-mst`} />;
+  }
+
+  if (isTenant) {
+    return <Redirect href={`/property/${propertyId}/tenant`} />;
   }
 
   return <Redirect href={`/property/${propertyId}/dashboard`} />;
@@ -41,6 +77,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f4f8',
+    backgroundColor: '#000',
   },
 });

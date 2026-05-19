@@ -200,6 +200,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   propertyId,
   initialMode = 'text',
 }) => {
+  console.log('[CassandraSessionModal] render. visible:', visible, 'orgId:', orgId, 'propertyId:', propertyId);
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const {

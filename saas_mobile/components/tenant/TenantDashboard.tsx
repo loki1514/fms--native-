@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +16,9 @@ import { ProfileTab } from './tabs/ProfileTab';
 import { TenantBottomNav } from './TenantBottomNav';
 import { VoiceOrbWrapper } from '../voice/VoiceOrbWrapper';
 import { TicketCreateModal } from '../tickets/TicketCreateModal';
-import { AuroraBackground } from '../shared/AuroraBackground';
+import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import WeatherBadge from '@/components/dashboard/WeatherBadge';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSuperTenantProperties, SuperTenantProperty } from '@/hooks/tenant/useSuperTenantProperties';
 import SuperTenantSidebar from './SuperTenantSidebar';
 
@@ -46,6 +48,7 @@ export default function TenantDashboard({
   );
   const [refreshing, setRefreshing] = useState(false);
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
+  const [manualCondition, setManualCondition] = useState<import('@/hooks/useWeather').WeatherCondition | null>(null);
 
   // DEFENSE-IN-DEPTH: Guard against undefined propertyId
   if (!propertyId) {
@@ -152,8 +155,9 @@ export default function TenantDashboard({
 
   return (
     <View style={styles.container}>
-      {/* Ambient aurora background */}
-      {weather && <AuroraBackground colors={weather.auroraColors} />}
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
+      {weather && <WeatherBackground condition={manualCondition || weather.condition} />}
 
       {/* Tab content */}
       {activeTab === 'home' && (
@@ -188,6 +192,18 @@ export default function TenantDashboard({
       )}
       {activeTab === 'profile' && (
         <ProfileTab onSignOut={handleSignOut} />
+      )}
+
+      {/* Weather Badge — floating top-right */}
+      {weather && activeTab === 'home' && (
+        <View style={{ position: 'absolute', top: insets.top + 12, right: 16, zIndex: 50 }}>
+          <WeatherBadge
+            condition={manualCondition || weather.condition}
+            temperature={weather.temperature}
+            locationName={weather.locationName}
+            onChange={setManualCondition}
+          />
+        </View>
       )}
 
       {/* Voice Orb — anchored above bottom nav */}
@@ -255,6 +271,6 @@ const superTenantPickerStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f4f8',
+    backgroundColor: '#000',
   },
 });

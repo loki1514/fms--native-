@@ -14,40 +14,82 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  Image,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
-import { Calendar, DateData } from 'react-native-calendars';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import { LinearGradient } from 'expo-linear-gradient';
+import { mobileServices } from '@/utils/api/mobileServices';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { readFileAsArrayBuffer, compressImage } from '@/utils/mediaUtils';
+
 import {
   Wrench,
   CalendarDays,
   FileText,
   ChevronRight,
+  ChevronLeft,
   X,
   AlertTriangle,
   CheckCircle2,
   Clock,
   Building2,
-  RefreshCw,
   Plus,
+  Camera,
+  Trash2,
+  MapPin,
+  User,
+  Phone,
+  StickyNote,
+  Upload,
 } from 'lucide-react-native';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types (saas_one schema) ─────────────────────────────────────────────────
+
+interface MaintenanceVendor {
+  id: string;
+  company_name: string;
+  contact_person?: string;
+  phone?: string;
+}
 
 interface PPMSchedule {
   id: string;
-  asset_name: string;
-  asset_id?: string;
-  schedule_type: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual';
-  next_due: string;
-  last_completed?: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'overdue';
+  organization_id: string;
   property_id: string;
-  description?: string;
+  si_no?: string;
+  system_name: string;
+  detail_name?: string;
+  scope_of_work?: string;
+  frequency: 'yearly' | 'quarterly' | 'monthly' | 'weekly';
+  location?: string;
+  maker?: string;
+  checker?: string;
+  vendor_name?: string;
+  vendor_phone?: string;
+  vendor_contact_person?: string;
+  vendor_id?: string;
+  planned_date: string;
+  done_date?: string;
+  remark?: string;
+  status: 'pending' | 'done' | 'postponed' | 'skipped';
+  completion_photos?: string[] | null;
+  completion_doc_url?: string | null;
+  invoice_url?: string | null;
+  verification_status?: 'pending' | 'submitted' | 'verified' | 'rejected';
+  verified_by?: string | null;
+  verified_at?: string | null;
+  rejection_reason?: string | null;
+  attachments?: { photos?: string[]; certificate?: string; invoice?: string } | null;
+  created_at?: string;
+  updated_at?: string;
+  maintenance_vendors?: MaintenanceVendor | null;
 }
 
 interface AMCContract {
@@ -62,139 +104,218 @@ interface AMCContract {
   description?: string;
 }
 
-// ─── Utility ───────────────────────────────────────────────────────────────────
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function daysUntil(dateStr: string): number {
   if (!dateStr) return 999;
-  const target = new Date(dateStr);
+  const target = new Date(dateStr + 'T12:00:00');
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   target.setHours(0, 0, 0, 0);
   return Math.ceil((target.getTime() - now.getTime()) / 86400000);
 }
 
-function getMarkedDates(
-  schedules: PPMSchedule[],
-  selectedDate: string | null
-): Record<string, any> {
-  const marked: Record<string, any> = {};
-
-  // Mark schedule due dates
-  schedules.forEach((s) => {
-    if (!s.next_due) return;
-    const dateKey = s.next_due.split('T')[0];
-    const existing = marked[dateKey];
-    const color = s.status === 'overdue' ? '#EF6B6B' : s.status === 'completed' ? '#3A8C6D' : '#F59E0B';
-    marked[dateKey] = {
-      selected: dateKey === selectedDate,
-      selectedColor: '#7CB9A8',
-      dots: [
-        ...(existing?.dots || []),
-        { key: s.id, color },
-      ].slice(0, 3),
-      marked: true,
-    };
-  });
-
-  // Mark selected
-  if (selectedDate) {
-    marked[selectedDate] = {
-      ...marked[selectedDate],
-      selected: true,
-      selectedColor: '#7CB9A8',
-    };
-  }
-
-  return marked;
+function isOverdue(s: PPMSchedule): boolean {
+  if (s.status === 'done') return false;
+  return daysUntil(s.planned_date) < 0;
 }
 
-// ─── Main Screen ───────────────────────────────────────────────────────────────
+function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
+function getFirstDayOfMonth(year: number, month: number): number {
+  return new Date(year, month, 1).getDay();
+}
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const STATUS_COLORS: Record<string, { dot: string; bg: string; text: string; label: string }> = {
+  pending: { dot: '#F59E0B', bg: 'rgba(245,158,11,0.12)', text: '#F59E0B', label: 'Pending' },
+  done: { dot: '#22C55E', bg: 'rgba(34,197,94,0.12)', text: '#22C55E', label: 'Completed' },
+  postponed: { dot: '#F43F5E', bg: 'rgba(244,63,94,0.12)', text: '#F43F5E', label: 'Postponed' },
+  skipped: { dot: '#94A3B8', bg: 'rgba(148,163,184,0.12)', text: '#94A3B8', label: 'Skipped' },
+};
+
+const FREQ_COLORS: Record<string, string> = {
+  yearly: '#6366F1',
+  quarterly: '#0EA5E9',
+  monthly: '#F59E0B',
+  weekly: '#22C55E',
+};
+
+// ─── Custom Month Calendar ────────────────────────────────────────────────────
+
+function MonthCalendar({
+  year,
+  month,
+  schedules,
+  selectedDate,
+  onSelectDate,
+}: {
+  year: number;
+  month: number;
+  schedules: PPMSchedule[];
+  selectedDate: string | null;
+  onSelectDate: (dateStr: string | null) => void;
+}) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const colors = Colors[theme];
+
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const days: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+  const getDots = (day: number): string[] => {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const daySchedules = schedules.filter((s) => s.planned_date === dateStr);
+    const dots = new Set<string>();
+    daySchedules.forEach((s) => {
+      if (isOverdue(s)) dots.add('#EF4444');
+      else if (s.status === 'pending') dots.add('#F59E0B');
+      else if (s.status === 'done') dots.add('#22C55E');
+      else if (s.status === 'postponed') dots.add('#F43F5E');
+      else if (s.status === 'skipped') dots.add('#94A3B8');
+    });
+    return Array.from(dots).slice(0, 3);
+  };
+
+  return (
+    <View style={[styles.calendarCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', borderWidth: 1 }]}>
+      {/* Day headers */}
+      <View style={styles.calendarDayHeaderRow}>
+        {DAY_NAMES.map((d) => (
+          <Text key={d} style={[styles.calendarDayHeaderText, { color: colors.textTertiary }]}>{d}</Text>
+        ))}
+      </View>
+      {/* Grid */}
+      <View style={styles.calendarGrid}>
+        {days.map((day, idx) => {
+          if (day === null) {
+            return <View key={`empty-${idx}`} style={styles.calendarCell} />;
+          }
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const isToday = dateStr === todayStr;
+          const isSelected = selectedDate === dateStr;
+          const dots = getDots(day);
+          return (
+            <TouchableOpacity
+              key={dateStr}
+              style={styles.calendarCell}
+              onPress={() => onSelectDate(isSelected ? null : dateStr)}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                styles.calendarDayCircle,
+                isToday && { borderColor: '#3B82F6', borderWidth: 1.5 },
+                isSelected && { backgroundColor: '#3B82F6' },
+              ]}>
+                <Text style={[
+                  styles.calendarDayText,
+                  { color: isSelected ? '#FFFFFF' : isDark ? '#F8FAFC' : '#1A2332' },
+                  isToday && !isSelected && { color: '#3B82F6', fontWeight: '700' },
+                ]}>{day}</Text>
+              </View>
+              <View style={styles.calendarDotsRow}>
+                {dots.map((color, i) => (
+                  <View key={i} style={[styles.calendarDot, { backgroundColor: color }]} />
+                ))}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 type PPMTab = 'calendar' | 'schedules' | 'amc';
 
 export default function PPMScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const router = useRouter();
   const { theme } = useTheme();
-  const { membership } = useAuth();
+  const isDark = theme === 'dark';
+  const { user, membership } = useAuth();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
-  const screenWidth = Dimensions.get('window').width;
 
-  // ── State ────────────────────────────────────────────────────────────────────
+  // ── State ──────────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<PPMTab>('calendar');
   const [schedules, setSchedules] = useState<PPMSchedule[]>([]);
   const [contracts, setContracts] = useState<AMCContract[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Calendar state
+  const now = new Date();
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [calMonth, setCalMonth] = useState(now.getMonth());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Detail modal
   const [selectedSchedule, setSelectedSchedule] = useState<PPMSchedule | null>(null);
-  const [showScheduleDetail, setShowScheduleDetail] = useState(false);
-  const [showAddSchedule, setShowAddSchedule] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+
+  // Edit state inside detail modal
+  const [editStatus, setEditStatus] = useState<PPMSchedule['status']>('pending');
+  const [editDoneDate, setEditDoneDate] = useState('');
+  const [editRemark, setEditRemark] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  // Add schedule form
-  const [formAssetName, setFormAssetName] = useState('');
-  const [formScheduleType, setFormScheduleType] = useState<PPMSchedule['schedule_type']>('monthly');
-  const [formNextDue, setFormNextDue] = useState('');
-  const [formDescription, setFormDescription] = useState('');
+  // Add schedule modal
+  const [showAdd, setShowAdd] = useState(false);
+  const [formSystemName, setFormSystemName] = useState('');
+  const [formDetailName, setFormDetailName] = useState('');
+  const [formScope, setFormScope] = useState('');
+  const [formFreq, setFormFreq] = useState<PPMSchedule['frequency']>('monthly');
+  const [formPlannedDate, setFormPlannedDate] = useState('');
+  const [formLocation, setFormLocation] = useState('');
+  const [formVendorName, setFormVendorName] = useState('');
+  const [formVendorPhone, setFormVendorPhone] = useState('');
 
-  // ── Computed ────────────────────────────────────────────────────────────────
+  // ── Computed ───────────────────────────────────────────────────────────────
   const isAdmin = useMemo(() => {
     if (!membership || !propertyId) return false;
     const prop = membership.properties.find((p) => p.id === propertyId);
     return prop ? ['property_admin', 'org_admin', 'org_super_admin', 'master_admin'].includes(prop.role.toLowerCase()) : false;
   }, [membership, propertyId]);
 
-  const markedDates = useMemo(() => getMarkedDates(schedules, selectedDate), [schedules, selectedDate]);
-
   const selectedDaySchedules = useMemo(() => {
     if (!selectedDate) return [];
-    return schedules.filter((s) => s.next_due && s.next_due.split('T')[0] === selectedDate);
+    return schedules.filter((s) => s.planned_date === selectedDate);
   }, [schedules, selectedDate]);
 
   const overdueSchedules = useMemo(() => {
-    return schedules.filter((s) => s.status === 'overdue' || (s.next_due && daysUntil(s.next_due) < 0));
+    return schedules.filter((s) => isOverdue(s));
   }, [schedules]);
 
   const expiringContracts = useMemo(() => {
     return contracts.filter((c) => c.status === 'expiring_soon' || c.status === 'expired');
   }, [contracts]);
 
-  // Calendar min/max dates
-  const calendarTheme = useMemo(() => ({
-    backgroundColor: colors.card,
-    calendarBackground: colors.card,
-    textSectionTitleColor: colors.textSecondary,
-    selectedDayBackgroundColor: colors.primary,
-    selectedDayTextColor: '#FFFFFF',
-    todayTextColor: colors.primary,
-    dayTextColor: colors.text,
-    textDisabledColor: colors.textTertiary,
-    dotColor: colors.primary,
-    arrowColor: colors.primary,
-    monthTextColor: colors.text,
-    textDayFontFamily: 'Urbanist-Regular',
-    textMonthFontFamily: 'Poppins-Bold',
-    textDayHeaderFontFamily: 'Urbanist-Bold',
-    textDayFontSize: 13,
-    textMonthFontSize: 16,
-    textDayHeaderFontSize: 11,
-  }), [colors]);
-
-  // ── Fetch ───────────────────────────────────────────────────────────────────
+  // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchSchedules = useCallback(async () => {
     if (!propertyId) return;
     try {
       const { data, error } = await supabase
         .from('ppm_schedules')
-        .select('*')
+        .select('*, maintenance_vendors(id, company_name, contact_person, phone)')
         .eq('property_id', propertyId)
-        .order('next_due');
+        .order('planned_date');
       if (error) throw error;
       setSchedules((data || []) as PPMSchedule[]);
     } catch (err) {
@@ -211,7 +332,6 @@ export default function PPMScreen() {
         .eq('property_id', propertyId)
         .order('end_date');
       if (error) throw error;
-      // Compute status
       const enriched = (data || []).map((c: any) => {
         const days = daysUntil(c.end_date);
         let status: AMCContract['status'] = 'active';
@@ -240,36 +360,61 @@ export default function PPMScreen() {
     if (propertyId) fetchAll();
   }, [propertyId, fetchAll]);
 
-  // ── Handlers ────────────────────────────────────────────────────────────────
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleRefresh = () => fetchAll(true);
 
-  const handleDayPress = (day: DateData) => {
-    setSelectedDate(selectedDate === day.dateString ? null : day.dateString);
+  const openDetail = (schedule: PPMSchedule) => {
+    setSelectedSchedule(schedule);
+    setEditStatus(schedule.status);
+    setEditDoneDate(schedule.done_date || new Date().toISOString().split('T')[0]);
+    setEditRemark(schedule.remark || '');
+    setShowDetail(true);
   };
 
-  const handleSchedulePress = (schedule: PPMSchedule) => {
-    setSelectedSchedule(schedule);
-    setShowScheduleDetail(true);
+  const handleUpdateSchedule = async () => {
+    if (!selectedSchedule || !user) return;
+    setIsSaving(true);
+    try {
+      const res = await mobileServices.updatePpmStatus({
+        id: selectedSchedule.id,
+        status: editStatus,
+        done_date: editStatus === 'done' ? editDoneDate : undefined,
+        remark: editRemark,
+      }, user.id);
+      if (res.success) {
+        setShowDetail(false);
+        await fetchSchedules();
+        Alert.alert('Updated', 'PPM task updated successfully');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAddSchedule = async () => {
-    if (!formAssetName.trim() || !propertyId) {
-      Alert.alert('Error', 'Asset name is required');
+    if (!formSystemName.trim() || !propertyId) {
+      Alert.alert('Error', 'System name is required');
       return;
     }
     setIsSaving(true);
     try {
       const { error } = await (supabase.from('ppm_schedules') as any).insert({
         property_id: propertyId,
-        asset_name: formAssetName.trim(),
-        schedule_type: formScheduleType,
-        next_due: formNextDue || new Date().toISOString(),
-        description: formDescription.trim() || null,
+        system_name: formSystemName.trim(),
+        detail_name: formDetailName.trim() || null,
+        scope_of_work: formScope.trim() || null,
+        frequency: formFreq,
+        planned_date: formPlannedDate || new Date().toISOString().split('T')[0],
+        location: formLocation.trim() || null,
+        vendor_name: formVendorName.trim() || null,
+        vendor_phone: formVendorPhone.trim() || null,
         status: 'pending',
       });
       if (error) throw error;
-      setShowAddSchedule(false);
-      resetForm();
+      setShowAdd(false);
+      resetAddForm();
       await fetchSchedules();
       Alert.alert('Success', 'PPM schedule created');
     } catch (err: any) {
@@ -279,45 +424,106 @@ export default function PPMScreen() {
     }
   };
 
-  const handleMarkComplete = async (schedule: PPMSchedule) => {
+  const resetAddForm = () => {
+    setFormSystemName('');
+    setFormDetailName('');
+    setFormScope('');
+    setFormFreq('monthly');
+    setFormPlannedDate('');
+    setFormLocation('');
+    setFormVendorName('');
+    setFormVendorPhone('');
+  };
+
+  // ── Attachment Upload ──────────────────────────────────────────────────────
+  const pickAndUploadPhotos = async () => {
+    if (!selectedSchedule) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.length) return;
+
+    setUploadingPhoto(true);
     try {
-      const { error } = await (supabase.from('ppm_schedules') as any)
-        .update({ status: 'completed', last_completed: new Date().toISOString(), next_due: getNextDueDate(schedule.schedule_type) })
-        .eq('id', schedule.id);
+      const existingPhotos = selectedSchedule.attachments?.photos || [];
+      const newUrls: string[] = [];
+
+      for (const asset of result.assets) {
+        const compressedUri = await compressImage(asset.uri);
+        const arrayBuffer = await readFileAsArrayBuffer(compressedUri);
+        const ext = asset.uri.split('.').pop() || 'jpg';
+        const fileName = `${propertyId}/ppm/${selectedSchedule.id}/photo_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+        const { error: upError } = await supabase.storage
+          .from('ppm-attachments')
+          .upload(fileName, arrayBuffer, { contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}` });
+        if (upError) {
+          console.error('Upload error:', upError);
+          continue;
+        }
+        const { data: urlData } = supabase.storage.from('ppm-attachments').getPublicUrl(fileName);
+        newUrls.push(urlData.publicUrl);
+      }
+
+      if (newUrls.length > 0) {
+        const updatedAttachments = {
+          ...(selectedSchedule.attachments || {}),
+          photos: [...existingPhotos, ...newUrls],
+        };
+        const { error } = await (supabase
+          .from('ppm_schedules') as any)
+          .update({ attachments: updatedAttachments, updated_at: new Date().toISOString() })
+          .eq('id', selectedSchedule.id);
+        if (error) throw error;
+
+        setSelectedSchedule({ ...selectedSchedule, attachments: updatedAttachments });
+        await fetchSchedules();
+      }
+    } catch (err: any) {
+      Alert.alert('Upload Error', err.message || 'Failed to upload photos');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const deletePhoto = async (index: number) => {
+    if (!selectedSchedule) return;
+    const photos = selectedSchedule.attachments?.photos || [];
+    const updated = [...photos];
+    updated.splice(index, 1);
+    const updatedAttachments = { ...(selectedSchedule.attachments || {}), photos: updated };
+    try {
+      const { error } = await (supabase
+        .from('ppm_schedules') as any)
+        .update({ attachments: updatedAttachments, updated_at: new Date().toISOString() })
+        .eq('id', selectedSchedule.id);
       if (error) throw error;
-      setShowScheduleDetail(false);
+      setSelectedSchedule({ ...selectedSchedule, attachments: updatedAttachments });
       await fetchSchedules();
-      Alert.alert('Done', 'PPM task marked as complete');
     } catch (err: any) {
       Alert.alert('Error', err.message);
     }
   };
 
-  const resetForm = () => {
-    setFormAssetName('');
-    setFormScheduleType('monthly');
-    setFormNextDue('');
-    setFormDescription('');
+  // ── Calendar Navigation ────────────────────────────────────────────────────
+  const prevMonth = () => {
+    if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); }
+    else { setCalMonth(calMonth - 1); }
   };
-
-  function getNextDueDate(scheduleType: string): string {
-    const d = new Date();
-    switch (scheduleType) {
-      case 'daily': d.setDate(d.getDate() + 1); break;
-      case 'weekly': d.setDate(d.getDate() + 7); break;
-      case 'monthly': d.setMonth(d.getMonth() + 1); break;
-      case 'quarterly': d.setMonth(d.getMonth() + 3); break;
-      case 'annual': d.setFullYear(d.getFullYear() + 1); break;
-    }
-    return d.toISOString();
-  }
+  const nextMonth = () => {
+    if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); }
+    else { setCalMonth(calMonth + 1); }
+  };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   const bgColor = theme === 'light' ? '#FBF8F4' : colors.background;
 
   if (isLoading && schedules.length === 0 && contracts.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <LinearGradient colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} style={StyleSheet.absoluteFillObject} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading PPM...</Text>
@@ -327,88 +533,82 @@ export default function PPMScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* ── Header ── */}
-      <View style={[styles.headerSection, { backgroundColor: '#708F96' }]}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} style={StyleSheet.absoluteFillObject} />
+
+      {/* Header */}
+      <SafeBlurView intensity={80} tint="dark" style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>Preventive Maintenance</Text>
-          {isAdmin && (
-            <TouchableOpacity
-              style={[styles.headerBtn, { backgroundColor: 'rgba(255,255,255,0.25)' }]}
-              onPress={() => setShowAddSchedule(true)}
-            >
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.headerTitleMain}>PPM</Text>
+            <Text style={[styles.headerSubtitleMain, { color: '#94A3B8' }]}>Preventive Maintenance</Text>
+          </View>
+          {isAdmin ? (
+            <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAdd(true)} activeOpacity={0.8}>
               <Plus size={20} color="#FFFFFF" />
             </TouchableOpacity>
-          )}
+          ) : <View style={{ width: 40 }} />}
         </View>
 
-        {/* Tab bar */}
-        <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'calendar' ? { backgroundColor: 'rgba(255,255,255,0.25)' } : null]}
-            onPress={() => setActiveTab('calendar')}
-          >
-            <CalendarDays size={14} color="rgba(255,255,255,0.8)" />
-            <Text style={[styles.tabText, { color: 'rgba(255,255,255,0.8)' }]}>Calendar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'schedules' ? { backgroundColor: 'rgba(255,255,255,0.25)' } : null]}
-            onPress={() => setActiveTab('schedules')}
-          >
-            <Wrench size={14} color="rgba(255,255,255,0.8)" />
-            <Text style={[styles.tabText, { color: 'rgba(255,255,255,0.8)' }]}>Schedules</Text>
-            {overdueSchedules.length > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{overdueSchedules.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'amc' ? { backgroundColor: 'rgba(255,255,255,0.25)' } : null]}
-            onPress={() => setActiveTab('amc')}
-          >
-            <FileText size={14} color="rgba(255,255,255,0.8)" />
-            <Text style={[styles.tabText, { color: 'rgba(255,255,255,0.8)' }]}>AMC</Text>
-            {expiringContracts.length > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{expiringContracts.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+        <View style={[styles.tabBar, { marginTop: 12 }]}>
+          {(['calendar', 'schedules', 'amc'] as PPMTab[]).map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === tab ? { backgroundColor: colors.primary } : { backgroundColor: 'rgba(255,255,255,0.1)' }]}
+              onPress={() => setActiveTab(tab)}
+            >
+              {tab === 'calendar' && <CalendarDays size={14} color={activeTab === tab ? '#fff' : colors.textSecondary} />}
+              {tab === 'schedules' && <Wrench size={14} color={activeTab === tab ? '#fff' : colors.textSecondary} />}
+              {tab === 'amc' && <FileText size={14} color={activeTab === tab ? '#fff' : colors.textSecondary} />}
+              <Text style={[styles.tabText, { color: activeTab === tab ? '#fff' : colors.textSecondary }]}>
+                {tab === 'calendar' ? 'Calendar' : tab === 'schedules' ? 'Schedules' : 'AMC'}
+              </Text>
+              {tab === 'schedules' && overdueSchedules.length > 0 && (
+                <View style={styles.badge}><Text style={styles.badgeText}>{overdueSchedules.length}</Text></View>
+              )}
+              {tab === 'amc' && expiringContracts.length > 0 && (
+                <View style={styles.badge}><Text style={styles.badgeText}>{expiringContracts.length}</Text></View>
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
-      </View>
+      </SafeBlurView>
 
-      {/* ── Calendar Tab ── */}
+      {/* Calendar Tab */}
       {activeTab === 'calendar' && (
         <ScrollView
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
           contentContainerStyle={styles.calendarContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.calendarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Calendar
-              onDayPress={handleDayPress}
-              markingType="multi-dot"
-              markedDates={markedDates}
-              theme={calendarTheme as any}
-              style={styles.calendar}
-            />
+          {/* Month navigator */}
+          <View style={styles.monthNav}>
+            <TouchableOpacity onPress={prevMonth} style={styles.monthNavBtn}>
+              <ChevronLeft size={20} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.monthNavTitle, { color: colors.text }]}>{MONTH_NAMES[calMonth]} {calYear}</Text>
+            <TouchableOpacity onPress={nextMonth} style={styles.monthNavBtn}>
+              <ChevronRight size={20} color={colors.text} />
+            </TouchableOpacity>
           </View>
+
+          <MonthCalendar
+            year={calYear}
+            month={calMonth}
+            schedules={schedules}
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+          />
 
           {/* Legend */}
           <View style={styles.legendRow}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#EF6B6B' }]} />
-              <Text style={[styles.legendText, { color: colors.textSecondary }]}>Overdue</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-              <Text style={[styles.legendText, { color: colors.textSecondary }]}>Pending</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#3A8C6D' }]} />
-              <Text style={[styles.legendText, { color: colors.textSecondary }]}>Completed</Text>
-            </View>
+            <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} /><Text style={[styles.legendText, { color: colors.textSecondary }]}>Overdue</Text></View>
+            <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} /><Text style={[styles.legendText, { color: colors.textSecondary }]}>Pending</Text></View>
+            <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: '#22C55E' }]} /><Text style={[styles.legendText, { color: colors.textSecondary }]}>Completed</Text></View>
           </View>
 
           {/* Selected day details */}
@@ -423,31 +623,23 @@ export default function PPMScreen() {
                   <Text style={[styles.emptyDayText, { color: colors.textTertiary }]}>No schedules for this day</Text>
                 </View>
               ) : (
-                selectedDaySchedules.map((schedule) => (
-                  <TouchableOpacity
-                    key={schedule.id}
-                    style={[styles.scheduleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                    onPress={() => handleSchedulePress(schedule)}
-                  >
+                selectedDaySchedules.map((s) => (
+                  <TouchableOpacity key={s.id} style={[styles.scheduleCard, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => openDetail(s)}>
                     <View style={styles.scheduleCardLeft}>
-                      <View style={[styles.scheduleIconWrap, { backgroundColor: (schedule.status === 'overdue' ? colors.errorBg : colors.warningBg) }]}>
-                        <Wrench size={16} color={schedule.status === 'overdue' ? colors.error : colors.warning} />
+                      <View style={[styles.scheduleIconWrap, { backgroundColor: isOverdue(s) ? colors.errorBg : colors.warningBg }]}>
+                        <Wrench size={16} color={isOverdue(s) ? colors.error : colors.warning} />
                       </View>
                     </View>
                     <View style={styles.scheduleCardContent}>
-                      <Text style={[styles.scheduleName, { color: colors.text }]}>{schedule.asset_name}</Text>
+                      <Text style={[styles.scheduleName, { color: colors.text }]}>{s.system_name}</Text>
                       <Text style={[styles.scheduleMeta, { color: colors.textSecondary }]}>
-                        {schedule.schedule_type} · {schedule.description || 'No description'}
+                        {s.detail_name || s.scope_of_work || 'No details'} · {s.frequency}
                       </Text>
                     </View>
                     <View style={styles.scheduleCardRight}>
-                      <View style={[styles.statusBadge, {
-                        backgroundColor: schedule.status === 'overdue' ? colors.errorBg : schedule.status === 'completed' ? colors.successBg : colors.warningBg
-                      }]}>
-                        <Text style={[styles.statusBadgeText, {
-                          color: schedule.status === 'overdue' ? colors.error : schedule.status === 'completed' ? colors.success : colors.warning
-                        }]}>
-                          {schedule.status.toUpperCase()}
+                      <View style={[styles.statusBadge, { backgroundColor: isOverdue(s) ? colors.errorBg : STATUS_COLORS[s.status]?.bg || colors.warningBg }]}>
+                        <Text style={[styles.statusBadgeText, { color: isOverdue(s) ? colors.error : STATUS_COLORS[s.status]?.text || colors.warning }]}>
+                          {isOverdue(s) ? 'OVERDUE' : STATUS_COLORS[s.status]?.label?.toUpperCase() || s.status.toUpperCase()}
                         </Text>
                       </View>
                       <ChevronRight size={14} color={colors.textTertiary} />
@@ -460,16 +652,14 @@ export default function PPMScreen() {
 
           {/* Overdue alert */}
           {overdueSchedules.length > 0 && (
-            <View style={styles.overdueAlert}>
+            <View style={[styles.overdueAlert, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : '#FDEEEE' }]}>
               <View style={styles.overdueAlertHeader}>
                 <AlertTriangle size={16} color={colors.error} />
-                <Text style={[styles.overdueAlertTitle, { color: colors.error }]}>
-                  {overdueSchedules.length} overdue task(s)
-                </Text>
+                <Text style={[styles.overdueAlertTitle, { color: colors.error }]}>{overdueSchedules.length} overdue task(s)</Text>
               </View>
               {overdueSchedules.slice(0, 3).map((s) => (
-                <TouchableOpacity key={s.id} style={styles.overdueItem} onPress={() => handleSchedulePress(s)}>
-                  <Text style={[styles.overdueItemText, { color: colors.text }]}>{s.asset_name}</Text>
+                <TouchableOpacity key={s.id} style={styles.overdueItem} onPress={() => openDetail(s)}>
+                  <Text style={[styles.overdueItemText, { color: colors.text }]}>{s.system_name}{s.detail_name ? ` — ${s.detail_name}` : ''}</Text>
                   <ChevronRight size={14} color={colors.textTertiary} />
                 </TouchableOpacity>
               ))}
@@ -478,7 +668,7 @@ export default function PPMScreen() {
         </ScrollView>
       )}
 
-      {/* ── Schedules Tab ── */}
+      {/* Schedules Tab */}
       {activeTab === 'schedules' && (
         <FlatList
           data={schedules}
@@ -490,9 +680,7 @@ export default function PPMScreen() {
             overdueSchedules.length > 0 ? (
               <View style={[styles.overdueBanner, { backgroundColor: colors.errorBg }]}>
                 <AlertTriangle size={14} color={colors.error} />
-                <Text style={[styles.overdueBannerText, { color: colors.error }]}>
-                  {overdueSchedules.length} overdue task(s)
-                </Text>
+                <Text style={[styles.overdueBannerText, { color: colors.error }]}>{overdueSchedules.length} overdue task(s)</Text>
               </View>
             ) : null
           }
@@ -501,49 +689,38 @@ export default function PPMScreen() {
               <Wrench size={48} color={colors.textTertiary} />
               <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No schedules yet</Text>
               {isAdmin && (
-                <TouchableOpacity style={[styles.createBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAddSchedule(true)}>
+                <TouchableOpacity style={[styles.createBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAdd(true)}>
                   <Text style={styles.createBtnText}>Add Schedule</Text>
                 </TouchableOpacity>
               )}
             </View>
           }
-          renderItem={({ item: schedule }) => {
-            const days = schedule.next_due ? daysUntil(schedule.next_due) : 999;
-            const isOverdue = days < 0;
-            const isDueSoon = days >= 0 && days <= 3;
-
+          renderItem={({ item: s }) => {
+            const days = daysUntil(s.planned_date);
+            const overdue = isOverdue(s);
+            const dueSoon = days >= 0 && days <= 3;
             return (
-              <TouchableOpacity
-                style={[styles.scheduleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => handleSchedulePress(schedule)}
-              >
+              <TouchableOpacity style={[styles.scheduleCard, { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]} onPress={() => openDetail(s)}>
                 <View style={styles.scheduleCardLeft}>
-                  <View style={[styles.scheduleIconWrap, {
-                    backgroundColor: isOverdue ? colors.errorBg : isDueSoon ? colors.warningBg : colors.successBg
-                  }]}>
-                    <Wrench size={16} color={isOverdue ? colors.error : isDueSoon ? colors.warning : colors.success} />
+                  <View style={[styles.scheduleIconWrap, { backgroundColor: overdue ? colors.errorBg : dueSoon ? colors.warningBg : colors.successBg }]}>
+                    <Wrench size={16} color={overdue ? colors.error : dueSoon ? colors.warning : colors.success} />
                   </View>
                 </View>
                 <View style={styles.scheduleCardContent}>
-                  <Text style={[styles.scheduleName, { color: colors.text }]} numberOfLines={1}>{schedule.asset_name}</Text>
+                  <Text style={[styles.scheduleName, { color: colors.text }]} numberOfLines={1}>{s.system_name}</Text>
+                  <Text style={[styles.scheduleMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {s.detail_name || s.scope_of_work || 'No details'} · {s.frequency}
+                  </Text>
                   <Text style={[styles.scheduleMeta, { color: colors.textSecondary }]}>
-                    {schedule.schedule_type} · Due: {schedule.next_due ? formatDate(schedule.next_due) : '-'}
+                    Due: {formatDate(s.planned_date)}
                   </Text>
                 </View>
                 <View style={styles.scheduleCardRight}>
-                  {isOverdue ? (
-                    <View style={[styles.statusBadge, { backgroundColor: colors.errorBg }]}>
-                      <Text style={[styles.statusBadgeText, { color: colors.error }]}>OVERDUE</Text>
-                    </View>
-                  ) : days <= 3 ? (
-                    <View style={[styles.statusBadge, { backgroundColor: colors.warningBg }]}>
-                      <Text style={[styles.statusBadgeText, { color: colors.warning }]}>DUE SOON</Text>
-                    </View>
-                  ) : (
-                    <View style={[styles.statusBadge, { backgroundColor: colors.successBg }]}>
-                      <Text style={[styles.statusBadgeText, { color: colors.success }]}>OK</Text>
-                    </View>
-                  )}
+                  <View style={[styles.statusBadge, { backgroundColor: overdue ? colors.errorBg : dueSoon ? colors.warningBg : colors.successBg }]}>
+                    <Text style={[styles.statusBadgeText, { color: overdue ? colors.error : dueSoon ? colors.warning : colors.success }]}>
+                      {overdue ? 'OVERDUE' : dueSoon ? 'DUE SOON' : 'OK'}
+                    </Text>
+                  </View>
                   <ChevronRight size={14} color={colors.textTertiary} />
                 </View>
               </TouchableOpacity>
@@ -552,7 +729,7 @@ export default function PPMScreen() {
         />
       )}
 
-      {/* ── AMC Tab ── */}
+      {/* AMC Tab */}
       {activeTab === 'amc' && (
         <FlatList
           data={contracts}
@@ -572,9 +749,8 @@ export default function PPMScreen() {
             const isExpiringSoon = days >= 0 && days <= 30;
             const statusColor = isExpired ? colors.error : isExpiringSoon ? colors.warning : colors.success;
             const statusBg = isExpired ? colors.errorBg : isExpiringSoon ? colors.warningBg : colors.successBg;
-
             return (
-              <TouchableOpacity style={[styles.contractCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <TouchableOpacity style={[styles.contractCard, { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}>
                 <View style={styles.contractHeader}>
                   <View style={[styles.contractIcon, { backgroundColor: statusBg }]}>
                     <Building2 size={18} color={statusColor} />
@@ -584,9 +760,7 @@ export default function PPMScreen() {
                     <Text style={[styles.contractVendor, { color: colors.textSecondary }]}>{contract.vendor_name}</Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
-                    <Text style={[styles.statusBadgeText, { color: statusColor }]}>
-                      {isExpired ? 'EXPIRED' : isExpiringSoon ? 'EXPIRING' : 'ACTIVE'}
-                    </Text>
+                    <Text style={[styles.statusBadgeText, { color: statusColor }]}>{isExpired ? 'EXPIRED' : isExpiringSoon ? 'EXPIRING' : 'ACTIVE'}</Text>
                   </View>
                 </View>
                 <View style={styles.contractDates}>
@@ -612,9 +786,7 @@ export default function PPMScreen() {
                 {isExpiringSoon && !isExpired && (
                   <View style={[styles.expiryAlert, { backgroundColor: colors.warningBg }]}>
                     <Clock size={12} color={colors.warning} />
-                    <Text style={[styles.expiryAlertText, { color: colors.warning }]}>
-                      Expires in {days} day{days !== 1 ? 's' : ''}
-                    </Text>
+                    <Text style={[styles.expiryAlertText, { color: colors.warning }]}>Expires in {days} day{days !== 1 ? 's' : ''}</Text>
                   </View>
                 )}
                 {contract.description && (
@@ -626,109 +798,272 @@ export default function PPMScreen() {
         />
       )}
 
-      {/* ── Schedule Detail Bottom Sheet ── */}
-      <Modal visible={showScheduleDetail} animationType="slide" transparent>
+      {/* ── Task Detail Modal ── */}
+      <Modal visible={showDetail} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowScheduleDetail(false)} />
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowDetail(false)} />
           <View style={[styles.detailSheet, { backgroundColor: colors.card }]}>
             <View style={styles.modalHandle} />
             {selectedSchedule && (
-              <>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+                {/* Header */}
                 <View style={styles.detailHeader}>
                   <View style={[styles.detailIconWrap, { backgroundColor: colors.primary + '18' }]}>
                     <Wrench size={24} color={colors.primary} />
                   </View>
                   <View style={styles.detailHeaderContent}>
-                    <Text style={[styles.detailTitle, { color: colors.text }]}>{selectedSchedule.asset_name}</Text>
+                    <Text style={[styles.detailTitle, { color: colors.text }]} numberOfLines={1}>{selectedSchedule.system_name}</Text>
                     <Text style={[styles.detailSubtitle, { color: colors.textSecondary }]}>
-                      {selectedSchedule.schedule_type} schedule
+                      {selectedSchedule.detail_name || selectedSchedule.scope_of_work || 'PPM Task'}
                     </Text>
                   </View>
-                  <TouchableOpacity onPress={() => setShowScheduleDetail(false)}>
+                  <TouchableOpacity onPress={() => setShowDetail(false)}>
                     <X size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
+                {/* Stats row */}
                 <View style={styles.detailStatsRow}>
                   <View style={[styles.detailStatCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.detailStatLabel, { color: colors.textTertiary }]}>Next Due</Text>
-                    <Text style={[styles.detailStatValue, { color: colors.text }]}>{formatDate(selectedSchedule.next_due)}</Text>
+                    <Text style={[styles.detailStatLabel, { color: colors.textTertiary }]}>Planned</Text>
+                    <Text style={[styles.detailStatValue, { color: colors.text }]}>{formatDate(selectedSchedule.planned_date)}</Text>
                   </View>
                   <View style={[styles.detailStatCard, { backgroundColor: colors.surface }]}>
                     <Text style={[styles.detailStatLabel, { color: colors.textTertiary }]}>Status</Text>
-                    <Text style={[styles.detailStatValue, { color: selectedSchedule.status === 'overdue' ? colors.error : colors.success }]}>
-                      {selectedSchedule.status}
+                    <Text style={[styles.detailStatValue, { color: isOverdue(selectedSchedule) ? colors.error : STATUS_COLORS[selectedSchedule.status]?.text || colors.success }]}>
+                      {isOverdue(selectedSchedule) ? 'OVERDUE' : STATUS_COLORS[selectedSchedule.status]?.label?.toUpperCase()}
                     </Text>
                   </View>
                   <View style={[styles.detailStatCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.detailStatLabel, { color: colors.textTertiary }]}>Last Done</Text>
-                    <Text style={[styles.detailStatValue, { color: colors.text }]}>
-                      {selectedSchedule.last_completed ? formatDate(selectedSchedule.last_completed) : 'Never'}
-                    </Text>
+                    <Text style={[styles.detailStatLabel, { color: colors.textTertiary }]}>Frequency</Text>
+                    <Text style={[styles.detailStatValue, { color: FREQ_COLORS[selectedSchedule.frequency] || colors.text }]}>{selectedSchedule.frequency}</Text>
                   </View>
                 </View>
 
-                {selectedSchedule.description && (
+                {/* Info cards */}
+                {selectedSchedule.location && (
+                  <View style={[styles.infoRow, { backgroundColor: colors.surface }]}>
+                    <MapPin size={14} color={colors.textSecondary} />
+                    <Text style={[styles.infoRowText, { color: colors.textSecondary }]}>{selectedSchedule.location}</Text>
+                  </View>
+                )}
+                {selectedSchedule.scope_of_work && (
                   <View style={[styles.descBanner, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.descText, { color: colors.textSecondary }]}>{selectedSchedule.description}</Text>
+                    <Text style={[styles.descText, { color: colors.textSecondary }]}>{selectedSchedule.scope_of_work}</Text>
                   </View>
                 )}
 
+                {/* Vendor */}
+                {(selectedSchedule.vendor_name || selectedSchedule.vendor_phone || selectedSchedule.maintenance_vendors) && (
+                  <View style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                    <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>VENDOR</Text>
+                    <Text style={[styles.sectionValue, { color: colors.text }]}>
+                      {selectedSchedule.maintenance_vendors?.company_name || selectedSchedule.vendor_name || 'N/A'}
+                    </Text>
+                    {(selectedSchedule.maintenance_vendors?.contact_person || selectedSchedule.vendor_contact_person) && (
+                      <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>
+                        <User size={12} color={colors.textSecondary} /> {selectedSchedule.maintenance_vendors?.contact_person || selectedSchedule.vendor_contact_person}
+                      </Text>
+                    )}
+                    {(selectedSchedule.maintenance_vendors?.phone || selectedSchedule.vendor_phone) && (
+                      <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>
+                        <Phone size={12} color={colors.textSecondary} /> {selectedSchedule.maintenance_vendors?.phone || selectedSchedule.vendor_phone}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Status picker */}
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>STATUS</Text>
+                <View style={styles.statusPickerRow}>
+                  {(['pending', 'done', 'postponed', 'skipped'] as const).map((st) => (
+                    <TouchableOpacity
+                      key={st}
+                      style={[styles.statusChip, editStatus === st ? { backgroundColor: STATUS_COLORS[st].bg, borderColor: STATUS_COLORS[st].text } : { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      onPress={() => setEditStatus(st)}
+                    >
+                      <View style={[styles.statusChipDot, { backgroundColor: STATUS_COLORS[st].dot }]} />
+                      <Text style={[styles.statusChipText, { color: editStatus === st ? STATUS_COLORS[st].text : colors.textSecondary }]}>{STATUS_COLORS[st].label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Done date & remark */}
+                {editStatus === 'done' && (
+                  <>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>COMPLETION DATE</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                      value={editDoneDate}
+                      onChangeText={setEditDoneDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                  </>
+                )}
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>REMARKS</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  value={editRemark}
+                  onChangeText={setEditRemark}
+                  placeholder="Add notes or remarks..."
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  numberOfLines={3}
+                />
+
+                {/* Attachments */}
+                {editStatus === 'done' && (
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ATTACHMENTS</Text>
+                    {selectedSchedule.attachments?.photos && selectedSchedule.attachments.photos.length > 0 && (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                        {selectedSchedule.attachments.photos.map((url, idx) => (
+                          <View key={idx} style={styles.photoThumbWrap}>
+                            <Image source={{ uri: url }} style={styles.photoThumb} />
+                            <TouchableOpacity style={styles.photoDeleteBtn} onPress={() => deletePhoto(idx)}>
+                              <Trash2 size={12} color="#FFFFFF" />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.uploadBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      onPress={pickAndUploadPhotos}
+                      disabled={uploadingPhoto}
+                    >
+                      {uploadingPhoto ? <ActivityIndicator size="small" color={colors.primary} /> : (
+                        <>
+                          <Camera size={18} color={colors.primary} />
+                          <Text style={[styles.uploadBtnText, { color: colors.primary }]}>Add Photos</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Verification status */}
+                {selectedSchedule.verification_status && selectedSchedule.verification_status !== 'pending' && (
+                  <View style={[styles.verificationBanner, {
+                    backgroundColor: selectedSchedule.verification_status === 'verified' ? 'rgba(34,197,94,0.1)' :
+                      selectedSchedule.verification_status === 'rejected' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)'
+                  }]}>
+                    <CheckCircle2 size={16} color={selectedSchedule.verification_status === 'verified' ? '#22C55E' :
+                      selectedSchedule.verification_status === 'rejected' ? '#EF4444' : '#F59E0B'} />
+                    <Text style={[styles.verificationText, { color: colors.text }]}>
+                      Vendor proof {selectedSchedule.verification_status}
+                      {selectedSchedule.verified_at ? ` on ${formatDate(selectedSchedule.verified_at)}` : ''}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Save button */}
                 <TouchableOpacity
-                  style={[styles.markCompleteBtn, { backgroundColor: colors.success }]}
-                  onPress={() => handleMarkComplete(selectedSchedule)}
+                  style={[styles.markCompleteBtn, { backgroundColor: colors.primary }, isSaving && { opacity: 0.6 }]}
+                  onPress={handleUpdateSchedule}
+                  disabled={isSaving}
                 >
-                  <CheckCircle2 size={20} color="#FFFFFF" />
-                  <Text style={styles.markCompleteBtnText}>Mark as Complete</Text>
+                  {isSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
+                    <Text style={styles.markCompleteBtnText}>Update Task</Text>
+                  )}
                 </TouchableOpacity>
-              </>
+              </ScrollView>
             )}
           </View>
         </View>
       </Modal>
 
       {/* ── Add Schedule Modal ── */}
-      <Modal visible={showAddSchedule} animationType="slide" transparent>
+      <Modal visible={showAdd} animationType="slide" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
             <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
               <View style={styles.modalHandle} />
               <View style={styles.modalHeader}>
                 <Text style={[styles.modalTitle, { color: colors.text }]}>Add PPM Schedule</Text>
-                <TouchableOpacity onPress={() => { setShowAddSchedule(false); resetForm(); }}>
+                <TouchableOpacity onPress={() => { setShowAdd(false); resetAddForm(); }}>
                   <X size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Asset / Equipment Name *</Text>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>System Name *</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                  placeholder="e.g. HVAC Unit A1"
+                  placeholder="e.g. HVAC, Electrical"
                   placeholderTextColor={colors.textTertiary}
-                  value={formAssetName}
-                  onChangeText={setFormAssetName}
+                  value={formSystemName}
+                  onChangeText={setFormSystemName}
                 />
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Schedule Type</Text>
-                <View style={styles.scheduleTypeRow}>
-                  {(['daily', 'weekly', 'monthly', 'quarterly', 'annual'] as const).map((type) => (
-                    <TouchableOpacity
-                      key={type}
-                      style={[styles.typeChip, formScheduleType === type ? { backgroundColor: colors.primary + '18', borderColor: colors.primary } : { backgroundColor: colors.surface, borderColor: colors.border }]}
-                      onPress={() => setFormScheduleType(type)}
-                    >
-                      <Text style={[styles.typeChipText, { color: formScheduleType === type ? colors.primary : colors.textSecondary }]}>{type}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Description</Text>
+
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Detail / Equipment Name</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder="e.g. Unit A1, Generator #2"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formDetailName}
+                  onChangeText={setFormDetailName}
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Scope of Work</Text>
                 <TextInput
                   style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                  placeholder="Optional description or instructions"
+                  placeholder="Describe the maintenance task..."
                   placeholderTextColor={colors.textTertiary}
                   multiline
                   numberOfLines={3}
-                  value={formDescription}
-                  onChangeText={setFormDescription}
+                  value={formScope}
+                  onChangeText={setFormScope}
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Frequency</Text>
+                <View style={styles.scheduleTypeRow}>
+                  {(['yearly', 'quarterly', 'monthly', 'weekly'] as const).map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[styles.typeChip, formFreq === type ? { backgroundColor: FREQ_COLORS[type] + '18', borderColor: FREQ_COLORS[type] } : { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      onPress={() => setFormFreq(type)}
+                    >
+                      <Text style={[styles.typeChipText, { color: formFreq === type ? FREQ_COLORS[type] : colors.textSecondary }]}>{type}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Planned Date (YYYY-MM-DD) *</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder="2026-05-20"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formPlannedDate}
+                  onChangeText={setFormPlannedDate}
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Location</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder="e.g. Basement, Roof"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formLocation}
+                  onChangeText={setFormLocation}
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Vendor Name</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder="Vendor company name"
+                  placeholderTextColor={colors.textTertiary}
+                  value={formVendorName}
+                  onChangeText={setFormVendorName}
+                />
+
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Vendor Phone</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder="Phone number"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="phone-pad"
+                  value={formVendorPhone}
+                  onChangeText={setFormVendorPhone}
                 />
               </ScrollView>
               <TouchableOpacity
@@ -753,10 +1088,31 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
   loadingText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
 
-  headerSection: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  headerTitle: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.3 },
-  headerBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  header: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+    zIndex: 10,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleWrap: { flex: 1, marginLeft: 12 },
+  headerTitleMain: { fontSize: 20, fontFamily: 'Poppins-Bold', letterSpacing: -0.5, color: '#FFFFFF' },
+  headerSubtitleMain: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  headerAddBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
 
   tabBar: { flexDirection: 'row', gap: 8 },
   tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
@@ -764,24 +1120,37 @@ const styles = StyleSheet.create({
   badge: { backgroundColor: '#EF6B6B', borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
   badgeText: { color: '#FFFFFF', fontSize: 10, fontFamily: 'Urbanist-Bold' },
 
+  // Calendar
   calendarContent: { padding: 16, paddingBottom: 100 },
-  calendarCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  calendar: { borderRadius: 16 },
-  legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 12, marginBottom: 16 },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingHorizontal: 4 },
+  monthNavBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  monthNavTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
+
+  calendarCard: { borderRadius: 16, borderWidth: 1, padding: 12 },
+  calendarDayHeaderRow: { flexDirection: 'row', marginBottom: 8 },
+  calendarDayHeaderText: { flex: 1, textAlign: 'center', fontSize: 11, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 8 },
+  calendarDayCircle: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  calendarDayText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
+  calendarDotsRow: { flexDirection: 'row', gap: 3, marginTop: 3, height: 6, alignItems: 'center' },
+  calendarDot: { width: 5, height: 5, borderRadius: 2.5 },
+
+  legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 16, marginBottom: 16 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
 
-  dayDetailSection: { marginTop: 16 },
+  dayDetailSection: { marginTop: 8 },
   dayDetailTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
   emptyDay: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1, paddingVertical: 24 },
   emptyDayText: { fontSize: 13, fontFamily: 'Urbanist-Medium' },
 
-  overdueAlert: { marginTop: 16, backgroundColor: '#FDEEEE', borderRadius: 12, padding: 12 },
+  overdueAlert: { marginTop: 16, borderRadius: 12, padding: 12 },
   overdueAlertHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   overdueAlertTitle: { fontSize: 13, fontFamily: 'Urbanist-Bold' },
   overdueItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
-  overdueItemText: { fontSize: 13, fontFamily: 'Urbanist-Medium' },
+  overdueItemText: { fontSize: 13, fontFamily: 'Urbanist-Medium', flex: 1 },
 
   listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 },
   overdueBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 10, marginBottom: 12 },
@@ -833,7 +1202,7 @@ const styles = StyleSheet.create({
   submitBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins-Bold' },
 
   // Detail sheet
-  detailSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingBottom: 34 },
+  detailSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingBottom: 34, maxHeight: '85%' },
   detailHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   detailIconWrap: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   detailHeaderContent: { flex: 1 },
@@ -842,9 +1211,32 @@ const styles = StyleSheet.create({
   detailStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   detailStatCard: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center' },
   detailStatLabel: { fontSize: 9, fontFamily: 'Urbanist-Medium', textTransform: 'uppercase', letterSpacing: 0.3 },
-  detailStatValue: { fontSize: 14, fontFamily: 'Poppins-Bold', marginTop: 4, textAlign: 'center' },
-  descBanner: { borderRadius: 10, padding: 12, marginBottom: 16 },
+  detailStatValue: { fontSize: 13, fontFamily: 'Poppins-Bold', marginTop: 4, textAlign: 'center' },
+
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, marginBottom: 10 },
+  infoRowText: { fontSize: 13, fontFamily: 'Urbanist-Regular', flex: 1 },
+  descBanner: { borderRadius: 10, padding: 12, marginBottom: 10 },
   descText: { fontSize: 13, fontFamily: 'Urbanist-Regular', lineHeight: 20 },
-  markCompleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 14 },
+
+  sectionCard: { borderRadius: 10, padding: 12, marginBottom: 12 },
+  sectionLabel: { fontSize: 9, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  sectionValue: { fontSize: 14, fontFamily: 'Poppins-Bold', marginBottom: 2 },
+  sectionSub: { fontSize: 12, fontFamily: 'Urbanist-Regular', marginTop: 2 },
+
+  statusPickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  statusChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  statusChipDot: { width: 8, height: 8, borderRadius: 4 },
+  statusChipText: { fontSize: 12, fontFamily: 'Urbanist-Bold' },
+
+  photoThumbWrap: { marginRight: 10, position: 'relative' },
+  photoThumb: { width: 80, height: 80, borderRadius: 10 },
+  photoDeleteBtn: { position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
+  uploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1, paddingVertical: 12, borderStyle: 'dashed' },
+  uploadBtnText: { fontSize: 14, fontFamily: 'Urbanist-Bold' },
+
+  verificationBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, marginTop: 12 },
+  verificationText: { fontSize: 13, fontFamily: 'Urbanist-Medium', flex: 1 },
+
+  markCompleteBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
   markCompleteBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins-Bold' },
 });

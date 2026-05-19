@@ -9,13 +9,17 @@ import {
   ActivityIndicator,
   StatusBar,
   Image,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
-import { Colors } from '@/constants/Colors';
+import { Colors, DASHBOARD_BACKGROUNDS, type DashboardBgKey } from '@/constants/Colors';
 import { createClient } from '@/utils/supabase/client';
+import { LinearGradient } from 'expo-linear-gradient';
+
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import {
   User,
   Bell,
@@ -26,8 +30,10 @@ import {
   FileText,
   HelpCircle,
   LogOut,
+  MapPin,
 } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Types
 interface Property {
@@ -52,12 +58,17 @@ export default function SettingsScreen() {
   const { theme, toggleTheme } = useTheme();
   const { user, membership, signOut } = useAuth();
   const colors = Colors[theme];
+  const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
 
   const [property, setProperty] = React.useState<Property | null>(null);
+
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [locationEnabled, setLocationEnabled] = React.useState(true);
+  const [dashboardBg, setDashboardBg] = React.useState<DashboardBgKey>('night');
+  const [showBgPicker, setShowBgPicker] = React.useState(false);
 
   const supabase = React.useMemo(() => createClient(), []);
 
@@ -84,6 +95,14 @@ export default function SettingsScreen() {
 
       if (userData) {
         setUserProfile(userData as UserProfile);
+      }
+
+      // Fetch local settings
+      const locSetting = await AsyncStorage.getItem('fms_weather_location_enabled');
+      setLocationEnabled(locSetting !== 'false');
+      const bgSetting = await AsyncStorage.getItem('fms_dashboard_background');
+      if (bgSetting && bgSetting in DASHBOARD_BACKGROUNDS) {
+        setDashboardBg(bgSetting as DashboardBgKey);
       }
     } catch (error) {
       console.error('Error fetching settings data:', error);
@@ -114,6 +133,12 @@ export default function SettingsScreen() {
     return prop.role.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
+  const handleToggleLocation = async () => {
+    const newValue = !locationEnabled;
+    setLocationEnabled(newValue);
+    await AsyncStorage.setItem('fms_weather_location_enabled', newValue ? 'true' : 'false');
+  };
+
   const menuItems = [
     {
       icon: <User size={20} color={colors.primary} />,
@@ -134,6 +159,20 @@ export default function SettingsScreen() {
       onPress: () => toggleTheme(),
       toggle: true,
       toggleValue: theme === 'dark',
+    },
+    {
+      icon: <MapPin size={20} color={colors.primary} />,
+      title: 'Weather Location',
+      subtitle: locationEnabled ? 'Using location for live weather' : 'Location disabled (default sunny)',
+      onPress: handleToggleLocation,
+      toggle: true,
+      toggleValue: locationEnabled,
+    },
+    {
+      icon: <Palette size={20} color={colors.primary} />,
+      title: 'Dashboard Background',
+      subtitle: DASHBOARD_BACKGROUNDS[dashboardBg]?.label || DASHBOARD_BACKGROUNDS['night'].label,
+      onPress: () => setShowBgPicker(true),
     },
     {
       icon: <Bell size={20} color={colors.primary} />,
@@ -163,7 +202,8 @@ export default function SettingsScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <LinearGradient colors={isDark ? ['#0f172a', '#1e1b4b', '#0f172a'] : ['#eef2f6', '#f8fafc', '#ffffff']} style={StyleSheet.absoluteFillObject} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -172,7 +212,8 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <LinearGradient colors={isDark ? ['#0f172a', '#1e1b4b', '#0f172a'] : ['#eef2f6', '#f8fafc', '#ffffff']} style={StyleSheet.absoluteFillObject} />
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       
       {/* Header */}
@@ -222,7 +263,8 @@ export default function SettingsScreen() {
       >
         {/* Property Info */}
         {property && (
-          <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SafeBlurView intensity={40} tint="dark" style={[styles.sectionCard, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+            <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
             <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>PROPERTY</Text>
             <View style={styles.propertyRow}>
               <Building2 size={18} color={colors.primary} />
@@ -235,18 +277,19 @@ export default function SettingsScreen() {
                 </Text>
               </View>
             </View>
-          </View>
+          </SafeBlurView>
         )}
 
         {/* Menu Items */}
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <SafeBlurView intensity={40} tint="dark" style={[styles.sectionCard, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+          <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>PREFERENCES</Text>
-          {menuItems.slice(2, 5).map((item, index) => (
+          {menuItems.slice(2, 6).map((item, index) => (
             <TouchableOpacity
               key={item.title}
               style={[
                 styles.menuItem,
-                index !== 2 && { borderTopWidth: 1, borderTopColor: colors.border },
+                index !== 0 && { borderTopWidth: 1, borderTopColor: colors.border },
               ]}
               onPress={item.onPress}
             >
@@ -277,12 +320,13 @@ export default function SettingsScreen() {
               )}
             </TouchableOpacity>
           ))}
-        </View>
+        </SafeBlurView>
 
         {/* Support Section */}
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <SafeBlurView intensity={40} tint="dark" style={[styles.sectionCard, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+          <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>SUPPORT</Text>
-          {menuItems.slice(5).map((item, index) => (
+          {menuItems.slice(6).map((item, index) => (
             <TouchableOpacity
               key={item.title}
               style={[
@@ -303,7 +347,7 @@ export default function SettingsScreen() {
               <ChevronRight size={18} color={colors.textTertiary} />
             </TouchableOpacity>
           ))}
-        </View>
+        </SafeBlurView>
 
         {/* Sign Out */}
         <TouchableOpacity
@@ -321,49 +365,50 @@ export default function SettingsScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={[styles.bottomNav, {
-        backgroundColor: colors.surface,
-        borderTopColor: colors.border,
-        paddingBottom: Math.max(insets.bottom, 12)
-      }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/mst` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="grid-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>OVERVIEW</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/tickets` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="ticket-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>REQUESTS</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navItemCenter}
-          onPress={() => router.push(`/property/${propertyId}/mst` as any)}
-        >
-          <View style={[styles.centerFab, { backgroundColor: colors.primary }]}>
-            <Ionicons name="add" size={32} color="#FFF" />
+      {/* Dashboard Background Picker Modal */}
+      {showBgPicker && (
+        <Modal visible={true} transparent animationType="slide" onRequestClose={() => setShowBgPicker(false)}>
+          <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
+            <SafeBlurView intensity={60} tint="dark" style={[styles.bgPickerSheet, { borderColor: colors.glassBorder }]}>
+              <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.2)']} style={StyleSheet.absoluteFillObject} />
+              <View style={styles.bgPickerHeader}>
+                <Text style={[styles.bgPickerTitle, { color: colors.text }]}>Dashboard Background</Text>
+                <TouchableOpacity onPress={() => setShowBgPicker(false)} activeOpacity={0.7}>
+                  <Ionicons name="close" size={24} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.bgGrid}>
+                {(Object.keys(DASHBOARD_BACKGROUNDS) as DashboardBgKey[]).map((key) => {
+                  const isSelected = dashboardBg === key;
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.bgOption, isSelected && { borderColor: colors.primary, borderWidth: 2 }]}
+                      onPress={async () => {
+                        setDashboardBg(key);
+                        await AsyncStorage.setItem('fms_dashboard_background', key);
+                        setShowBgPicker(false);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Image source={DASHBOARD_BACKGROUNDS[key].image} style={styles.bgPreview} resizeMode="cover" />
+                      <Text style={[styles.bgLabel, { color: colors.text }]}>{DASHBOARD_BACKGROUNDS[key].label}</Text>
+                      {isSelected && (
+                        <View style={[styles.bgCheck, { backgroundColor: colors.primary }]}>
+                          <Ionicons name="checkmark" size={14} color="#fff" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </SafeBlurView>
           </View>
-        </TouchableOpacity>
+        </Modal>
+      )}
 
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/electricity` as any)}>
-          <View style={styles.navIconWrapper}>
-            <Ionicons name="flash-outline" size={22} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.textTertiary }]}>LOGGERS</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push(`/property/${propertyId}/settings`)}>
-          <View style={[styles.navIconWrapper, { backgroundColor: theme === 'dark' ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.08)' }]}>
-            <Ionicons name="settings-outline" size={22} color={colors.primary} />
-          </View>
-          <Text style={[styles.navText, { color: colors.primary }]}>SETTINGS</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -448,6 +493,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
+    paddingBottom: 100,
   },
   sectionCard: {
     borderRadius: 16,
@@ -582,5 +628,63 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: 'Urbanist-Bold',
     letterSpacing: 0.3,
+  },
+
+  // Dashboard Background Picker
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  bgPickerSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+    overflow: 'hidden',
+  },
+  bgPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  bgPickerTitle: {
+    fontSize: 20,
+    fontFamily: 'Poppins-Bold',
+  },
+  bgGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  bgOption: {
+    width: '47%',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    padding: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  bgPreview: {
+    width: '100%',
+    height: 80,
+    borderRadius: 12,
+  },
+  bgLabel: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-SemiBold',
+  },
+  bgCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

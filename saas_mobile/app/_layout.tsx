@@ -1,7 +1,7 @@
 import React, { useEffect, Component, ReactNode, useState, useCallback, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useFonts } from 'expo-font';
+import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
@@ -71,22 +71,33 @@ export default function RootLayout() {
 
   console.log('[RootLayout] Rendering...');
 
-  // Load custom fonts (Consistently on both Web and Native)
-  const [fontsLoaded, fontError] = useFonts({
-    'Poppins-Regular': require('../assets/fonts/Poppins-Regular.ttf'),
-    'Poppins-Medium': require('../assets/fonts/Poppins-Medium.ttf'),
-    'Poppins-SemiBold': require('../assets/fonts/Poppins-SemiBold.ttf'),
-    'Poppins-Bold': require('../assets/fonts/Poppins-Bold.ttf'),
-    'Urbanist-Regular': require('../assets/fonts/Urbanist.ttf'),
-    'Urbanist-Medium': require('../assets/fonts/Urbanist.ttf'),
-    'Urbanist-SemiBold': require('../assets/fonts/Urbanist.ttf'),
-    'Urbanist-Bold': require('../assets/fonts/Urbanist.ttf'),
-    'PressStart2P': require('../assets/fonts/PressStart2P.ttf'),
-  });
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [fontError, setFontError] = useState<Error | null>(null);
 
-  // Hide native splash immediately, show our custom splash
+  // Load custom fonts (Consistently on both Web and Native with try-catch safety)
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
+    async function loadFonts() {
+      try {
+        await Font.loadAsync({
+          'Poppins-Regular': require('../assets/fonts/Poppins-Regular.ttf'),
+          'Poppins-Medium': require('../assets/fonts/Poppins-Medium.ttf'),
+          'Poppins-SemiBold': require('../assets/fonts/Poppins-SemiBold.ttf'),
+          'Poppins-Bold': require('../assets/fonts/Poppins-Bold.ttf'),
+          'Urbanist-Regular': require('../assets/fonts/Urbanist.ttf'),
+          'Urbanist-Medium': require('../assets/fonts/Urbanist.ttf'),
+          'Urbanist-SemiBold': require('../assets/fonts/Urbanist.ttf'),
+          'Urbanist-Bold': require('../assets/fonts/Urbanist.ttf'),
+          'PressStart2P': require('../assets/fonts/PressStart2P.ttf'),
+        });
+        setFontsLoaded(true);
+      } catch (err: any) {
+        console.warn('[RootLayout] Font loading failed or timed out, using system fallback fonts:', err.message);
+        setFontError(err);
+        setFontsLoaded(true); // Proceed with system font fallbacks to prevent crash
+      }
+    }
+    loadFonts();
   }, []);
 
   // Mark app ready when fonts are loaded (or errored)

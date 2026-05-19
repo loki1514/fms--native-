@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Platform } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
 import { createClient } from '@/utils/supabase/client';
@@ -20,6 +20,9 @@ interface RoomBookingTabProps {
   refreshing?: boolean;
   onRefresh?: () => void;
 }
+
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 
 const CAPACITY_OPTIONS = [
   { label: 'Any', value: null },
@@ -182,14 +185,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: fontDisplay,
   },
   subtitle: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 2,
     fontWeight: '500',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   capacityRow: {
     flexDirection: 'row',
@@ -218,12 +221,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.55)',
     fontWeight: '500',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   capChipTextActive: {
     color: '#fff',
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   listContent: {
     padding: 16,
@@ -261,7 +264,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 5,
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   roomMeta: {
     flexDirection: 'row',
@@ -278,7 +281,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255,255,255,0.55)',
     fontWeight: '500',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   creditBadge: {
     backgroundColor: 'rgba(212,160,23,0.1)',
@@ -306,7 +309,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   empty: {
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -331,12 +334,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontDisplay,
   },
   emptySubtext: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.45)',
     textAlign: 'center',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
 });

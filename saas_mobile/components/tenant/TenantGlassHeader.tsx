@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -16,6 +16,9 @@ import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 
 // ---------------------------------------------------------------------
 // Weather Icon SVG Components
@@ -296,13 +299,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.5,
     marginBottom: 4,
-    fontFamily: 'Urbanist-Medium',
+    fontFamily: fontSans,
   },
   userName: {
     fontSize: 28,
     fontWeight: '800',
     letterSpacing: -0.5,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: fontDisplay,
   },
   weatherWidget: {
     flexDirection: 'row',
@@ -316,7 +319,7 @@ const styles = StyleSheet.create({
   temperature: {
     fontSize: 20,
     fontWeight: '700',
-    fontFamily: 'Urbanist-Bold',
+    fontFamily: fontDisplay,
     letterSpacing: -0.3,
   },
   propertyRow: {
@@ -347,7 +350,7 @@ const styles = StyleSheet.create({
   },
   locationName: {
     fontSize: 12,
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   waveDivider: {
     alignItems: 'center',
