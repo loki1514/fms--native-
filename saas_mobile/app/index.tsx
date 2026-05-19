@@ -4,17 +4,18 @@ import { View, ActivityIndicator, Text } from 'react-native';
 import { useEffect } from 'react';
 
 export default function Index() {
-  const { user, isLoading, membership } = useAuth();
+  const { user, isLoading, membership, isMembershipLoading } = useAuth();
 
   useEffect(() => {
-    console.log('[Index] isLoading:', isLoading, 'user:', user?.email, 'membership:', membership?.properties?.length);
-  }, [isLoading, user, membership]);
+    console.log('[Index] isLoading:', isLoading, 'isMembershipLoading:', isMembershipLoading, 'user:', user?.email, 'membership:', membership?.properties?.length);
+  }, [isLoading, isMembershipLoading, user, membership]);
 
-  if (isLoading) {
+  // Wait for both Auth and Membership to finish loading
+  if (isLoading || isMembershipLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
         <ActivityIndicator size="large" color="#708F96" />
-        <Text style={{ marginTop: 16, color: '#666', fontSize: 14 }}>Loading...</Text>
+        <Text style={{ marginTop: 16, color: '#666', fontSize: 14 }}>Loading Session...</Text>
       </View>
     );
   }

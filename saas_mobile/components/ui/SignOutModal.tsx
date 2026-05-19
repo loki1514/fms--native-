@@ -11,21 +11,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 interface SignOutModalProps {
-  isOpen: boolean;
+  visible: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void> | void;
+  onSignOut: () => Promise<void> | void;
 }
 
-export default function SignOutModal({ isOpen, onClose, onConfirm }: SignOutModalProps) {
+export default function SignOutModal({ visible, onClose, onSignOut }: SignOutModalProps) {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleConfirm = async () => {
     setIsLoggingOut(true);
     try {
-      await onConfirm();
+      await onSignOut();
       setTimeout(() => {
-        router.replace('/(auth)/login');
+        router.replace('/login');
       }, 800);
     } catch (error) {
       console.error('Sign out failed:', error);
@@ -35,7 +35,7 @@ export default function SignOutModal({ isOpen, onClose, onConfirm }: SignOutModa
 
   return (
     <Modal
-      visible={isOpen}
+      visible={visible}
       transparent
       animationType="fade"
       onRequestClose={onClose}

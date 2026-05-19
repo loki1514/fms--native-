@@ -222,7 +222,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('[AuthContext] useEffect firing — fetching session...');
     supabase.auth
       .getSession()
-      .then(({ data: { session: initialSession } }) => {
+      .then(({ data: { session: initialSession }, error }) => {
+        if (error) {
+          console.error('[AuthContext] getSession error:', error.message);
+          // If the token is invalid, we must sign out to clear the corrupted session from storage
+          if (error.message.includes('refresh_token_not_found') || error.message.includes('Invalid Refresh Token')) {
+             supabase.auth.signOut().catch(() => {});
+             setSession(null);
+             setUser(null);
+          }
+          setIsLoading(false);
+          return;
+        }
+
         console.log('[AuthContext] getSession result:', initialSession ? `user=${initialSession.user?.email}` : 'null session');
         setSession(initialSession);
         setUser(enrichUser(initialSession?.user ?? null));
@@ -231,7 +243,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setIsLoading(false);
       })
-      .catch(() => setIsLoading(false));
+      .catch((err) => {
+        console.error('[AuthContext] getSession exception:', err);
+        setIsLoading(false);
+      });
 
     const {
       data: { subscription },

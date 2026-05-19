@@ -1,50 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
-  Dimensions,
-  Platform,
-  Modal,
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import React from 'react';
+import UnifiedDashboard from '@/components/dashboard/UnifiedDashboard';
 
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/utils/supabase/client';
-import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
-
-// ---- Types ----
-type TimePeriod = 'today' | 'month' | 'all';
-
-interface TicketStats {
-  total: number;
-  open: number;
-  in_progress: number;
-  resolved: number;
-  pending_validation: number;
-  urgent_open: number;
+export default function DashboardPage() {
+  return <UnifiedDashboard />;
 }
 
-interface DashboardStats {
-  ticketStats: TicketStats;
-  electricityUnits: number;
-  electricityUnitsToday: number;
-  visitorsToday: number;
-  checkedIn: number;
-  checkedOut: number;
-  vendorRevenue: number;
-  vendorCommission: number;
-  vendorCount: number;
-  recentTickets: any[];
-  dieselStats: {
     totalHoursToday: number;
     avgFuelLevel: number;
     activeGens: number;

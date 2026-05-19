@@ -26,6 +26,7 @@ import {
   getIssueCodeDisplayName,
   ClassificationResult,
 } from '@/utils/ticketing/classifyTicket';
+import { RotatingBorder } from '../shared/RotatingBorder';
 
 interface TicketCreateModalProps {
   isOpen: boolean;
@@ -33,29 +34,39 @@ interface TicketCreateModalProps {
   propertyId: string;
   organizationId: string;
   onSuccess?: (ticket: any) => void;
-  isAdminMode?: boolean;
+  role?: 'tenant' | 'admin' | 'super_admin' | 'staff';
+  organizations?: any[];
+  properties?: any[];
 }
 
-export default function TicketCreateModal({
+export function TicketCreateModal({
   isOpen,
   onClose,
   propertyId,
   organizationId,
   onSuccess,
-  isAdminMode = false,
+  role = 'tenant',
+  organizations = [],
+  properties = [],
 }: TicketCreateModalProps) {
+  const isAdminMode = role === 'super_admin';
+  const showInternalToggle = role !== 'tenant';
   const supabase = createClient();
   const { isDark, colors } = useTheme();
 
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium');
-  const [location, setLocation] = useState('');
   const [isInternal, setIsInternal] = useState(false);
   const [media, setMedia] = useState<MediaFile | null>(null);
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [inputLayout, setInputLayout] = useState({ width: 0, height: 0 });
+
+  // Admin Mode state
+  const [selectedOrgId, setSelectedOrgId] = useState(organizationId || '');
+  const [selectedPropId, setSelectedPropId] = useState(propertyId || '');
+  const [availableProperties, setAvailableProperties] = useState<any[]>(properties || []);
 
   // Classification preview state
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
@@ -69,12 +80,13 @@ export default function TicketCreateModal({
   const [taggedUser, setTaggedUser] = useState<{ id: string; full_name: string } | null>(null);
 
   useEffect(() => {
-    if (!propertyId || !isOpen) return;
+    const pid = isAdminMode ? selectedPropId : propertyId;
+    if (!pid || !isOpen) return;
     const fetchUsers = async () => {
       const { data } = await (supabase
         .from('property_memberships')
         .select('user:users(id, full_name), role')
-        .eq('property_id', propertyId)
+        .eq('property_id', pid)
         .eq('is_active', true) as any);
 
       const users = (data || [])
@@ -87,7 +99,22 @@ export default function TicketCreateModal({
       setPropertyUsers(users);
     };
     fetchUsers();
-  }, [propertyId, isOpen]);
+  }, [propertyId, selectedPropId, isOpen, isAdminMode]);
+
+  const handleOrgChange = async (orgId: string) => {
+    setSelectedOrgId(orgId);
+    setSelectedPropId('');
+    if (orgId) {
+      const { data } = await supabase
+        .from('properties')
+        .select('id, name, code')
+        .eq('organization_id', orgId)
+        .eq('status', 'active');
+      setAvailableProperties(data || []);
+    } else {
+      setAvailableProperties([]);
+    }
+  };
 
   // Debounced classification as user types
   useEffect(() => {
@@ -145,16 +172,26 @@ export default function TicketCreateModal({
     setIsSubmitting(true);
     setError(null);
 
+    const finalOrgId = isAdminMode ? selectedOrgId : organizationId;
+    const finalPropId = isAdminMode ? selectedPropId : propertyId;
+
+    if (!finalOrgId || !finalPropId) {
+      setError('Please select organization and property');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const title = description.split('\n')[0].slice(0, 80);
+      console.log('[TicketCreateModal] Submitting ticket...', { taggedUser, isInternal });
 
       const result = await createTicket({
         description: description.trim(),
         title,
-        propertyId,
-        organizationId,
+        propertyId: finalPropId,
+        organizationId: finalOrgId,
         isInternal,
-        priority,
+        priority: 'medium', // Server-side AI will determine actual priority
         assignedTo: taggedUser?.id,
       });
 
@@ -177,8 +214,6 @@ export default function TicketCreateModal({
 
   const handleReset = () => {
     setDescription('');
-    setPriority('medium');
-    setLocation('');
     setIsInternal(false);
     setMedia(null);
     setClassification(null);
@@ -219,122 +254,96 @@ export default function TicketCreateModal({
                 </View>
                 <Text style={[styles.successText, { color: colors.textPrimary }]}>Request Submitted!</Text>
                 <Text style={[styles.successSubText, { color: mutedText }]}>
-                  Your ticket has been created and assigned.
+                  Your ticket has been created and will be reviewed shortly.
                 </Text>
-                {classification && (
-                  <View style={[styles.successBadge, { backgroundColor: sgColor?.bg, borderColor: sgColor?.border }]}>
-                    <Text style={[styles.successBadgeText, { color: sgColor?.text }]}>
-                      {getSkillGroupDisplayName(classification.skill_group)} — {getIssueCodeDisplayName(classification.issue_code)}
-                    </Text>
-                  </View>
-                )}
               </View>
             ) : (
               <>
-                {/* Classification Preview */}
-                {hasContent && (
-                  <View style={[styles.classificationCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
-                    <View style={styles.classificationHeader}>
-                      <Ionicons name="bulb-outline" size={14} color={colors.primary} />
-                      <Text style={[styles.classificationLabel, { color: colors.primary }]}>AI Classification</Text>
-                      {isClassifying && <ActivityIndicator size="small" color={colors.primary} />}
-                    </View>
-
-                    {classification ? (
-                      <View style={styles.classificationResult}>
-                        <View style={[styles.sgBadge, { backgroundColor: sgColor?.bg, borderColor: sgColor?.border }]}>
-                          <Text style={[styles.sgBadgeText, { color: sgColor?.text }]}>
-                            {getSkillGroupDisplayName(classification.skill_group)}
-                          </Text>
-                        </View>
-                        <View style={[styles.issueBadge, { backgroundColor: isDark ? '#1C2530' : '#F1F5F9', borderColor: cardBorder }]}>
-                          <Text style={[styles.issueBadgeText, { color: colors.textPrimary }]}>
-                            {getIssueCodeDisplayName(classification.issue_code)}
-                          </Text>
-                        </View>
-                        <View style={[styles.confidenceBadge, {
-                          backgroundColor: classification.confidence === 'high'
-                            ? 'rgba(16,185,129,0.1)'
-                            : 'rgba(245,158,11,0.1)',
-                          borderColor: classification.confidence === 'high'
-                            ? 'rgba(16,185,129,0.2)'
-                            : 'rgba(245,158,11,0.2)',
-                        }]}>
-                          <Text style={[styles.confidenceText, {
-                            color: classification.confidence === 'high' ? '#10B981' : '#F59E0B',
-                          }]}>
-                            {classification.confidence === 'high' ? 'High confidence' : 'Low confidence — will be reviewed'}
-                          </Text>
-                        </View>
+                {/* Admin Mode Pickers */}
+                {isAdminMode && (
+                  <View style={styles.adminPickers}>
+                    <View style={styles.field}>
+                      <Text style={[styles.label, { color: mutedText }]}>Organization</Text>
+                      <View style={[styles.pickerContainer, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                          {organizations.map(org => (
+                            <TouchableOpacity
+                              key={org.id}
+                              style={[styles.miniChip, selectedOrgId === org.id && { backgroundColor: colors.primary }]}
+                              onPress={() => handleOrgChange(org.id)}
+                            >
+                              <Text style={[styles.miniChipText, selectedOrgId === org.id && { color: '#FFF' }]}>{org.name}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
                       </View>
-                    ) : (
-                      <Text style={[styles.classifyingText, { color: mutedText }]}>
-                        Analyzing description...
-                      </Text>
-                    )}
+                    </View>
+                    <View style={styles.field}>
+                      <Text style={[styles.label, { color: mutedText }]}>Property</Text>
+                      <View style={[styles.pickerContainer, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                          {availableProperties.map(prop => (
+                            <TouchableOpacity
+                              key={prop.id}
+                              style={[styles.miniChip, selectedPropId === prop.id && { backgroundColor: colors.primary }]}
+                              onPress={() => setSelectedPropId(prop.id)}
+                            >
+                              <Text style={[styles.miniChipText, selectedPropId === prop.id && { color: '#FFF' }]}>{prop.name}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    </View>
                   </View>
                 )}
 
-                {/* Priority Selection */}
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: mutedText }]}>Priority</Text>
-                  <View style={styles.chipRow}>
-                    {(['low', 'medium', 'high', 'critical'] as const).map(p => {
-                      const pc = {
-                        low:      { bg: isDark ? '#1E2D1E' : '#F0FDF4', border: isDark ? '#22543D' : '#BBF7D0', text: '#22C55E' },
-                        medium:   { bg: isDark ? '#2D2A1E' : '#FFFBEB', border: isDark ? '#92400E' : '#FDE68A', text: '#F59E0B' },
-                        high:     { bg: isDark ? '#2D1E1E' : '#FFF7ED', border: isDark ? '#991B1B' : '#FDBA74', text: '#F97316' },
-                        critical: { bg: isDark ? '#2D1E1E' : '#FEF2F2', border: isDark ? '#7F1D1D' : '#FECACA', text: '#EF4444' },
-                      }[p];
-                      return (
-                        <TouchableOpacity
-                          key={p}
-                          style={[
-                            styles.chip,
-                            {
-                              backgroundColor: priority === p ? pc.bg : (isDark ? '#1E2535' : '#F1F5F9'),
-                              borderColor: priority === p ? pc.border : inputBorder,
-                            },
-                          ]}
-                          onPress={() => setPriority(p)}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              { color: priority === p ? pc.text : mutedText },
-                              priority === p && { fontWeight: '700' },
-                            ]}
-                          >
-                            {p.charAt(0).toUpperCase() + p.slice(1)}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
+                {/* Description Input (Web style: single box) */}
+                <View style={[styles.field, showMentionDropdown && { zIndex: 50 }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={[styles.label, { color: mutedText, marginBottom: 0 }]}>Description</Text>
+                    {showInternalToggle && (
+                      <Text style={{ fontSize: 10, color: colors.primary, fontWeight: '700' }}>TYPE @ TO ASSIGN</Text>
+                    )}
                   </View>
-                </View>
-
-                {/* Description */}
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: mutedText }]}>Description</Text>
-                  <View style={styles.inputWrapper}>
+                  <View 
+                    style={styles.inputWrapper}
+                    onLayout={(e) => setInputLayout({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+                  >
+                    {description.length > 0 && inputLayout.height > 0 && (
+                      <View style={StyleSheet.absoluteFill}>
+                        <RotatingBorder 
+                          width={inputLayout.width} 
+                          height={inputLayout.height} 
+                          borderRadius={16} 
+                          isDark={isDark} 
+                        />
+                      </View>
+                    )}
                     <TextInput
                       style={[
                         styles.textArea,
                         {
-                          backgroundColor: inputBg,
-                          borderColor: inputBorder,
-                          color: colors.textPrimary,
+                          backgroundColor: description.length > 0 
+                            ? (isDark ? '#1E293B' : '#FFFFFF') 
+                            : (isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC'),
+                          borderColor: description.length > 0 ? 'transparent' : inputBorder,
+                          color: isDark ? '#FFFFFF' : '#1D1D1F',
+                          margin: description.length > 0 ? 2 : 0,
+                          borderRadius: description.length > 0 ? 14 : 16,
+                          zIndex: 10,
                         },
                       ]}
-                      placeholder="Describe the issue... (use @ to tag)"
+                      placeholder="Describe the issue in your own words..."
                       placeholderTextColor={mutedText}
+                      selectionColor={isDark ? '#708F96' : '#708F96'}
                       multiline
                       value={description}
                       onChangeText={handleTextChange}
+                      textAlignVertical="top"
                     />
 
                     {/* Mention Dropdown */}
-                    {showMentionDropdown && (
+                    {showMentionDropdown && propertyUsers.length > 0 && (
                       <View style={[styles.mentionOverlay, { backgroundColor: cardBg, borderColor: cardBorder }]}>
                         {propertyUsers
                           .filter(u => u.full_name.toLowerCase().includes(mentionQuery.toLowerCase()))
@@ -363,25 +372,6 @@ export default function TicketCreateModal({
                   </View>
                 </View>
 
-                {/* Location */}
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: mutedText }]}>Location / Unit (optional)</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: inputBg,
-                        borderColor: inputBorder,
-                        color: colors.textPrimary,
-                      },
-                    ]}
-                    placeholder="e.g. Conference Room B, Level 2"
-                    placeholderTextColor={mutedText}
-                    value={location}
-                    onChangeText={setLocation}
-                  />
-                </View>
-
                 {/* Tagged user chip */}
                 {taggedUser && (
                   <View style={styles.taggedRow}>
@@ -400,19 +390,21 @@ export default function TicketCreateModal({
                   </View>
                 )}
 
-                {/* Internal Toggle */}
-                <View style={[styles.toggleRow, { backgroundColor: inputBg, borderColor: inputBorder }]}>
-                  <View>
-                    <Text style={[styles.toggleLabel, { color: colors.textPrimary }]}>Internal Ticket</Text>
-                    <Text style={[styles.toggleSubLabel, { color: mutedText }]}>Not visible to tenants</Text>
+                {/* Internal Toggle — conditional */}
+                {showInternalToggle && (
+                  <View style={[styles.toggleRow, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+                    <View>
+                      <Text style={[styles.toggleLabel, { color: colors.textPrimary }]}>Internal Ticket</Text>
+                      <Text style={[styles.toggleSubLabel, { color: mutedText }]}>Not visible to tenants</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.toggle, isInternal ? { backgroundColor: '#F59E0B' } : { backgroundColor: inputBorder }]}
+                      onPress={() => setIsInternal(!isInternal)}
+                    >
+                      <View style={[styles.toggleCircle, isInternal && styles.toggleCircleActive]} />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.toggle, isInternal ? { backgroundColor: '#F59E0B' } : { backgroundColor: inputBorder }]}
-                    onPress={() => setIsInternal(!isInternal)}
-                  >
-                    <View style={[styles.toggleCircle, isInternal && styles.toggleCircleActive]} />
-                  </TouchableOpacity>
-                </View>
+                )}
 
                 {/* Media Attachment */}
                 <View style={[styles.field, { marginTop: 20 }]}>
@@ -538,6 +530,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 14,
     fontSize: 15,
+  },
+  pickerContainer: {
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  miniChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  miniChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#999',
+  },
+  adminPickers: {
+    marginBottom: 20,
+    gap: 12,
   },
   textArea: {
     borderRadius: 16,

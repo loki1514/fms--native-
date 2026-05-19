@@ -26,8 +26,7 @@ import SignOutModal from '@/components/ui/SignOutModal';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 import SidekickFace from '@/components/dashboard/SidekickFace';
 import DetailModal, { type TileDetail } from '@/components/dashboard/DetailModal';
-import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
-import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
+import MobileFooter from '@/components/shared/MobileFooter';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import {
   SPACING,
@@ -42,6 +41,7 @@ import {
   ProgressBar,
   AttentionCard,
 } from './DashboardComponents';
+import { TicketCreateModal } from '../tickets/TicketCreateModal';
 
 const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
@@ -66,6 +66,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [showSignOut, setShowSignOut] = useState(false);
   const [showTileDetail, setShowTileDetail] = useState<TileDetail | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
 
   // Data state
   const [tickets, setTickets] = useState<any[]>([]);
@@ -467,9 +468,15 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         </>
       )}
 
-      <ChecklistProgressCard completed={sopCount} total={sopTotal} delay={200} onPress={() => setShowTileDetail(tileDetails.checklist)} />
-
-      <PPMActivityTile propertyId={propertyId} delay={240} />
+      <GlassTile label="Checklist" icon="checkbox-outline" delay={200} onPress={() => setShowTileDetail(tileDetails.checklist)}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={styles.tileMetricMid}>{sopCount} <Text style={styles.tileSuffix}>/ {sopTotal}</Text></Text>
+            <Text style={styles.tileSubtext}>{checklistPct}% completed</Text>
+          </View>
+          <ProgressBar percent={checklistPct} color={STATUS_COLORS.optimal.bg} />
+        </View>
+      </GlassTile>
 
       <GlassTile label="Energy Usage" icon="flash" delay={280} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
         <View style={styles.tileTopRow}><View><Text style={styles.tileMetricMid}>{energyKwh} <Text style={styles.tileSuffix}>kWh</Text></Text><Text style={styles.tileSubtext}>Grid + DG consumption today</Text></View><View style={styles.trendChip}><Ionicons name={energyTrend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#1FC26E" /><Text style={styles.trendChipText}>+{energyTrend}%</Text></View></View>
@@ -549,7 +556,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             </TouchableOpacity>
           </View>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.headerIconBtn}>
+            <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowTicketModal(true)}>
               <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.headerIconBtn}>
@@ -562,41 +569,11 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         
         <View style={{ marginTop: SPACING.xs }}>{renderTabContent()}</View>
       </ScrollView>
-
-      <View style={[styles.bottomNavContainer, { paddingBottom: insets.bottom }]}>
-        <SafeBlurView intensity={80} style={styles.bottomNavStatic} tint="dark">
-          <TouchableOpacity style={styles.staticNavItem} onPress={() => setActiveTab('overview')}>
-            <Ionicons name={activeTab === 'overview' ? 'grid' : 'grid-outline'} size={22} color={activeTab === 'overview' ? '#FFF' : 'rgba(255,255,255,0.4)'} />
-            <Text style={[styles.staticNavLabel, activeTab === 'overview' && styles.staticNavLabelActive]}>Dashboard</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.staticNavItem} onPress={() => setActiveTab('tickets')}>
-            <Ionicons name={activeTab === 'tickets' ? 'ticket' : 'ticket-outline'} size={22} color={activeTab === 'tickets' ? '#FFF' : 'rgba(255,255,255,0.4)'} />
-            <Text style={[styles.staticNavLabel, activeTab === 'tickets' && styles.staticNavLabelActive]}>Tickets</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.staticNavItemCenter} onPress={() => setShowChat(true)}>
-            <View style={styles.cassandraOrbSmall}>
-              <SidekickFace state={faceState} size={32} onClick={() => setShowChat(true)} />
-            </View>
-            <Text style={styles.staticNavLabel}>Cassandra</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.staticNavItem}>
-            <Ionicons name="business-outline" size={22} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.staticNavLabel}>Assets</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.staticNavItem} onPress={() => setShowDrawer(true)}>
-            <Ionicons name="ellipsis-horizontal" size={22} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.staticNavLabel}>More</Text>
-          </TouchableOpacity>
-        </SafeBlurView>
-      </View>
+      <MobileFooter activeTab="dashboard" />
 
       <DetailModal visible={!!showTileDetail} onClose={() => setShowTileDetail(null)} detail={showTileDetail!} />
-      <SignOutModal isOpen={showSignOut} onClose={() => setShowSignOut(false)} onConfirm={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="voice" />
+      <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
       
       <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
         <View style={{ flex: 1, flexDirection: 'row' }}>
@@ -665,6 +642,16 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
           <TouchableOpacity style={styles.drawerBackdrop} onPress={() => setShowDrawer(false)} />
         </View>
       </Modal>
+
+      {/* Create Request Modal */}
+      <TicketCreateModal
+        isOpen={showTicketModal}
+        onClose={() => setShowTicketModal(false)}
+        propertyId={propertyId}
+        organizationId={orgId}
+        role="admin"
+        onSuccess={fetchData}
+      />
     </View>
   );
 }

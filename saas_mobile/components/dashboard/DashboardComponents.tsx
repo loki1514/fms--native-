@@ -1,62 +1,77 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  Dimensions,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
-import { STATUS_COLORS } from '@/constants/designSystem';
 import SafeBlurView from '@/components/ui/SafeBlurView';
-import PulseDotBase from './lovable/PulseDot';
-import MiniBarChartBase from './lovable/MiniBarChart';
+import {
+  SPACING,
+  STATUS_COLORS,
+  CARD_SURFACES,
+} from '@/constants/designSystem';
 
-// ─── Re-exports ─────────────────────────────────────────────────────────────
-export const PulseDot = PulseDotBase;
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 
-interface MiniBarChartProps {
-  data: { day: string; count: number }[];
-  highlightColor?: string;
+// ─── Pulse Dot ────────────────────────────────────────────────────────────────
+export function PulseDot({ color }: { color: string }) {
+  return (
+    <View
+      style={[
+        styles.pulseDot,
+        { backgroundColor: color, shadowColor: color, shadowOpacity: 0.8, shadowRadius: 6 },
+      ]}
+    />
+  );
 }
 
-export function MiniBarChart({ data, highlightColor }: MiniBarChartProps) {
-  // highlightColor is accepted for API compatibility but the base component
-  // doesn't support it yet — we pass through data only.
-  return <MiniBarChartBase data={data} />;
-}
-
-// ─── GlassTile ──────────────────────────────────────────────────────────────
-interface GlassTileProps {
+// ─── Glass Tile ───────────────────────────────────────────────────────────────
+export function GlassTile({
+  label,
+  icon,
+  children,
+  delay = 0,
+  status,
+  onPress,
+}: {
   label: string;
-  icon: string;
+  icon: any;
+  children: React.ReactNode;
   delay?: number;
   status?: 'optimal' | 'watch' | 'critical';
   onPress?: () => void;
-  children?: React.ReactNode;
-}
-
-export function GlassTile({ label, icon, delay = 0, status, onPress, children }: GlassTileProps) {
-  const statusPalette = status ? STATUS_COLORS[status] : null;
+}) {
+  const statusColor = status ? STATUS_COLORS[status].bg : null;
 
   return (
-    <Animated.View entering={FadeInUp.delay(delay).duration(500)}>
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={onPress}
-        style={[styles.tileWrapper, { marginHorizontal: 20, marginBottom: 12 }]}
-      >
-        <SafeBlurView intensity={70} style={styles.tileBlur} tint="dark">
+    <Animated.View entering={FadeInUp.delay(delay).duration(500)} style={{ width: '100%' }}>
+      <TouchableOpacity activeOpacity={0.9} onPress={onPress} disabled={!onPress}>
+        <SafeBlurView intensity={45} style={styles.tile} tint="dark">
+          <LinearGradient
+            colors={[
+              'rgba(255,255,255,0.08)',
+              'rgba(255,255,255,0.03)',
+              'rgba(0,0,0,0.2)'
+            ]}
+            style={StyleSheet.absoluteFillObject}
+          />
           <View style={styles.tileContent}>
             <View style={styles.tileHeader}>
-              <View style={styles.tileHeaderLeft}>
-                <Ionicons name={icon as any} size={16} color="rgba(255,255,255,0.5)" />
-                <Text style={styles.tileLabel}>{label}</Text>
+              <View style={styles.iconBadge}>
+                <Ionicons name={icon} size={14} color="#FFFFFF" />
               </View>
-              {statusPalette && (
-                <View style={[styles.statusPill, { backgroundColor: statusPalette.surface, borderColor: statusPalette.border }]}>
-                  <PulseDotBase color={statusPalette.bg} />
-                  <Text style={[styles.statusText, { color: statusPalette.text }]}>{status.toUpperCase()}</Text>
-                </View>
-              )}
-              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.25)" />
+              <Text style={styles.tileLabel}>{label.toUpperCase()}</Text>
+              {status && <PulseDot color={statusColor!} />}
+              <Ionicons name="arrow-forward" size={16} color="rgba(255,255,255,0.3)" />
             </View>
-            {children}
+            <View style={styles.tileBody}>{children}</View>
           </View>
         </SafeBlurView>
       </TouchableOpacity>
@@ -64,152 +79,418 @@ export function GlassTile({ label, icon, delay = 0, status, onPress, children }:
   );
 }
 
-// ─── ProgressBar ────────────────────────────────────────────────────────────
-interface ProgressBarProps {
-  percent: number;
-  color: string;
-}
-
-export function ProgressBar({ percent, color }: ProgressBarProps) {
+// ─── Mini Bar Chart ───────────────────────────────────────────────────────────
+export function MiniBarChart({ data, highlightColor }: { data: number[]; highlightColor?: string }) {
+  const max = Math.max(...data, 1);
   return (
-    <View style={styles.progressTrack}>
-      <View style={[styles.progressFill, { width: `${Math.min(percent, 100)}%`, backgroundColor: color }]} />
+    <View style={styles.barChart}>
+      {data.map((v, i) => (
+        <View key={i} style={styles.barContainer}>
+          <View style={styles.barTrack}>
+            <View
+              style={[
+                styles.barFill,
+                {
+                  height: `${Math.max((v / max) * 100, 5)}%`,
+                  backgroundColor:
+                    i === data.length - 1 ? highlightColor || 'rgba(112,143,150,0.80)' : 'rgba(0,0,0,0.12)',
+                },
+              ]}
+            />
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
 
-// ─── AttentionCard ──────────────────────────────────────────────────────────
-interface AttentionItem {
-  id: string;
-  entity_type: string;
-  entity_id: string;
-  title?: string;
-  description?: string;
-  priority?: string;
-}
-
-interface AttentionCardProps {
-  item: AttentionItem;
-  index: number;
-  onAction?: () => void;
-}
-
-export function AttentionCard({ item, index, onAction }: AttentionCardProps) {
+// ─── Progress Bar ─────────────────────────────────────────────────────────────
+export function ProgressBar({ percent, color }: { percent: number; color: string }) {
   return (
-    <Animated.View entering={FadeInUp.delay(180 + index * 60).duration(400)}>
+    <View style={styles.progressBar}>
+      <View style={[styles.progressFill, { width: `${percent}%`, backgroundColor: color }]} />
+    </View>
+  );
+}
+
+// ─── Attention Card ───────────────────────────────────────────────────────────
+export function AttentionCard({ item, index, onAction }: { item: any; index: number; onAction: () => void }) {
+  const severityColor =
+    item.severity === 'critical' ? '#EF4444' :
+    item.severity === 'high' ? '#F59E0B' :
+    item.severity === 'medium' ? '#3B82F6' : '#6B7280';
+
+  const iconName =
+    item.type === 'critical_ticket' ? 'alert-circle-outline' :
+    item.type === 'stale_ticket' ? 'time-outline' :
+    item.type === 'sop_missed' ? 'checkbox-outline' : 'information-circle-outline';
+
+  return (
+    <Animated.View entering={FadeInUp.delay(index * 100).duration(500)}>
       <TouchableOpacity
-        activeOpacity={0.8}
+        activeOpacity={0.85}
         onPress={onAction}
-        style={[styles.attentionCard, { marginHorizontal: 20, marginBottom: 8 }]}
+        style={[styles.attentionCard, { borderLeftColor: severityColor, borderLeftWidth: 3 }]}
       >
-        <SafeBlurView intensity={60} style={styles.attentionBlur} tint="dark">
-          <View style={styles.attentionContent}>
-            <View style={[styles.attentionIcon, { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.3)' }]}>
-              <Ionicons name="warning-outline" size={16} color="#EF4444" />
+        <SafeBlurView intensity={30} style={StyleSheet.absoluteFillObject} tint="dark" />
+        <LinearGradient
+          colors={['rgba(255,255,255,0.12)', 'rgba(255,255,255,0.05)']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={styles.attentionCardInner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={[styles.attentionIconBadge, { backgroundColor: severityColor + '15' }]}>
+              <Ionicons name={iconName} size={16} color={severityColor} />
             </View>
-            <View style={styles.attentionText}>
-              <Text style={styles.attentionTitle} numberOfLines={1}>
-                {item.title || `${item.entity_type} #${item.entity_id?.slice(0, 6)}`}
-              </Text>
-              <Text style={styles.attentionDesc} numberOfLines={1}>
-                {item.description || 'Requires immediate attention'}
-              </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.attentionTitle}>{item.title}</Text>
+              <Text style={styles.attentionDesc} numberOfLines={2}>{item.description}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.25)" />
+            <View style={[styles.attentionActionBadge, { backgroundColor: severityColor + '15' }]}>
+              <Text style={[styles.attentionActionText, { color: severityColor }]}>{item.action_label}</Text>
+            </View>
           </View>
-        </SafeBlurView>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
 }
 
+// ─── Stat Columns (3-Column Layout) ───────────────────────────────────────────
+export function StatColumns({ data }: { data: { label: string; value: number | string; color: string }[] }) {
+  return (
+    <View style={styles.statColumnsRow}>
+      {data.map((item, i) => (
+        <View key={i} style={[styles.statCol, i < data.length - 1 && styles.statColDivider]}>
+          <Text style={styles.statValue}>{item.value}</Text>
+          <View style={styles.statLabelRow}>
+            <View style={[styles.statDot, { backgroundColor: item.color }]} />
+            <Text style={styles.statLabelText}>{item.label.toUpperCase()}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Compliance Gauge (Semi-circle) ───────────────────────────────────────────
+export function ComplianceGauge({ value, total = 100 }: { value: number; total?: number }) {
+  const percentage = Math.min((value / total) * 100, 100);
+  return (
+    <View style={styles.gaugeContainer}>
+      <View style={styles.semiCircleContainer}>
+        {/* Simplified Semi-circle representation using borders/rotation */}
+        <View style={styles.semiCircleTrack} />
+        <View style={[styles.semiCircleFill, { transform: [{ rotate: `${(percentage / 100) * 180 - 180}deg` }] }]} />
+        <View style={styles.semiCircleInner} />
+      </View>
+      
+      <View style={styles.gaugeTextOverlay}>
+        <View style={styles.gaugeTextRow}>
+          <Text style={styles.gaugeValueBig}>{value}</Text>
+          <Text style={styles.gaugeValueSlash}>/ {total}</Text>
+        </View>
+        <Text style={styles.gaugePercentLabel}>{percentage}% COMPLETED</Text>
+      </View>
+      
+      <TouchableOpacity style={styles.askCassandraPill}>
+        <Text style={styles.askCassandraPillText}>ASK CASSANDRA</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Schedule Item ────────────────────────────────────────────────────────────
+export function ScheduleItem({ date, month, title, type, status }: { date: string; month: string; title: string; type: string; status: 'PENDING' | 'SCHEDULED' }) {
+  const statusColor = status === 'PENDING' ? '#F5A000' : '#3182CE';
+  return (
+    <View style={styles.scheduleItem}>
+      <SafeBlurView intensity={20} style={styles.scheduleDateBadge} tint="light">
+        <Text style={styles.scheduleMonth}>{month.toUpperCase()}</Text>
+        <Text style={styles.scheduleDate}>{date}</Text>
+      </SafeBlurView>
+      <View style={styles.scheduleContent}>
+        <Text style={styles.scheduleTitle}>{title}</Text>
+        <Text style={styles.scheduleType}>{type.toUpperCase()}</Text>
+      </View>
+      <Text style={[styles.scheduleStatus, { color: statusColor }]}>{status}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  tileWrapper: {
-    borderRadius: 20,
+  pulseDot: { width: 6, height: 6, borderRadius: 3 },
+  tile: {
+    borderRadius: 24,
+    marginHorizontal: SPACING.xl,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
     overflow: 'hidden',
   },
-  tileBlur: {
-    minHeight: 140,
-  },
-  tileContent: {
-    padding: 16,
-  },
+  tileContent: { padding: 16 },
   tileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     marginBottom: 12,
   },
-  tileHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  tileLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.45)',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  progressTrack: {
-    width: 80,
-    height: 6,
-    borderRadius: 3,
+  iconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  attentionCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  attentionBlur: {
-    minHeight: 56,
-  },
-  attentionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    gap: 12,
-  },
-  attentionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
   },
-  attentionText: {
+  tileLabel: {
     flex: 1,
+    fontFamily: fontSans,
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.40)',
+    letterSpacing: 1.5,
+  },
+  tileBody: { minHeight: 40 },
+  barChart: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 4,
+    marginTop: 12,
+  },
+  barContainer: { flex: 1, height: '100%' },
+  barTrack: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 4,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  barFill: { borderRadius: 4 },
+  progressBar: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 2,
+    width: 64,
+    overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 2 },
+  attentionCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+    marginHorizontal: SPACING.xl,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  attentionCardInner: { padding: 14 },
+  attentionIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   attentionTitle: {
-    fontSize: 13,
+    fontFamily: fontDisplay,
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   attentionDesc: {
+    fontFamily: fontSans,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.50)',
+    marginTop: 1,
+  },
+  attentionActionBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  attentionActionText: {
+    fontFamily: fontSans,
     fontSize: 11,
+    fontWeight: '700',
+  },
+  // Stat Columns
+  statColumnsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  statCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statColDivider: {
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.08)',
+  },
+  statValue: {
+    fontFamily: fontDisplay,
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 2,
+    letterSpacing: -1,
+  },
+  statLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statLabelText: {
+    fontFamily: fontSans,
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.40)',
+    letterSpacing: 1,
+  },
+  // Gauge (Semi-circle simulation)
+  gaugeContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 10,
+    paddingBottom: 5,
+  },
+  semiCircleContainer: {
+    width: 200,
+    height: 100,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  semiCircleTrack: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 14,
+    borderColor: 'rgba(255,255,255,0.08)',
+    position: 'absolute',
+    bottom: -100,
+  },
+  semiCircleFill: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 16,
+    borderColor: '#4ADE80',
+    borderBottomColor: 'transparent',
+    borderLeftColor: 'transparent',
+    position: 'absolute',
+    bottom: -100,
+  },
+  semiCircleInner: {
+    width: 172,
+    height: 86,
+    backgroundColor: 'transparent',
+    borderTopLeftRadius: 86,
+    borderTopRightRadius: 86,
+  },
+  gaugeTextOverlay: {
+    position: 'absolute',
+    top: 50,
+    alignItems: 'center',
+  },
+  gaugeTextRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  gaugeValueBig: {
+    fontFamily: fontDisplay,
+    fontSize: 42,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  gaugeValueSlash: {
+    fontFamily: fontDisplay,
+    fontSize: 18,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.3)',
+    marginLeft: 4,
+  },
+  gaugePercentLabel: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.4)',
+    marginTop: -2,
+  },
+  askCassandraPill: {
+    marginTop: 24,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  askCassandraPillText: {
+    fontFamily: fontSans,
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  // Schedule
+  scheduleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 32,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  scheduleDateBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  scheduleMonth: {
+    fontFamily: fontSans,
+    fontSize: 8,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  scheduleDate: {
+    fontFamily: fontDisplay,
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  scheduleContent: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  scheduleTitle: {
+    fontFamily: fontDisplay,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  scheduleType: {
+    fontFamily: fontSans,
+    fontSize: 9,
+    fontWeight: '600',
     color: 'rgba(255,255,255,0.4)',
     marginTop: 2,
+  },
+  scheduleStatus: {
+    fontFamily: fontSans,
+    fontSize: 11,
+    fontWeight: '700',
+    marginRight: 16,
   },
 });

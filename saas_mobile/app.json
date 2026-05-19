@@ -61,7 +61,20 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-asset",
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#708F96",
+          "sounds": [
+            "./assets/sounds/notification.wav"
+          ],
+          "enableBackgroundRemoteNotifications": true
+        }
+      ]
     ],
     "updates": {
       "enabled": false
