@@ -20,15 +20,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useWeather } from '@/hooks/useWeather';
+
 import { Video, ResizeMode } from 'expo-av';
 import { createClient } from '@/utils/supabase/client';
 import { createClientFromToken } from '@/utils/supabase/mobile-auth';
 import { useTheme, useAuth } from '@/context';
 import StatusBadge from '@/components/tickets/StatusBadge';
 import SafeBlurView from '@/components/ui/SafeBlurView';
-import WeatherBackground from '@/components/dashboard/WeatherBackground';
-import AbstractBackground from '@/components/dashboard/AbstractBackground';
 import MobileFooter from '@/components/shared/MobileFooter';
 import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
 import MediaActionsSheet from '@/components/shared/MediaActionsSheet';
@@ -168,7 +166,7 @@ export default function TicketDetailScreen() {
   const { user: authUser, session } = useAuth();
   const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
-  const { weather } = useWeather();
+
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -1054,7 +1052,10 @@ export default function TicketDetailScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <AbstractBackground />
+      <LinearGradient 
+        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
+        style={StyleSheet.absoluteFillObject} 
+      />
       
       <Stack.Screen
         options={{

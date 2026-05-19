@@ -1,6 +1,7 @@
 import React from 'react';
-import UnifiedDashboard from '@/components/dashboard/UnifiedDashboard';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 
 export default function DashboardPage() {
-  return <UnifiedDashboard />;
+  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  return <Redirect href={`/property/${propertyId}`} />;
 }

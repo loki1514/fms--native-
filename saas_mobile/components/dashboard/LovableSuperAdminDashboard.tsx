@@ -19,6 +19,7 @@ import { useWeather } from '@/hooks/useWeather';
 
 // Modular Lovable Components
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import SignOutModal from '@/components/ui/SignOutModal';
 import DetailModal, { type TileDetail } from '@/components/dashboard/DetailModal';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
@@ -75,6 +76,7 @@ export default function LovableSuperAdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [manualCondition, setManualCondition] = useState<import('@/hooks/useWeather').WeatherCondition | null>(null);
 
   // orgId — use membership from AuthContext (already fetched), fall back to org_memberships query
   const orgId = membership?.org_id ?? '';
@@ -399,7 +401,7 @@ export default function LovableSuperAdminDashboard() {
         colors={['#1c2135', '#0f121e', '#07090e']}
         style={StyleSheet.absoluteFillObject}
       />
-      {weather && <WeatherBackground condition={weather.condition} />}
+      {weather && <WeatherBackground condition={manualCondition || weather.condition} />}
 
       {/* Main Content Area */}
       <View style={{ flex: 1 }}>
@@ -432,12 +434,22 @@ export default function LovableSuperAdminDashboard() {
                 <Text style={styles.mainTitle}>Properties</Text>
                 <Text style={styles.mainSubtitle}>Super Admin Dashboard</Text>
               </View>
-              <TouchableOpacity
-                style={styles.signOutIconBtn}
-                onPress={() => setShowSignOut(true)}
-              >
-                <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.60)" />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {weather && (
+                  <WeatherBadge
+                    condition={manualCondition || weather.condition}
+                    temperature={weather.temperature}
+                    locationName={weather.locationName}
+                    onChange={setManualCondition}
+                  />
+                )}
+                <TouchableOpacity
+                  style={styles.signOutIconBtn}
+                  onPress={() => setShowSignOut(true)}
+                >
+                  <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.60)" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Search */}
@@ -516,15 +528,17 @@ export default function LovableSuperAdminDashboard() {
         ) : null}
       </View>
 
-      {/* Bottom nav */}
-      <BottomNav
-        active={screen === 'console' ? 'console' : screen === 'property-detail' ? 'detail' : screen === 'analytics' ? 'analytics' : 'properties'}
-        onProperties={() => setScreen('properties')}
-        onConsole={() => setScreen('console')}
-        onAnalytics={() => setScreen('analytics')}
-        onChat={() => setShowChat(true)}
-        insets={insets}
-      />
+      {/* Bottom nav — hidden when PropertyDetailScreen is active since it has its own MobileFooter */}
+      {screen !== 'property-detail' && (
+        <BottomNav
+          active={screen === 'console' ? 'console' : screen === 'analytics' ? 'analytics' : 'properties'}
+          onProperties={() => setScreen('properties')}
+          onConsole={() => setScreen('console')}
+          onAnalytics={() => setScreen('analytics')}
+          onChat={() => setShowChat(true)}
+          insets={insets}
+        />
+      )}
 
       {/* Modals */}
       <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />

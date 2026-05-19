@@ -4,6 +4,11 @@
     "slug": "autopilot-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
+    "statusBar": {
+      "translucent": true,
+      "backgroundColor": "transparent",
+      "barStyle": "light-content"
+    },
     "icon": "./assets/images/icon.png",
     "scheme": "autopilot",
     "userInterfaceStyle": "automatic",

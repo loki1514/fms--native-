@@ -187,6 +187,34 @@ export const Colors = {
 };
 
 // ============================================================
+// Dashboard Background Styles
+// ============================================================
+export const DASHBOARD_BACKGROUNDS = {
+  sunny: {
+    label: 'Sunny',
+    image: require('@/assets/images/weather-sun.png'),
+  },
+  night: {
+    label: 'Night',
+    image: require('@/assets/images/weather-moon.png'),
+  },
+  midnight: {
+    label: 'Night',
+    image: require('@/assets/images/weather-moon.png'),
+  },
+  cloudy: {
+    label: 'Cloudy',
+    image: require('@/assets/images/weather-cloud.png'),
+  },
+  raining: {
+    label: 'Raining',
+    image: require('@/assets/images/weather-rain.png'),
+  },
+} as const;
+
+export type DashboardBgKey = keyof typeof DASHBOARD_BACKGROUNDS;
+
+// ============================================================
 // DesignTokens — raw values for direct use
 // ============================================================
 export const DesignTokens = {

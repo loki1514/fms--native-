@@ -25,8 +25,8 @@ export default function MobileFooter({ activeTab: propActiveTab }: MobileFooterP
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <SafeBlurView intensity={90} style={styles.blur} tint="dark">
+    <View style={styles.container}>
+      <SafeBlurView intensity={90} style={[styles.blur, { paddingBottom: Math.max(insets.bottom, 8) }]} tint="dark">
         <TouchableOpacity 
           style={styles.navItem} 
           onPress={() => router.push(`/property/${propertyId}` as any)}

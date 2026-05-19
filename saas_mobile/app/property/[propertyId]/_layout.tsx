@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  useWindowDimensions,
+  Pressable,
 } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
@@ -42,6 +44,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TicketCreateModal } from '../../../components/tickets/TicketCreateModal';
 import AnimatedLogo from '@/components/shared/AnimatedLogo';
 import NotificationBell from '@/components/dashboard/NotificationBell';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 
 // ---- Layout Constants ----
 const SIDEBAR_WIDTH = 288;
@@ -220,12 +223,16 @@ function Sidebar({
   collapsed,
   onToggle,
   role,
+  isMobile,
+  onNavigate,
 }: {
   currentRoute: string;
   onNewRequest: () => void;
   collapsed: boolean;
   onToggle: () => void;
   role: string;
+  isMobile: boolean;
+  onNavigate: () => void;
 }) {
   const { user, signOut } = useAuth();
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
@@ -240,23 +247,31 @@ function Sidebar({
       return;
     }
     router.push(`/property/${propertyId}/${route}` as never);
+    if (isMobile) {
+      onNavigate();
+    }
   };
 
   const isDark = theme === 'dark';
-  const bgColor = isDark ? '#151B2B' : '#FFFFFF';
-  const borderColor = isDark ? '#2D3748' : '#E2E8F0';
+  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0';
   const textPrimary = isDark ? '#F8FAFC' : '#1A2332';
   const textSecondary = isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)';
 
-  // Collapsed width
-  const currentW = collapsed ? 72 : 288;
+  // Collapsed width & position for responsive mobile drawer behavior
+  const currentW = isMobile ? 288 : (collapsed ? 72 : 288);
+  const sidebarLeft = isMobile ? (collapsed ? -288 : 0) : 0;
 
   return (
-    <View style={[styles.sidebar, {
-      backgroundColor: bgColor,
-      borderRightColor: borderColor,
-      width: currentW,
-    }]}>
+    <SafeBlurView
+      intensity={isDark ? 60 : 40}
+      tint={isDark ? 'dark' : 'light'}
+      style={[styles.sidebar, {
+        borderRightColor: borderColor,
+        width: currentW,
+        left: sidebarLeft,
+        backgroundColor: isDark ? 'rgba(21,27,43,0.85)' : 'rgba(255,255,255,0.85)',
+      }]}
+    >
       {/* Header: Logo + collapse toggle — web-matched styling */}
       <View style={styles.sidebarHeader}>
         {!collapsed ? (
@@ -302,8 +317,8 @@ function Sidebar({
             <TouchableOpacity
               key={item.route}
               style={[styles.quickActionChip, {
-                backgroundColor: isDark ? 'rgba(112,143,150,0.08)' : 'rgba(112,143,150,0.06)',
-                borderColor: isDark ? 'rgba(112,143,150,0.12)' : 'rgba(112,143,150,0.1)',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(112,143,150,0.06)',
+                borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(112,143,150,0.1)',
                 paddingHorizontal: collapsed ? 10 : 12,
               }]}
               onPress={() => handleNavigate(item.route)}
@@ -348,13 +363,9 @@ function Sidebar({
       {/* Bottom: User card + actions */}
       <View style={[styles.sidebarBottom, {
         borderTopColor: borderColor,
-        backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
       }]}>
         {/* User card */}
-        <View style={[styles.userCard, {
-          backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
-          borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
-        }]}>
+        <SafeBlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={[styles.userCard, { borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', overflow: 'hidden' }]}>
           <View style={[styles.avatar, { backgroundColor: 'rgba(112,143,150,0.12)' }]}>
             <Text style={[styles.avatarText, { color: '#708F96' }]}>
               {getInitials(user?.full_name ?? user?.email ?? 'User')}
@@ -370,7 +381,7 @@ function Sidebar({
               </Text>
             </View>
           )}
-        </View>
+        </SafeBlurView>
 
         {/* Action row */}
         <View style={styles.actionBtns}>
@@ -388,7 +399,7 @@ function Sidebar({
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </SafeBlurView>
   );
 }
 
@@ -411,6 +422,8 @@ export default function PropertyLayout() {
   const { user, isLoading: authLoading, membership } = useAuth();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const { width: windowWidth } = useWindowDimensions();
+  const isMobile = windowWidth < 768;
 
   const [accessState, setAccessState] = useState<{
     authorized: boolean | null;
@@ -419,7 +432,12 @@ export default function PropertyLayout() {
   }>({ authorized: null, role: null, checking: true });
 
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(isMobile);
+
+  // Auto-collapse/expand sidebar when screen size changes
+  useEffect(() => {
+    setSidebarCollapsed(isMobile);
+  }, [isMobile]);
 
   // ---- Access check via web API (mirrors GET /api/auth/property-access) ----
   // CRITICAL: membership is in deps — without it, the layout renders blank when
@@ -600,7 +618,7 @@ export default function PropertyLayout() {
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: '#f0f4f8',
+          backgroundColor: '#000',
           padding: 24,
         }}
       >
@@ -633,6 +651,14 @@ export default function PropertyLayout() {
   return (
     <PropertyContext.Provider value={propertyInfo}>
       <View style={styles.container}>
+        {/* Mobile backdrop when sidebar expanded */}
+        {isMobile && !sidebarCollapsed && (
+          <Pressable
+            style={styles.mobileBackdrop}
+            onPress={() => setSidebarCollapsed(true)}
+          />
+        )}
+
         {/* Persistent Sidebar */}
         <Sidebar
           currentRoute={currentRoute}
@@ -640,12 +666,14 @@ export default function PropertyLayout() {
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(c => !c)}
           role={role}
+          isMobile={isMobile}
+          onNavigate={() => setSidebarCollapsed(true)}
         />
 
         {/* Content — children render here via Expo Router file-based routing */}
         <View style={[styles.contentArea, {
           backgroundColor: colors.background,
-          marginLeft: sidebarCollapsed ? 72 : SIDEBAR_WIDTH,
+          marginLeft: isMobile ? 0 : (sidebarCollapsed ? 72 : SIDEBAR_WIDTH),
         }]}>
           <Slot />
         </View>
@@ -668,6 +696,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
+  },
+  mobileBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 1,
   },
   sidebar: {
     position: 'absolute',

@@ -22,13 +22,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context';
 import TicketListItem from '@/components/tickets/TicketListItem';
 import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
-import WeatherBackground from '@/components/dashboard/WeatherBackground';
-import AbstractBackground from '@/components/dashboard/AbstractBackground';
 import { GlassCard } from '@/constants/designSystem';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import RotatingBorder from '@/components/shared/RotatingBorder';
 import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
-import { useWeather } from '@/hooks/useWeather';
 import { LinearGradient } from 'expo-linear-gradient';
 import MobileFooter from '@/components/shared/MobileFooter';
 
@@ -82,7 +79,6 @@ export default function TicketsScreen() {
   const supabase = createClient();
   const { membership, user: authUser } = useAuth();
   const { theme } = useTheme();
-  const { weather } = useWeather();
   const isDark = theme === 'dark';
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -305,9 +301,12 @@ export default function TicketsScreen() {
         }}
       />
 
-      <AbstractBackground />
+      <LinearGradient 
+        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
+        style={StyleSheet.absoluteFillObject} 
+      />
 
-      <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 100 }]}>
+      <View style={[styles.container, { paddingBottom: 0 }]}>
         {/* Modern Header */}
         <SafeBlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <View style={styles.headerTop}>
@@ -456,14 +455,7 @@ export default function TicketsScreen() {
           />
         )}
 
-        {/* Floating Create Button */}
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setShowCreateModal(true)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={28} color="#FFF" />
-        </TouchableOpacity>
+
       </View>
 
         <TicketCreateModal

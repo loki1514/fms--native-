@@ -1,7 +1,10 @@
 'use client';
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
+
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 
 interface Ticket {
   id: string;
@@ -209,13 +212,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   date: {
     fontSize: 10,
     color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   actions: {
     flexDirection: 'row',
@@ -243,14 +246,14 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.3,
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   description: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.85)',
     lineHeight: 17,
     marginBottom: 10,
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   assignee: {
     flexDirection: 'row',
@@ -269,12 +272,12 @@ const styles = StyleSheet.create({
   assigneeBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   assigneeName: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.65)',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   footer: {
     flexDirection: 'row',
@@ -285,7 +288,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.35)',
     marginBottom: 2,
     letterSpacing: 0.5,
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   countdownRow: {
     flexDirection: 'row',
@@ -295,7 +298,7 @@ const styles = StyleSheet.create({
   countdown: {
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: 'Urbanist-Bold',
+    fontFamily: fontDisplay,
   },
   ctaRow: {
     flexDirection: 'row',
@@ -311,7 +314,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   secondaryBtn: {
     flex: 1,
@@ -324,6 +327,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.70)',
     fontSize: 12,
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
 });

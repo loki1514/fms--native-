@@ -1,6 +1,8 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
+
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -164,7 +166,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.40)',
     marginTop: 4,
     fontWeight: '500',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   labelActive: {
     color: '#708F96',

@@ -19,6 +19,8 @@ import { createTicket } from '@/utils/api/mobileApi';
 import MediaCaptureModal, { MediaFile } from '../shared/MediaCaptureModal';
 import { Video, ResizeMode } from 'expo-av';
 import { useTheme } from '@/context';
+import { enhancePrompt } from '@/utils/ai/promptEnhancer';
+import { startRecording, stopRecording, transcribeAudio } from '@/utils/ai/voiceTranscription';
 import {
   classifyTicket,
   getSkillGroupDisplayName,
@@ -78,6 +80,12 @@ export function TicketCreateModal({
   const [mentionQuery, setMentionQuery] = useState('');
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [taggedUser, setTaggedUser] = useState<{ id: string; full_name: string } | null>(null);
+
+  // Enhancer & Voice state
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordDuration, setRecordDuration] = useState(0);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const pid = isAdminMode ? selectedPropId : propertyId;
@@ -221,6 +229,64 @@ export function TicketCreateModal({
     setError(null);
     setTaggedUser(null);
     setShowMentionDropdown(false);
+    setIsEnhancing(false);
+    setIsRecording(false);
+    setRecordDuration(0);
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+  };
+
+  const handleEnhance = async () => {
+    if (!description.trim() || description.trim().length < 3) return;
+    setIsEnhancing(true);
+    try {
+      const enhanced = await enhancePrompt(description);
+      if (enhanced) {
+        setDescription(enhanced);
+      } else {
+        setError('Enhancement unavailable. Please check your API key.');
+        setTimeout(() => setError(null), 3000);
+      }
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const handleMicPress = async () => {
+    if (isRecording) {
+      // Stop recording
+      setIsRecording(false);
+      if (recordTimerRef.current) {
+        clearInterval(recordTimerRef.current);
+        recordTimerRef.current = null;
+      }
+      const uri = await stopRecording();
+      setRecordDuration(0);
+      if (uri) {
+        const text = await transcribeAudio(uri);
+        if (text) {
+          setDescription((prev) => (prev ? prev + ' ' + text : text));
+        } else {
+          setError('Could not transcribe audio. Please try again.');
+          setTimeout(() => setError(null), 3000);
+        }
+      }
+    } else {
+      // Start recording
+      const started = await startRecording();
+      if (started) {
+        setIsRecording(true);
+        setRecordDuration(0);
+        recordTimerRef.current = setInterval(() => {
+          setRecordDuration((d) => d + 1);
+        }, 1000);
+      } else {
+        setError('Microphone permission denied.');
+        setTimeout(() => setError(null), 3000);
+      }
+    }
   };
 
   const sgColor = classification ? getSkillGroupColor(classification.skill_group) : null;
@@ -304,6 +370,33 @@ export function TicketCreateModal({
                     {showInternalToggle && (
                       <Text style={{ fontSize: 10, color: colors.primary, fontWeight: '700' }}>TYPE @ TO ASSIGN</Text>
                     )}
+                  </View>
+                  {/* AI Toolbar */}
+                  <View style={[styles.aiToolbar, { borderColor: inputBorder }]}>
+                    <TouchableOpacity
+                      style={[styles.aiToolBtn, isEnhancing && { opacity: 0.6 }]}
+                      onPress={handleEnhance}
+                      disabled={isEnhancing || description.trim().length < 3}
+                    >
+                      {isEnhancing ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <>
+                          <Ionicons name="sparkles" size={16} color={colors.primary} />
+                          <Text style={[styles.aiToolText, { color: colors.primary }]}>Enhance</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    <View style={[styles.aiDivider, { backgroundColor: inputBorder }]} />
+                    <TouchableOpacity
+                      style={[styles.aiToolBtn, isRecording && styles.aiToolBtnRecording]}
+                      onPress={handleMicPress}
+                    >
+                      <Ionicons name={isRecording ? 'stop-circle' : 'mic'} size={18} color={isRecording ? '#EF4444' : colors.primary} />
+                      <Text style={[styles.aiToolText, { color: isRecording ? '#EF4444' : colors.primary }]}>
+                        {isRecording ? `Recording ${recordDuration}s` : 'Voice'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                   <View 
                     style={styles.inputWrapper}
@@ -749,4 +842,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   successBadgeText: { fontSize: 12, fontWeight: '700' },
+
+  // AI Toolbar
+  aiToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 2,
+    padding: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  aiToolBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 9,
+  },
+  aiToolBtnRecording: {
+    backgroundColor: 'rgba(239,68,68,0.10)',
+  },
+  aiToolText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  aiDivider: {
+    width: 1,
+    height: 16,
+  },
 });

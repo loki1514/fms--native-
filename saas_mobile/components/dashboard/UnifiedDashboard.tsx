@@ -36,12 +36,11 @@ import { CapabilityDomain } from '@/types/rbac';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-// Estimate sidebar width for content area calculation
-const SIDEBAR_WIDTH_ESTIMATE = 288;
-
+const isMobile = SCREEN_W < 768;
 const TILE_GAP = 12;
-const TILES_PER_ROW = 2;
-const TILE_WIDTH = (SCREEN_W - SIDEBAR_WIDTH_ESTIMATE - TILE_GAP * 3) / TILES_PER_ROW;
+const containerPadding = 24 * 2; // Left + Right scrollContent padding
+const contentWidth = isMobile ? (SCREEN_W - containerPadding) : (SCREEN_W - 288 - containerPadding);
+const TILE_WIDTH = (contentWidth - TILE_GAP) / 2;
 
 interface ModuleTile {
   domain: CapabilityDomain;
@@ -294,7 +293,7 @@ const styles = StyleSheet.create({
     gap: TILE_GAP,
   },
   tile: {
-    width: (SCREEN_W - SIDEBAR_WIDTH_ESTIMATE - TILE_GAP * 3) / 2,
+    width: TILE_WIDTH,
     padding: 16,
     alignItems: 'flex-start',
     justifyContent: 'space-between',

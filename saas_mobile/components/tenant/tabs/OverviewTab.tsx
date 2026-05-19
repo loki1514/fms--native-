@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,6 +15,9 @@ import { WeatherData } from '@/hooks/useWeather';
 import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 
 interface Ticket {
   id: string;
@@ -323,7 +326,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.55)',
     marginLeft: 8,
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   filterBtn: {
     backgroundColor: 'rgba(112,143,150,0.35)',
@@ -354,13 +357,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.3,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: fontDisplay,
   },
   sectionSubtitle: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 1,
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   viewAllBtn: {
     backgroundColor: 'rgba(112,143,150,0.30)',
@@ -405,13 +408,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: fontDisplay,
   },
   emptySubtext: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.55)',
     textAlign: 'center',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   shortcutsSection: {
     marginTop: 8,
@@ -422,7 +425,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 12,
     letterSpacing: -0.2,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: fontDisplay,
   },
   shortcutsRow: {
     flexDirection: 'row',
@@ -453,6 +456,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
     letterSpacing: 0.1,
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
 });

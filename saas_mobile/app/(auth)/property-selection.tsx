@@ -98,8 +98,8 @@ export default function PropertySelectionScreen() {
       const prop = properties.find((p) => p.id === selectedId);
       if (!prop) return;
 
-      // All roles now use the unified sidebar dashboard
-      router.replace(`/property/${selectedId}/dashboard`);
+      // Redirect to property root — role-based dashboard selection happens there
+      router.replace(`/property/${selectedId}`);
     } catch (err) {
       console.error('Property selection error:', err);
     } finally {

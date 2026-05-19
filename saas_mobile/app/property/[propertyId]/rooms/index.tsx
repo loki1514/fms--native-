@@ -13,12 +13,16 @@ import {
   Platform,
   Switch,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors, DesignTokens } from '@/constants/Colors';
+import { LinearGradient } from 'expo-linear-gradient';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import { supabase } from '@/utils/supabase/client';
 import { toast } from '@/lib/toast';
+import { Ionicons } from '@expo/vector-icons';
+import MobileFooter from '@/components/shared/MobileFooter';
 import {
   Plus,
   Search,
@@ -132,10 +136,20 @@ function RoomCard({ room, onPress, onEdit, onDelete }: {
 
   return (
     <TouchableOpacity
-      style={[styles.roomCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      style={[styles.roomCard]}
       onPress={onPress}
       activeOpacity={0.7}
     >
+      <SafeBlurView
+        intensity={40}
+        tint="dark"
+        style={[StyleSheet.absoluteFillObject, { borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }]}
+      >
+        <LinearGradient
+          colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </SafeBlurView>
       {/* Photo */}
       <View style={[styles.roomPhotoWrap, { backgroundColor: colors.surface }]}>
         {room.photo_url ? (
@@ -681,8 +695,10 @@ type RoomTab = 'rooms' | 'bookings';
 
 export default function RoomsScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
+  const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<RoomTab>('rooms');
@@ -843,29 +859,48 @@ export default function RoomsScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Meeting Rooms</Text>
-          <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
-            Manage conference facilities
-          </Text>
-        </View>
-        {activeTab === 'rooms' && (
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.primary }]}
-            onPress={handleAddRoom}
-            activeOpacity={0.8}
-          >
-            <Plus size={18} color="#fff" />
-            <Text style={styles.addBtnText}>Add Room</Text>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient
+        colors={isDark ? ['#0f172a', '#1e1b4b', '#0f172a'] : ['#eef2f6', '#f8fafc', '#ffffff']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      {/* Modern Header */}
+      <SafeBlurView
+        intensity={80}
+        tint="dark"
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-        )}
-      </View>
+          <View style={styles.headerTitleWrap}>
+            <Text style={[styles.headerTitleMain, { color: '#FFFFFF' }]}>Meeting Rooms</Text>
+            <Text style={[styles.headerSubtitleMain, { color: '#94A3B8' }]}>
+              Manage conference facilities
+            </Text>
+          </View>
+          {activeTab === 'rooms' ? (
+            <TouchableOpacity
+              style={[styles.headerAddBtn, { backgroundColor: colors.primary }]}
+              onPress={handleAddRoom}
+              activeOpacity={0.8}
+            >
+              <Plus size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 40 }} />
+          )}
+        </View>
+      </SafeBlurView>
 
       {/* Tabs */}
-      <View style={[styles.tabBar, { borderColor: colors.border }]}>
+      <SafeBlurView intensity={45} tint="dark" style={[styles.tabBar, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+        <LinearGradient
+          colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']}
+          style={StyleSheet.absoluteFillObject}
+        />
         <TouchableOpacity
           style={[styles.tab, activeTab === 'rooms' && { backgroundColor: colors.primary }]}
           onPress={() => setActiveTab('rooms')}
@@ -884,13 +919,17 @@ export default function RoomsScreen() {
             Today's Bookings
           </Text>
         </TouchableOpacity>
-      </View>
+      </SafeBlurView>
 
       {activeTab === 'rooms' ? (
         <>
           {/* Search */}
           <View style={styles.searchRow}>
-            <View style={[styles.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <SafeBlurView intensity={45} tint="dark" style={[styles.searchWrap, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']}
+                style={StyleSheet.absoluteFillObject}
+              />
               <Search size={16} color={colors.textTertiary} style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.searchInput, { color: colors.text }]}
@@ -899,7 +938,7 @@ export default function RoomsScreen() {
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
-            </View>
+            </SafeBlurView>
           </View>
 
           {/* Room List */}
@@ -909,9 +948,10 @@ export default function RoomsScreen() {
             </View>
           ) : filteredRooms.length === 0 ? (
             <View style={styles.emptyWrap}>
-              <View style={[styles.emptyIcon, { backgroundColor: colors.primaryLight }]}>
+              <SafeBlurView intensity={40} tint="dark" style={[styles.emptyIcon, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+                <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
                 <DoorOpen size={32} color={colors.primary} />
-              </View>
+              </SafeBlurView>
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No rooms found</Text>
               <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
                 {searchQuery ? 'Try a different search' : 'Add your first meeting room'}
@@ -937,9 +977,10 @@ export default function RoomsScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <View style={[styles.emptyIcon, { backgroundColor: colors.primaryLight }]}>
+              <SafeBlurView intensity={40} tint="dark" style={[styles.emptyIcon, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+                <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
                 <Calendar size={32} color={colors.primary} />
-              </View>
+              </SafeBlurView>
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No bookings today</Text>
               <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
                 Select a room to make a booking
@@ -947,7 +988,10 @@ export default function RoomsScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <View style={[styles.bookingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.bookingCard]}>
+              <SafeBlurView intensity={40} tint="dark" style={[StyleSheet.absoluteFillObject, { borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }]}>
+                <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
+              </SafeBlurView>
               <View style={[styles.bookingCardTime, { backgroundColor: colors.primary }]}>
                 <Text style={styles.bookingCardTimeText}>
                   {format(new Date(item.start_time), 'h:mm')}
@@ -1054,6 +1098,7 @@ export default function RoomsScreen() {
           )}
         </BottomSheetView>
       </BottomSheet>
+      <MobileFooter activeTab="dashboard" />
     </View>
   );
 }
@@ -1065,29 +1110,53 @@ export default function RoomsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
+    paddingBottom: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+    zIndex: 10,
   },
-  headerTitle: { fontSize: 22, fontFamily: 'Poppins-Bold' },
-  headerSub: { fontSize: 12, fontFamily: 'Urbanist-Regular', marginTop: 2 },
-  addBtn: {
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerTitleMain: {
+    fontSize: 20,
+    fontFamily: 'Poppins-Bold',
+    letterSpacing: -0.5,
+  },
+  headerSubtitleMain: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 2,
+  },
+  headerAddBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addBtnText: { color: '#fff', fontSize: 13, fontFamily: 'Urbanist-Bold' },
-  tabBar: { flexDirection: 'row', marginHorizontal: 12, borderWidth: 1, borderRadius: 12, overflow: 'hidden', marginBottom: 12 },
+  tabBar: { flexDirection: 'row', marginHorizontal: 12, borderRadius: 12, overflow: 'hidden', marginBottom: 12 },
   tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 6 },
   tabText: { fontSize: 12, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5 },
   searchRow: { paddingHorizontal: 12, marginBottom: 12 },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, overflow: 'hidden' },
   searchInput: { flex: 1, fontSize: 14, fontFamily: 'Urbanist-Regular', padding: 0 },
   listContent: { paddingHorizontal: 12, paddingBottom: 100 },
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 },
@@ -1096,7 +1165,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontFamily: 'Poppins-Bold', marginBottom: 6 },
   emptySub: { fontSize: 14, fontFamily: 'Urbanist-Regular', textAlign: 'center', paddingHorizontal: 40 },
   // Room card
-  roomCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, borderWidth: 1, gap: 12 },
+  roomCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, gap: 12, overflow: 'hidden' },
   roomPhotoWrap: { width: 72, height: 72, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
   roomPhoto: { width: 72, height: 72 },
   roomStatusBadge: { position: 'absolute', bottom: 4, left: 4, right: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 6, paddingVertical: 2, gap: 3 },
@@ -1142,7 +1211,7 @@ const styles = StyleSheet.create({
   bookRoomBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, marginTop: 8 },
   bookRoomBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins-Bold' },
   // Booking card
-  bookingCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, borderWidth: 1, marginBottom: 10, gap: 12 },
+  bookingCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, marginBottom: 10, gap: 12, overflow: 'hidden' },
   bookingCardTime: { width: 52, height: 52, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   bookingCardTimeText: { fontSize: 18, fontFamily: 'Poppins-Bold', color: '#fff' },
   bookingCardAmPm: { fontSize: 10, fontFamily: 'Urbanist-Bold', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' },

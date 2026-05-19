@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   Image,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import SafeBlurView from '@/components/ui/SafeBlurView';
+import SignOutModal from '@/components/ui/SignOutModal';
+import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
+import MobileFooter from '@/components/shared/MobileFooter';
 import {
   SPACING,
 } from '@/constants/designSystem';
@@ -40,9 +44,14 @@ export default function PropertyDetailScreen({
   property,
   onBack,
 }: PropertyDetailScreenProps) {
-  const { membership } = useAuth();
+  const { user, signOut, membership } = useAuth();
   const insets = useSafeAreaInsets();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showSignOut, setShowSignOut] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
+
+  const orgId = membership?.org_id ?? '';
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -57,34 +66,59 @@ export default function PropertyDetailScreen({
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={{ paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />}
       >
-        {/* ─── Header ─────────────────────────────────────────────────────────── */}
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 20) }]}>
+        {/* ─── Header (matches Property Admin) ────────────────────────────────── */}
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity style={styles.backBtn} onPress={onBack}>
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <View style={styles.headerHero}>
-            <View style={styles.heroLeft}>
-              <Text style={styles.welcomeText}>FACILITY OVERVIEW</Text>
-              <Text style={styles.propertyName}>{property.name}</Text>
-              <Text style={styles.propertyCode}>{property.code} · April 18, 2026</Text>
+          <View style={styles.headerCenter}>
+            <TouchableOpacity style={styles.profileRow} activeOpacity={0.7}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2) : 'SU'}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.greetingText} numberOfLines={1}>Hey, {user?.user_metadata?.full_name?.split(' ')[0] || 'Super'}</Text>
+                <Text style={styles.headerSubtitle} numberOfLines={1}>{property.name}</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.headerIconBtn}>
+              <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerIconBtn}>
+              <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+              <View style={styles.notificationBadge} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ─── Hero ───────────────────────────────────────────────────────────── */}
+        <View style={styles.headerHero}>
+          <View style={styles.heroLeft}>
+            <Text style={styles.welcomeText}>FACILITY OVERVIEW</Text>
+            <Text style={styles.propertyName}>{property.name}</Text>
+            <Text style={styles.propertyCode}>{property.code} · {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+          </View>
+          <View style={styles.heroRight}>
+            <View style={styles.tempContainer}>
+              <Image
+                source={{ uri: 'https://pngimg.com/uploads/moon/moon_PNG52.png' }}
+                style={styles.moonImage}
+              />
+              <Text style={styles.tempText}>22°</Text>
             </View>
-            <View style={styles.heroRight}>
-              <View style={styles.tempContainer}>
-                <Image
-                  source={{ uri: 'https://pngimg.com/uploads/moon/moon_PNG52.png' }}
-                  style={styles.moonImage}
-                />
-                <Text style={styles.tempText}>22°</Text>
-              </View>
-              <View style={styles.weatherStatusRow}>
-                <Text style={styles.weatherStatusText}>CLEAR NIGHT</Text>
-                <Ionicons name="chevron-down" size={12} color="rgba(255,255,255,0.4)" />
-              </View>
+            <View style={styles.weatherStatusRow}>
+              <Text style={styles.weatherStatusText}>CLEAR NIGHT</Text>
+              <Ionicons name="chevron-down" size={12} color="rgba(255,255,255,0.4)" />
             </View>
           </View>
         </View>
@@ -110,6 +144,12 @@ export default function PropertyDetailScreen({
           </GlassTile>
         </View>
       </ScrollView>
+
+      {/* ─── Bottom Navigation ──────────────────────────────────────────────── */}
+      <MobileFooter activeTab="dashboard" />
+
+      <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
     </View>
   );
 }
@@ -117,18 +157,54 @@ export default function PropertyDetailScreen({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   scroll: { flex: 1 },
-  header: { paddingHorizontal: SPACING.xl, paddingBottom: 10 },
-  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  headerHero: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+
+  // Header (matches Property Admin)
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: 12,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: { flex: 1, paddingHorizontal: 12 },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  avatarText: { color: '#FFF', fontSize: 13, fontWeight: '700', fontFamily: fontSans },
+  greetingText: { color: '#FFF', fontSize: 14, fontWeight: '700', fontFamily: fontSans },
+  headerSubtitle: { color: 'rgba(255,255,255,0.40)', fontSize: 11, fontFamily: fontSans, marginTop: 1 },
+  headerRight: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  headerIconBtn: { position: 'relative' },
+  notificationBadge: { position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+
+  // Hero
+  headerHero: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: SPACING.xl, marginTop: 8 },
   heroLeft: { flex: 1, paddingTop: 4 },
   welcomeText: { fontFamily: fontSans, fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: 1.5 },
-  propertyName: { fontFamily: fontDisplay, fontSize: 48, fontWeight: '800', color: '#FFFFFF', marginTop: 0, letterSpacing: -1.5 },
-  propertyCode: { fontFamily: fontSans, fontSize: 15, color: 'rgba(255,255,255,0.4)', marginTop: 4, fontWeight: '500' },
+  propertyName: { fontFamily: fontDisplay, fontSize: 42, fontWeight: '800', color: '#FFFFFF', marginTop: 0, letterSpacing: -1.2 },
+  propertyCode: { fontFamily: fontSans, fontSize: 14, color: 'rgba(255,255,255,0.4)', marginTop: 4, fontWeight: '500' },
   heroRight: { alignItems: 'flex-end' },
   tempContainer: { flexDirection: 'row', alignItems: 'center', gap: 10, position: 'relative' },
-  tempText: { fontFamily: fontDisplay, fontSize: 72, fontWeight: '800', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 10, zIndex: 10 },
-  moonImage: { width: 140, height: 140, position: 'absolute', right: -30, top: -20, opacity: 0.8 },
-  weatherStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -12, marginRight: 40 },
-  weatherStatusText: { fontFamily: fontSans, fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.6)', letterSpacing: 1 },
+  tempText: { fontFamily: fontDisplay, fontSize: 64, fontWeight: '800', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 10, zIndex: 10 },
+  moonImage: { width: 120, height: 120, position: 'absolute', right: -20, top: -15, opacity: 0.8 },
+  weatherStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -8, marginRight: 30 },
+  weatherStatusText: { fontFamily: fontSans, fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.6)', letterSpacing: 1 },
   dashboardGrid: { paddingVertical: 10, gap: 4 },
 });

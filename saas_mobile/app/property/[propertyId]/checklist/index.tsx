@@ -1919,7 +1919,9 @@ export default function ChecklistScreen() {
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={[styles.topNavTitle, { color: colors.textPrimary }]}>Checklists</Text>
-        <View style={{ width: 44 }} />
+        <TouchableOpacity onPress={() => router.push(`/property/${propertyId}/checklist/scan` as any)} style={{ padding: 4 }}>
+          <Ionicons name="scan-outline" size={24} color={colors.textPrimary} />
+        </TouchableOpacity>
       </View>
 
       {/* Header */}

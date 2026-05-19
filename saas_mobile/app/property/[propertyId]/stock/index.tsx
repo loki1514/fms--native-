@@ -13,13 +13,23 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInUp } from 'react-native-reanimated';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import MobileFooter from '@/components/shared/MobileFooter';
+import {
+  STATUS_COLORS,
+  CARD_SURFACES,
+  type StatusType,
+} from '@/constants/designSystem';
 import {
   Package,
   Plus,
@@ -33,7 +43,11 @@ import {
   ChevronRight,
   TrendingDown,
   History,
+  ArrowLeft,
+  Scan,
 } from 'lucide-react-native';
+
+const { width: SCREEN_W } = Dimensions.get('window');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +62,8 @@ interface StockItem {
   unit_price: number;
   property_id: string;
   created_at: string;
+  barcode?: string | null;
+  location?: string | null;
 }
 
 interface StockMovement {
@@ -63,28 +79,56 @@ interface StockMovement {
   users: { full_name: string } | null;
 }
 
+// ─── Design Tokens (Craxinno Glass) ───────────────────────────────────────────
+
+const TOKENS = {
+  bg: {
+    gradient: ['#0B1B2A', '#0F2D3D', '#113B4D'] as const,
+  },
+  glass: {
+    border: 'rgba(255,255,255,0.18)',
+    bg: 'rgba(255,255,255,0.06)',
+    highlight: 'rgba(255,255,255,0.10)',
+  },
+  tint: {
+    blue: { start: 'rgba(59,130,246,0.18)', end: 'rgba(59,130,246,0.04)' },
+    green: { start: 'rgba(16,185,129,0.18)', end: 'rgba(16,185,129,0.04)' },
+    amber: { start: 'rgba(245,158,11,0.18)', end: 'rgba(245,158,11,0.04)' },
+    rose: { start: 'rgba(239,68,68,0.18)', end: 'rgba(239,68,68,0.04)' },
+  },
+  text: {
+    primary: '#FFFFFF',
+    secondary: 'rgba(255,255,255,0.60)',
+    tertiary: 'rgba(255,255,255,0.38)',
+  },
+  radius: {
+    card: 20,
+    btn: 14,
+    chip: 20,
+    sheet: 24,
+  },
+  shadow: {
+    card: { shadowColor: '#000', shadowOpacity: 0.30, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 10 },
+  },
+};
+
 // ─── Utility ───────────────────────────────────────────────────────────────────
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const d = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+function getStockStatus(item: StockItem): StatusType {
+  if (item.quantity === 0) return 'critical';
+  if (item.quantity < (item.min_threshold || 10)) return 'watch';
+  return 'optimal';
 }
 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function StockScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
   const colors = Colors[theme];
@@ -103,7 +147,6 @@ export default function StockScreen() {
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [showDetailSheet, setShowDetailSheet] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
-  const [showMovementsTab, setShowMovementsTab] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
   const [movementType, setMovementType] = useState<'add' | 'remove'>('add');
 
@@ -159,8 +202,6 @@ export default function StockScreen() {
       if (error) throw error;
       const fetched = (data || []) as StockItem[];
       setItems(fetched);
-
-      // Extract unique categories
       const cats = [...new Set(fetched.map((i) => i.category).filter(Boolean))];
       setCategories(cats as string[]);
     } catch (err) {
@@ -228,7 +269,7 @@ export default function StockScreen() {
       setShowAddModal(false);
       resetForm();
       await fetchItems();
-      Alert.alert('Success', 'Stock item added successfully');
+      Alert.alert('Success', 'Asset added successfully');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to add item');
     } finally {
@@ -263,33 +304,16 @@ export default function StockScreen() {
         user_id: user?.id || null,
       });
       if (error) throw error;
-
-      // Update local quantity
       setItems((prev) =>
         prev.map((i) =>
           i.id === selectedItem.id
-            ? {
-                ...i,
-                quantity:
-                  movementType === 'add'
-                    ? i.quantity + qty
-                    : i.quantity - qty,
-              }
+            ? { ...i, quantity: movementType === 'add' ? i.quantity + qty : i.quantity - qty }
             : i
         )
       );
       setSelectedItem((prev) =>
-        prev
-          ? {
-              ...prev,
-              quantity:
-                movementType === 'add'
-                  ? prev.quantity + qty
-                  : prev.quantity - qty,
-            }
-          : null
+        prev ? { ...prev, quantity: movementType === 'add' ? prev.quantity + qty : prev.quantity - qty } : null
       );
-
       setShowMovementModal(false);
       setMoveQty('');
       setMoveNotes('');
@@ -303,13 +327,8 @@ export default function StockScreen() {
   };
 
   const resetForm = () => {
-    setFormName('');
-    setFormCode('');
-    setFormCategory('');
-    setFormQuantity('');
-    setFormMinThreshold('');
-    setFormUnit('');
-    setFormPrice('');
+    setFormName(''); setFormCode(''); setFormCategory(''); setFormQuantity('');
+    setFormMinThreshold(''); setFormUnit(''); setFormPrice('');
   };
 
   const openMovementSheet = (item: StockItem, type: 'add' | 'remove') => {
@@ -320,189 +339,192 @@ export default function StockScreen() {
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
-  const bgColor = theme === 'light' ? '#FBF8F4' : colors.background;
-
   if (isLoading && items.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <LinearGradient colors={[...TOKENS.bg.gradient]} style={StyleSheet.absoluteFillObject} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading inventory...</Text>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.loadingText}>Loading assets...</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) + 90 }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient colors={[...TOKENS.bg.gradient]} style={StyleSheet.absoluteFillObject} />
+
       {/* ── Header ── */}
-      <View style={[styles.headerSection, { backgroundColor: '#708F96' }]}>
+      <Animated.View entering={FadeInUp.duration(400)} style={styles.headerWrap}>
         <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>Inventory</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.headerBtn}
-              onPress={() => setShowMovementsTab(!showMovementsTab)}
-            >
-              <History size={20} color="#FFFFFF" />
+          <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.back()} activeOpacity={0.7}>
+            <ArrowLeft size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.headerTitle}>Assets</Text>
+            <Text style={styles.headerSubtitle}>Inventory Management</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push(`/property/${propertyId}/stock/scan` as any)} activeOpacity={0.7}>
+              <Scan size={18} color="rgba(255,255,255,0.8)" />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.headerBtn, { backgroundColor: 'rgba(255,255,255,0.25)' }]}
-              onPress={() => setShowAddModal(true)}
-            >
-              <Plus size={20} color="#FFFFFF" />
+            <TouchableOpacity style={styles.headerIconBtn} onPress={() => {}} activeOpacity={0.7}>
+              <History size={18} color="rgba(255,255,255,0.8)" />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.headerIconBtn, { backgroundColor: 'rgba(59,130,246,0.35)', borderColor: 'rgba(59,130,246,0.45)' }]} onPress={() => setShowAddModal(true)} activeOpacity={0.7}>
+              <Plus size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
-      {/* ── KPI Cards ── */}
-      <View style={styles.kpiRow}>
-        <View style={[styles.kpiCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Package size={16} color={colors.primary} />
-          <Text style={[styles.kpiValue, { color: colors.text }]}>{stats.total}</Text>
-          <Text style={[styles.kpiLabel, { color: colors.textTertiary }]}>Items</Text>
+      {/* ── KPI Tinted Glass Cards ── */}
+      <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.kpiWrap}>
+        <View style={styles.kpiRow}>
+          <TintedGlassCard
+            label="Total items"
+            value={stats.total}
+            icon={<Package size={16} color="#60A5FA" />}
+            tint="blue"
+            delay={0}
+          />
+          <TintedGlassCard
+            label="Low stock"
+            value={stats.lowStock}
+            icon={<AlertTriangle size={16} color="#FBBF24" />}
+            tint="amber"
+            delay={80}
+          />
         </View>
-        <TouchableOpacity
-          style={[styles.kpiCard, { backgroundColor: colors.card, borderColor: colors.warningBg }]}
-          onPress={() => {
-            setSelectedCategory('');
-            setSearchQuery('');
-          }}
-        >
-          <AlertTriangle size={16} color={colors.warning} />
-          <Text style={[styles.kpiValue, { color: colors.warning }]}>{stats.lowStock}</Text>
-          <Text style={[styles.kpiLabel, { color: colors.textTertiary }]}>Low Stock</Text>
-        </TouchableOpacity>
-        <View style={[styles.kpiCard, { backgroundColor: colors.card, borderColor: colors.errorBg }]}>
-          <TrendingDown size={16} color={colors.error} />
-          <Text style={[styles.kpiValue, { color: colors.error }]}>{stats.outOfStock}</Text>
-          <Text style={[styles.kpiLabel, { color: colors.textTertiary }]}>Out</Text>
+        <View style={styles.kpiRow}>
+          <TintedGlassCard
+            label="Out of stock"
+            value={stats.outOfStock}
+            icon={<TrendingDown size={16} color="#FCA5A5" />}
+            tint="rose"
+            delay={160}
+          />
+          <TintedGlassCard
+            label="Total value"
+            value={formatCurrency(stats.totalValue).replace('₹', '₹')}
+            icon={<Package size={16} color="#6EE7B7" />}
+            tint="green"
+            isCurrency
+            delay={240}
+          />
         </View>
-        <View style={[styles.kpiCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.kpiValue, { color: colors.text, fontSize: 18 }]}>
-            {formatCurrency(stats.totalValue).replace('₹', '₹')}
-          </Text>
-          <Text style={[styles.kpiLabel, { color: colors.textTertiary }]}>Value</Text>
-        </View>
-      </View>
+      </Animated.View>
 
       {/* ── Search + Filter ── */}
-      <View style={styles.searchRow}>
-        <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Search size={16} color={colors.textTertiary} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search by name or SKU..."
-            placeholderTextColor={colors.textTertiary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <X size={14} color={colors.textTertiary} />
-            </TouchableOpacity>
-          )}
-        </View>
-        <TouchableOpacity
-          style={[styles.filterBtn, { backgroundColor: selectedCategory ? colors.primary + '18' : colors.card, borderColor: colors.border }]}
-          onPress={() => setShowCategoryFilter(!showCategoryFilter)}
-        >
-          <Filter size={16} color={selectedCategory ? colors.primary : colors.textTertiary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* ── Category Filter Dropdown ── */}
-      {showCategoryFilter && (
-        <View style={[styles.categoryDropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <Animated.View entering={FadeInUp.delay(300).duration(500)} style={styles.searchWrap}>
+        <View style={styles.searchRow}>
+          <View style={styles.searchInputWrap}>
+            <Search size={16} color={TOKENS.text.tertiary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search assets..."
+              placeholderTextColor={TOKENS.text.tertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <X size={14} color={TOKENS.text.tertiary} />
+              </TouchableOpacity>
+            )}
+          </View>
           <TouchableOpacity
-            style={[styles.categoryChip, selectedCategory === '' ? { backgroundColor: colors.primary + '18' } : null]}
-            onPress={() => { setSelectedCategory(''); setShowCategoryFilter(false); }}
+            style={[styles.filterBtn, selectedCategory ? { borderColor: 'rgba(59,130,246,0.40)' } : {}]}
+            onPress={() => setShowCategoryFilter(!showCategoryFilter)}
           >
-            <Text style={[styles.categoryChipText, { color: selectedCategory === '' ? colors.primary : colors.textSecondary }]}>All</Text>
+            <Filter size={16} color={selectedCategory ? '#60A5FA' : TOKENS.text.secondary} />
           </TouchableOpacity>
-          {categories.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[styles.categoryChip, selectedCategory === cat ? { backgroundColor: colors.primary + '18' } : null]}
-              onPress={() => { setSelectedCategory(cat); setShowCategoryFilter(false); }}
-            >
-              <Text style={[styles.categoryChipText, { color: selectedCategory === cat ? colors.primary : colors.textSecondary }]}>{cat}</Text>
-            </TouchableOpacity>
-          ))}
         </View>
-      )}
 
-      {/* ── Active filter indicator ── */}
-      {selectedCategory ? (
-        <View style={styles.filterIndicator}>
-          <Text style={[styles.filterIndicatorText, { color: colors.textSecondary }]}>Category: {selectedCategory}</Text>
-          <TouchableOpacity onPress={() => setSelectedCategory('')}>
-            <X size={12} color={colors.textTertiary} />
-          </TouchableOpacity>
-        </View>
-      ) : null}
+        {showCategoryFilter && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
+            <TouchableOpacity
+              style={[styles.categoryChip, selectedCategory === '' && styles.categoryChipActive]}
+              onPress={() => { setSelectedCategory(''); setShowCategoryFilter(false); }}
+            >
+              <Text style={[styles.categoryChipText, selectedCategory === '' && styles.categoryChipTextActive]}>All</Text>
+            </TouchableOpacity>
+            {categories.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipActive]}
+                onPress={() => { setSelectedCategory(cat); setShowCategoryFilter(false); }}
+              >
+                <Text style={[styles.categoryChipText, selectedCategory === cat && styles.categoryChipTextActive]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {selectedCategory ? (
+          <View style={styles.activeFilter}>
+            <Text style={styles.activeFilterText}>{selectedCategory}</Text>
+            <TouchableOpacity onPress={() => setSelectedCategory('')}>
+              <X size={12} color={TOKENS.text.tertiary} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </Animated.View>
 
       {/* ── Item List ── */}
       <FlatList
         data={filteredItems}
         keyExtractor={(item) => item.id}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#3B82F6" />
         }
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Package size={48} color={colors.textTertiary} />
-            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No items found</Text>
-            <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
-              {searchQuery || selectedCategory ? 'Try adjusting your filters' : 'Add your first stock item'}
+            <Package size={48} color="rgba(255,255,255,0.15)" />
+            <Text style={styles.emptyTitle}>No items found</Text>
+            <Text style={styles.emptySubtitle}>
+              {searchQuery || selectedCategory ? 'Try adjusting your filters' : 'Tap + to add your first asset'}
             </Text>
           </View>
         }
-        renderItem={({ item }) => {
-          const isOut = item.quantity === 0;
-          const isLow = !isOut && item.quantity < (item.min_threshold || 10);
-          const stockColor = isOut ? colors.error : isLow ? colors.warning : colors.success;
+        renderItem={({ item, index }) => {
+          const status = getStockStatus(item);
+          const palette = STATUS_COLORS[status];
 
           return (
-            <TouchableOpacity
-              style={[styles.itemCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => handleItemPress(item)}
-              activeOpacity={0.72}
-            >
-              <View style={styles.itemLeft}>
-                <View style={[styles.itemIconWrap, { backgroundColor: stockColor + '18' }]}>
-                  <Package size={20} color={stockColor} />
+            <Animated.View entering={FadeInUp.delay(index * 40).duration(400)}>
+              <TouchableOpacity
+                style={[styles.itemCard, { borderLeftColor: palette.bg }]}
+                onPress={() => handleItemPress(item)}
+                activeOpacity={0.85}
+              >
+                <SafeBlurView intensity={35} style={StyleSheet.absoluteFillObject} tint="dark" />
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.10)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.20)']}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View style={styles.itemRow}>
+                  <View style={[styles.itemIconWrap, { backgroundColor: palette.surface }]}>
+                    <Package size={20} color={palette.bg} />
+                  </View>
+                  <View style={styles.itemContent}>
+                    <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.itemMeta}>
+                      {(item.item_code || 'No SKU')} · {item.category || 'Uncategorized'}
+                    </Text>
+                  </View>
+                  <View style={styles.itemRight}>
+                    <Text style={[styles.qtyValue, { color: palette.text }]}>{item.quantity}</Text>
+                    <Text style={styles.itemUnit}>{item.unit || 'units'}</Text>
+                  </View>
+                  <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
                 </View>
-              </View>
-              <View style={styles.itemContent}>
-                <Text style={[styles.itemName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
-                <Text style={[styles.itemMeta, { color: colors.textSecondary }]}>
-                  {(item.item_code || 'No SKU')} · {item.category || 'Uncategorized'}
-                </Text>
-              </View>
-              <View style={styles.itemRight}>
-                <View style={styles.qtyRow}>
-                  <Text style={[styles.qtyValue, { color: stockColor }]}>{item.quantity}</Text>
-                  {isOut ? (
-                    <View style={[styles.stockBadge, { backgroundColor: colors.errorBg }]}>
-                      <Text style={[styles.stockBadgeText, { color: colors.error }]}>OUT</Text>
-                    </View>
-                  ) : isLow ? (
-                    <View style={[styles.stockBadge, { backgroundColor: colors.warningBg }]}>
-                      <Text style={[styles.stockBadgeText, { color: colors.warning }]}>LOW</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={[styles.itemUnit, { color: colors.textTertiary }]}>
-                  {item.unit || 'units'} · {formatCurrency(item.unit_price || 0).replace('₹', '')} each
-                </Text>
-                <Text style={[styles.itemMin, { color: colors.textTertiary }]}>Min: {item.min_threshold || 10}</Text>
-              </View>
-              <ChevronRight size={16} color={colors.textTertiary} />
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </Animated.View>
           );
         }}
       />
@@ -511,97 +533,45 @@ export default function StockScreen() {
       <Modal visible={showAddModal} animationType="slide" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+            <View style={styles.modalSheet}>
+              <LinearGradient colors={['#1a2e3b', '#0f1f2a']} style={StyleSheet.absoluteFillObject} />
               <View style={styles.modalHandle} />
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>Add Stock Item</Text>
+                <Text style={styles.modalTitle}>Add asset</Text>
                 <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }}>
-                  <X size={20} color={colors.textSecondary} />
+                  <X size={20} color="rgba(255,255,255,0.50)" />
                 </TouchableOpacity>
               </View>
               <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Item Name *</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                  placeholder="e.g. Hydraulic Fluid"
-                  placeholderTextColor={colors.textTertiary}
-                  value={formName}
-                  onChangeText={setFormName}
-                />
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>SKU / Item Code</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                  placeholder="e.g. SKU-001"
-                  placeholderTextColor={colors.textTertiary}
-                  value={formCode}
-                  onChangeText={setFormCode}
-                />
-                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Category</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                  placeholder="e.g. Lubricants"
-                  placeholderTextColor={colors.textTertiary}
-                  value={formCategory}
-                  onChangeText={setFormCategory}
-                />
+                <Text style={styles.inputLabel}>Item name *</Text>
+                <TextInput style={styles.input} placeholder="e.g. Hydraulic Fluid" placeholderTextColor={TOKENS.text.tertiary} value={formName} onChangeText={setFormName} />
+                <Text style={styles.inputLabel}>SKU / Item code</Text>
+                <TextInput style={styles.input} placeholder="e.g. SKU-001" placeholderTextColor={TOKENS.text.tertiary} value={formCode} onChangeText={setFormCode} />
+                <Text style={styles.inputLabel}>Category</Text>
+                <TextInput style={styles.input} placeholder="e.g. Lubricants" placeholderTextColor={TOKENS.text.tertiary} value={formCategory} onChangeText={setFormCategory} />
                 <View style={styles.rowInputs}>
                   <View style={styles.halfInput}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Initial Qty *</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                      placeholder="0"
-                      placeholderTextColor={colors.textTertiary}
-                      keyboardType="numeric"
-                      value={formQuantity}
-                      onChangeText={setFormQuantity}
-                    />
+                    <Text style={styles.inputLabel}>Initial qty *</Text>
+                    <TextInput style={styles.input} placeholder="0" placeholderTextColor={TOKENS.text.tertiary} keyboardType="numeric" value={formQuantity} onChangeText={setFormQuantity} />
                   </View>
                   <View style={styles.halfInput}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Min Threshold</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                      placeholder="10"
-                      placeholderTextColor={colors.textTertiary}
-                      keyboardType="numeric"
-                      value={formMinThreshold}
-                      onChangeText={setFormMinThreshold}
-                    />
+                    <Text style={styles.inputLabel}>Min threshold</Text>
+                    <TextInput style={styles.input} placeholder="10" placeholderTextColor={TOKENS.text.tertiary} keyboardType="numeric" value={formMinThreshold} onChangeText={setFormMinThreshold} />
                   </View>
                 </View>
                 <View style={styles.rowInputs}>
                   <View style={styles.halfInput}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Unit</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                      placeholder="litres, kg, pcs"
-                      placeholderTextColor={colors.textTertiary}
-                      value={formUnit}
-                      onChangeText={setFormUnit}
-                    />
+                    <Text style={styles.inputLabel}>Unit</Text>
+                    <TextInput style={styles.input} placeholder="litres, kg, pcs" placeholderTextColor={TOKENS.text.tertiary} value={formUnit} onChangeText={setFormUnit} />
                   </View>
                   <View style={styles.halfInput}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Unit Price (₹)</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                      placeholder="0.00"
-                      placeholderTextColor={colors.textTertiary}
-                      keyboardType="decimal-pad"
-                      value={formPrice}
-                      onChangeText={setFormPrice}
-                    />
+                    <Text style={styles.inputLabel}>Unit price (₹)</Text>
+                    <TextInput style={styles.input} placeholder="0.00" placeholderTextColor={TOKENS.text.tertiary} keyboardType="decimal-pad" value={formPrice} onChangeText={setFormPrice} />
                   </View>
                 </View>
               </ScrollView>
-              <TouchableOpacity
-                style={[styles.submitBtn, { backgroundColor: colors.primary }, isSaving && { opacity: 0.6 }]}
-                onPress={handleAddItem}
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitBtnText}>Save Item</Text>
-                )}
+              <TouchableOpacity style={[styles.submitBtn, isSaving && { opacity: 0.6 }]} onPress={handleAddItem} disabled={isSaving}>
+                {isSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.submitBtnText}>Save asset</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -612,75 +582,57 @@ export default function StockScreen() {
       <Modal visible={showDetailSheet} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowDetailSheet(false)} />
-          <View style={[styles.detailSheet, { backgroundColor: colors.card }]}>
+          <View style={styles.detailSheet}>
+            <LinearGradient colors={['#1a2e3b', '#0f1f2a']} style={StyleSheet.absoluteFillObject} />
             <View style={styles.modalHandle} />
             {selectedItem && (
               <>
                 <View style={styles.detailHeader}>
                   <View style={styles.detailTitleRow}>
-                    <Text style={[styles.detailItemName, { color: colors.text }]}>{selectedItem.name}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.detailItemName}>{selectedItem.name}</Text>
+                      <Text style={styles.detailMeta}>{selectedItem.item_code || 'No SKU'} · {selectedItem.category || 'Uncategorized'}</Text>
+                    </View>
                     <TouchableOpacity onPress={() => setShowDetailSheet(false)}>
-                      <X size={20} color={colors.textSecondary} />
+                      <X size={20} color="rgba(255,255,255,0.50)" />
                     </TouchableOpacity>
                   </View>
-                  <Text style={[styles.detailMeta, { color: colors.textSecondary }]}>
-                    {selectedItem.item_code || 'No SKU'} · {selectedItem.category || 'Uncategorized'}
-                  </Text>
                 </View>
-
-                {/* Stats row */}
                 <View style={styles.detailStatsRow}>
-                  <View style={[styles.detailStatCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.detailStatValue, { color: colors.text }]}>{selectedItem.quantity}</Text>
-                    <Text style={[styles.detailStatLabel, { color: colors.textTertiary }]}>Current Qty</Text>
+                  <View style={styles.detailStatCard}>
+                    <Text style={styles.detailStatValue}>{selectedItem.quantity}</Text>
+                    <Text style={styles.detailStatLabel}>Current qty</Text>
                   </View>
-                  <View style={[styles.detailStatCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.detailStatValue, { color: colors.text }]}>{selectedItem.min_threshold || 10}</Text>
-                    <Text style={[styles.detailStatLabel, { color: colors.textTertiary }]}>Min Threshold</Text>
+                  <View style={styles.detailStatCard}>
+                    <Text style={styles.detailStatValue}>{selectedItem.min_threshold || 10}</Text>
+                    <Text style={styles.detailStatLabel}>Min threshold</Text>
                   </View>
-                  <View style={[styles.detailStatCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.detailStatValue, { color: colors.text }]}>{selectedItem.unit || '-'}</Text>
-                    <Text style={[styles.detailStatLabel, { color: colors.textTertiary }]}>Unit</Text>
+                  <View style={styles.detailStatCard}>
+                    <Text style={styles.detailStatValue}>{selectedItem.unit || '-'}</Text>
+                    <Text style={styles.detailStatLabel}>Unit</Text>
                   </View>
-                  <View style={[styles.detailStatCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.detailStatValue, { color: colors.text }]}>{formatCurrency(selectedItem.unit_price || 0)}</Text>
-                    <Text style={[styles.detailStatLabel, { color: colors.textTertiary }]}>Unit Price</Text>
+                  <View style={styles.detailStatCard}>
+                    <Text style={styles.detailStatValue}>{formatCurrency(selectedItem.unit_price || 0)}</Text>
+                    <Text style={styles.detailStatLabel}>Unit price</Text>
                   </View>
                 </View>
-
-                {/* Stock value */}
-                <View style={[styles.valueBanner, { backgroundColor: colors.primary + '12' }]}>
-                  <Text style={[styles.valueBannerLabel, { color: colors.textSecondary }]}>Total Value</Text>
-                  <Text style={[styles.valueBannerValue, { color: colors.primary }]}>
-                    {formatCurrency(selectedItem.quantity * (selectedItem.unit_price || 0))}
-                  </Text>
+                <View style={[styles.valueBanner, { backgroundColor: 'rgba(59,130,246,0.12)' }]}>
+                  <Text style={[styles.valueBannerLabel, { color: TOKENS.text.secondary }]}>Total value</Text>
+                  <Text style={[styles.valueBannerValue, { color: '#60A5FA' }]}>{formatCurrency(selectedItem.quantity * (selectedItem.unit_price || 0))}</Text>
                 </View>
-
-                {/* Action buttons */}
                 <View style={styles.actionBtns}>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: colors.successBg }]}
-                    onPress={() => openMovementSheet(selectedItem, 'add')}
-                  >
-                    <ArrowUpCircle size={20} color={colors.success} />
-                    <Text style={[styles.actionBtnText, { color: colors.success }]}>Add Stock</Text>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(16,185,129,0.15)' }]} onPress={() => openMovementSheet(selectedItem, 'add')}>
+                    <ArrowUpCircle size={20} color="#34D399" />
+                    <Text style={[styles.actionBtnText, { color: '#34D399' }]}>Add stock</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: colors.errorBg }]}
-                    onPress={() => openMovementSheet(selectedItem, 'remove')}
-                  >
-                    <ArrowDownCircle size={20} color={colors.error} />
-                    <Text style={[styles.actionBtnText, { color: colors.error }]}>Remove Stock</Text>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: 'rgba(239,68,68,0.15)' }]} onPress={() => openMovementSheet(selectedItem, 'remove')}>
+                    <ArrowDownCircle size={20} color="#FCA5A5" />
+                    <Text style={[styles.actionBtnText, { color: '#FCA5A5' }]}>Remove stock</Text>
                   </TouchableOpacity>
                 </View>
-
-                {/* QR Code button */}
-                <TouchableOpacity
-                  style={[styles.qrBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                  onPress={() => setShowQRModal(true)}
-                >
-                  <QrCode size={18} color={colors.textSecondary} />
-                  <Text style={[styles.qrBtnText, { color: colors.textSecondary }]}>Show Barcode / QR</Text>
+                <TouchableOpacity style={[styles.qrBtn, { borderColor: 'rgba(255,255,255,0.10)' }]} onPress={() => setShowQRModal(true)}>
+                  <QrCode size={18} color={TOKENS.text.secondary} />
+                  <Text style={[styles.qrBtnText, { color: TOKENS.text.secondary }]}>Show barcode / QR</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -692,84 +644,42 @@ export default function StockScreen() {
       <Modal visible={showMovementModal} animationType="slide" transparent>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+            <View style={styles.modalSheet}>
+              <LinearGradient colors={['#1a2e3b', '#0f1f2a']} style={StyleSheet.absoluteFillObject} />
               <View style={styles.modalHandle} />
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  {movementType === 'add' ? 'Add' : 'Remove'} Stock
-                </Text>
+                <Text style={styles.modalTitle}>{movementType === 'add' ? 'Add' : 'Remove'} stock</Text>
                 <TouchableOpacity onPress={() => { setShowMovementModal(false); setMoveQty(''); setMoveNotes(''); }}>
-                  <X size={20} color={colors.textSecondary} />
+                  <X size={20} color="rgba(255,255,255,0.50)" />
                 </TouchableOpacity>
               </View>
-
               {selectedItem && (
                 <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-                  <View style={[styles.moveItemBanner, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.moveItemName, { color: colors.text }]}>{selectedItem.name}</Text>
-                    <Text style={[styles.moveItemQty, { color: colors.textSecondary }]}>
-                      Current: {selectedItem.quantity} {selectedItem.unit || 'units'}
-                    </Text>
+                  <View style={[styles.moveItemBanner, { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' }]}>
+                    <Text style={styles.moveItemName}>{selectedItem.name}</Text>
+                    <Text style={[styles.moveItemQty, { color: TOKENS.text.secondary }]}>Current: {selectedItem.quantity} {selectedItem.unit || 'units'}</Text>
                   </View>
-
                   <View style={styles.movementToggle}>
-                    <TouchableOpacity
-                      style={[styles.toggleBtn, movementType === 'add' ? { backgroundColor: colors.successBg } : { backgroundColor: colors.surface, borderColor: colors.border }]}
-                      onPress={() => setMovementType('add')}
-                    >
-                      <ArrowUpCircle size={16} color={movementType === 'add' ? colors.success : colors.textTertiary} />
-                      <Text style={[styles.toggleBtnText, { color: movementType === 'add' ? colors.success : colors.textTertiary }]}>Add</Text>
+                    <TouchableOpacity style={[styles.toggleBtn, movementType === 'add' ? { backgroundColor: 'rgba(16,185,129,0.18)', borderColor: 'rgba(16,185,129,0.30)' } : { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' }]} onPress={() => setMovementType('add')}>
+                      <ArrowUpCircle size={16} color={movementType === 'add' ? '#34D399' : TOKENS.text.tertiary} />
+                      <Text style={[styles.toggleBtnText, { color: movementType === 'add' ? '#34D399' : TOKENS.text.tertiary }]}>Add</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.toggleBtn, movementType === 'remove' ? { backgroundColor: colors.errorBg } : { backgroundColor: colors.surface, borderColor: colors.border }]}
-                      onPress={() => setMovementType('remove')}
-                    >
-                      <ArrowDownCircle size={16} color={movementType === 'remove' ? colors.error : colors.textTertiary} />
-                      <Text style={[styles.toggleBtnText, { color: movementType === 'remove' ? colors.error : colors.textTertiary }]}>Remove</Text>
+                    <TouchableOpacity style={[styles.toggleBtn, movementType === 'remove' ? { backgroundColor: 'rgba(239,68,68,0.18)', borderColor: 'rgba(239,68,68,0.30)' } : { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' }]} onPress={() => setMovementType('remove')}>
+                      <ArrowDownCircle size={16} color={movementType === 'remove' ? '#FCA5A5' : TOKENS.text.tertiary} />
+                      <Text style={[styles.toggleBtnText, { color: movementType === 'remove' ? '#FCA5A5' : TOKENS.text.tertiary }]}>Remove</Text>
                     </TouchableOpacity>
                   </View>
-
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Quantity *</Text>
-                  <TextInput
-                    style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                    placeholder="Enter quantity"
-                    placeholderTextColor={colors.textTertiary}
-                    keyboardType="numeric"
-                    value={moveQty}
-                    onChangeText={setMoveQty}
-                  />
-
+                  <Text style={styles.inputLabel}>Quantity *</Text>
+                  <TextInput style={styles.input} placeholder="Enter quantity" placeholderTextColor={TOKENS.text.tertiary} keyboardType="numeric" value={moveQty} onChangeText={setMoveQty} />
                   {movementType === 'remove' && selectedItem && (
-                    <Text style={[styles.helperText, { color: colors.textTertiary }]}>
-                      Available: {selectedItem.quantity} {selectedItem.unit || 'units'}
-                    </Text>
+                    <Text style={[styles.helperText, { color: TOKENS.text.tertiary }]}>Available: {selectedItem.quantity} {selectedItem.unit || 'units'}</Text>
                   )}
-
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Notes / Reason</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                    placeholder="Optional notes..."
-                    placeholderTextColor={colors.textTertiary}
-                    multiline
-                    numberOfLines={3}
-                    value={moveNotes}
-                    onChangeText={setMoveNotes}
-                  />
+                  <Text style={styles.inputLabel}>Notes / reason</Text>
+                  <TextInput style={[styles.input, styles.textArea]} placeholder="Optional notes..." placeholderTextColor={TOKENS.text.tertiary} multiline numberOfLines={3} value={moveNotes} onChangeText={setMoveNotes} />
                 </ScrollView>
               )}
-
-              <TouchableOpacity
-                style={[styles.submitBtn, { backgroundColor: movementType === 'add' ? colors.success : colors.error }, isSubmittingMovement && { opacity: 0.6 }]}
-                onPress={handleRecordMovement}
-                disabled={isSubmittingMovement}
-              >
-                {isSubmittingMovement ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitBtnText}>
-                    {movementType === 'add' ? 'Add Stock' : 'Remove Stock'}
-                  </Text>
-                )}
+              <TouchableOpacity style={[styles.submitBtn, { backgroundColor: movementType === 'add' ? '#10B981' : '#EF4444' }, isSubmittingMovement && { opacity: 0.6 }]} onPress={handleRecordMovement} disabled={isSubmittingMovement}>
+                {isSubmittingMovement ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.submitBtnText}>{movementType === 'add' ? 'Add stock' : 'Remove stock'}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -779,28 +689,74 @@ export default function StockScreen() {
       {/* ── QR Modal ── */}
       <Modal visible={showQRModal} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
-          <View style={[styles.qrModal, { backgroundColor: colors.card }]}>
+          <View style={styles.qrModal}>
+            <LinearGradient colors={['#1a2e3b', '#0f1f2a']} style={StyleSheet.absoluteFillObject} />
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Item QR / Barcode</Text>
+              <Text style={styles.modalTitle}>Item QR / Barcode</Text>
               <TouchableOpacity onPress={() => setShowQRModal(false)}>
-                <X size={20} color={colors.textSecondary} />
+                <X size={20} color="rgba(255,255,255,0.50)" />
               </TouchableOpacity>
             </View>
             {selectedItem && (
               <View style={styles.qrContent}>
-                <View style={[styles.qrPlaceholder, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <QrCode size={64} color={colors.textTertiary} />
-                  <Text style={[styles.qrItemCode, { color: colors.textSecondary }]}>{selectedItem.item_code || selectedItem.id}</Text>
+                <View style={styles.qrPlaceholder}>
+                  <QrCode size={64} color="rgba(255,255,255,0.20)" />
+                  <Text style={[styles.qrItemCode, { color: TOKENS.text.tertiary }]}>{selectedItem.item_code || selectedItem.id}</Text>
                 </View>
-                <Text style={[styles.qrName, { color: colors.text }]}>{selectedItem.name}</Text>
-                <Text style={[styles.qrCategory, { color: colors.textSecondary }]}>{selectedItem.category || 'Uncategorized'}</Text>
+                <Text style={[styles.qrName, { color: TOKENS.text.primary }]}>{selectedItem.name}</Text>
+                <Text style={[styles.qrCategory, { color: TOKENS.text.secondary }]}>{selectedItem.category || 'Uncategorized'}</Text>
               </View>
             )}
           </View>
         </View>
       </Modal>
+      <MobileFooter activeTab="assets" />
     </View>
+  );
+}
+
+// ─── Tinted Glass Card Sub-component ──────────────────────────────────────────
+
+function TintedGlassCard({
+  label,
+  value,
+  icon,
+  tint,
+  isCurrency,
+  delay = 0,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  tint: 'blue' | 'green' | 'amber' | 'rose';
+  isCurrency?: boolean;
+  delay?: number;
+}) {
+  const tintDef = TOKENS.tint[tint];
+
+  return (
+    <Animated.View entering={FadeInUp.delay(delay).duration(500)} style={{ flex: 1 }}>
+      <View style={[styles.tintedCard, TOKENS.shadow.card]}>
+        <SafeBlurView intensity={40} style={StyleSheet.absoluteFillObject} tint="dark" />
+        <LinearGradient
+          colors={[tintDef.start, TOKENS.glass.bg, tintDef.end, 'rgba(0,0,0,0.15)']}
+          locations={[0, 0.3, 0.7, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <View style={styles.tintedCardInner}>
+          <View style={styles.tintedCardHeader}>
+            <View style={[styles.tintedIconWrap, { backgroundColor: 'rgba(255,255,255,0.10)' }]}>
+              {icon}
+            </View>
+            <Text style={styles.tintedLabel}>{label}</Text>
+          </View>
+          <Text style={[styles.tintedValue, isCurrency && { fontSize: 20 }]} numberOfLines={1}>
+            {value}
+          </Text>
+        </View>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -809,94 +765,403 @@ export default function StockScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  loadingText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
+  loadingText: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: TOKENS.text.secondary },
 
-  headerSection: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { fontSize: 24, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.3 },
-  headerActions: { flexDirection: 'row', gap: 8 },
-  headerBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  // Header
+  headerWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
+  headerTop: { flexDirection: 'row', alignItems: 'center' },
+  headerTitle: { fontSize: 26, fontFamily: 'Poppins-Bold', color: TOKENS.text.primary, letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: TOKENS.text.secondary, marginTop: 2 },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: TOKENS.radius.btn,
+    backgroundColor: TOKENS.glass.bg,
+    borderWidth: 1,
+    borderColor: TOKENS.glass.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
-  kpiRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginTop: -12, marginBottom: 16 },
-  kpiCard: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 10, alignItems: 'center', gap: 2 },
-  kpiValue: { fontSize: 20, fontFamily: 'Poppins-Bold', marginTop: 2 },
-  kpiLabel: { fontSize: 9, fontFamily: 'Urbanist-Medium', textTransform: 'uppercase', letterSpacing: 0.5 },
+  // KPI Tinted Glass Cards
+  kpiWrap: { paddingHorizontal: 20, gap: 10, marginBottom: 18 },
+  kpiRow: { flexDirection: 'row', gap: 10 },
+  tintedCard: {
+    borderRadius: TOKENS.radius.card,
+    borderWidth: 1,
+    borderColor: TOKENS.glass.border,
+    overflow: 'hidden',
+    minHeight: 110,
+  },
+  tintedCardInner: { padding: 14, position: 'relative', zIndex: 1 },
+  tintedCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  tintedIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tintedLabel: {
+    fontFamily: 'Urbanist-Bold',
+    fontSize: 11,
+    color: TOKENS.text.secondary,
+    letterSpacing: 0.8,
+    textTransform: 'capitalize',
+  },
+  tintedValue: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 28,
+    color: TOKENS.text.primary,
+    letterSpacing: -0.5,
+  },
 
-  searchRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 8 },
-  searchContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: 'Urbanist-Regular' },
-  filterBtn: { width: 42, height: 42, borderRadius: 12, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  // Search
+  searchWrap: { paddingHorizontal: 20, marginBottom: 14 },
+  searchRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  searchInputWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: TOKENS.radius.card,
+    borderWidth: 1,
+    borderColor: TOKENS.glass.border,
+    backgroundColor: TOKENS.glass.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.primary,
+  },
+  filterBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: TOKENS.radius.card,
+    borderWidth: 1,
+    borderColor: TOKENS.glass.border,
+    backgroundColor: TOKENS.glass.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chipScroll: { paddingRight: 20, gap: 8 },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: TOKENS.radius.chip,
+    backgroundColor: TOKENS.glass.bg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  categoryChipActive: {
+    backgroundColor: 'rgba(59,130,246,0.20)',
+    borderColor: 'rgba(59,130,246,0.40)',
+  },
+  categoryChipText: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Medium',
+    color: TOKENS.text.secondary,
+  },
+  categoryChipTextActive: {
+    color: '#FFFFFF',
+    fontFamily: 'Urbanist-Bold',
+  },
+  activeFilter: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  activeFilterText: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: TOKENS.text.secondary },
 
-  categoryDropdown: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, marginHorizontal: 16, borderRadius: 12, borderWidth: 1, gap: 8, marginBottom: 8 },
-  categoryChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: 'transparent' },
-  categoryChipText: { fontSize: 12, fontFamily: 'Urbanist-Medium' },
-
-  filterIndicator: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 6, marginBottom: 4 },
-  filterIndicatorText: { fontSize: 12, fontFamily: 'Urbanist-Medium' },
-
-  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
+  // List
+  listContent: { paddingHorizontal: 20, paddingBottom: 120 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
-  emptyTitle: { fontSize: 16, fontFamily: 'Poppins-Bold' },
-  emptySubtitle: { fontSize: 13, fontFamily: 'Urbanist-Regular', textAlign: 'center' },
+  emptyTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', color: TOKENS.text.secondary },
+  emptySubtitle: { fontSize: 13, fontFamily: 'Urbanist-Regular', color: TOKENS.text.tertiary, textAlign: 'center' },
 
-  itemCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 10, gap: 12 },
-  itemLeft: {},
-  itemIconWrap: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  itemCard: {
+    borderRadius: TOKENS.radius.card,
+    borderLeftWidth: 3,
+    overflow: 'hidden',
+    marginBottom: 10,
+    ...TOKENS.shadow.card,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 12,
+  },
+  itemIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   itemContent: { flex: 1 },
-  itemName: { fontSize: 14, fontFamily: 'Poppins-Bold', marginBottom: 2 },
-  itemMeta: { fontSize: 11, fontFamily: 'Urbanist-Regular' },
-  itemRight: { alignItems: 'flex-end' },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  qtyValue: { fontSize: 20, fontFamily: 'Poppins-Bold' },
-  stockBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  stockBadgeText: { fontSize: 8, fontFamily: 'Urbanist-Bold', letterSpacing: 0.5 },
-  itemUnit: { fontSize: 10, fontFamily: 'Urbanist-Regular', marginTop: 1 },
-  itemMin: { fontSize: 10, fontFamily: 'Urbanist-Regular' },
+  itemName: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
+    marginBottom: 3,
+  },
+  itemMeta: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.tertiary,
+  },
+  itemRight: { alignItems: 'flex-end', marginRight: 4 },
+  qtyValue: {
+    fontSize: 22,
+    fontFamily: 'Poppins-Bold',
+  },
+  itemUnit: {
+    fontSize: 10,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.tertiary,
+    marginTop: 1,
+  },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingBottom: 34 },
-  modalHandle: { width: 36, height: 4, backgroundColor: '#D1D5DB', borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 16 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
+  // Modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.60)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: TOKENS.radius.sheet,
+    borderTopRightRadius: TOKENS.radius.sheet,
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+    overflow: 'hidden',
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
+  },
   modalBody: { maxHeight: 400 },
-  inputLabel: { fontSize: 11, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 12 },
-  input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: 'Urbanist-Regular' },
+  inputLabel: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-Bold',
+    textTransform: 'capitalize',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    marginTop: 12,
+    color: TOKENS.text.secondary,
+  },
+  input: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: TOKENS.glass.border,
+    backgroundColor: TOKENS.glass.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.primary,
+  },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
   rowInputs: { flexDirection: 'row', gap: 12 },
   halfInput: { flex: 1 },
-  submitBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
-  submitBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins-Bold' },
+  submitBtn: {
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 20,
+    backgroundColor: '#3B82F6',
+  },
+  submitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+  },
 
-  detailSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingBottom: 34 },
+  // Detail Sheet
+  detailSheet: {
+    borderTopLeftRadius: TOKENS.radius.sheet,
+    borderTopRightRadius: TOKENS.radius.sheet,
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+    overflow: 'hidden',
+  },
   detailHeader: { marginBottom: 16 },
-  detailTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  detailItemName: { fontSize: 20, fontFamily: 'Poppins-Bold', flex: 1, marginRight: 16 },
-  detailMeta: { fontSize: 13, fontFamily: 'Urbanist-Regular', marginTop: 4 },
-  detailStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  detailStatCard: { flex: 1, borderRadius: 10, padding: 10, alignItems: 'center' },
-  detailStatValue: { fontSize: 16, fontFamily: 'Poppins-Bold' },
-  detailStatLabel: { fontSize: 9, fontFamily: 'Urbanist-Medium', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 2 },
-  valueBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderRadius: 10, padding: 12, marginBottom: 16 },
-  valueBannerLabel: { fontSize: 12, fontFamily: 'Urbanist-Medium' },
-  valueBannerValue: { fontSize: 18, fontFamily: 'Poppins-Bold' },
+  detailTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  detailItemName: {
+    fontSize: 20,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
+    flex: 1,
+    marginRight: 16,
+  },
+  detailMeta: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.tertiary,
+    marginTop: 4,
+  },
+  detailStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  detailStatCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  detailStatValue: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
+  },
+  detailStatLabel: {
+    fontSize: 9,
+    fontFamily: 'Urbanist-Medium',
+    textTransform: 'capitalize',
+    letterSpacing: 0.3,
+    color: TOKENS.text.tertiary,
+    marginTop: 3,
+  },
+  valueBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+  },
+  valueBannerLabel: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Medium',
+  },
+  valueBannerValue: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+  },
   actionBtns: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 14 },
-  actionBtnText: { fontSize: 14, fontFamily: 'Poppins-Bold' },
-  qrBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1, paddingVertical: 12 },
-  qrBtnText: { fontSize: 13, fontFamily: 'Urbanist-Medium' },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 16,
+  },
+  actionBtnText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+  },
+  qrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  qrBtnText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Medium',
+  },
 
-  moveItemBanner: { borderRadius: 10, padding: 12, marginBottom: 16 },
-  moveItemName: { fontSize: 16, fontFamily: 'Poppins-Bold' },
-  moveItemQty: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  // Movement
+  moveItemBanner: {
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  moveItemName: {
+    fontSize: 16,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
+  },
+  moveItemQty: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 2,
+  },
   movementToggle: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, paddingVertical: 12, borderWidth: 1, borderColor: 'transparent' },
-  toggleBtnText: { fontSize: 14, fontFamily: 'Poppins-Bold' },
-  helperText: { fontSize: 11, fontFamily: 'Urbanist-Regular', marginTop: 4, marginBottom: 8 },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+  },
+  toggleBtnText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+  },
+  helperText: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-Regular',
+    marginTop: 4,
+    marginBottom: 8,
+  },
 
-  qrModal: { borderRadius: 20, paddingHorizontal: 20, paddingBottom: 34, alignItems: 'center' },
+  // QR Modal
+  qrModal: {
+    borderRadius: TOKENS.radius.sheet,
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+    alignItems: 'center',
+    margin: 24,
+    overflow: 'hidden',
+  },
   qrContent: { alignItems: 'center', paddingVertical: 20 },
-  qrPlaceholder: { width: 160, height: 160, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  qrItemCode: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 8, letterSpacing: 1 },
-  qrName: { fontSize: 16, fontFamily: 'Poppins-Bold' },
-  qrCategory: { fontSize: 12, fontFamily: 'Urbanist-Regular', marginTop: 4 },
+  qrPlaceholder: {
+    width: 160,
+    height: 160,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  qrItemCode: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 10,
+    letterSpacing: 1,
+  },
+  qrName: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    marginTop: 4,
+  },
+  qrCategory: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Regular',
+    marginTop: 4,
+  },
 });

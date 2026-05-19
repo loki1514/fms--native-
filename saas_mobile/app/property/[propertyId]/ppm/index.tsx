@@ -15,13 +15,19 @@ import {
   Platform,
   Dimensions,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
 import { Calendar, DateData } from 'react-native-calendars';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import { LinearGradient } from 'expo-linear-gradient';
+import { mobileServices } from '@/utils/api/mobileServices';
+import { Ionicons } from '@expo/vector-icons';
+import MobileFooter from '@/components/shared/MobileFooter';
+
 import {
   Wrench,
   CalendarDays,
@@ -119,8 +125,10 @@ type PPMTab = 'calendar' | 'schedules' | 'amc';
 
 export default function PPMScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const router = useRouter();
   const { theme } = useTheme();
-  const { membership } = useAuth();
+  const isDark = theme === 'dark';
+  const { user, membership } = useAuth();
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
@@ -280,18 +288,27 @@ export default function PPMScreen() {
   };
 
   const handleMarkComplete = async (schedule: PPMSchedule) => {
+    if (!user) {
+      Alert.alert('Error', 'User session not found');
+      return;
+    }
     try {
-      const { error } = await (supabase.from('ppm_schedules') as any)
-        .update({ status: 'completed', last_completed: new Date().toISOString(), next_due: getNextDueDate(schedule.schedule_type) })
-        .eq('id', schedule.id);
-      if (error) throw error;
-      setShowScheduleDetail(false);
-      await fetchSchedules();
-      Alert.alert('Done', 'PPM task marked as complete');
+      const res = await mobileServices.updatePpmStatus({
+        id: schedule.id,
+        status: 'done',
+        done_date: new Date().toISOString().split('T')[0],
+        remark: 'Completed via Autopilot Mobile'
+      }, user.id);
+      if (res.success) {
+        setShowScheduleDetail(false);
+        await fetchSchedules();
+        Alert.alert('Done', 'PPM task marked as complete');
+      }
     } catch (err: any) {
       Alert.alert('Error', err.message);
     }
   };
+
 
   const resetForm = () => {
     setFormAssetName('');
@@ -315,9 +332,15 @@ export default function PPMScreen() {
   // ─── Render ─────────────────────────────────────────────────────────────────
   const bgColor = theme === 'light' ? '#FBF8F4' : colors.background;
 
+
+
   if (isLoading && schedules.length === 0 && contracts.length === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <LinearGradient 
+          colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
+          style={StyleSheet.absoluteFillObject} 
+        />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading PPM...</Text>
@@ -327,36 +350,61 @@ export default function PPMScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: bgColor, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* ── Header ── */}
-      <View style={[styles.headerSection, { backgroundColor: '#708F96' }]}>
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}>
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
+      />
+      <LinearGradient 
+        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
+        style={StyleSheet.absoluteFillObject} 
+      />
+      {/* Modern Header */}
+      <SafeBlurView
+        intensity={80}
+        tint="dark"
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
+      >
         <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>Preventive Maintenance</Text>
-          {isAdmin && (
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.headerTitleWrap}>
+            <Text style={[styles.headerTitleMain, { color: '#FFFFFF' }]}>PPM</Text>
+            <Text style={[styles.headerSubtitleMain, { color: '#94A3B8' }]}>
+              Preventive Maintenance
+            </Text>
+          </View>
+          {isAdmin ? (
             <TouchableOpacity
-              style={[styles.headerBtn, { backgroundColor: 'rgba(255,255,255,0.25)' }]}
+              style={[styles.headerAddBtn, { backgroundColor: colors.primary }]}
               onPress={() => setShowAddSchedule(true)}
+              activeOpacity={0.8}
             >
               <Plus size={20} color="#FFFFFF" />
             </TouchableOpacity>
+          ) : (
+            <View style={{ width: 40 }} />
           )}
         </View>
 
+
         {/* Tab bar */}
-        <View style={styles.tabBar}>
+        <View style={[styles.tabBar, { marginTop: 12 }]}>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'calendar' ? { backgroundColor: 'rgba(255,255,255,0.25)' } : null]}
+            style={[styles.tab, activeTab === 'calendar' ? { backgroundColor: colors.primary } : { backgroundColor: 'rgba(255,255,255,0.1)' }]}
             onPress={() => setActiveTab('calendar')}
           >
-            <CalendarDays size={14} color="rgba(255,255,255,0.8)" />
-            <Text style={[styles.tabText, { color: 'rgba(255,255,255,0.8)' }]}>Calendar</Text>
+            <CalendarDays size={14} color={activeTab === 'calendar' ? '#fff' : colors.textSecondary} />
+            <Text style={[styles.tabText, { color: activeTab === 'calendar' ? '#fff' : colors.textSecondary }]}>Calendar</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'schedules' ? { backgroundColor: 'rgba(255,255,255,0.25)' } : null]}
+            style={[styles.tab, activeTab === 'schedules' ? { backgroundColor: colors.primary } : { backgroundColor: 'rgba(255,255,255,0.1)' }]}
             onPress={() => setActiveTab('schedules')}
           >
-            <Wrench size={14} color="rgba(255,255,255,0.8)" />
-            <Text style={[styles.tabText, { color: 'rgba(255,255,255,0.8)' }]}>Schedules</Text>
+            <Wrench size={14} color={activeTab === 'schedules' ? '#fff' : colors.textSecondary} />
+            <Text style={[styles.tabText, { color: activeTab === 'schedules' ? '#fff' : colors.textSecondary }]}>Schedules</Text>
             {overdueSchedules.length > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{overdueSchedules.length}</Text>
@@ -364,11 +412,11 @@ export default function PPMScreen() {
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'amc' ? { backgroundColor: 'rgba(255,255,255,0.25)' } : null]}
+            style={[styles.tab, activeTab === 'amc' ? { backgroundColor: colors.primary } : { backgroundColor: 'rgba(255,255,255,0.1)' }]}
             onPress={() => setActiveTab('amc')}
           >
-            <FileText size={14} color="rgba(255,255,255,0.8)" />
-            <Text style={[styles.tabText, { color: 'rgba(255,255,255,0.8)' }]}>AMC</Text>
+            <FileText size={14} color={activeTab === 'amc' ? '#fff' : colors.textSecondary} />
+            <Text style={[styles.tabText, { color: activeTab === 'amc' ? '#fff' : colors.textSecondary }]}>AMC</Text>
             {expiringContracts.length > 0 && (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{expiringContracts.length}</Text>
@@ -376,7 +424,8 @@ export default function PPMScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeBlurView>
+
 
       {/* ── Calendar Tab ── */}
       {activeTab === 'calendar' && (
@@ -385,15 +434,20 @@ export default function PPMScreen() {
           contentContainerStyle={styles.calendarContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.calendarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.calendarCard, { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1 }]}>
             <Calendar
               onDayPress={handleDayPress}
               markingType="multi-dot"
               markedDates={markedDates}
-              theme={calendarTheme as any}
+              theme={{
+                ...calendarTheme,
+                backgroundColor: 'transparent',
+                calendarBackground: 'transparent',
+              } as any}
               style={styles.calendar}
             />
           </View>
+
 
           {/* Legend */}
           <View style={styles.legendRow}>
@@ -514,7 +568,7 @@ export default function PPMScreen() {
 
             return (
               <TouchableOpacity
-                style={[styles.scheduleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[styles.scheduleCard, { backgroundColor: 'rgba(255, 255, 255, 0.08)', borderColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1 }]}
                 onPress={() => handleSchedulePress(schedule)}
               >
                 <View style={styles.scheduleCardLeft}>
@@ -574,7 +628,7 @@ export default function PPMScreen() {
             const statusBg = isExpired ? colors.errorBg : isExpiringSoon ? colors.warningBg : colors.successBg;
 
             return (
-              <TouchableOpacity style={[styles.contractCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <TouchableOpacity style={[styles.contractCard, { backgroundColor: 'rgba(255, 255, 255, 0.08)', borderColor: 'rgba(255, 255, 255, 0.15)', borderWidth: 1 }]}>
                 <View style={styles.contractHeader}>
                   <View style={[styles.contractIcon, { backgroundColor: statusBg }]}>
                     <Building2 size={18} color={statusColor} />
@@ -742,6 +796,8 @@ export default function PPMScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      {/* Mobile Footer */}
+      <MobileFooter activeTab="more" />
     </View>
   );
 }
@@ -754,7 +810,48 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
 
   headerSection: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  header: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+    zIndex: 10,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerTitleMain: {
+    fontSize: 20,
+    fontFamily: 'Poppins-Bold',
+    letterSpacing: -0.5,
+  },
+  headerSubtitleMain: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 2,
+  },
+  headerAddBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerTitle: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.3 },
   headerBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
 

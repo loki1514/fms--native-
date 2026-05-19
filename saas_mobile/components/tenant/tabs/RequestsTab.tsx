@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Platform } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { TenantTicketCard } from '../TenantTicketCard';
@@ -25,6 +25,9 @@ interface RequestsTabProps {
 }
 
 const FILTERS = ['All', 'Open', 'In Progress', 'Resolved'];
+
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 
 const FILTER_COLORS: Record<string, string> = {
   All: '#708F96',
@@ -142,14 +145,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: fontDisplay,
   },
   subtitle: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
     fontWeight: '500',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
   createBtn: {
     backgroundColor: 'rgba(112,143,150,0.85)',
@@ -166,7 +169,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   filterRow: {
     flexDirection: 'row',
@@ -192,7 +195,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.50)',
     fontWeight: '500',
-    fontFamily: 'Urbanist-SemiBold',
+    fontFamily: fontSans,
   },
   chipTextActive: {
     color: '#fff',
@@ -229,12 +232,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: fontDisplay,
   },
   emptySubtext: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.45)',
     textAlign: 'center',
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: fontSans,
   },
 });

@@ -47,7 +47,8 @@ import Svg, {
 } from 'react-native-svg';
 import { useAuth } from '@/hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
-import { AuroraBackground } from '@/components/shared/AuroraBackground';
+import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import { createClient } from '@/utils/supabase/client';
 import { TenantGlassHeader } from '@/components/tenant/TenantGlassHeader';
 import { TenantStatsCard } from '@/components/tenant/TenantStatsCard';
@@ -1185,7 +1186,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-      {weather && <AuroraBackground colors={weather.auroraColors} />}
+      {weather && <WeatherBackground condition={manualCondition || weather.condition} />}
       <View style={styles.mainContainer}>
         <View style={styles.contentArea}>
           {/* Top Bar */}
@@ -1213,6 +1214,14 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
               />
             </View>
             <View style={styles.topBarRight}>
+              {weather && (
+                <WeatherBadge
+                  condition={manualCondition || weather.condition}
+                  temperature={weather.temperature}
+                  locationName={weather.locationName}
+                  onChange={setManualCondition}
+                />
+              )}
               <TouchableOpacity style={styles.topBarButton}>
                 <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.60)" />
                 <View style={styles.notificationDot} />

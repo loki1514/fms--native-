@@ -12,6 +12,7 @@ import {
   StatusBar,
   Alert,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,9 +34,11 @@ import {
 import { useRouter } from 'expo-router';
 import { createClient } from '@/utils/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useWeather } from '@/hooks/useWeather';
 import { useGamification } from '@/hooks/mst/useGamification';
 
-// WeatherBackground removed — using static sunny gradient instead
+import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { LevelBadge } from '@/components/gamification/LevelBadge';
 import { XPBar } from '@/components/gamification/XPBar';
@@ -57,6 +60,9 @@ import { useCassandraStore } from '@/stores/cassandraStore';
 import FloatingMenu from '@/components/ui/FloatingMenu';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
+const fontDisplay = Platform.select({ web: '"SF Pro Display", system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -396,6 +402,7 @@ function TicketCard({ ticket }: { ticket: Ticket }) {
 export default function LovableMstDashboard({ propertyId }: Props) {
   const insets = useSafeAreaInsets();
   const { user, signOut, membership } = useAuth();
+  const { weather } = useWeather();
   const router = useRouter();
 
   const supabase = useMemo(() => createClient(), []);
@@ -413,6 +420,7 @@ export default function LovableMstDashboard({ propertyId }: Props) {
   const [showChat, setShowChat] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
+  const [manualCondition, setManualCondition] = useState<import('@/hooks/useWeather').WeatherCondition | null>(null);
 
   // Gamification
   const { leaderboard: gamifyLb, myStats, loading: gamifyLoading } = useGamification(propertyId);
@@ -814,8 +822,9 @@ export default function LovableMstDashboard({ propertyId }: Props) {
   if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="light-content" />
-        <LinearGradient colors={['#F2B134', '#D96B2B', '#4A1A1A']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFillObject} />
+        <StatusBar barStyle="light-content" translucent={true} backgroundColor="transparent" />
+        <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
+        {weather && <WeatherBackground condition={manualCondition || weather.condition} />}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#8B5CF6" />
           <Text style={styles.loadingText}>Loading dashboard...</Text>
@@ -826,9 +835,9 @@ export default function LovableMstDashboard({ propertyId }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#F2B134', '#D96B2B', '#4A1A1A']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFillObject} />
-      {/* Sunny orange gradient background — no weather overlay */}
+      <StatusBar barStyle="light-content" translucent={true} backgroundColor="transparent" />
+      <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
+      {weather && <WeatherBackground condition={manualCondition || weather.condition} />}
 
       {/* Floating Menu */}
       <FloatingMenu
@@ -882,6 +891,14 @@ export default function LovableMstDashboard({ propertyId }: Props) {
             <Text style={styles.greetingTime}>Good Morning</Text>
           </View>
 
+          {weather && (
+            <WeatherBadge
+              condition={manualCondition || weather.condition}
+              temperature={weather.temperature}
+              locationName={weather.locationName}
+              onChange={setManualCondition}
+            />
+          )}
           <TouchableOpacity style={styles.notifBtn}>
             <Ionicons name="notifications" size={20} color="rgba(255,255,255,0.80)" />
             <View style={styles.notifDot} />
@@ -966,6 +983,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: 'rgba(255,255,255,0.55)',
+    fontFamily: fontSans,
   },
 
   // Top bar
@@ -1011,11 +1029,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+    fontFamily: fontSans,
   },
   greetingTime: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.60)',
     marginTop: 1,
+    fontFamily: fontSans,
   },
   notifBtn: {
     width: 44,
@@ -1055,6 +1075,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     lineHeight: 34,
     letterSpacing: -0.5,
+    fontFamily: fontDisplay,
   },
 
   // Gamification strip
@@ -1084,6 +1105,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+    fontFamily: fontSans,
   },
   gamifyChips: {
     flexDirection: 'row',
@@ -1100,6 +1122,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: '#FDE68A',
+    fontFamily: fontSans,
   },
   gamifyXp: {
     marginTop: 8,
@@ -1136,6 +1159,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.80)',
+    fontFamily: fontSans,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -1174,6 +1198,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -1,
+    fontFamily: fontDisplay,
   },
   statTileLabel: {
     marginTop: 6,
@@ -1182,6 +1207,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.70)',
     letterSpacing: 2,
     textTransform: 'uppercase',
+    fontFamily: fontSans,
   },
 
   // Section header
@@ -1198,12 +1224,14 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.60)',
     letterSpacing: 3,
     textTransform: 'uppercase',
+    fontFamily: fontSans,
   },
   sectionHeaderHint: {
     fontSize: 10,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.40)',
     letterSpacing: 0.5,
+    fontFamily: fontSans,
   },
 
   // Ticket card (for stack)
@@ -1245,11 +1273,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+    fontFamily: fontSans,
   },
   ticketDate: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.60)',
     marginTop: 2,
+    fontFamily: fontSans,
   },
   ticketHeaderActions: {
     flexDirection: 'row',
@@ -1279,6 +1309,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1,
     textTransform: 'uppercase',
+    fontFamily: fontSans,
   },
   ticketTitle: {
     marginTop: 12,
@@ -1286,6 +1317,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     lineHeight: 22,
+    fontFamily: fontSans,
   },
   ticketAssignee: {
     flexDirection: 'row',
@@ -1309,6 +1341,7 @@ const styles = StyleSheet.create({
   ticketAssigneeName: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.80)',
+    fontFamily: fontSans,
   },
   ticketFooter: {
     flexDirection: 'row',
@@ -1408,6 +1441,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.60)',
     letterSpacing: 2,
     textTransform: 'uppercase',
+    fontFamily: fontSans,
   },
   countdownBlocks: {
     flexDirection: 'row',
@@ -1426,6 +1460,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
+    fontFamily: fontDisplay,
   },
   countdownColon: {
     fontSize: 24,
@@ -1436,6 +1471,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 12,
     color: 'rgba(255,255,255,0.55)',
+    fontFamily: fontSans,
   },
 
   // Live flow
@@ -1496,17 +1532,20 @@ const styles = StyleSheet.create({
     color: '#FDE68A',
     letterSpacing: 1.8,
     textTransform: 'uppercase',
+    fontFamily: fontSans,
   },
   championName: {
     marginTop: 2,
     fontSize: 18,
     fontWeight: '800',
     color: '#FFFFFF',
+    fontFamily: fontDisplay,
   },
   championMeta: {
     marginTop: 4,
     fontSize: 12,
     color: 'rgba(255,255,255,0.60)',
+    fontFamily: fontSans,
   },
   flowGrid: {
     flexDirection: 'row',
@@ -1536,6 +1575,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1.6,
     textTransform: 'uppercase',
+    fontFamily: fontSans,
   },
   flowTileName: {
     marginTop: 4,
@@ -1543,6 +1583,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     lineHeight: 20,
+    fontFamily: fontSans,
   },
   flowTileAvatars: {
     flexDirection: 'row',
@@ -1583,6 +1624,7 @@ const styles = StyleSheet.create({
   flowTileStatusText: {
     fontSize: 10,
     color: 'rgba(255,255,255,0.55)',
+    fontFamily: fontSans,
   },
 
   // Profile
@@ -1634,11 +1676,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: '#FFFFFF',
+    fontFamily: fontDisplay,
   },
   identityLevelName: {
     marginTop: 2,
     fontSize: 12,
     color: 'rgba(255,255,255,0.60)',
+    fontFamily: fontSans,
   },
   identityChips: {
     flexDirection: 'row',
@@ -1656,6 +1700,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 11,
     color: 'rgba(255,255,255,0.55)',
+    fontFamily: fontSans,
   },
   profileStatsGrid: {
     flexDirection: 'row',
@@ -1684,6 +1729,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#FFFFFF',
+    fontFamily: fontDisplay,
   },
   profileStatLabel: {
     marginTop: 4,
@@ -1692,6 +1738,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1.8,
     textTransform: 'uppercase',
+    fontFamily: fontSans,
   },
   achievementsGrid: {
     flexDirection: 'row',
@@ -1728,6 +1775,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.55)',
+    fontFamily: fontSans,
   },
   tabButtonLabelActive: {
     color: '#FFFFFF',
@@ -1764,6 +1812,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 1,
+    fontFamily: fontSans,
   },
   askCassandraOrb: {
     width: 44,

@@ -149,6 +149,10 @@ export default function TicketListItem({
           )}
         </View>
 
+        {photoUrl && (
+          <Image source={{ uri: photoUrl }} style={styles.ticketPhoto} />
+        )}
+
         {/* Chevron */}
         <View style={styles.chevron}>
           <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
@@ -331,5 +335,13 @@ const styles = StyleSheet.create({
   chevron: {
     justifyContent: 'center',
     paddingRight: 12,
+  },
+  ticketPhoto: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    marginVertical: 12,
+    marginRight: 8,
+    alignSelf: 'center',
   },
 });

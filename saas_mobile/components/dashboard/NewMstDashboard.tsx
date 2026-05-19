@@ -51,7 +51,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
-import { AuroraBackground } from '@/components/shared/AuroraBackground';
+import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import ShareModal from '@/components/shared/ShareModal';
 import { useGamification, LeaderboardEntry as GamificationEntry } from '@/hooks/mst/useGamification';
 import { createClient } from '@/utils/supabase/client';
@@ -672,7 +673,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
     return (
       <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
         <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-        {weather && <AuroraBackground colors={weather.auroraColors} />}
+        {weather && <WeatherBackground condition={manualCondition || weather.condition} />}
         <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading dashboard...</Text>
@@ -684,7 +685,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: isDark ? '#0F172A' : '#F8FAFC' }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-      {weather && <AuroraBackground colors={weather.auroraColors} />}
+      {weather && <WeatherBackground condition={manualCondition || weather.condition} />}
       <View style={styles.mainContainer}>
         {/* Main Content */}
         <View style={styles.contentArea}>
@@ -709,6 +710,14 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
               />
             </View>
             <View style={styles.topBarRight}>
+              {weather && (
+                <WeatherBadge
+                  condition={manualCondition || weather.condition}
+                  temperature={weather.temperature}
+                  locationName={weather.locationName}
+                  onChange={setManualCondition}
+                />
+              )}
               <TouchableOpacity style={styles.topBarButton}>
                 <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.60)" />
                 <View style={styles.notificationDot} />
