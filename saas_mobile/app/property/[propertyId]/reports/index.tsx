@@ -127,12 +127,11 @@ const styles = StyleSheet.create({
   header: { marginBottom: 24 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
   backBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
-  title: { fontSize: 28, fontFamily: 'Poppins-Bold', marginBottom: 4 },
-  subtitle: { fontSize: 14, fontFamily: 'Urbanist-Regular' },
+  title: { fontSize: 28,  marginBottom: 4 },
+  subtitle: { fontSize: 14, },
   section: { gap: 12 },
   sectionTitle: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 10,
+        fontSize: 10,
     letterSpacing: 1,
     marginBottom: 4,
   },
@@ -153,8 +152,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   cardContent: { flex: 1 },
-  cardTitle: { fontFamily: 'Poppins-Bold', fontSize: 15, marginBottom: 2 },
-  cardDesc: { fontFamily: 'Urbanist-Regular', fontSize: 12 },
+  cardTitle: {  fontSize: 15, marginBottom: 2 },
+  cardDesc: {  fontSize: 12 },
   infoBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -164,5 +163,5 @@ const styles = StyleSheet.create({
     padding: 14,
     marginTop: 20,
   },
-  infoText: { flex: 1, fontFamily: 'Urbanist-Regular', fontSize: 12, lineHeight: 18 },
+  infoText: { flex: 1,  fontSize: 12, lineHeight: 18 },
 });

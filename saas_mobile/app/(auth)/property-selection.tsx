@@ -28,6 +28,7 @@ const ROLE_LABELS: Record<string, string> = {
   staff: 'Staff',
   mst: 'MST',
   vendor: 'Vendor',
+  procurement: 'Procurement',
 };
 
 const ROLE_ICONS: Record<string, string> = {
@@ -37,6 +38,7 @@ const ROLE_ICONS: Record<string, string> = {
   staff: 'people',
   mst: 'construct',
   vendor: 'briefcase',
+  procurement: 'cart',
 };
 
 export default function PropertySelectionScreen() {
@@ -251,15 +253,13 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     textAlign: 'center',
     marginBottom: 6,
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
   subtitle: {
     fontSize: 14,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   listContainer: {
     gap: 12,
     marginBottom: 20,
@@ -284,12 +284,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 2,
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
   propertyRole: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   radioOuter: {
     width: 22,
     height: 22,
@@ -315,8 +313,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
   signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -326,6 +323,5 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
 });

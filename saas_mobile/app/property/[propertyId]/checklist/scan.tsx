@@ -178,19 +178,19 @@ const styles = StyleSheet.create({
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8, borderBottomWidth: 1, borderRadius: 0 },
   headerBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#E6EBEE' },
+  headerTitle: { fontSize: 16,  color: '#E6EBEE' },
 
   card: { borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
   cardInner: { padding: 24, alignItems: 'center', position: 'relative', zIndex: 1 },
   iconWrap: { width: 64, height: 64, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  templateTitle: { fontSize: 20, fontFamily: 'Poppins-Bold', color: '#E6EBEE', textAlign: 'center' },
-  templateDesc: { fontSize: 13, fontFamily: 'Urbanist-Medium', color: '#94A3B8', textAlign: 'center', marginTop: 6, lineHeight: 18 },
+  templateTitle: { fontSize: 20,  color: '#E6EBEE', textAlign: 'center' },
+  templateDesc: { fontSize: 13,  color: '#94A3B8', textAlign: 'center', marginTop: 6, lineHeight: 18 },
   metaRow: { flexDirection: 'row', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' },
   metaBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  metaText: { fontSize: 11, fontFamily: 'Urbanist-Bold', color: '#94A3B8' },
+  metaText: { fontSize: 11,  color: '#94A3B8' },
 
   openBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#708F96', paddingVertical: 16, borderRadius: 16 },
-  openBtnText: { fontSize: 15, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  openBtnText: { fontSize: 15,  color: '#FFFFFF' },
   rescanBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10 },
-  rescanText: { fontSize: 13, fontFamily: 'Urbanist-Bold', color: '#64748B' },
+  rescanText: { fontSize: 13,  color: '#64748B' },
 });

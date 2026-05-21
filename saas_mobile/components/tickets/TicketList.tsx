@@ -102,8 +102,7 @@ const styles = StyleSheet.create({
   },
   ticketTitle: {
     fontSize: 14,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   ticketStatus: {
     fontSize: 12,
     color: '#64748B',

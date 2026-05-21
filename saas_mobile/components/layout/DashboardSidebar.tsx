@@ -48,7 +48,7 @@ export default function DashboardSidebar(props: DrawerContentComponentProps) {
       title: 'Property Ops',
       items: [
         { label: 'Rooms', route: `/(dashboard)/${orgId}/rooms`, icon: 'calendar-outline' },
-        { label: 'SOPs', route: `/(dashboard)/${orgId}/sop/runner`, icon: 'checkmark-outline' },
+        { label: 'Checklists', route: `/(dashboard)/${orgId}/sop/runner`, icon: 'checkmark-outline' },
         { label: 'Diesel', route: `/(dashboard)/${orgId}/diesel`, icon: 'flame-outline' },
         { label: 'Electricity', route: `/(dashboard)/${orgId}/electricity`, icon: 'flash-outline' },
         { label: 'Utilities', route: `/(dashboard)/${orgId}/utilities/meters`, icon: 'speedometer-outline' },

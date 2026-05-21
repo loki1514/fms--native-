@@ -97,8 +97,7 @@ export default function ResetPasswordScreen() {
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
+        keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           {success ? (
             /* Success state */

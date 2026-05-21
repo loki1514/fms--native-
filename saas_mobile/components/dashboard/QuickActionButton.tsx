@@ -83,8 +83,7 @@ export function QuickActionsRow({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[styles.rowContainer, style]}
-    >
+      contentContainerStyle={[styles.rowContainer, style]} showsVerticalScrollIndicator={false}>
       {children}
     </ScrollView>
   );
@@ -116,8 +115,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 10,
-    fontFamily: 'Urbanist-SemiBold',
-    textAlign: 'center',
+        textAlign: 'center',
     letterSpacing: 0.1,
     lineHeight: 13,
   },

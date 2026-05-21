@@ -126,8 +126,7 @@ export default function TicketListItem({
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.escalationScroll}
-              >
+                contentContainerStyle={styles.escalationScroll} showsVerticalScrollIndicator={false}>
                 {escalationChain.map((person, i) => {
                   const initials = person.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
                   const isLast = i === escalationChain.length - 1;

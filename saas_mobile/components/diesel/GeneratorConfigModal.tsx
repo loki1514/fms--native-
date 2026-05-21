@@ -217,7 +217,7 @@ export default function GeneratorConfigModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {error && (
               <View style={[styles.errorBox, { backgroundColor: colors.errorBg, borderColor: colors.errorBorder }]}>
                 <Ionicons name="alert-circle" size={16} color={colors.error} />
@@ -309,7 +309,7 @@ export default function GeneratorConfigModal({
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Effective From *</Text>
                     <TouchableOpacity style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, justifyContent: 'center' }]}>
-                      <Text style={{ color: colors.text, fontFamily: 'Urbanist-Medium', fontSize: 15 }}>
+                      <Text style={{ color: colors.text,  fontSize: 15 }}>
                         {new Date(effectiveFrom + 'T00:00:00').toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </Text>
                     </TouchableOpacity>
@@ -362,20 +362,17 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   sectionLabel: {
     fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
+        textTransform: 'uppercase',
     letterSpacing: 1,
     marginTop: 20,
     marginBottom: 8,
   },
   fieldLabel: {
     fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
+        textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
     marginTop: 12,
@@ -385,8 +382,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     fontSize: 15,
-    fontFamily: 'Urbanist-Medium',
-  },
+      },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -403,8 +399,7 @@ const styles = StyleSheet.create({
   },
   statusBtnText: {
     fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   initialSection: {
     marginTop: 24,
     padding: 16,
@@ -419,14 +414,12 @@ const styles = StyleSheet.create({
   },
   initialTitle: {
     fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-    textTransform: 'uppercase',
+        textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   initialSub: {
     fontSize: 11,
-    fontFamily: 'Urbanist-Regular',
-    marginBottom: 12,
+        marginBottom: 12,
   },
   errorBox: {
     flexDirection: 'row',
@@ -439,8 +432,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-SemiBold',
-    flex: 1,
+        flex: 1,
   },
   submitBtn: {
     padding: 16,
@@ -450,8 +442,7 @@ const styles = StyleSheet.create({
   },
   submitBtnText: {
     fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-    color: '#FFFFFF',
+        color: '#FFFFFF',
   },
   cancelBtn: {
     padding: 14,
@@ -462,6 +453,5 @@ const styles = StyleSheet.create({
   },
   cancelBtnText: {
     fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
 });

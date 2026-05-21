@@ -137,7 +137,7 @@ export default function ExecutiveSummaryPanel({ propertyId }: ExecutiveSummaryPa
   const topPrevCat = prevStats.topCategories[0] || { name: 'N/A', count: 0 };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, paddingBottom: 48 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
       {/* Title */}
       <Text style={styles.title}>FMS Executive Impact Dashboard</Text>
       <Text style={styles.subtitle}>{property?.name} • {shortPrevMonth}–{shortCurrMonth} {currentDate.getFullYear()}</Text>

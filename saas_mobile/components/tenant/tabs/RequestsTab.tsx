@@ -145,15 +145,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    fontFamily: fontDisplay,
-  },
+      },
   subtitle: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
     fontWeight: '500',
-    fontFamily: fontSans,
-  },
+      },
   createBtn: {
     backgroundColor: 'rgba(112,143,150,0.85)',
     borderRadius: 10,
@@ -169,8 +167,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: fontSans,
-  },
+      },
   filterRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -195,8 +192,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.50)',
     fontWeight: '500',
-    fontFamily: fontSans,
-  },
+      },
   chipTextActive: {
     color: '#fff',
     fontWeight: '600',
@@ -232,12 +228,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: fontDisplay,
-  },
+      },
   emptySubtext: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.45)',
     textAlign: 'center',
-    fontFamily: fontSans,
-  },
+      },
 });

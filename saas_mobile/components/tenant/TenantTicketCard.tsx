@@ -212,14 +212,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: fontSans,
-  },
+      },
   date: {
     fontSize: 10,
     color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
-    fontFamily: fontSans,
-  },
+      },
   actions: {
     flexDirection: 'row',
     gap: 6,
@@ -246,15 +244,13 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.3,
-    fontFamily: fontSans,
-  },
+      },
   description: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.85)',
     lineHeight: 17,
     marginBottom: 10,
-    fontFamily: fontSans,
-  },
+      },
   assignee: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -272,13 +268,11 @@ const styles = StyleSheet.create({
   assigneeBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    fontFamily: fontSans,
-  },
+      },
   assigneeName: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.65)',
-    fontFamily: fontSans,
-  },
+      },
   footer: {
     flexDirection: 'row',
     marginBottom: 10,
@@ -288,8 +282,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.35)',
     marginBottom: 2,
     letterSpacing: 0.5,
-    fontFamily: fontSans,
-  },
+      },
   countdownRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -298,8 +291,7 @@ const styles = StyleSheet.create({
   countdown: {
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: fontDisplay,
-  },
+      },
   ctaRow: {
     flexDirection: 'row',
     gap: 8,
@@ -314,8 +306,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: fontSans,
-  },
+      },
   secondaryBtn: {
     flex: 1,
     borderRadius: 10,
@@ -327,6 +318,5 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.70)',
     fontSize: 12,
     fontWeight: '600',
-    fontFamily: fontSans,
-  },
+      },
 });

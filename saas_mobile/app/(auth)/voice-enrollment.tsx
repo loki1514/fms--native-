@@ -676,8 +676,7 @@ const styles = StyleSheet.create({
   backBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
 
   // ── Header ─────────────────────────────────────────────────────────────────
   header: {
@@ -696,14 +695,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
-    fontFamily: 'Urbanist-Bold',
-    marginBottom: 6,
+        marginBottom: 6,
     textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Medium',
-    textAlign: 'center',
+        textAlign: 'center',
   },
 
   // ── Progress ────────────────────────────────────────────────────────────────
@@ -722,8 +719,7 @@ const styles = StyleSheet.create({
   },
   progressLabel: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Medium',
-    textAlign: 'center',
+        textAlign: 'center',
   },
 
   // ── Phrases ─────────────────────────────────────────────────────────────────
@@ -753,14 +749,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '700',
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
   phraseText: {
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
-    lineHeight: 22,
+        lineHeight: 22,
   },
   phraseTextRecorded: {
     textDecorationLine: 'line-through',
@@ -780,8 +774,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
 
   // ── Mic section ─────────────────────────────────────────────────────────────
   micSection: {
@@ -817,13 +810,11 @@ const styles = StyleSheet.create({
   statusLabel: {
     fontSize: 17,
     fontWeight: '700',
-    fontFamily: 'Urbanist-Bold',
-    marginBottom: 4,
+        marginBottom: 4,
   },
   statusHint: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
 
   // ── Bottom skip ──────────────────────────────────────────────────────────────
   bottomSkip: {
@@ -833,8 +824,7 @@ const styles = StyleSheet.create({
   },
   bottomSkipText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Regular',
-    textDecorationLine: 'underline',
+        textDecorationLine: 'underline',
   },
 
   // ── Success ─────────────────────────────────────────────────────────────────
@@ -856,20 +846,17 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 28,
     fontWeight: '800',
-    fontFamily: 'Urbanist-Bold',
-    marginBottom: 8,
+        marginBottom: 8,
     textAlign: 'center',
   },
   successSubtitle: {
     fontSize: 16,
-    fontFamily: 'Urbanist-Medium',
-    marginBottom: 8,
+        marginBottom: 8,
     textAlign: 'center',
   },
   successBody: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Regular',
-    textAlign: 'center',
+        textAlign: 'center',
     lineHeight: 20,
     maxWidth: 280,
   },
@@ -886,8 +873,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 17,
     fontWeight: '700',
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
 
   // ── Error screen ─────────────────────────────────────────────────────────────
   errorRing: {
@@ -901,14 +887,12 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 24,
     fontWeight: '800',
-    fontFamily: 'Urbanist-Bold',
-    marginBottom: 8,
+        marginBottom: 8,
     textAlign: 'center',
   },
   errorMsg: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Medium',
-    textAlign: 'center',
+        textAlign: 'center',
     marginBottom: 28,
     lineHeight: 20,
     maxWidth: 300,
@@ -929,15 +913,13 @@ const styles = StyleSheet.create({
   retryButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
   skipButton: {
     padding: 8,
   },
   skipButtonText: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Regular',
-    textDecorationLine: 'underline',
+        textDecorationLine: 'underline',
   },
 
   // ── Submitting ───────────────────────────────────────────────────────────────
@@ -952,11 +934,9 @@ const styles = StyleSheet.create({
   submitTitle: {
     fontSize: 24,
     fontWeight: '800',
-    fontFamily: 'Urbanist-Bold',
-    marginBottom: 8,
+        marginBottom: 8,
   },
   submitSubtitle: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Medium',
-  },
+      },
 });

@@ -183,7 +183,7 @@ function CustomDatePicker({
       </View>
       {/* Cancel */}
       <TouchableOpacity style={{ alignItems: 'center', paddingVertical: 10 }} onPress={onClose}>
-        <Text style={{ color: colors.textSecondary, fontFamily: 'Urbanist-Medium', fontSize: 13 }}>Cancel</Text>
+        <Text style={{ color: colors.textSecondary,  fontSize: 13 }}>Cancel</Text>
       </TouchableOpacity>
     </View>
   );
@@ -260,7 +260,7 @@ function MeterCard({
             )}
           </View>
           
-          <Text style={[styles.gaugeLabel, { color: 'rgba(255, 255, 255, 0.5)', fontSize: 13, fontFamily: 'Urbanist-Medium' }]}>
+          <Text style={[styles.gaugeLabel, { color: 'rgba(255, 255, 255, 0.5)', fontSize: 13, }]}>
             {formattedUnits} kVAh / {maxScale.toLocaleString()}
           </Text>
         </View>
@@ -284,7 +284,7 @@ function MeterCard({
         <View style={styles.genCardFooter}>
           <View style={styles.genCardFooterItem}>
             <Ionicons name="time-outline" size={14} color="rgba(255, 255, 255, 0.4)" />
-            <Text style={[styles.genCardFooterText, { color: 'rgba(255, 255, 255, 0.4)', fontFamily: 'Urbanist-Medium' }]}>{lastReadingTime}</Text>
+            <Text style={[styles.genCardFooterText, { color: 'rgba(255, 255, 255, 0.4)', }]}>{lastReadingTime}</Text>
           </View>
           
           <View style={{ flex: 1 }} />
@@ -813,7 +813,7 @@ function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: T
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
           {/* Add Tariff Form */}
           <View style={[styles.tariffForm, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[styles.tariffFormTitle, { color: colors.text }]}>Update Tariff Rate</Text>
@@ -844,7 +844,7 @@ function TariffModal({ visible, onClose, propertyId, colors, onTariffChange }: T
               style={[styles.tariffInput, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Text style={{ color: colors.text, fontFamily: 'Urbanist-Regular', fontSize: 15 }}>
+              <Text style={{ color: colors.text,  fontSize: 15 }}>
                 {new Date(effectiveFrom + 'T00:00:00').toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' })}
               </Text>
               <CalendarDays size={18} color={colors.textSecondary} />
@@ -1078,7 +1078,7 @@ function MeterConfigModal({ visible, onClose, propertyId, colors, onSuccess }: M
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
           {error && (
             <View style={[styles.tariffError, { marginBottom: 12 }]}>
               <Text style={styles.tariffErrorText}>{error}</Text>
@@ -1123,7 +1123,7 @@ function MeterConfigModal({ visible, onClose, propertyId, colors, onSuccess }: M
             onPress={() => setShowMultiplier(!showMultiplier)}
           >
             <View>
-              <Text style={{ fontSize: 15, fontFamily: 'Poppins-Bold', color: colors.text }}>CT/PT Multiplier</Text>
+              <Text style={{ fontSize: 15,  color: colors.text }}>CT/PT Multiplier</Text>
               <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
                 Current: {computedMultiplier().toFixed(0)}x
               </Text>
@@ -1585,7 +1585,7 @@ export default function ElectricityScreen() {
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
               {historyReadings.length === 0 ? (
                 <View style={{ alignItems: 'center', paddingTop: 60, gap: 8 }}>
                   <Clock size={48} color={colors.textTertiary} />
@@ -1732,22 +1732,22 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
   },
-  headerTitle: { fontSize: 26, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.3 },
-  headerSubtitle: { fontSize: 13, fontFamily: 'Urbanist-Medium', color: 'rgba(255,255,255,0.65)', marginTop: 2 },
+  headerTitle: { fontSize: 26,  color: '#FFFFFF', letterSpacing: -0.3 },
+  headerSubtitle: { fontSize: 13,  color: 'rgba(255,255,255,0.65)', marginTop: 2 },
   periodRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   periodBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)' },
   periodBtnActive: { backgroundColor: 'rgba(255,255,255,0.9)' },
-  periodBtnText: { fontSize: 13, fontFamily: 'Urbanist-Bold', color: 'rgba(255,255,255,0.8)' },
+  periodBtnText: { fontSize: 13,  color: 'rgba(255,255,255,0.8)' },
   periodBtnTextActive: { color: '#1A2332' },
   quickStatsRow: { flexDirection: 'row', gap: 16, marginTop: 12, alignItems: 'center' },
   quickStat: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  quickStatText: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: 'rgba(255,255,255,0.75)' },
+  quickStatText: { fontSize: 12,  color: 'rgba(255,255,255,0.75)' },
   analyticsBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 'auto' },
-  analyticsBtnText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: 'rgba(255,255,255,0.9)' },
-  tariffInfo: { fontSize: 11, fontFamily: 'Urbanist-Medium', color: 'rgba(255,255,255,0.6)', marginTop: 6 },
+  analyticsBtnText: { fontSize: 12,  color: 'rgba(255,255,255,0.9)' },
+  tariffInfo: { fontSize: 11,  color: 'rgba(255,255,255,0.6)', marginTop: 6 },
   actionRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 },
-  actionBtnText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: 'rgba(255,255,255,0.9)' },
+  actionBtnText: { fontSize: 12,  color: 'rgba(255,255,255,0.9)' },
 
   // Log FAB
   logFab: {
@@ -1764,10 +1764,10 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 5,
   },
-  logFabText: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  logFabText: { fontSize: 16,  color: '#FFFFFF' },
 
   // Section
-  sectionTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
+  sectionTitle: { fontSize: 16,  marginBottom: 12 },
 
   // Meter Cards
   genCardsList: { gap: 12 },
@@ -1781,71 +1781,71 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   meterCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
-  meterCardName: { fontSize: 16, fontFamily: 'Poppins-Bold' },
-  meterCardMeta: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  meterCardName: { fontSize: 16, },
+  meterCardMeta: { fontSize: 12,  marginTop: 2 },
   meterStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
   meterStatusDot: { width: 6, height: 6, borderRadius: 3 },
-  meterStatusText: { fontSize: 11, fontFamily: 'Urbanist-Bold' },
+  meterStatusText: { fontSize: 11, },
 
   // Readings row
   readingsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   readingItem: { flex: 1, alignItems: 'center' },
   readingDivider: { width: 1, height: 40 },
-  readingLabel: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.3 },
-  readingValue: { fontSize: 18, fontFamily: 'Poppins-Bold', marginTop: 4 },
-  readingUnit: { fontSize: 10, fontFamily: 'Urbanist-Medium' },
+  readingLabel: { fontSize: 10,  textTransform: 'uppercase', letterSpacing: 0.3 },
+  readingValue: { fontSize: 18,  marginTop: 4 },
+  readingUnit: { fontSize: 10, },
 
   // Cost row
   costRow: { flexDirection: 'row', borderRadius: 10, padding: 10 },
   costItem: { flex: 1, alignItems: 'center' },
-  costLabel: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
-  costValue: { fontSize: 15, fontFamily: 'Poppins-Bold', marginTop: 2 },
+  costLabel: { fontSize: 10,  textTransform: 'uppercase' },
+  costValue: { fontSize: 15,  marginTop: 2 },
 
   // Recent
   recentSection: { marginTop: 24 },
-  recentSectionTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
+  recentSectionTitle: { fontSize: 16,  marginBottom: 12 },
   readingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
   readingRowLeft: { flex: 1 },
-  readingGenName: { fontSize: 14, fontFamily: 'Poppins-Bold' },
-  readingTime: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  readingGenName: { fontSize: 14, },
+  readingTime: { fontSize: 11,  marginTop: 2 },
   readingRowRight: { alignItems: 'flex-end' },
-  recentReadingValue: { fontSize: 14, fontFamily: 'Poppins-Bold' },
-  readingSub: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  recentReadingValue: { fontSize: 14, },
+  readingSub: { fontSize: 11,  marginTop: 2 },
 
   // Empty
   emptyCard: { borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', padding: 32, alignItems: 'center', gap: 8 },
-  emptyText: { fontSize: 15, fontFamily: 'Urbanist-Medium' },
-  emptySubtext: { fontSize: 12, fontFamily: 'Urbanist-Regular' },
+  emptyText: { fontSize: 15, },
+  emptySubtext: { fontSize: 12, },
 
   // Tariff Modal
   tariffModalContainer: { flex: 1 },
   tariffModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
-  tariffModalTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
+  tariffModalTitle: { fontSize: 18, },
   tariffForm: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 16 },
-  tariffFormTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
-  tariffFieldLabel: { fontSize: 11, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 10 },
-  tariffInput: { borderRadius: 12, borderWidth: 1, padding: 12, fontSize: 15, fontFamily: 'Urbanist-Medium', marginBottom: 4 },
+  tariffFormTitle: { fontSize: 16,  marginBottom: 12 },
+  tariffFieldLabel: { fontSize: 11,  textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 10 },
+  tariffInput: { borderRadius: 12, borderWidth: 1, padding: 12, fontSize: 15,  marginBottom: 4 },
   tariffError: { backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 10, padding: 10, marginBottom: 8 },
-  tariffErrorText: { color: '#EF4444', fontSize: 12, fontFamily: 'Urbanist-Bold' },
+  tariffErrorText: { color: '#EF4444', fontSize: 12, },
   tariffSubmitBtn: { borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 },
-  tariffSubmitBtnText: { color: '#FFF', fontSize: 15, fontFamily: 'Poppins-Bold' },
-  tariffHistoryTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
+  tariffSubmitBtnText: { color: '#FFF', fontSize: 15, },
+  tariffHistoryTitle: { fontSize: 16,  marginBottom: 12 },
   tariffHistoryRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 8 },
-  tariffRateText: { fontSize: 20, fontFamily: 'Poppins-Bold' },
+  tariffRateText: { fontSize: 20, },
   tariffActiveBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  tariffActiveBadgeText: { color: '#FFF', fontSize: 9, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
-  tariffProvider: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 2 },
-  tariffDateRange: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 4 },
+  tariffActiveBadgeText: { color: '#FFF', fontSize: 9,  textTransform: 'uppercase' },
+  tariffProvider: { fontSize: 12,  marginTop: 2 },
+  tariffDateRange: { fontSize: 11,  marginTop: 4 },
 
   // Calendar modal
   calendarModalContent: { width: SCREEN_WIDTH - 48, borderRadius: 16, overflow: 'hidden', maxHeight: 460 },
   calendarModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
-  calendarModalTitle: { fontSize: 16, fontFamily: 'Poppins-Bold' },
+  calendarModalTitle: { fontSize: 16, },
 
   // Meter Config
   meterTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   meterTypeBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0' },
-  meterTypeBtnText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: '#64748B' },
+  meterTypeBtnText: { fontSize: 12,  color: '#64748B' },
   multiplierGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   multiplierField: { flex: 1, minWidth: '45%' },
 
@@ -1854,24 +1854,24 @@ const styles = StyleSheet.create({
   sheetContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '90%' },
   sheetHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  sheetTitle: { fontSize: 20, fontFamily: 'Poppins-Bold' },
-  fieldLabel: { fontSize: 12, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 14 },
+  sheetTitle: { fontSize: 20, },
+  fieldLabel: { fontSize: 12,  textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 14 },
   picker: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1 },
-  pickerText: { fontSize: 15, fontFamily: 'Urbanist-Medium' },
+  pickerText: { fontSize: 15, },
   pickerDropdown: { borderRadius: 12, borderWidth: 1, marginTop: 4, overflow: 'hidden' },
   pickerOption: { padding: 12, paddingHorizontal: 16 },
-  pickerOptionText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
-  pickerOptionSub: { fontSize: 11, fontFamily: 'Urbanist-Regular', marginTop: 1 },
+  pickerOptionText: { fontSize: 14, },
+  pickerOptionSub: { fontSize: 11,  marginTop: 1 },
   openingInfo: { flexDirection: 'row', gap: 16, padding: 12, borderRadius: 10, marginTop: 14 },
   openingItem: { flex: 1 },
-  openingLabel: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
-  openingValue: { fontSize: 18, fontFamily: 'Poppins-Bold', marginTop: 2 },
-  input: { padding: 14, borderRadius: 12, borderWidth: 1, fontSize: 15, fontFamily: 'Urbanist-Medium' },
+  openingLabel: { fontSize: 11, },
+  openingValue: { fontSize: 18,  marginTop: 2 },
+  input: { padding: 14, borderRadius: 12, borderWidth: 1, fontSize: 15, },
   notesInput: { height: 80, textAlignVertical: 'top' },
   unitsPreview: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, marginTop: 14 },
-  unitsPreviewText: { fontSize: 14, fontFamily: 'Urbanist-Bold' },
+  unitsPreviewText: { fontSize: 14, },
   submitBtn: { padding: 16, borderRadius: 14, alignItems: 'center', marginTop: 20 },
-  submitBtnText: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  submitBtnText: { fontSize: 16,  color: '#FFFFFF' },
   topNav: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1898,15 +1898,13 @@ const styles = StyleSheet.create({
   },
   headerTitleLine1: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Bold',
-    color: 'rgba(255, 255, 255, 0.5)',
+        color: 'rgba(255, 255, 255, 0.5)',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   headerTitleLine2: {
     fontSize: 22,
-    fontFamily: 'Poppins-Bold',
-    color: '#FFFFFF',
+        color: '#FFFFFF',
     letterSpacing: -0.5,
     marginTop: -2,
   },
@@ -1936,8 +1934,7 @@ const styles = StyleSheet.create({
   },
   paramTitle: {
     fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    color: 'rgba(255, 255, 255, 0.5)',
+        color: 'rgba(255, 255, 255, 0.5)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -1959,8 +1956,7 @@ const styles = StyleSheet.create({
   },
   paramSelectorBtnText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Bold',
-    color: 'rgba(255, 255, 255, 0.6)',
+        color: 'rgba(255, 255, 255, 0.6)',
   },
   paramSelectorBtnTextActive: {
     color: '#0F1521',
@@ -1972,13 +1968,11 @@ const styles = StyleSheet.create({
   },
   oilUsedLabel: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Medium',
-    color: 'rgba(255, 255, 255, 0.5)',
+        color: 'rgba(255, 255, 255, 0.5)',
   },
   oilUsedValue: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Bold',
-    color: '#FFFFFF',
+        color: '#FFFFFF',
     marginLeft: 8,
   },
   liveRankRow: {
@@ -1989,8 +1983,7 @@ const styles = StyleSheet.create({
   },
   liveRankText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Medium',
-    color: '#FBBF24',
+        color: '#FBBF24',
   },
   genCardFuel: {
     marginTop: 14,
@@ -2003,8 +1996,7 @@ const styles = StyleSheet.create({
   },
   genCardFuelLabel: {
     fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
+        textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   gaugeTrack: {},
@@ -2079,7 +2071,7 @@ const styles = StyleSheet.create({
     paddingTop: Math.max(60, 20),
     borderBottomWidth: 1,
   },
-  historyModalTitle: { fontSize: 20, fontFamily: 'Poppins-Bold' },
+  historyModalTitle: { fontSize: 20, },
   historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2090,12 +2082,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   historyRowLeft: { flex: 1 },
-  historyRowName: { fontSize: 14, fontFamily: 'Poppins-Bold', marginBottom: 2 },
-  historyRowDate: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
-  historyRowNotes: { fontSize: 11, fontFamily: 'Urbanist-Regular', marginTop: 2 },
+  historyRowName: { fontSize: 14,  marginBottom: 2 },
+  historyRowDate: { fontSize: 11, },
+  historyRowNotes: { fontSize: 11,  marginTop: 2 },
   historyRowRight: { alignItems: 'flex-end' },
-  historyRowUnits: { fontSize: 15, fontFamily: 'Poppins-Bold' },
-  historyRowClosing: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  historyRowUnits: { fontSize: 15, },
+  historyRowClosing: { fontSize: 11,  marginTop: 2 },
   viewHistoryBtn: {
     alignItems: 'center',
     paddingVertical: 12,
@@ -2103,8 +2095,7 @@ const styles = StyleSheet.create({
   },
   viewHistoryBtnText: {
     fontSize: 13,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   recentReadingsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2122,8 +2113,7 @@ const styles = StyleSheet.create({
   },
   recentReadingsBtnText: {
     fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   recentReadingsBtnBadge: {
     borderRadius: 10,
     paddingHorizontal: 8,
@@ -2134,8 +2124,7 @@ const styles = StyleSheet.create({
   },
   recentReadingsBtnBadgeText: {
     fontSize: 12,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
 
   // Custom Date Picker
   customDatePickerContainer: {
@@ -2155,8 +2144,7 @@ const styles = StyleSheet.create({
   },
   customDateTitle: {
     fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   customDateGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -2169,8 +2157,7 @@ const styles = StyleSheet.create({
   },
   customDateDayLabel: {
     fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
   customDateDayBtn: {
     width: 36,
     height: 36,
@@ -2180,6 +2167,5 @@ const styles = StyleSheet.create({
   },
   customDateDayText: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
 });

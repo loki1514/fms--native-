@@ -96,7 +96,7 @@ export default function CreatePropertyModal({ organizationId, isOpen, onClose, o
             {/* City picker */}
             <View style={styles.field}>
               <Text style={styles.label}>City</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false}>
                 <View style={styles.chipRow}>
                   {CITIES.map(c => (
                     <TouchableOpacity key={c} style={[styles.chip, city === c && styles.chipActive]} onPress={() => setCity(c)}>

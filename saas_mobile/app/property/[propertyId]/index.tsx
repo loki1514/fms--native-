@@ -44,6 +44,8 @@ export default function PropertyIndex() {
 
   const isTenant = ['tenant', 'super_tenant'].includes(propRole ?? '');
 
+  const isProcurement = propRole === 'procurement' || orgRole === 'procurement';
+
   // Lovable test dashboards — email-gated override
   const userEmail = user.email?.toLowerCase() ?? '';
   if (userEmail === 'srustikarta2022@gmail.com') {
@@ -68,6 +70,10 @@ export default function PropertyIndex() {
 
   if (isTenant) {
     return <Redirect href={`/property/${propertyId}/tenant`} />;
+  }
+
+  if (isProcurement) {
+    return <Redirect href={`/property/${propertyId}/procurement`} />;
   }
 
   return <Redirect href={`/property/${propertyId}/dashboard`} />;

@@ -536,7 +536,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
               {/* Suggestions strip at bottom of chat */}
               {!isTyping && (
                 <View style={styles.suggestionsStrip}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionsStripContent}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionsStripContent} showsVerticalScrollIndicator={false}>
                     {WHAT_I_CAN_DO.map((item) => (
                       <SkillChip key={item.label} label={item.label} onPress={() => { addMessage({ role: 'user', text: item.message }); setView('chat'); handleSend(item.message); }} />
                     ))}

@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createClient } from '../../utils/supabase/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
+import NotificationBell from '@/components/dashboard/NotificationBell';
 import TicketCard from '../shared/TicketCard';
 import SignOutModal from '../ui/SignOutModal';
 import { TicketCreateModal } from '../tickets/TicketCreateModal';
@@ -683,13 +684,11 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
           >
             <Ionicons name="qr-code-outline" size={22} color="#708F96" />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.bellButton}
-            onPress={() => Alert.alert('Notifications', 'Notifications coming soon!')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
+          <NotificationBell 
+            style={styles.bellButton} 
+            iconSize={24} 
+            iconColor={colors.textSecondary} 
+          />
         </View>
       </View>
 

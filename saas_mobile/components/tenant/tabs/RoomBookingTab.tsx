@@ -185,15 +185,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    fontFamily: fontDisplay,
-  },
+      },
   subtitle: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 2,
     fontWeight: '500',
-    fontFamily: fontSans,
-  },
+      },
   capacityRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -221,13 +219,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.55)',
     fontWeight: '500',
-    fontFamily: fontSans,
-  },
+      },
   capChipTextActive: {
     color: '#fff',
     fontWeight: '600',
-    fontFamily: fontSans,
-  },
+      },
   listContent: {
     padding: 16,
     paddingBottom: 200,
@@ -264,8 +260,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 5,
-    fontFamily: fontSans,
-  },
+      },
   roomMeta: {
     flexDirection: 'row',
     gap: 10,
@@ -281,8 +276,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255,255,255,0.55)',
     fontWeight: '500',
-    fontFamily: fontSans,
-  },
+      },
   creditBadge: {
     backgroundColor: 'rgba(212,160,23,0.1)',
     borderRadius: 6,
@@ -309,8 +303,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
-    fontFamily: fontSans,
-  },
+      },
   empty: {
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 18,
@@ -334,12 +327,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: fontDisplay,
-  },
+      },
   emptySubtext: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.45)',
     textAlign: 'center',
-    fontFamily: fontSans,
-  },
+      },
 });

@@ -613,8 +613,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   searchPlaceholder: {
-    fontFamily: fontSans,
-    fontSize: 15,
+        fontSize: 15,
     color: 'rgba(255,255,255,0.4)',
     letterSpacing: 0.2,
   },
@@ -638,16 +637,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontFamily: fontSans,
-    fontSize: 24,
+        fontSize: 24,
     fontWeight: '300',
     color: '#fff',
     letterSpacing: -0.5,
     maxWidth: 180,
   },
   headerSubtitle: {
-    fontFamily: fontSans,
-    fontSize: 13,
+        fontSize: 13,
     color: 'rgba(255,255,255,0.6)',
   },
   weatherBadge: {
@@ -660,8 +657,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   weatherTemp: {
-    fontFamily: fontSans,
-    fontSize: 14,
+        fontSize: 14,
     fontWeight: '500',
     color: '#fff',
   },
@@ -693,8 +689,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   heroCardLabel: {
-    fontFamily: fontSans,
-    fontSize: 13,
+        fontSize: 13,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.7)',
     marginBottom: 4,
@@ -702,16 +697,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   heroCardValue: {
-    fontFamily: fontSans,
-    fontSize: 48,
+        fontSize: 48,
     fontWeight: '200',
     color: '#fff',
     letterSpacing: -1.5,
     lineHeight: 52,
   },
   heroCardSub: {
-    fontFamily: fontSans,
-    fontSize: 13,
+        fontSize: 13,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 2,
   },
@@ -730,8 +723,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   heroStatText: {
-    fontFamily: fontSans,
-    fontSize: 13,
+        fontSize: 13,
     color: 'rgba(255,255,255,0.7)',
   },
   heroArrow: {
@@ -775,8 +767,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   cardTitle: {
-    fontFamily: fontSans,
-    fontSize: 13,
+        fontSize: 13,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.8)',
     textTransform: 'uppercase',
@@ -788,19 +779,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   checklistNumber: {
-    fontFamily: fontSans,
-    fontSize: 32,
+        fontSize: 32,
     fontWeight: '300',
     color: '#fff',
   },
   checklistTotal: {
-    fontFamily: fontSans,
-    fontSize: 16,
+        fontSize: 16,
     color: 'rgba(255,255,255,0.4)',
   },
   checklistPct: {
-    fontFamily: fontSans,
-    fontSize: 12,
+        fontSize: 12,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 8,
   },
@@ -821,14 +809,12 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   ppmDate: {
-    fontFamily: fontSans,
-    fontSize: 18,
+        fontSize: 18,
     fontWeight: '600',
     marginBottom: 4,
   },
   ppmTask: {
-    fontFamily: fontSans,
-    fontSize: 14,
+        fontSize: 14,
     color: 'rgba(255,255,255,0.6)',
     marginBottom: 8,
   },
@@ -838,8 +824,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   ppmStatusText: {
-    fontFamily: fontSans,
-    fontSize: 12,
+        fontSize: 12,
     color: 'rgba(255,255,255,0.6)',
   },
 
@@ -855,8 +840,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   dsrTitle: {
-    fontFamily: fontSans,
-    fontSize: 15,
+        fontSize: 15,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.8)',
     textTransform: 'uppercase',
@@ -868,14 +852,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   dsrNumber: {
-    fontFamily: fontSans,
-    fontSize: 36,
+        fontSize: 36,
     fontWeight: '300',
     color: '#fff',
   },
   dsrUnit: {
-    fontFamily: fontSans,
-    fontSize: 14,
+        fontSize: 14,
     color: 'rgba(255,255,255,0.5)',
     marginLeft: 4,
   },
@@ -901,8 +883,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dsrFooterText: {
-    fontFamily: fontSans,
-    fontSize: 12,
+        fontSize: 12,
     color: 'rgba(255,255,255,0.5)',
   },
   dsrTrend: {
@@ -911,8 +892,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dsrTrendText: {
-    fontFamily: fontSans,
-    fontSize: 12,
+        fontSize: 12,
     color: '#34C759',
   },
 
@@ -966,8 +946,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   modalTitle: {
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 22,
+        fontSize: 22,
     color: '#1D1D1F',
     letterSpacing: -0.3,
   },
@@ -1003,14 +982,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#E8E8ED',
   },
   summaryValue: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 28,
+        fontSize: 28,
     color: '#1D1D1F',
     letterSpacing: -0.5,
   },
   summaryLabel: {
-    fontFamily: 'Urbanist-Medium',
-    fontSize: 12,
+        fontSize: 12,
     color: '#86868B',
     marginTop: 4,
   },
@@ -1022,8 +999,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   sectionTitle: {
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 16,
+        fontSize: 16,
     color: '#1D1D1F',
     marginBottom: 16,
     letterSpacing: -0.2,
@@ -1054,14 +1030,12 @@ const styles = StyleSheet.create({
     minHeight: 4,
   },
   historyBarLabel: {
-    fontFamily: 'Urbanist-Medium',
-    fontSize: 10,
+        fontSize: 10,
     color: '#86868B',
     marginTop: 6,
   },
   historyBarValue: {
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 11,
+        fontSize: 11,
     color: '#1D1D1F',
     marginTop: 2,
   },
@@ -1084,13 +1058,11 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   breakdownLabel: {
-    fontFamily: 'Urbanist-Medium',
-    fontSize: 14,
+        fontSize: 14,
     color: '#1D1D1F',
   },
   breakdownValue: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 16,
+        fontSize: 16,
   },
   aiHeader: {
     flexDirection: 'row',
@@ -1099,13 +1071,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   aiTitle: {
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 14,
+        fontSize: 14,
     color: '#708F96',
   },
   aiText: {
-    fontFamily: 'Urbanist-Medium',
-    fontSize: 14,
+        fontSize: 14,
     color: '#475569',
     lineHeight: 22,
   },

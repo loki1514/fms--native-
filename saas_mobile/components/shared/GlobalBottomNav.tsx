@@ -192,8 +192,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.4)',
     fontSize: 9,
     fontWeight: '700',
-    fontFamily: fontSans,
-    marginTop: 2,
+        marginTop: 2,
   },
   navLabelActive: {
     color: '#FFF',
@@ -233,6 +232,5 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 9,
     fontWeight: '800',
-    fontFamily: fontSans,
-  },
+      },
 });

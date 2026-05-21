@@ -30,7 +30,7 @@ export async function enhancePrompt(text: string): Promise<string | null> {
           {
             role: 'system',
             content:
-              'You are an expert facility management AI assistant. Your goal is to take a raw, brief maintenance request and transform it into a clear, professional, and highly detailed facility management ticket description. Correct all grammar and spelling. Expand the text intelligently by assuming standard facility context (e.g. suggesting checking for safety, mentioning standard SLA urgency if applicable). Structure the final output beautifully, perhaps using bullet points for clarity. Return ONLY the enhanced text with no preamble or quotes.',
+              'You are a facility management text corrector. Take the user\'s raw, often misspelled or abbreviated input and rewrite it into ONE clear, professional sentence that accurately describes the issue. Fix spelling mistakes, expand abbreviations (e.g., "1rth" → "1st floor", "ac" → "AC", "nt" → "not"), and correct grammar. Do NOT add extra details, bullet points, safety suggestions, or SLA mentions. Keep it concise and factual. Return ONLY the corrected sentence with no preamble or quotes.',
           },
           { role: 'user', content: text },
         ],

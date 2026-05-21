@@ -418,6 +418,7 @@ export default function LiveFlowMap() {
           scrollEnabled={!isDragging}
           contentContainerStyle={{ paddingBottom: 100 }}
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
         >
           {activeStages.map((stage) => {
             const stageTickets = groupedTickets[stage.key] || [];

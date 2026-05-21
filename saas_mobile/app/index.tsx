@@ -1,23 +1,14 @@
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { View, ActivityIndicator, Text } from 'react-native';
 import { useEffect } from 'react';
 
 export default function Index() {
   const { user, isLoading, membership, isMembershipLoading } = useAuth();
 
-  useEffect(() => {
-    console.log('[Index] isLoading:', isLoading, 'isMembershipLoading:', isMembershipLoading, 'user:', user?.email, 'membership:', membership?.properties?.length);
-  }, [isLoading, isMembershipLoading, user, membership]);
+  const isReady = !isLoading && !isMembershipLoading;
 
-  // Wait for both Auth and Membership to finish loading
-  if (isLoading || isMembershipLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <ActivityIndicator size="large" color="#708F96" />
-        <Text style={{ marginTop: 16, color: '#666', fontSize: 14 }}>Loading Session...</Text>
-      </View>
-    );
+  if (!isReady) {
+    return null; // The global splash screen in _layout.tsx handles this phase
   }
 
   if (!user) {

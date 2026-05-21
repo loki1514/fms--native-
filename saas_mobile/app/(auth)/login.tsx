@@ -217,7 +217,7 @@ export default function LoginScreen() {
     type OrgMembershipRow = { organization_id: string; role: string; is_active: boolean | null };
     const orgRows = (orgMemberships ?? []) as OrgMembershipRow[];
 
-    const ORG_LEVEL_ROLES = ['org_super_admin', 'super_tenant', 'owner', 'admin', 'org_admin', 'maintenance_vendor'];
+    const ORG_LEVEL_ROLES = ['org_super_admin', 'super_tenant', 'owner', 'admin', 'org_admin', 'maintenance_vendor', 'procurement'];
     const activeOrgMemberships = orgRows.filter(
       (m) => ORG_LEVEL_ROLES.includes(m.role) && (m.is_active === true || m.is_active === null)
     );
@@ -229,6 +229,24 @@ export default function LoginScreen() {
         const bi = ORG_PRIORITY.indexOf(b.role) === -1 ? 99 : ORG_PRIORITY.indexOf(b.role);
         return ai - bi;
       })[0];
+
+      if (best.role === 'procurement') {
+        // Procurement org users: find their first property and go to its procurement screen
+        const { data: procPropData } = await supabase
+          .from('property_memberships')
+          .select('property_id')
+          .eq('user_id', userProfile.id)
+          .eq('is_active', true)
+          .maybeSingle();
+        const procPropId = (procPropData as any)?.property_id;
+        if (procPropId) {
+          router.replace(`/property/${procPropId}/procurement` as any);
+        } else {
+          // No property — fallback to org dashboard
+          router.replace(`/org/${best.organization_id}` as any);
+        }
+        return;
+      }
 
       router.replace(`/org/${best.organization_id}` as any);
       return;
@@ -253,8 +271,15 @@ export default function LoginScreen() {
     }
 
     if (activePropMemberships.length === 1) {
-      const { property_id: pId } = activePropMemberships[0];
+      const { property_id: pId, role } = activePropMemberships[0];
       const userEmail = authUserData?.email?.toLowerCase() ?? '';
+
+      // Procurement role → dedicated procurement dashboard
+      if (role === 'procurement') {
+        router.replace(`/property/${pId}/procurement` as any);
+        return;
+      }
+
       if (userEmail === 'srustikarta2022@gmail.com') {
         router.replace(`/property/${pId}/lovable-mst`);
         return;
@@ -266,6 +291,13 @@ export default function LoginScreen() {
 
       // All roles now use the unified sidebar dashboard
       router.replace(`/property/${pId}/dashboard`);
+      return;
+    }
+
+    // Check if any property is procurement — if so, pick the first one
+    const procurementProp = activePropMemberships.find((m) => m.role === 'procurement');
+    if (procurementProp) {
+      router.replace(`/property/${procurementProp.property_id}/procurement` as any);
       return;
     }
 
@@ -750,16 +782,14 @@ const styles = StyleSheet.create({
     letterSpacing: FONT_TRACKING.display,
     marginBottom: 8,
     textAlign: 'center',
-    fontFamily: FONT_FAMILY,
-  },
+      },
   subtitle: {
     fontSize: 15,
     marginBottom: 32,
     textAlign: 'center',
     lineHeight: 22,
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
 
   // Tab Switcher
   tabContainer: {
@@ -778,8 +808,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
 
   // Form
   form: {
@@ -799,14 +828,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
   forgotLink: {
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -823,8 +850,7 @@ const styles = StyleSheet.create({
     height: 44,
     fontSize: 15,
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
   eyeButton: {
     padding: 4,
   },
@@ -833,8 +859,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 6,
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
   messageBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -849,8 +874,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 18,
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
   submitButton: {
     borderRadius: 14,
     height: 52,
@@ -869,8 +893,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: FONT_TRACKING.tight,
-    fontFamily: FONT_FAMILY,
-  },
+      },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -886,8 +909,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    fontFamily: FONT_FAMILY,
-  },
+      },
   oauthButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -902,8 +924,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
   footer: {
     alignItems: 'center',
     marginTop: 8,
@@ -911,11 +932,9 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 14,
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
   footerLink: {
     fontWeight: '700',
     letterSpacing: FONT_TRACKING.body,
-    fontFamily: FONT_FAMILY,
-  },
+      },
 });

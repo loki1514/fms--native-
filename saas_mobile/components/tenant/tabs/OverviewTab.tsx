@@ -326,8 +326,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.55)',
     marginLeft: 8,
-    fontFamily: fontSans,
-  },
+      },
   filterBtn: {
     backgroundColor: 'rgba(112,143,150,0.35)',
     borderRadius: 8,
@@ -357,14 +356,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.3,
-    fontFamily: fontDisplay,
-  },
+      },
   sectionSubtitle: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 1,
-    fontFamily: fontSans,
-  },
+      },
   viewAllBtn: {
     backgroundColor: 'rgba(112,143,150,0.30)',
     borderRadius: 10,
@@ -408,14 +405,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: fontDisplay,
-  },
+      },
   emptySubtext: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.55)',
     textAlign: 'center',
-    fontFamily: fontSans,
-  },
+      },
   shortcutsSection: {
     marginTop: 8,
   },
@@ -425,8 +420,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginBottom: 12,
     letterSpacing: -0.2,
-    fontFamily: fontDisplay,
-  },
+      },
   shortcutsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -456,6 +450,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
     letterSpacing: 0.1,
-    fontFamily: fontSans,
-  },
+      },
 });

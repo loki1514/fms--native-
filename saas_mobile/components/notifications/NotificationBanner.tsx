@@ -233,14 +233,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   title: {
-    fontFamily: 'Poppins-Medium',
-    fontSize: 14,
+        fontSize: 14,
     fontWeight: '600',
     marginBottom: 2,
   },
   body: {
-    fontFamily: 'Urbanist-Regular',
-    fontSize: 12,
+        fontSize: 12,
     lineHeight: 16,
   },
   closeBtn: {
