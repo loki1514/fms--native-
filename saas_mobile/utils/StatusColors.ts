@@ -10,10 +10,9 @@ export type TicketStatus =
   | 'open'
   | 'assigned'
   | 'in_progress'
-  | 'paused'
-  | 'pending_validation'
   | 'resolved'
-  | 'closed';
+  | 'closed'
+  | 'waitlist';
 
 export const STATUS_CONFIG: Record<
   TicketStatus,
@@ -22,10 +21,9 @@ export const STATUS_CONFIG: Record<
   open:          { bg: '#F9731618', text: '#F97316', dot: '#F97316' },  // orange
   assigned:      { bg: '#3B82F618', text: '#3B82F6', dot: '#3B82F6' },  // blue
   in_progress:   { bg: '#F59E0B18', text: '#F59E0B', dot: '#F59E0B' },  // amber
-  paused:        { bg: '#64748B18', text: '#64748B', dot: '#64748B' },    // gray
-  pending_validation: { bg: '#A855F718', text: '#A855F7', dot: '#A855F7' }, // purple
   resolved:      { bg: '#22C55E18', text: '#22C55E', dot: '#22C55E' },  // green
   closed:        { bg: '#22C55E18', text: '#22C55E', dot: '#22C55E' },  // green
+  waitlist:      { bg: '#64748B18', text: '#64748B', dot: '#64748B' },  // gray
 };
 
 // Fallback for unknown statuses

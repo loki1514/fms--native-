@@ -92,7 +92,7 @@ export default function ExecutiveSummaryScreen() {
     series: [
       { label: 'Total', data: [prevMonth.total, currMonth.total], color: '#475569' },
       { label: 'Closed', data: [prevMonth.closed, currMonth.closed], color: '#22C55E' },
-      { label: 'Open', data: [prevMonth.open + prevMonth.pendingValidation, currMonth.open + currMonth.pendingValidation], color: '#F97316' },
+      { label: 'Open', data: [prevMonth.open, currMonth.open], color: '#F97316' },
     ],
   };
 
@@ -166,8 +166,8 @@ export default function ExecutiveSummaryScreen() {
           />
           <KPICard
             label="Open"
-            value={currMonth.open + currMonth.pendingValidation}
-            sub={`${currMonth.pendingValidation} pending validation`}
+            value={currMonth.open}
+            sub="active requests"
             color="#F97316"
           />
         </View>
@@ -180,9 +180,6 @@ export default function ExecutiveSummaryScreen() {
           <StatusRow label="Created" count={currMonth.total} color="#475569" />
           <StatusRow label="Closed" count={currMonth.closed} color="#22C55E" />
           <StatusRow label="Open" count={currMonth.open} color="#F97316" />
-          {currMonth.pendingValidation > 0 && (
-            <StatusRow label="Pending Validation" count={currMonth.pendingValidation} color="#A855F7" />
-          )}
         </View>
 
         {/* Month-over-Month Bar Chart */}

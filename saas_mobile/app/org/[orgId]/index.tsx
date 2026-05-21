@@ -260,7 +260,7 @@ export default function OrgPropertyDashboard() {
         const counts = ticketMap.get(t.property_id) || { open: 0, resolved: 0, total: 0 };
         counts.total++;
         if (['open', 'blocked', 'client_raised'].includes(t.status)) counts.open++;
-        else if (['resolved', 'closed', 'satisfied'].includes(t.status)) counts.resolved++;
+        else if (['resolved', 'closed'].includes(t.status)) counts.resolved++;
         ticketMap.set(t.property_id, counts);
       });
 
@@ -329,9 +329,13 @@ export default function OrgPropertyDashboard() {
           <View style={styles.headerCenter}>
             <TouchableOpacity style={styles.profileRow} activeOpacity={0.7}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2) : 'SU'}
-                </Text>
+                {user?.avatar ? (
+                  <Image source={{ uri: user.avatar }} style={styles.avatarImage} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.avatarText}>
+                    {user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2) : 'SU'}
+                  </Text>
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.greetingText} numberOfLines={1}>Hey, {user?.user_metadata?.full_name?.split(' ')[0] || 'Super'}</Text>
@@ -476,7 +480,8 @@ const styles = StyleSheet.create({
   hamburgerBtn: { padding: 4 },
   headerCenter: { flex: 1, paddingHorizontal: 12 },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' },
+  avatarImage: { width: 36, height: 36, borderRadius: 18 },
   avatarText: { color: '#FFF', fontSize: 13, fontWeight: '700', fontFamily: fontSans },
   greetingText: { color: '#FFF', fontSize: 14, fontWeight: '700', fontFamily: fontSans },
   headerSubtitle: { color: 'rgba(255,255,255,0.40)', fontSize: 11, fontFamily: fontSans, marginTop: 1 },

@@ -61,23 +61,25 @@ export function useGamification(propertyId: string): GamificationState {
   useEffect(() => {
     if (!propertyId) return;
 
-    // Subscribe to score changes
-    const channel = supabase
-      .channel(`mst_gamification_${propertyId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'mst_daily_scores',
-          filter: `property_id=eq.${propertyId}`,
-        },
-        () => {
-          // Debounce: only refresh once every 5 seconds max
-          setRefreshKey(prev => prev + 1);
-        }
-      )
-      .subscribe();
+    // TODO: mst_daily_scores does not exist in saas_one schema
+    // // Subscribe to score changes
+    // const channel = supabase
+    //   .channel(`mst_gamification_${propertyId}`)
+    //   .on(
+    //     'postgres_changes',
+    //     {
+    //       event: '*',
+    //       schema: 'public',
+    //       table: 'mst_daily_scores',
+    //       filter: `property_id=eq.${propertyId}`,
+    //     },
+    //     () => {
+    //       // Debounce: only refresh once every 5 seconds max
+    //       setRefreshKey(prev => prev + 1);
+    //     }
+    //   )
+    //   .subscribe();
+    const channel = supabase.channel(`mst_gamification_${propertyId}`).subscribe();
 
     channelRef.current = channel;
 

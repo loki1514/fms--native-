@@ -3,7 +3,7 @@
 // ============================================
 
 import { apiClient, ApiResponse } from './api/client';
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase/client';
 import { Ticket, TicketStatus, TicketPriority, TicketComment } from '@/types';
 
 export interface CreateTicketData {
@@ -50,7 +50,7 @@ export const ticketService = {
   ): Promise<ApiResponse<Ticket[]>> {
     let query = (supabase
       .from('tickets')
-      .select('*, created_by_user:created_by(full_name), assigned_to_user:assigned_to(full_name)') as any);
+      .select('*, raised_by_user:raised_by(full_name), assigned_to_user:assigned_to(full_name)') as any);
 
     // Apply filters
     if (filters?.status) {
@@ -74,7 +74,7 @@ export const ticketService = {
     }
 
     if (filters?.createdBy) {
-      query = query.eq('created_by', filters.createdBy);
+      query = query.eq('raised_by', filters.createdBy);
     }
 
     if (filters?.propertyId) {
@@ -86,7 +86,7 @@ export const ticketService = {
     }
 
     if (filters?.category) {
-      query = query.eq('category', filters.category);
+      query = query.eq('category_id', filters.category);
     }
 
     // Apply ordering
@@ -119,7 +119,7 @@ export const ticketService = {
   // Get single ticket
   async getTicket(id: string): Promise<ApiResponse<Ticket>> {
     return apiClient.get<Ticket>('tickets', {
-      select: '*, created_by_user:created_by(full_name), assigned_to_user:assigned_to(full_name), comments:ticket_comments(*)',
+      select: '*, raised_by_user:raised_by(full_name), assigned_to_user:assigned_to(full_name), comments:ticket_comments(*)',
       filters: { id },
       single: true,
     });
@@ -130,7 +130,7 @@ export const ticketService = {
     return apiClient.post<Ticket>('tickets', {
       title: data.title,
       description: data.description,
-      category: data.category,
+      category_id: data.category,
       subcategory: data.subcategory,
       priority: data.priority,
       status: data.assignedTo ? 'assigned' : 'open',
@@ -149,7 +149,7 @@ export const ticketService = {
     if (data.status !== undefined) updateData.status = data.status;
     if (data.priority !== undefined) updateData.priority = data.priority;
     if (data.assignedTo !== undefined) updateData.assigned_to = data.assignedTo;
-    if (data.category !== undefined) updateData.category = data.category;
+    if (data.category !== undefined) updateData.category_id = data.category;
     if (data.subcategory !== undefined) updateData.subcategory = data.subcategory;
 
     updateData.updated_at = new Date().toISOString();
@@ -202,7 +202,7 @@ export const ticketService = {
   async getComments(ticketId: string): Promise<ApiResponse<TicketComment[]>> {
     const { data, error } = (await (supabase
       .from('ticket_comments')
-      .select('*, user:users(full_name, avatar_url)')
+      .select('*, user:users(full_name, user_photo_url)')
       .eq('ticket_id', ticketId)
       .order('created_at', { ascending: true }) as any)) as { data: unknown; error: unknown };
 
@@ -226,7 +226,7 @@ export const ticketService = {
     return apiClient.post<TicketComment>('ticket_comments', {
       ticket_id: ticketId,
       user_id: userId,
-      content,
+      comment: content,
       is_internal: isInternal,
     });
   },

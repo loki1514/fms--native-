@@ -128,11 +128,11 @@ function FloatingShape({
           width: size,
           height: size,
           backgroundColor: color,
-          top,
-          left,
-          right,
+          top: top as number | undefined,
+          left: left as number | undefined,
+          right: right as number | undefined,
           borderRadius: size * 0.35,
-        },
+        } as any,
         animatedStyle,
       ]}
     />
@@ -195,18 +195,19 @@ export default function LoginScreen() {
 
     const { data: userProfile, error: profileError } = await (supabase
       .from('users')
-      .select('id, is_master_admin')
+      .select('id')
       .eq('id', authUserId)
-      .single() as unknown as Promise<{ data: { id: string; is_master_admin: boolean } | null; error: unknown }>);
+      .single() as unknown as Promise<{ data: { id: string } | null; error: unknown }>);
 
     if (profileError || !userProfile) {
       throw new Error('User profile not found.');
     }
 
-    if (userProfile.is_master_admin) {
-      router.replace('/master' as any);
-      return;
-    }
+    // TODO: is_master_admin does not exist on the users table — use a dedicated master_admins table or role check via memberships
+    // if (userProfile.is_master_admin) {
+    //   router.replace('/master' as any);
+    //   return;
+    // }
 
     const { data: orgMemberships } = await supabase
       .from('organization_memberships')

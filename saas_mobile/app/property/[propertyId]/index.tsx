@@ -61,8 +61,9 @@ export default function PropertyIndex() {
     return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
 
+  // We now have a unified dashboard router at /dashboard that handles MST and Staff
   if (isMst) {
-    return <Redirect href={`/property/${propertyId}/lovable-mst`} />;
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
 
   if (isTenant) {

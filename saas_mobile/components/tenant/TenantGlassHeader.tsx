@@ -224,7 +224,7 @@ export function TenantGlassHeader({
             backgroundColor: isDark ? themeColors.glassBg : colors.glassBg,
             borderColor: isDark ? themeColors.glassBorder : colors.glassBorder,
           }]}>
-            <WeatherIconDisplay icon={weatherIcon} size={26} />
+            <WeatherIconDisplay icon={weatherIcon as any} size={26} />
             {temperature !== null && (
               <Text style={[styles.temperature, { color: isDark ? themeColors.textPrimary : colors.textPrimary }]}>
                 {temperature}°

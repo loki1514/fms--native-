@@ -25,6 +25,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { createClient } from '@/utils/supabase/client';
 import { createClientFromToken } from '@/utils/supabase/mobile-auth';
 import { useTheme, useAuth } from '@/context';
+import { useUnreadStore } from '@/stores/unreadStore';
 import StatusBadge from '@/components/tickets/StatusBadge';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 
@@ -84,10 +85,9 @@ interface Comment {
 interface Activity {
   id: string;
   action: string;
-  new_value?: string | null;
-  old_value?: string | null;
+  details?: string | null;
   created_at: string;
-  user_id?: string;
+  performed_by?: string;
   user?: { full_name: string };
 }
 
@@ -117,9 +117,7 @@ const PRIORITY_CONFIG: Record<string, { bg: string; text: string; label: string 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   open:               ['assigned'],
   assigned:           ['in_progress'],
-  in_progress:        ['paused', 'pending_validation', 'resolved'],
-  paused:             ['in_progress'],
-  pending_validation: ['resolved'],
+  in_progress:        ['resolved'],
   resolved:           ['closed', 'in_progress'],
   closed:             ['in_progress'],
 };
@@ -128,8 +126,6 @@ const STATUS_LABELS: Record<string, string> = {
   open:               'Open',
   assigned:           'Assigned',
   in_progress:        'In Progress',
-  paused:             'Paused',
-  pending_validation: 'Pending Validation',
   resolved:           'Resolved',
   closed:             'Closed',
 };
@@ -251,7 +247,7 @@ export default function TicketDetailScreen() {
 
       // 2. Internal Ticket Security Guard
       const isTenant = userRole === 'tenant' || userRole === 'super_tenant';
-      if (ticketData.internal && isTenant) {
+      if (ticketData.is_internal && isTenant) {
         console.warn('[fetchTicket] Unauthorized access to internal ticket');
         Alert.alert('Access Denied', 'This is an internal maintenance ticket and is not visible to tenants.');
         router.back();
@@ -286,28 +282,33 @@ export default function TicketDetailScreen() {
         .order('created_at', { ascending: true }) as any);
       if (commentError) console.error('[fetchTicket] Comments error:', commentError);
       setComments((commentData ?? []) as Comment[]);
+      if (activeTab !== 'chat' && commentData && commentData.length > 0) {
+        useUnreadStore.getState().setTicketChat(commentData.length);
+      }
 
       // Fetch activity
-      const { data: activityData, error: activityError } = await (supabase
+      const { data: activityDataRaw, error: activityError } = await (supabase
         .from('ticket_activity_log')
-        .select(`*, user:users(full_name)`)
+        .select(`*`)
         .eq('ticket_id', id)
         .order('created_at', { ascending: true }) as any);
       if (activityError) console.error('[fetchTicket] Activity error:', activityError);
-      setActivities((activityData ?? []) as Activity[]);
+      
+      const activityData = activityDataRaw ?? [];
 
-      // Build userNameMap from activity entries for reassignment display
+      // Build userNameMap from activity entries for reassignment display and activity log names
       const newMap: Record<string, string> = {};
-      (activityData ?? []).forEach((act: Activity) => {
-        if (act.user?.full_name && act.user_id) {
-          newMap[act.user_id] = act.user.full_name;
+      activityData.forEach((act: Activity) => {
+        if (act.performed_by && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(act.performed_by)) {
+          newMap[act.performed_by] = act.performed_by;
         }
+        const detailObj = act.details ? (() => { try { return JSON.parse(act.details); } catch { return null; } })() : null;
         if (
           (act.action === 'assigned' || act.action === 'reassigned') &&
-          act.new_value &&
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(act.new_value)
+          detailObj?.new_value &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(detailObj.new_value)
         ) {
-          newMap[act.new_value] = act.new_value;
+          newMap[detailObj.new_value] = detailObj.new_value;
         }
       });
       // Resolve assignee names from the ticket's assignee relation
@@ -317,7 +318,6 @@ export default function TicketDetailScreen() {
       if (ticketData.creator?.id && ticketData.creator?.full_name) {
         newMap[ticketData.creator.id] = ticketData.creator.full_name;
       }
-      // Resolve UUIDs in new_value to user names
       const idsToResolve = Object.keys(newMap).filter(k =>
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k)
       );
@@ -330,6 +330,15 @@ export default function TicketDetailScreen() {
           newMap[u.id] = u.full_name;
         });
       }
+      
+      const populatedActivities = activityData.map((act: Activity) => {
+        if (act.performed_by && newMap[act.performed_by] && newMap[act.performed_by] !== act.performed_by) {
+           return { ...act, user: { full_name: newMap[act.performed_by] } };
+        }
+        return act;
+      });
+      
+      setActivities(populatedActivities as Activity[]);
       setUserNameMap(newMap);
 
       // Fetch escalation logs
@@ -479,6 +488,7 @@ export default function TicketDetailScreen() {
         .single();
       if (error) throw error;
       setComments(prev => [...prev, data as Comment]);
+      if (activeTab !== 'chat') useUnreadStore.getState().incrementTicketChat();
       setNewComment('');
     } catch (err) {
       console.error('Error sending comment:', err);
@@ -512,24 +522,24 @@ export default function TicketDetailScreen() {
         commentText += `\nAssignee: @${procUser.full_name} (${procUser.role ?? 'Procurement'})`;
       }
       
-      // 1. Store structured request in material_requests table
-      const { error: materialError } = await supabase
-        .from('material_requests')
-        .insert({
-          ticket_id: id,
-          property_id: propertyId,
-          requested_by: userId,
-          assignee_uid: selectedProcurementId,
-          items: validItems, // JSONB structure: [{name, qty, notes}] (unit removed)
-          status: 'pending'
-        } as any);
+      // TODO: material_requests table does not exist in saas_one schema
+      // const { error: materialError } = await supabase
+      //   .from('material_requests')
+      //   .insert({
+      //     ticket_id: id,
+      //     property_id: propertyId,
+      //     requested_by: userId,
+      //     assignee_uid: selectedProcurementId,
+      //     items: validItems,
+      //     status: 'pending'
+      //   } as any);
 
-      if (materialError) {
-        console.error('[handleAddMaterial] Error inserting into material_requests:', materialError);
-        Alert.alert('Warning', 'Stored structured request failed, but we will still log it to the ticket chat.');
-      }
+      // if (materialError) {
+      //   console.error('[handleAddMaterial] Error inserting into material_requests:', materialError);
+      //   Alert.alert('Warning', 'Stored structured request failed, but we will still log it to the ticket chat.');
+      // }
 
-      // 2. Insert comment for chat visibility
+      // Insert comment for chat visibility
       const { data, error } = await supabase
         .from('ticket_comments')
         .insert({ ticket_id: id, comment: commentText, user_id: userId, is_internal: false } as any)
@@ -538,6 +548,7 @@ export default function TicketDetailScreen() {
         
       if (error) throw error;
       setComments(prev => [...prev, data as Comment]);
+      if (activeTab !== 'chat') useUnreadStore.getState().incrementTicketChat();
       
       // Reset state
       setMaterialItems([{ name: '', qty: '1', notes: '' }]);
@@ -566,7 +577,7 @@ export default function TicketDetailScreen() {
     if (newStatus === 'in_progress' && !ticket.work_started_at) {
       optimisticTicket.work_started_at = new Date().toISOString();
     }
-    if (newStatus === 'open' && ticket.status === 'pending_validation') {
+    if (newStatus === 'open' && ticket.status === 'resolved') {
       optimisticTicket.resolved_at = undefined;
     }
     setTicket(optimisticTicket);
@@ -581,7 +592,7 @@ export default function TicketDetailScreen() {
         updates.work_started_at = new Date().toISOString();
       }
       // When tenant rejects validation → back to 'open', clear resolved_at
-      if (newStatus === 'open' && ticket.status === 'pending_validation') {
+      if (newStatus === 'open' && ticket.status === 'resolved') {
         updates.resolved_at = null;
       }
 
@@ -632,18 +643,15 @@ export default function TicketDetailScreen() {
       let activityAction: string | null = null;
       if (newStatus === 'in_progress' && ticket.status === 'assigned') activityAction = 'work_started';
       else if (newStatus === 'resolved' || newStatus === 'closed') activityAction = 'completed';
-      else if (newStatus === 'paused') activityAction = 'paused';
-      else if (newStatus === 'in_progress' && ticket.status === 'paused') activityAction = 'resumed';
-      else if (newStatus === 'pending_validation') activityAction = 'pending_validation';
+      else if (newStatus === 'in_progress' && ticket.status === 'resolved') activityAction = 'resumed';
 
       if (activityAction && actingUserId) {
         try {
           await (supabase.from('ticket_activity_log') as any).insert({
             ticket_id: id,
-            user_id: actingUserId,
+            performed_by: actingUserId,
             action: activityAction,
-            old_value: ticket.status,
-            new_value: newStatus,
+            details: JSON.stringify({ old_value: ticket.status, new_value: newStatus }),
           });
         } catch (logErr) {
           console.warn('[handleUpdateStatus] Activity log insert failed (non-critical):', logErr);
@@ -720,10 +728,9 @@ export default function TicketDetailScreen() {
         try {
           await (supabase.from('ticket_activity_log') as any).insert({
             ticket_id: id,
-            user_id: actingUserId,
+            performed_by: actingUserId,
             action: action,
-            old_value: oldAssigneeId,
-            new_value: mstId,
+            details: JSON.stringify({ old_value: oldAssigneeId, new_value: mstId }),
           });
         } catch (logErr) {
           console.warn('[handleReassign] Activity log insert failed:', logErr);
@@ -1095,7 +1102,10 @@ export default function TicketDetailScreen() {
             <TouchableOpacity
               key={tab}
               style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive]}
-              onPress={() => setActiveTab(tab)}
+              onPress={() => {
+                setActiveTab(tab);
+                if (tab === 'chat') useUnreadStore.getState().clearTicketChat();
+              }}
             >
               <Text style={[
                 styles.tabBtnText,
@@ -1162,7 +1172,7 @@ export default function TicketDetailScreen() {
                 {isAssignee && ticket.status === 'in_progress' && (
                   <TouchableOpacity
                     style={[styles.primaryBlockBtn, { backgroundColor: validationEnabled ? '#8B5CF6' : '#10B981', flex: 1 }]}
-                    onPress={() => handleUpdateStatus(validationEnabled ? 'pending_validation' : 'closed')}
+                    onPress={() => handleUpdateStatus(validationEnabled ? 'resolved' : 'closed')}
                     disabled={updatingStatus}
                   >
                     {updatingStatus ? (
@@ -1205,7 +1215,7 @@ export default function TicketDetailScreen() {
           )}
 
           {/* Tenant Validation — shown when ticket is pending client approval */}
-          {isTenant && ticket.status === 'pending_validation' && (
+          {isTenant && ticket.status === 'resolved' && (
             <View style={[styles.card, { backgroundColor: 'rgba(139,92,246,0.08)', borderColor: 'rgba(139,92,246,0.3)' }]}>
               <View style={styles.validationHeader}>
                 <Ionicons name="shield-checkmark" size={22} color="#8B5CF6" />
@@ -1397,12 +1407,10 @@ export default function TicketDetailScreen() {
 
                 {/* 2. Activity Log Events */}
                 {activities.map((act, idx) => {
+                  const detailObj = act.details ? (() => { try { return JSON.parse(act.details); } catch { return null; } })() : null;
                   const isReassign = act.action?.includes('reassign') || act.action === 'assigned' || act.action === 'reopened';
                   const isStart = act.action === 'work_started' || act.action === 'in_progress';
                   const isComplete = act.action === 'completed' || act.action === 'resolved' || act.action === 'closed';
-                  const isPause = act.action === 'paused' || act.action === 'pause_work';
-                  const isResume = act.action === 'resumed' || act.action === 'resume_work';
-                  const isValidation = act.action?.includes('validation') || act.action === 'pending_validation';
                   const isPriority = act.action === 'priority_changed' || act.action === 'priority';
 
                   // Determine icon, color, and label for this action
@@ -1427,18 +1435,6 @@ export default function TicketDetailScreen() {
                     iconName = 'checkmark-circle';
                     dotColor = '#10B981';
                     actionLabel = act.action === 'closed' ? 'Ticket Closed' : 'Ticket Completed';
-                  } else if (isPause) {
-                    iconName = 'pause-circle';
-                    dotColor = '#8B5CF6';
-                    actionLabel = 'Work Paused';
-                  } else if (isResume) {
-                    iconName = 'play-forward';
-                    dotColor = '#F59E0B';
-                    actionLabel = 'Work Resumed';
-                  } else if (isValidation) {
-                    iconName = 'shield-checkmark';
-                    dotColor = '#EC4899';
-                    actionLabel = act.action === 'pending_validation' ? 'Sent for Validation' : 'Validation Update';
                   } else if (isPriority) {
                     iconName = 'flag';
                     dotColor = '#F97316';
@@ -1454,14 +1450,14 @@ export default function TicketDetailScreen() {
                   let fromName: string | null = null;
                   let toName: string | null = null;
 
-                  if (isReassign && act.new_value) {
+                  if (isReassign && detailObj?.new_value) {
                     // new_value is the assignee UUID
-                    toName = userNameMap[act.new_value] ?? act.new_value;
+                    toName = userNameMap[detailObj.new_value] ?? detailObj.new_value;
                     // old_value might be a previous assignee UUID
-                    if (act.old_value && userNameMap[act.old_value]) {
-                      fromName = userNameMap[act.old_value];
-                    } else if (act.old_value) {
-                      fromName = userNameMap[act.old_value] ?? null;
+                    if (detailObj.old_value && userNameMap[detailObj.old_value]) {
+                      fromName = userNameMap[detailObj.old_value];
+                    } else if (detailObj.old_value) {
+                      fromName = userNameMap[detailObj.old_value] ?? null;
                     }
                   }
 
@@ -1481,8 +1477,6 @@ export default function TicketDetailScreen() {
                         <View style={[styles.seqCard, {
                           borderColor: isReassign ? 'rgba(59,130,246,0.2)'
                             : isComplete ? 'rgba(16,185,129,0.2)'
-                            : isPause || isResume ? 'rgba(139,92,246,0.2)'
-                            : isValidation ? 'rgba(236,72,153,0.2)'
                             : 'rgba(99,102,241,0.15)',
                           backgroundColor: isDark ? 'rgba(30,38,51,0.6)' : '#FAFBFF',
                         }]}>
@@ -1527,32 +1521,32 @@ export default function TicketDetailScreen() {
                           )}
 
                           {/* Priority change detail */}
-                          {isPriority && act.new_value && (
+                          {isPriority && detailObj?.new_value && (
                             <View style={styles.seqChangeRow}>
                               <Text style={[styles.seqChangeLabel, { color: textSecondary }]}>
-                                {act.old_value ? `${act.old_value?.toUpperCase()} → ` : ''}
+                                {detailObj.old_value ? `${detailObj.old_value?.toUpperCase()} → ` : ''}
                               </Text>
                               <View style={[styles.seqPriorityBadge, { backgroundColor: `${dotColor}15` }]}>
                                 <Text style={[styles.seqPriorityText, { color: dotColor }]}>
-                                  {act.new_value?.toUpperCase()}
+                                  {detailObj.new_value?.toUpperCase()}
                                 </Text>
                               </View>
                             </View>
                           )}
 
                           {/* Status change detail (non-reassign) */}
-                          {!isReassign && !isPriority && act.new_value && (
+                          {!isReassign && !isPriority && detailObj?.new_value && (
                             <View style={styles.seqChangeRow}>
-                              {act.old_value && (
+                              {detailObj.old_value && (
                                 <>
                                   <Text style={[styles.seqChangeLabel, { color: textSecondary }]}>
-                                    {act.old_value?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                    {detailObj.old_value?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                                   </Text>
                                   <Ionicons name="arrow-forward" size={10} color={textSecondary} style={{ marginHorizontal: 4 }} />
                                 </>
                               )}
                               <Text style={[styles.seqChangeLabel, { color: dotColor, fontWeight: '600' }]}>
-                                {act.new_value?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                {detailObj.new_value?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                               </Text>
                             </View>
                           )}
@@ -1828,7 +1822,7 @@ export default function TicketDetailScreen() {
         {activeTab === 'chat' && (
           <View style={[
             styles.whatsappInputBar,
-            { backgroundColor: isDark ? '#1F2C34' : '#F0F2F5' },
+            { backgroundColor: isDark ? '#1F2C34' : '#F0F2F5', marginBottom: Math.max(insets.bottom, 8) + 70 },
           ]}>
             <TouchableOpacity 
               style={{ marginRight: 8, padding: 8 }} 
@@ -2264,7 +2258,7 @@ const styles = StyleSheet.create({
   chatScrollContent: {
     padding: 0,
     gap: 0,
-    paddingBottom: 140,
+    paddingBottom: 200,
   },
   card: {
     backgroundColor: 'rgba(15,23,42,0.65)',

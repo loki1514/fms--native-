@@ -316,7 +316,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // ─── Create users profile row (mirrors web app auth callback) ───
         // This must exist before onboarding tries to .update() it.
-        await supabase.from('users').upsert({
+        await (supabase as any).from('users').upsert({
           id: data.session.user.id,
           email: email,
           full_name: fullName,

@@ -34,6 +34,7 @@ import { LoggersMenu } from '../shared/LoggersMenu';
 import StockScannerModal from '../stock/StockScannerModal';
 import { TicketShuffleStack } from '../shared/TicketShuffleStack';
 import FloatingMenu from '@/components/ui/FloatingMenu';
+import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
 import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
 
 const DRAWER_WIDTH = 280;
@@ -126,6 +127,7 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
   const [showLoggersMenu, setShowLoggersMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showPermissionOnboarding, setShowPermissionOnboarding] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -151,6 +153,9 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
       fetchUserRoleAndSkills();
       fetchShiftStatus();
     }
+    hasRequestedPermissions().then(requested => {
+      if (!requested) setShowPermissionOnboarding(true);
+    });
   }, [propertyId, user?.id]);
 
   const { tab } = useLocalSearchParams<{ tab?: string }>();
@@ -172,20 +177,20 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
 
       if (rsData) setIsCheckedIn(rsData.is_checked_in);
 
-      const { data: shiftData }: any = await supabase
-        .from('shift_logs')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('property_id', propertyId)
-        .eq('status', 'active')
-        .order('check_in_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (shiftData) {
-        setActiveShiftId(shiftData.id);
-        setIsCheckedIn(true);
-      }
+      // TODO: shift_logs does not exist in saas_one schema
+      // const { data: shiftData }: any = await supabase
+      //   .from('shift_logs')
+      //   .select('id')
+      //   .eq('user_id', user.id)
+      //   .eq('property_id', propertyId)
+      //   .eq('status', 'active')
+      //   .order('check_in_at', { ascending: false })
+      //   .limit(1)
+      //   .maybeSingle();
+      // if (shiftData) {
+      //   setActiveShiftId(shiftData.id);
+      //   setIsCheckedIn(true);
+      // }
     } catch (error) {
       console.error('Error fetching shift status:', error);
     }
@@ -196,29 +201,30 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
     setIsCheckingInOut(true);
     const newStatus = !isCheckedIn;
     try {
-      if (newStatus) {
-        const { data: newShift, error: shiftErr }: any = await (supabase
-          .from('shift_logs') as any)
-          .insert({
-            user_id: user.id,
-            property_id: propertyId,
-            status: 'active',
-            check_in_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-        if (shiftErr) throw shiftErr;
-        setActiveShiftId(newShift.id);
-      } else {
-        if (activeShiftId) {
-          const { error: shiftErr } = await (supabase
-            .from('shift_logs') as any)
-            .update({ status: 'completed', check_out_at: new Date().toISOString() })
-            .eq('id', activeShiftId);
-          if (shiftErr) throw shiftErr;
-        }
-        setActiveShiftId(null);
-      }
+      // TODO: shift_logs does not exist in saas_one schema
+      // if (newStatus) {
+      //   const { data: newShift, error: shiftErr }: any = await (supabase
+      //     .from('shift_logs') as any)
+      //     .insert({
+      //       user_id: user.id,
+      //       property_id: propertyId,
+      //       status: 'active',
+      //       check_in_at: new Date().toISOString()
+      //     })
+      //     .select()
+      //     .single();
+      //   if (shiftErr) throw shiftErr;
+      //   setActiveShiftId(newShift.id);
+      // } else {
+      //   if (activeShiftId) {
+      //     const { error: shiftErr } = await (supabase
+      //       .from('shift_logs') as any)
+      //       .update({ status: 'completed', check_out_at: new Date().toISOString() })
+      //       .eq('id', activeShiftId);
+      //     if (shiftErr) throw shiftErr;
+      //   }
+      //   setActiveShiftId(null);
+      // }
 
       const { error: rsErr } = await (supabase
         .from('resolver_stats') as any)
@@ -246,7 +252,7 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
       .eq('property_id', propertyId)
       .single() as any);
     if (member) {
-      setUserRole(member.role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()));
+      setUserRole(member.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()));
     }
 
     // Fetch specialization from mst_skills (stores skill groups per user per property)
@@ -259,7 +265,7 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
 
     if (skills?.skill_group_code) {
       setUserSkills([skills.skill_group_code]);
-      setSpecialization(skills.skill_group_code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()));
+      setSpecialization(skills.skill_group_code.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()));
     }
 
     // Also try resolver_stats for skills array (newer schema)
@@ -273,10 +279,10 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
     if (resolverStats?.skills && Array.isArray(resolverStats.skills)) {
       setUserSkills(resolverStats.skills);
       if (!specialization && resolverStats.skills.length > 0) {
-        setSpecialization(resolverStats.skills[0].replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()));
+        setSpecialization(resolverStats.skills[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()));
       }
     } else if (resolverStats?.specialization) {
-      setSpecialization(resolverStats.specialization.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()));
+      setSpecialization(resolverStats.specialization.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()));
     }
   };
 
@@ -746,6 +752,7 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
           </View>
         </View>
       </Modal>
+      <PermissionOnboarding visible={showPermissionOnboarding} onComplete={() => setShowPermissionOnboarding(false)} />
     </View>
   );
 }

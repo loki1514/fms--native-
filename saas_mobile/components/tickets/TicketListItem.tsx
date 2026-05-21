@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import StatusBadge from './StatusBadge';
@@ -25,10 +26,10 @@ interface TicketListItemProps {
 }
 
 const PRIORITY_CONFIG: Record<string, { bg: string; text: string; dot: string }> = {
-  critical: { bg: 'rgba(244,63,94,0.06)', text: '#F43F5E', dot: '#F43F5E' },
-  high:     { bg: 'rgba(249,115,22,0.06)', text: '#F97316', dot: '#F97316' },
-  medium:   { bg: 'rgba(245,158,11,0.06)', text: '#F59E0B', dot: '#F59E0B' },
-  low:      { bg: 'rgba(148,163,184,0.06)', text: '#94A3B8', dot: '#94A3B8' },
+  critical: { bg: 'rgba(244,63,94,0.12)', text: '#F43F5E', dot: '#F43F5E' },
+  high:     { bg: 'rgba(249,115,22,0.12)', text: '#F97316', dot: '#F97316' },
+  medium:   { bg: 'rgba(245,158,11,0.12)', text: '#F59E0B', dot: '#F59E0B' },
+  low:      { bg: 'rgba(148,163,184,0.12)', text: '#94A3B8', dot: '#94A3B8' },
 };
 
 function formatTimeAgo(dateStr: string): string {
@@ -85,45 +86,48 @@ export default function TicketListItem({
           {/* Title */}
           <Text style={styles.title} numberOfLines={2}>{title}</Text>
 
-          {/* Bottom row: badges + assignee */}
-          <View style={styles.bottomRow}>
-            <View style={styles.badgeGroup}>
-              <StatusBadge status={status} size="sm" />
-              <View style={[styles.priorityBadge, { backgroundColor: pCfg.bg }]}>
-                <View style={[styles.priorityDot, { backgroundColor: pCfg.dot }]} />
-                <Text style={[styles.priorityText, { color: pCfg.text }]}>
-                  {priority?.toUpperCase()}
-                </Text>
-              </View>
-              {escalationChain && escalationChain.length > 0 && (
-                <View style={styles.escalatedBadge}>
-                  <Ionicons name="arrow-up" size={10} color="#FFF" />
-                  <Text style={styles.escalatedText}>ESCALATED</Text>
-                </View>
-              )}
+          {/* Badges row */}
+          <View style={styles.badgesRow}>
+            <StatusBadge status={status} size="sm" />
+            <View style={[styles.priorityBadge, { backgroundColor: pCfg.bg }]}>
+              <View style={[styles.priorityDot, { backgroundColor: pCfg.dot }]} />
+              <Text style={[styles.priorityText, { color: pCfg.text }]}>
+                {priority?.toUpperCase()}
+              </Text>
             </View>
-
-            {assignedTo && (
-              <View style={styles.assigneeRow}>
-                {assigneePhotoUrl ? (
-                  <Image source={{ uri: assigneePhotoUrl }} style={styles.assigneeAvatar} />
-                ) : (
-                  <View style={styles.assigneeInitials}>
-                    <Text style={styles.assigneeInitialsText}>
-                      {assignedTo.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-                <Text style={styles.assigneeName} numberOfLines={1}>{assignedTo}</Text>
+            {escalationChain && escalationChain.length > 0 && (
+              <View style={styles.escalatedBadge}>
+                <Ionicons name="arrow-up" size={10} color="#FFF" />
+                <Text style={styles.escalatedText}>ESCALATED</Text>
               </View>
             )}
           </View>
 
-          {/* Escalation chain: avatars with arrows */}
+          {/* Assignee row */}
+          {assignedTo && (
+            <View style={styles.assigneeRow}>
+              {assigneePhotoUrl ? (
+                <Image source={{ uri: assigneePhotoUrl }} style={styles.assigneeAvatar} />
+              ) : (
+                <View style={styles.assigneeInitials}>
+                  <Text style={styles.assigneeInitialsText}>
+                    {assignedTo.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.assigneeName} numberOfLines={1}>{assignedTo}</Text>
+            </View>
+          )}
+
+          {/* Escalation chain */}
           {escalationChain && escalationChain.length > 0 && (
-            <View style={styles.escalationChain}>
+            <View style={styles.escalationWrap}>
               <Text style={styles.escalatedLabel}>Escalated to:</Text>
-              <View style={styles.escalationChainRow}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.escalationScroll}
+              >
                 {escalationChain.map((person, i) => {
                   const initials = person.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
                   const isLast = i === escalationChain.length - 1;
@@ -144,17 +148,16 @@ export default function TicketListItem({
                     </React.Fragment>
                   );
                 })}
-              </View>
+              </ScrollView>
             </View>
           )}
         </View>
 
-        {photoUrl && (
-          <Image source={{ uri: photoUrl }} style={styles.ticketPhoto} />
-        )}
-
-        {/* Chevron */}
-        <View style={styles.chevron}>
+        {/* Right side: photo + chevron */}
+        <View style={styles.rightSide}>
+          {photoUrl && (
+            <Image source={{ uri: photoUrl }} style={styles.ticketPhoto} />
+          )}
           <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.4)" />
         </View>
       </SafeBlurView>
@@ -191,7 +194,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 14,
-    gap: 6,
+    gap: 8,
   },
   topRow: {
     flexDirection: 'row',
@@ -216,23 +219,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     lineHeight: 20,
   },
-  bottomRow: {
+  badgesRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    marginTop: 4,
-  },
-  badgeGroup: {
-    flexDirection: 'row',
     gap: 6,
-    flex: 1,
   },
   priorityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 999,
   },
   priorityDot: {
@@ -245,11 +243,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
+  escalatedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  escalatedText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFF',
+    letterSpacing: 0.3,
+  },
   assigneeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    maxWidth: '45%',
+    gap: 6,
   },
   assigneeAvatar: {
     width: 20,
@@ -262,54 +274,39 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: 'rgba(59,130,246,0.1)',
+    backgroundColor: 'rgba(59,130,246,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   assigneeInitialsText: {
     fontSize: 7,
     fontWeight: '700',
-    color: '#3B82F6',
+    color: '#60A5FA',
   },
   assigneeName: {
     fontSize: 11,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.65)',
   },
-  escalatedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#EF4444',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
-  escalatedText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#FFF',
-    letterSpacing: 0.3,
-  },
-  escalationChain: {
+  escalationWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 6,
     paddingTop: 6,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
   escalatedLabel: {
     fontSize: 10,
     fontWeight: '600',
     color: '#F87171',
+    flexShrink: 0,
   },
-  escalationChainRow: {
+  escalationScroll: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    flex: 1,
+    paddingRight: 8,
   },
   escAvatar: {
     width: 24,
@@ -332,16 +329,15 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '700',
   },
-  chevron: {
+  rightSide: {
     justifyContent: 'center',
+    alignItems: 'center',
     paddingRight: 12,
+    gap: 8,
   },
   ticketPhoto: {
-    width: 52,
-    height: 52,
+    width: 48,
+    height: 48,
     borderRadius: 8,
-    marginVertical: 12,
-    marginRight: 8,
-    alignSelf: 'center',
   },
 });

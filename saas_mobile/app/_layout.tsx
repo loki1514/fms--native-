@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, ThemeProvider } from '@/context';
@@ -130,7 +131,9 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <ThemeProvider>
             <AuthProvider>
-              <AppContent colorScheme={colorScheme} />
+              <BottomSheetModalProvider>
+                <AppContent colorScheme={colorScheme} />
+              </BottomSheetModalProvider>
             </AuthProvider>
           </ThemeProvider>
         </SafeAreaProvider>

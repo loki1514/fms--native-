@@ -152,10 +152,9 @@ export type TicketStatus =
   | 'open'
   | 'assigned'
   | 'in_progress'
-  | 'paused'
-  | 'pending_validation'
   | 'resolved'
-  | 'closed';
+  | 'closed'
+  | 'waitlist';
 
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 

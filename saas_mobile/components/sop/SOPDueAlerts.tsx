@@ -22,10 +22,10 @@ export default function SOPDueAlerts() {
     if (!pid) return;
     supabase
       .from('sop_completions')
-      .select('id, status, due_at, template:sop_templates(title)')
+      .select('id, status, created_at, template:sop_templates(title)')
       .eq('property_id', pid)
       .in('status', ['pending', 'in_progress', 'missed'])
-      .order('due_at', { ascending: true })
+      .order('created_at', { ascending: true })
       .limit(20)
       .then(({ data, error }: any) => {
         if (!error) setAlerts(data || []);
@@ -67,7 +67,7 @@ export default function SOPDueAlerts() {
                         {a.template?.title || 'Checklist'}
                       </Text>
                       <Text style={[styles.alertMeta, { color: isDark ? 'rgba(230,235,238,0.4)' : 'rgba(26,35,50,0.4)' }]}>
-                        {a.status.toUpperCase()} · {a.due_at ? new Date(a.due_at).toLocaleString() : '—'}
+                        {a.status.toUpperCase()} · {a.created_at ? new Date(a.created_at).toLocaleString() : '—'}
                       </Text>
                     </View>
                     <ArrowRight size={16} color="#708F96" strokeWidth={1.5} />

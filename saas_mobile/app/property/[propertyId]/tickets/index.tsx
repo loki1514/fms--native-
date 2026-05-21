@@ -30,14 +30,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 
 
-type StatusFilter = 'all' | 'open' | 'in_progress' | 'resolved' | 'closed' | 'pending_validation';
+type StatusFilter = 'all' | 'mine' | 'open' | 'in_progress' | 'resolved' | 'closed';
 type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
 
 const FILTER_TABS: { key: StatusFilter; label: string }[] = [
   { key: 'all',                label: 'All' },
+  { key: 'mine',               label: 'My Tickets' },
   { key: 'open',               label: 'Opened' },
+  { key: 'in_progress',        label: 'In Progress' },
+  { key: 'resolved',           label: 'Resolved' },
   { key: 'closed',             label: 'Closed' },
-  { key: 'pending_validation', label: 'Pending Validation' },
 ];
 
 const DATE_RANGES: { key: DateRangeFilter; label: string }[] = [
@@ -69,7 +71,7 @@ interface Ticket {
   assignee: { id: string; full_name: string; user_photo_url?: string | null } | null;
   creator:  { id: string; full_name: string } | null;
   photo_before_url?: string | null;
-  internal?: boolean | null;
+  is_internal?: boolean | null;
   ticket_escalation_logs?: TicketEscalationLog[];
 }
 
@@ -93,7 +95,7 @@ export default function TicketsScreen() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [dateRange, setDateRange] = useState<DateRangeFilter>('all');
   const [statusCounts, setStatusCounts] = useState<Record<StatusFilter, number>>({
-    all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0, pending_validation: 0,
+    all: 0, mine: 0, open: 0, in_progress: 0, resolved: 0, closed: 0,
   });
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -107,9 +109,9 @@ export default function TicketsScreen() {
       // Critical priority
       if (t.priority === 'critical') return true;
       // High priority + active
-      if (t.priority === 'high' && !['resolved', 'closed', 'satisfied'].includes(t.status)) return true;
+      if (t.priority === 'high' && !['resolved', 'closed'].includes(t.status)) return true;
       // Tenant ticket + active
-      if (t.internal === false && !['resolved', 'closed', 'satisfied'].includes(t.status)) return true;
+      if (t.is_internal === false && !['resolved', 'closed'].includes(t.status)) return true;
       // Stale ticket (>3 days open)
       const daysOpen = (Date.now() - new Date(t.created_at).getTime()) / (1000 * 60 * 60 * 24);
       if (daysOpen > 3 && ['open', 'assigned', 'in_progress'].includes(t.status)) return true;
@@ -122,24 +124,26 @@ export default function TicketsScreen() {
     let q = supabase
       .from('tickets')
       .select(`id, title, description, status, priority, ticket_number, created_at, updated_at,
-               property_id, organization_id, photo_before_url, internal,
+               property_id, organization_id, photo_before_url, is_internal,
                assignee:users!assigned_to(id, full_name, user_photo_url),
                creator:users!raised_by(id, full_name),
                ticket_escalation_logs(from_level, to_level, escalated_at,
                  from_employee:users!from_employee_id(full_name, user_photo_url),
                  to_employee:users!to_employee_id(full_name, user_photo_url))`)
       .eq('property_id', propertyId)
-      .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
+      .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (isNeedsAttentionMode) {
       // Fetch all active tickets so we can client-side filter for needs attention
-      q = q.not('status', 'in', '("resolved","closed","satisfied")');
+      q = q.not('status', 'in', '("resolved","closed")');
+    } else if (statusFilter === 'mine') {
+      q = q.eq('assigned_to', authUser?.id ?? '');
     } else if (statusFilter === 'open') {
       q = q.in('status', ['open', 'assigned']);
     } else if (statusFilter === 'in_progress') {
-      q = q.in('status', ['in_progress', 'paused', 'pending_validation']);
+      q = q.in('status', ['in_progress']);
     } else if (statusFilter !== 'all') {
       q = q.eq('status', statusFilter);
     }
@@ -223,7 +227,7 @@ export default function TicketsScreen() {
     if (!propertyId) return;
     try {
       const counts: Record<StatusFilter, number> = {
-        all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0, pending_validation: 0,
+        all: 0, mine: 0, open: 0, in_progress: 0, resolved: 0, closed: 0,
       };
 
       const getDateRange = (range: DateRangeFilter) => {
@@ -239,44 +243,45 @@ export default function TicketsScreen() {
       const { count: allCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
         .eq('property_id', propertyId)
-        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
+        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
         .gte('created_at', start).lte('created_at', end) as any;
       counts.all = allCount ?? 0;
+
+      const { count: mineCount } = await supabase
+        .from('tickets').select('id', { count: 'exact', head: true })
+        .eq('property_id', propertyId)
+        .eq('assigned_to', authUser?.id ?? '')
+        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
+        .gte('created_at', start).lte('created_at', end) as any;
+      counts.mine = mineCount ?? 0;
 
       const { count: openCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
         .eq('property_id', propertyId).in('status', ['open', 'assigned'])
-        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
+        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
         .gte('created_at', start).lte('created_at', end) as any;
       counts.open = openCount ?? 0;
 
       const { count: progressCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
-        .eq('property_id', propertyId).in('status', ['in_progress', 'paused', 'pending_validation'])
-        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
+        .eq('property_id', propertyId).in('status', ['in_progress', 'resolved'])
+        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
         .gte('created_at', start).lte('created_at', end) as any;
       counts.in_progress = progressCount ?? 0;
 
       const { count: resolvedCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
         .eq('property_id', propertyId).eq('status', 'resolved')
-        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
+        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
         .gte('created_at', start).lte('created_at', end) as any;
       counts.resolved = resolvedCount ?? 0;
 
       const { count: closedCount } = await supabase
         .from('tickets').select('id', { count: 'exact', head: true })
         .eq('property_id', propertyId).eq('status', 'closed')
-        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
+        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
         .gte('created_at', start).lte('created_at', end) as any;
       counts.closed = closedCount ?? 0;
-
-      const { count: pendingValidationCount } = await supabase
-        .from('tickets').select('id', { count: 'exact', head: true })
-        .eq('property_id', propertyId).eq('status', 'pending_validation')
-        .or('internal.eq.true,and(internal.eq.false,status.not.in.(resolved,closed,satisfied))')
-        .gte('created_at', start).lte('created_at', end) as any;
-      counts.pending_validation = pendingValidationCount ?? 0;
 
       setStatusCounts(counts);
     } catch (err) {

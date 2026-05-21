@@ -46,7 +46,7 @@ import Svg, {
   Rect as SvgRect,
 } from 'react-native-svg';
 import { useAuth } from '@/hooks/useAuth';
-import { useWeather } from '@/hooks/useWeather';
+import { useWeather, type WeatherCondition } from '@/hooks/useWeather';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import { createClient } from '@/utils/supabase/client';
@@ -669,6 +669,7 @@ function fuzzyMatch(text: string, query: string): boolean {
 export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   const { user } = useAuth();
   const { weather } = useWeather();
+  const [manualCondition, setManualCondition] = useState<WeatherCondition | null>(null);
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const { width } = useWindowDimensions();

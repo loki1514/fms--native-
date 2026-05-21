@@ -16,6 +16,7 @@ import SidekickFace from '@/components/dashboard/SidekickFace';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 import GlobalNavigationDrawer from '@/components/shared/GlobalNavigationDrawer';
 import { useCassandraStore } from '@/stores/cassandraStore';
+import { useUnreadStore } from '@/stores/unreadStore';
 import { useAuth } from '@/hooks/useAuth';
 
 const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
@@ -40,6 +41,7 @@ export default function GlobalBottomNav() {
   })();
 
   const orgId = membership?.org_id ?? '';
+  const ticketChatCount = useUnreadStore((s) => s.ticketChatCount);
 
   // Detect active tab from current pathname
   const activeTab = useMemo(() => {
@@ -47,7 +49,7 @@ export default function GlobalBottomNav() {
     const p = pathname.toLowerCase();
     if (p.endsWith('/dashboard') || p.endsWith('/property/' + propertyId?.toLowerCase()) || p.match(/\/property\/[^\/]+$/)) return 'dashboard';
     if (p.includes('/tickets')) return 'tickets';
-    if (p.includes('/stock')) return 'assets';
+    if (p.includes('/stock')) return 'stock';
     return 'more';
   }, [pathname, propertyId]);
 
@@ -57,8 +59,8 @@ export default function GlobalBottomNav() {
 
   return (
     <>
-      <View style={[styles.container, { paddingBottom: insets.bottom > 0 ? insets.bottom : 8 }]}>
-        <SafeBlurView intensity={80} style={styles.navPill} tint="dark">
+      <View style={styles.container}>
+        <SafeBlurView intensity={80} style={[styles.navPill, { paddingBottom: insets.bottom > 0 ? insets.bottom + 6 : 14 }]} tint="dark">
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
             onPress={() => navigate('dashboard')}
@@ -85,24 +87,33 @@ export default function GlobalBottomNav() {
             <Text style={[styles.navLabel, activeTab === 'tickets' && styles.navLabelActive]}>Tickets</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.navItemCenter} onPress={() => setShowChat(true)} activeOpacity={0.8}>
-            <View style={styles.orb}>
-              <SidekickFace state={faceState} size={32} onClick={() => setShowChat(true)} />
+          <TouchableOpacity style={styles.navItemCenter} onPress={() => { setShowChat(true); useUnreadStore.getState().clearTicketChat(); }} activeOpacity={0.8}>
+            <View style={styles.orbWrapper}>
+              <View style={styles.orb}>
+                <SidekickFace state={faceState} size={32} onClick={() => { setShowChat(true); useUnreadStore.getState().clearTicketChat(); }} />
+              </View>
+              {ticketChatCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {ticketChatCount > 99 ? '99+' : ticketChatCount}
+                  </Text>
+                </View>
+              )}
             </View>
             <Text style={styles.navLabel}>Cassandra</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.navItem, activeTab === 'assets' && styles.navItemActive]}
+            style={[styles.navItem, activeTab === 'stock' && styles.navItemActive]}
             onPress={() => navigate('stock')}
             activeOpacity={0.7}
           >
             <Ionicons
-              name={activeTab === 'assets' ? 'business' : 'business-outline'}
+              name={activeTab === 'stock' ? 'business' : 'business-outline'}
               size={22}
-              color={activeTab === 'assets' ? '#FFF' : 'rgba(255,255,255,0.4)'}
+              color={activeTab === 'stock' ? '#FFF' : 'rgba(255,255,255,0.4)'}
             />
-            <Text style={[styles.navLabel, activeTab === 'assets' && styles.navLabelActive]}>Assets</Text>
+            <Text style={[styles.navLabel, activeTab === 'stock' && styles.navLabelActive]}>Stock</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -200,5 +211,28 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
+  },
+  orbWrapper: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#000',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '800',
+    fontFamily: fontSans,
   },
 });

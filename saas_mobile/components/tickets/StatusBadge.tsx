@@ -6,8 +6,6 @@ const STATUS_LABELS: Record<string, string> = {
   open: 'Open',
   assigned: 'Assigned',
   in_progress: 'In Progress',
-  paused: 'Paused',
-  pending_validation: 'Pending Validation',
   resolved: 'Resolved',
   closed: 'Closed',
 };

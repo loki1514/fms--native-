@@ -1,4 +1,4 @@
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase/client';
 import { ApiResponse } from './api/client';
 import type { InventoryItem, StockTransaction } from '@/types';
 
@@ -11,12 +11,9 @@ interface StockItemsRow {
   category: string | null;
   quantity: number;
   unit: string | null;
-  min_quantity: number | null;
-  max_quantity: number | null;
+  min_threshold: number | null;
   location: string | null;
   barcode: string | null;
-  qr_code_data: string | null;
-  cost_per_unit: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -24,10 +21,12 @@ interface StockItemsRow {
 interface StockMovementsRow {
   id: string;
   item_id: string;
-  type: 'intake' | 'outflow' | 'adjustment';
-  quantity: number;
+  action: 'add' | 'remove' | 'adjust' | 'initial';
+  quantity_change: number;
+  quantity_before: number;
+  quantity_after: number;
   notes: string | null;
-  performed_by: string | null;
+  user_id: string | null;
   created_at: string;
 }
 
@@ -41,12 +40,9 @@ function mapStockItem(row: StockItemsRow): InventoryItem {
     category: row.category ?? undefined,
     quantity: row.quantity,
     unit: row.unit ?? undefined,
-    minQuantity: row.min_quantity ?? undefined,
-    maxQuantity: row.max_quantity ?? undefined,
+    minQuantity: row.min_threshold ?? undefined,
     location: row.location ?? undefined,
     barcode: row.barcode ?? undefined,
-    qrCodeData: row.qr_code_data ?? undefined,
-    costPerUnit: row.cost_per_unit ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -54,18 +50,19 @@ function mapStockItem(row: StockItemsRow): InventoryItem {
 
 function mapStockMovement(row: StockMovementsRow): StockTransaction {
   const typeMap = {
-    intake: 'in' as const,
-    outflow: 'out' as const,
-    adjustment: 'adjustment' as const,
+    add: 'in' as const,
+    remove: 'out' as const,
+    adjust: 'adjustment' as const,
+    initial: 'in' as const,
   };
   return {
     id: row.id,
     itemId: row.item_id,
-    type: typeMap[row.type],
-    quantity: row.quantity,
+    type: typeMap[row.action],
+    quantity: row.quantity_change,
     reason: '',
     notes: row.notes ?? undefined,
-    performedBy: row.performed_by ?? '',
+    performedBy: row.user_id ?? '',
     timestamp: row.created_at,
   };
 }
@@ -132,12 +129,9 @@ export const stockService = {
       if (data.description !== undefined) payload.description = data.description;
       if (data.category !== undefined) payload.category = data.category;
       if (data.unit !== undefined) payload.unit = data.unit;
-      if (data.minQuantity !== undefined) payload.min_quantity = data.minQuantity;
-      if (data.maxQuantity !== undefined) payload.max_quantity = data.maxQuantity;
+      if (data.minQuantity !== undefined) payload.min_threshold = data.minQuantity;
       if (data.location !== undefined) payload.location = data.location;
       if (data.barcode !== undefined) payload.barcode = data.barcode;
-      if (data.qrCodeData !== undefined) payload.qr_code_data = data.qrCodeData;
-      if (data.costPerUnit !== undefined) payload.cost_per_unit = data.costPerUnit;
 
       const { data: row, error }: any = await (supabase as any)
         .from('stock_items')
@@ -167,12 +161,9 @@ export const stockService = {
       if (data.category !== undefined) payload.category = data.category;
       if (data.quantity !== undefined) payload.quantity = data.quantity;
       if (data.unit !== undefined) payload.unit = data.unit;
-      if (data.minQuantity !== undefined) payload.min_quantity = data.minQuantity;
-      if (data.maxQuantity !== undefined) payload.max_quantity = data.maxQuantity;
+      if (data.minQuantity !== undefined) payload.min_threshold = data.minQuantity;
       if (data.location !== undefined) payload.location = data.location;
       if (data.barcode !== undefined) payload.barcode = data.barcode;
-      if (data.qrCodeData !== undefined) payload.qr_code_data = data.qrCodeData;
-      if (data.costPerUnit !== undefined) payload.cost_per_unit = data.costPerUnit;
 
       const { data: row, error }: any = await (supabase as any)
         .from('stock_items')
@@ -231,8 +222,8 @@ export const stockService = {
         .from('stock_movements')
         .insert({
           item_id: data.itemId,
-          type: data.type,
-          quantity: data.quantity,
+          action: data.type,
+          quantity_change: data.quantity,
           notes: data.notes ?? null,
         })
         .select()

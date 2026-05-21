@@ -62,14 +62,18 @@ interface VisitorLog {
   category: string;
   name: string;
   mobile: string;
+  // TODO: email does not exist on visitor_logs
   email?: string;
+  // TODO: address does not exist on visitor_logs
   address?: string;
   coming_from: string;
   whom_to_meet: string;
+  // TODO: purpose does not exist on visitor_logs
   purpose: string;
   photo_url: string;
   checkin_time: string;
   checkout_time: string | null;
+  // TODO: expected_checkout does not exist on visitor_logs
   expected_checkout: string | null;
   status: string;
   property_id: string;
@@ -433,7 +437,8 @@ function CheckInForm({
       }
       const { data } = await supabase
         .from('users')
-        .select('id, full_name, email, designation')
+        .select('id, full_name, email')
+        // TODO: designation does not exist on the users table
         .ilike('full_name', `%${hostName}%`)
         .limit(5);
       setHostSuggestions (data as StaffMember[] ?? []);
@@ -682,7 +687,8 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
       if (hostName.length < 2) { setHostSuggestions([]); return; }
       const { data } = await supabase
         .from('users')
-        .select('id, full_name, email, designation')
+        .select('id, full_name, email')
+        // TODO: designation does not exist on the users table
         .ilike('full_name', `%${hostName}%`)
         .limit(5);
       setHostSuggestions(data as StaffMember[] ?? []);

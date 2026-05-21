@@ -23,7 +23,7 @@ const supabase = createClient();
 
 const { width: FLOWMAP_WIDTH, height: FLOWMAP_HEIGHT } = Dimensions.get('window');
 
-type TicketStatus = 'open' | 'assigned' | 'in_progress' | 'pending_validation' | 'resolved' | 'closed';
+type TicketStatus = 'open' | 'assigned' | 'in_progress' | 'resolved' | 'closed';
 
 interface Ticket {
   id: string;
@@ -47,7 +47,7 @@ interface Ticket {
 const STAGES = [
   { key: 'assigned', label: 'ASSIGNED', icon: 'people-outline', color: '#3B82F6' },
   { key: 'in_progress', label: 'IN PROGRESS', icon: 'construct-outline', color: '#F59E0B' },
-  { key: 'pending_validation', label: 'VALIDATION', icon: 'shield-checkmark-outline', color: '#10B981' },
+  { key: 'resolved', label: 'VALIDATION', icon: 'shield-checkmark-outline', color: '#10B981' },
   { key: 'completed', label: 'COMPLETED', icon: 'checkmark-done-circle-outline', color: '#94A3B8' },
 ];
 
@@ -89,7 +89,7 @@ export default function LiveFlowMap() {
 
     // Fetch Property Name
     const { data: propData } = await supabase.from('properties').select('name').eq('id', propertyId).single();
-    if (propData) setPropertyName(propData.name);
+    if (propData) setPropertyName((propData as { name: string }).name);
 
     // Fetch Validation Feature Status
     const { data: featData } = await supabase
@@ -98,7 +98,7 @@ export default function LiveFlowMap() {
       .eq('property_id', propertyId)
       .eq('feature_key', 'ticket_validation')
       .maybeSingle();
-    setValidationEnabled(featData?.is_enabled === true);
+    setValidationEnabled((featData as { is_enabled: boolean } | null)?.is_enabled === true);
 
     const { data, error } = await (supabase
       .from('tickets')
@@ -118,7 +118,7 @@ export default function LiveFlowMap() {
   useEffect(() => { fetchFlowData(); }, [propertyId]);
 
   const activeStages = useMemo(() => {
-    return STAGES.filter(s => s.key !== 'pending_validation' || validationEnabled);
+    return STAGES.filter(s => s.key !== 'resolved' || validationEnabled);
   }, [validationEnabled]);
 
   const onRefresh = useCallback(async () => {
@@ -128,18 +128,13 @@ export default function LiveFlowMap() {
   }, [propertyId]);
 
   const groupedTickets = useMemo(() => {
-    const groups: Record<string, Ticket[]> = { assigned: [], in_progress: [], pending_validation: [], completed: [] };
+    const groups: Record<string, Ticket[]> = { assigned: [], in_progress: [], resolved: [], completed: [] };
     tickets.forEach(ticket => {
       const status = (ticket.status || '').toLowerCase();
       if (['resolved', 'closed', 'completed'].includes(status)) {
         groups.completed.push(ticket);
-      } else if (status === 'pending_validation') {
-        if (validationEnabled) {
-            groups.pending_validation.push(ticket);
-        } else {
-            // If validation is off, show them as completed
-            groups.completed.push(ticket);
-        }
+      } else if (status === 'resolved') {
+        groups.resolved.push(ticket);
       } else if (status === 'in_progress') {
         groups.in_progress.push(ticket);
       } else {
@@ -161,7 +156,7 @@ export default function LiveFlowMap() {
         updatePayload.status = 'resolved';
     }
 
-    const { error } = await supabase.from('tickets').update(updatePayload).eq('id', ticketId);
+    const { error } = await ((supabase as any).from('tickets').update(updatePayload).eq('id', ticketId));
     if (!error) {
         setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, ...updatePayload } : t));
     }
@@ -333,7 +328,7 @@ export default function LiveFlowMap() {
     let escalationChain = undefined;
     if (logs && logs.length > 0) {
       const sorted = [...logs].sort((a, b) => new Date(a.escalated_at).getTime() - new Date(b.escalated_at).getTime());
-      const chain = [];
+      const chain: { name: string; avatar?: string }[] = [];
       sorted.forEach((log, i) => {
         if (i === 0 && log.from_employee?.full_name) chain.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url });
         if (log.to_employee?.full_name) chain.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url });
@@ -361,7 +356,7 @@ export default function LiveFlowMap() {
             priority={(ticket.priority?.toUpperCase() as any) || 'MEDIUM'}
             status={
               ['resolved', 'closed', 'completed'].includes(ticket.status) ? 'COMPLETED' :
-              ticket.status === 'pending_validation' ? 'PENDING_VALIDATION' :
+              ticket.status === 'resolved' ? 'PENDING_VALIDATION' :
               ticket.status === 'in_progress' ? 'IN_PROGRESS' :
               ticket.assigned_to ? 'ASSIGNED' : 'OPEN'
             }
@@ -448,7 +443,7 @@ export default function LiveFlowMap() {
                     isTarget && { backgroundColor: stage.color + '22', borderColor: stage.color }
                 ]}>
                   <View style={[styles.stageIndicator, { backgroundColor: stage.color }]} />
-                  <Ionicons name={stage.icon} size={18} color={stage.color} style={{ marginRight: 8 }} />
+                  <Ionicons name={stage.icon as any} size={18} color={stage.color} style={{ marginRight: 8 }} />
                   <Text style={[styles.stageLabel, { color: colors.textPrimary }]}>{stage.label}</Text>
                   <View style={[styles.stageCount, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }]}>
                     <Text style={[styles.stageCountText, { color: colors.textSecondary }]}>{stageTickets.length}</Text>

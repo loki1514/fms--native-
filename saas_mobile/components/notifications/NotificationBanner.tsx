@@ -71,7 +71,7 @@ export default function NotificationBanner() {
   const [notification, setNotification] = useState<ForegroundNotification | null>(null);
   const translateY = useRef(new Animated.Value(-BANNER_HEIGHT - 50)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dismiss = useCallback(() => {
     Animated.parallel([

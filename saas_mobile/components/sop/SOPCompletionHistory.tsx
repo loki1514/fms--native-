@@ -34,7 +34,7 @@ export default function SOPCompletionHistory({ propertyId: propId, templateId }:
 
   useEffect(() => {
     if (!pid) return;
-    let query = supabase.from('sop_completions').select('id, status, completion_date, completed_at, template:sop_templates(title)').eq('property_id', pid).order('completion_date', { ascending: false }).limit(20);
+    let query = supabase.from('sop_completions').select('id, status, completed_at, template:sop_templates(title)').eq('property_id', pid).order('completed_at', { ascending: false }).limit(20);
     if (templateId) query = query.eq('template_id', templateId);
     query.then(({ data, error }: any) => {
       if (!error) setCompletions(data || []);
@@ -70,7 +70,7 @@ export default function SOPCompletionHistory({ propertyId: propId, templateId }:
                       {c.template?.title || 'Checklist'}
                     </Text>
                     <Text style={[styles.itemMeta, { color: isDark ? 'rgba(230,235,238,0.4)' : 'rgba(26,35,50,0.4)' }]}>
-                      {c.completion_date ? new Date(c.completion_date).toLocaleDateString() : '—'} · {c.status}
+                      {c.completed_at ? new Date(c.completed_at).toLocaleDateString() : '—'} · {c.status}
                     </Text>
                   </View>
                   <ArrowRight size={16} color="#708F96" strokeWidth={1.5} />

@@ -127,7 +127,7 @@ export default function TenantDashboard({
   }, []);
 
   const handleTicketCreated = useCallback(
-    async (_ticketNumber: string, _ticketId: string) => {
+    async (_ticket: any) => {
       // Refresh ticket list after creation
       await refetch();
     },

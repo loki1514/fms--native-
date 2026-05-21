@@ -21,21 +21,22 @@ import { Colors } from '@/constants/Colors';
 import { createClient } from '@/utils/supabase/client';
 import { readFileAsArrayBuffer, compressImage } from '@/utils/mediaUtils';
 
-import { LoggersMenu } from '@/components/shared/LoggersMenu';
+import { LinearGradient } from 'expo-linear-gradient';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import {
   ArrowLeft,
   Camera,
-  Edit3,
   Save,
   X,
   Mail,
   Phone,
   Shield,
-  Calendar,
+  Building2,
+  User,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
-// Types
+// ─── Types ───────────────────────────────────────────────────────────────────
 interface UserProfile {
   id: string;
   full_name: string;
@@ -44,12 +45,6 @@ interface UserProfile {
   user_photo_url?: string | null;
   role?: string;
   designation?: string;
-  department?: string;
-  employee_id?: string;
-  joining_date?: string;
-  address?: string;
-  city?: string;
-  country?: string;
 }
 
 export default function ProfileScreen() {
@@ -58,34 +53,36 @@ export default function ProfileScreen() {
   const { theme } = useTheme();
   const { user, membership } = useAuth();
   const colors = Colors[theme];
+  const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [showLoggersMenu, setShowLoggersMenu] = useState(false);
-  
-  // Edit form state
-  const [editForm, setEditForm] = useState<Partial<UserProfile>>({});
+
+  // Edit form state — only full_name and phone are editable
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
 
   const supabase = React.useMemo(() => createClient(), []);
 
+  // ─── Fetch profile ─────────────────────────────────────────────────────────
   const fetchProfile = useCallback(async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('users')
-        .select('*')
+        .select('id, full_name, email, phone, user_photo_url, role, designation')
         .eq('id', user.id)
         .maybeSingle();
 
       if (error) throw error;
       if (data) {
         setProfile(data as UserProfile);
-        setEditForm(data as UserProfile);
+        setEditName(data.full_name || '');
+        setEditPhone(data.phone || '');
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -104,22 +101,27 @@ export default function ProfileScreen() {
     setIsRefreshing(false);
   }, [fetchProfile]);
 
+  // ─── Save profile ──────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!profile) return;
+    if (!editName.trim()) {
+      Alert.alert('Error', 'Full name is required');
+      return;
+    }
     setIsSaving(true);
     try {
-      const { error } = await (supabase
-        .from('users') as any)
+      const { error } = await (supabase as any)
+        .from('users')
         .update({
-          full_name: editForm.full_name,
-          phone: editForm.phone,
+          full_name: editName.trim(),
+          phone: editPhone.trim() || null,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', profile.id);
 
       if (error) throw error;
-      
-      setProfile(prev => (prev ? { ...prev, ...editForm } : prev));
-      setIsEditing(false);
+
+      setProfile(prev => (prev ? { ...prev, full_name: editName.trim(), phone: editPhone.trim() || undefined } : prev));
       Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {
       console.error('Error saving profile:', error);
@@ -129,13 +131,13 @@ export default function ProfileScreen() {
     }
   };
 
+  // ─── Photo upload ──────────────────────────────────────────────────────────
   const handlePhotoCapture = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission required', 'Camera access is needed to capture photos');
       return;
     }
-    
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
       quality: 0.7,
@@ -144,32 +146,7 @@ export default function ProfileScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      try {
-        if (!user?.id) throw new Error("Not authenticated");
-        // Compress photo locally
-        const compressedUri = await compressImage(uri);
-        const filename = `${user.id}/${Date.now()}.jpg`;
-        const arrayBuffer = await readFileAsArrayBuffer(compressedUri);
-
-        const { error: uploadError } = await supabase.storage
-          .from('user-photos')
-          .upload(filename, arrayBuffer, { contentType: 'image/jpeg' });
-
-        if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage
-          .from('user-photos')
-          .getPublicUrl(filename);
-
-        const publicUrl = urlData.publicUrl + '?t=' + Date.now();
-        await (supabase.from('users') as any).update({ user_photo_url: publicUrl }).eq('id', profile?.id);
-
-        setProfile(prev => (prev ? { ...prev, user_photo_url: publicUrl } : prev));
-      } catch (error) {
-        console.error('Error uploading photo:', error);
-        Alert.alert('Error', 'Failed to upload photo');
-      }
+      await uploadPhoto(result.assets[0].uri);
     }
     setShowPhotoModal(false);
   };
@@ -183,36 +160,36 @@ export default function ProfileScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      const uri = result.assets[0].uri;
-      try {
-        if (!user?.id) throw new Error("Not authenticated");
-        // Compress photo locally
-        const compressedUri = await compressImage(uri);
-        const filename = `${user.id}/${Date.now()}.jpg`;
-        const arrayBuffer = await readFileAsArrayBuffer(compressedUri);
-
-        const { error: uploadError } = await supabase.storage
-          .from('user-photos')
-          .upload(filename, arrayBuffer, { contentType: 'image/jpeg' });
-
-        if (uploadError) throw uploadError;
-
-        const { data: urlData } = supabase.storage
-          .from('user-photos')
-          .getPublicUrl(filename);
-
-        const publicUrl = urlData.publicUrl + '?t=' + Date.now();
-        await (supabase.from('users') as any).update({ user_photo_url: publicUrl }).eq('id', profile?.id);
-
-        setProfile(prev => (prev ? { ...prev, user_photo_url: publicUrl } : prev));
-      } catch (error) {
-        console.error('Error uploading photo:', error);
-        Alert.alert('Error', 'Failed to upload photo');
-      }
+      await uploadPhoto(result.assets[0].uri);
     }
     setShowPhotoModal(false);
   };
 
+  const uploadPhoto = async (uri: string) => {
+    try {
+      if (!user?.id) throw new Error('Not authenticated');
+      const compressedUri = await compressImage(uri);
+      const filename = `${user.id}/${Date.now()}.jpg`;
+      const arrayBuffer = await readFileAsArrayBuffer(compressedUri);
+
+      const { error: uploadError } = await supabase.storage
+        .from('user-photos')
+        .upload(filename, arrayBuffer, { contentType: 'image/jpeg' });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from('user-photos').getPublicUrl(filename);
+      const publicUrl = urlData.publicUrl + '?t=' + Date.now();
+      await (supabase as any).from('users').update({ user_photo_url: publicUrl }).eq('id', profile?.id);
+
+      setProfile(prev => (prev ? { ...prev, user_photo_url: publicUrl } : prev));
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      Alert.alert('Error', 'Failed to upload photo');
+    }
+  };
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
   const getRoleDisplay = () => {
     if (!membership || !propertyId) return 'Member';
     const prop = membership.properties.find((p) => p.id === propertyId);
@@ -227,238 +204,192 @@ export default function ProfileScreen() {
   };
 
   const getInitials = () => {
-    return profile?.full_name?.[0]?.toUpperCase() || 
-           profile?.email?.[0]?.toUpperCase() || 
-           user?.email?.[0]?.toUpperCase() || 
+    return profile?.full_name?.[0]?.toUpperCase() ||
+           profile?.email?.[0]?.toUpperCase() ||
+           user?.email?.[0]?.toUpperCase() ||
            'U';
   };
 
+  // ─── Glass Card Component ──────────────────────────────────────────────────
+  const GlassCard = ({ children, style }: { children: React.ReactNode; style?: any }) => (
+    <SafeBlurView intensity={isDark ? 50 : 60} tint={isDark ? 'dark' : 'light'} style={[s.glassCard, style]}>
+      <LinearGradient
+        colors={isDark ? ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)', 'rgba(0,0,0,0.15)'] : ['rgba(255,255,255,0.7)', 'rgba(255,255,255,0.5)', 'rgba(255,255,255,0.3)']}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={{ zIndex: 2 }}>{children}</View>
+    </SafeBlurView>
+  );
+
+  // ─── Info Row (read-only) ──────────────────────────────────────────────────
+  const InfoRow = ({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) => (
+    <View style={s.infoRow}>
+      <View style={s.infoIconWrap}>{icon}</View>
+      <View style={{ flex: 1 }}>
+        <Text style={[s.infoLabel, { color: colors.textSecondary }]}>{label}</Text>
+        <Text style={[s.infoValue, { color: colors.text }]} numberOfLines={1}>{value}</Text>
+      </View>
+    </View>
+  );
+
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
+      <View style={[s.container, { paddingTop: insets.top }]}>
+        <LinearGradient colors={isDark ? ['#0B1120', '#0f172a', '#1e1b4b'] : ['#eef2f6', '#f8fafc']} style={StyleSheet.absoluteFillObject} />
+        <View style={s.loadingBox}>
+          <ActivityIndicator size="large" color="#708F96" />
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View style={[s.container, { paddingTop: insets.top }]}>
+      <LinearGradient colors={isDark ? ['#0B1120', '#0f172a', '#1e1b4b'] : ['#eef2f6', '#f8fafc']} style={StyleSheet.absoluteFillObject} />
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
-      
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: '#708F96' }]}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity 
-            style={styles.backBtn}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={24} color="#fff" />
+
+      {/* ── Header ── */}
+      <View style={s.headerWrap}>
+        <LinearGradient colors={['#708F96', '#4A6670', '#2D3F47']} style={StyleSheet.absoluteFillObject} />
+        <View style={s.headerTop}>
+          <TouchableOpacity style={s.backOrb} onPress={() => router.back()} activeOpacity={0.7}>
+            <ArrowLeft size={22} color="#fff" />
           </TouchableOpacity>
-          
-          <Text style={styles.headerTitle}>Profile</Text>
-          
-          <TouchableOpacity
-            style={styles.editBtn}
-            onPress={() => isEditing ? handleSave() : setIsEditing(true)}
-          >
-            {isEditing ? (
-              isSaving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Save size={20} color="#fff" />
-              )
-            ) : (
-              <Edit3 size={20} color="#fff" />
-            )}
-          </TouchableOpacity>
+          <Text style={s.headerTitle}>Profile</Text>
+          <View style={{ width: 40 }} />
         </View>
       </View>
 
       <ScrollView
-        style={styles.content}
+        style={s.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#708F96" />}
       >
-        {/* Profile Photo Section */}
-        <View style={styles.photoSection}>
-          <View style={styles.photoContainer}>
+        {/* ── Avatar Section ── */}
+        <View style={s.avatarSection}>
+          <View style={s.avatarWrap}>
             {profile?.user_photo_url ? (
-              <Image source={{ uri: profile.user_photo_url }} style={styles.profilePhoto} />
+              <Image source={{ uri: profile.user_photo_url }} style={s.avatarImg} />
             ) : (
-              <View style={[styles.photoPlaceholder, { backgroundColor: colors.primary + '20' }]}>
-                <Text style={[styles.photoPlaceholderText, { color: colors.primary }]}>{getInitials()}</Text>
+              <View style={s.avatarPlaceholder}>
+                <Text style={s.avatarPlaceholderText}>{getInitials()}</Text>
               </View>
             )}
-            
-            <TouchableOpacity
-              style={[styles.cameraBtn, { backgroundColor: colors.primary }]}
-              onPress={() => setShowPhotoModal(true)}
-            >
+            <TouchableOpacity style={s.cameraBtn} onPress={() => setShowPhotoModal(true)} activeOpacity={0.8}>
               <Camera size={16} color="#fff" />
             </TouchableOpacity>
           </View>
-          
-          {!isEditing ? (
-            <>
-              <Text style={[styles.name, { color: colors.text }]}>{profile?.full_name || 'User'}</Text>
-              <Text style={[styles.email, { color: colors.textSecondary }]} numberOfLines={1}>
-                {profile?.email || user?.email}
-              </Text>
-              <View style={[styles.roleBadge, { backgroundColor: colors.primary + '18' }]}>
-                <Text style={[styles.roleText, { color: colors.primary }]}>{getRoleDisplay()}</Text>
-              </View>
-            </>
-          ) : null}
+
+          <Text style={[s.nameText, { color: colors.text }]}>{profile?.full_name || 'User'}</Text>
+          <Text style={[s.emailText, { color: colors.textSecondary }]}>{profile?.email || user?.email}</Text>
+          <View style={s.roleBadge}>
+            <Text style={s.roleBadgeText}>{getRoleDisplay()}</Text>
+          </View>
         </View>
 
-        {/* Basic Information */}
-        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>INFORMATION</Text>
-          
-          {isEditing ? (
-            <View style={styles.editFields}>
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]} numberOfLines={1}>Full Name</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                  value={editForm.full_name || ''}
-                  onChangeText={(text) => setEditForm(prev => ({ ...prev, full_name: text }))}
-                  placeholder="Enter full name"
-                  placeholderTextColor={colors.textTertiary}
-                />
-              </View>
-              
-              <View style={styles.fieldGroup}>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]} numberOfLines={1}>Phone</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                  value={editForm.phone || ''}
-                  onChangeText={(text) => setEditForm(prev => ({ ...prev, phone: text }))}
-                  placeholder="Enter phone number"
-                  placeholderTextColor={colors.textTertiary}
-                  keyboardType="phone-pad"
-                />
-              </View>
-              
-            </View>
-          ) : (
-            <View style={styles.infoList}>
-              <InfoItem
-                icon={<Mail size={18} color={colors.primary} />}
-                label="Email Address"
-                value={profile?.email || 'Not set'}
-              />
+        {/* ── Editable Info ── */}
+        <GlassCard>
+          <Text style={[s.sectionLabel, { color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }]}>EDITABLE INFORMATION</Text>
 
-              <InfoItem
-                icon={<Phone size={18} color={colors.primary} />}
-                label="Phone Number"
-                value={profile?.phone || 'Not set'}
-              />
+          {/* Full Name */}
+          <View style={s.fieldGroup}>
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>FULL NAME</Text>
+            <TextInput
+              style={[s.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', color: colors.text }]}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Enter your full name"
+              placeholderTextColor={colors.textTertiary}
+            />
+          </View>
 
-              <InfoItem 
-                icon={<Shield size={18} color={colors.primary} />}
-                label="Role"
-                value={getRoleDisplay()}
-              />
-              
-              <InfoItem 
-                icon={<Calendar size={18} color={colors.primary} />}
-                label="Property Name"
-                value={getPropertyName()}
-              />
-            </View>
-          )}
-        </View>
+          {/* Phone */}
+          <View style={[s.fieldGroup, { marginTop: 14 }]}>
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>PHONE NUMBER</Text>
+            <TextInput
+              style={[s.input, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', color: colors.text }]}
+              value={editPhone}
+              onChangeText={setEditPhone}
+              placeholder="Enter phone number"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* Save Button */}
+          <TouchableOpacity style={s.saveBtn} onPress={handleSave} activeOpacity={0.8} disabled={isSaving}>
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Save size={18} color="#fff" />
+                <Text style={s.saveBtnText}>Save Changes</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </GlassCard>
+
+        {/* ── Read-Only Info ── */}
+        <GlassCard>
+          <Text style={[s.sectionLabel, { color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }]}>ACCOUNT DETAILS</Text>
+
+          <InfoRow icon={<Mail size={18} color="#708F96" />} label="Email Address" value={profile?.email || 'Not set'} />
+          <InfoRow icon={<Shield size={18} color="#708F96" />} label="Role" value={getRoleDisplay()} />
+          <InfoRow icon={<Building2 size={18} color="#708F96" />} label="Property" value={getPropertyName()} />
+          <InfoRow icon={<User size={18} color="#708F96" />} label="User ID" value={profile?.id?.slice(0, 8) + '...' || 'N/A'} />
+        </GlassCard>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Photo Modal */}
-      <Modal
-        visible={showPhotoModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPhotoModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={1}>Update Photo</Text>
+      {/* ── Photo Modal ── */}
+      <Modal visible={showPhotoModal} transparent animationType="fade" onRequestClose={() => setShowPhotoModal(false)}>
+        <View style={s.modalOverlay}>
+          <SafeBlurView intensity={60} tint="dark" style={s.modalContent}>
+            <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.2)']} style={StyleSheet.absoluteFillObject} />
+            <View style={s.modalHeader}>
+              <Text style={[s.modalTitle, { color: colors.text }]}>Update Photo</Text>
               <TouchableOpacity onPress={() => setShowPhotoModal(false)}>
                 <X size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            
-            <TouchableOpacity
-              style={[styles.modalOption, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-              onPress={handlePhotoCapture}
-            >
-              <Camera size={24} color={colors.primary} />
-              <Text style={[styles.modalOptionText, { color: colors.text }]} numberOfLines={1}>Take Photo</Text>
+
+            <TouchableOpacity style={s.modalOption} onPress={handlePhotoCapture} activeOpacity={0.7}>
+              <Camera size={22} color="#708F96" />
+              <Text style={[s.modalOptionText, { color: colors.text }]}>Take Photo</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.modalOption}
-              onPress={handlePhotoPick}
-            >
-              <Mail size={24} color={colors.primary} />
-              <Text style={[styles.modalOptionText, { color: colors.text }]} numberOfLines={1}>Choose from Library</Text>
+
+            <TouchableOpacity style={s.modalOption} onPress={handlePhotoPick} activeOpacity={0.7}>
+              <Phone size={22} color="#708F96" />
+              <Text style={[s.modalOptionText, { color: colors.text }]}>Choose from Library</Text>
             </TouchableOpacity>
-          </View>
+          </SafeBlurView>
         </View>
       </Modal>
-
-
-      <LoggersMenu
-        visible={showLoggersMenu}
-        onClose={() => setShowLoggersMenu(false)}
-        propertyId={propertyId!}
-      />
     </View>
   );
 }
 
-// Info Item Component
-function InfoItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  const { theme } = useTheme();
-  const colors = Colors[theme];
-  const insets = useSafeAreaInsets();
-  
-  return (
-    <View style={styles.infoItem}>
-      <View style={[styles.infoIcon, { backgroundColor: colors.primary + '12' }]}>
-        {icon}
-      </View>
-      <View style={styles.infoContent}>
-        <Text style={[styles.infoLabel, { color: colors.textSecondary }]} numberOfLines={1}>{label}</Text>
-        <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>{value}</Text>
-      </View>
-    </View>
-  );
-}
+// ─── Styles ──────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  container: { flex: 1 },
+  loadingBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
+  // Header
+  headerWrap: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
     paddingBottom: 20,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  backBtn: {
+  backOrb: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -467,156 +398,188 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: 'Poppins-Bold',
     color: '#fff',
+    letterSpacing: 0.3,
   },
-  editBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
+
+  // Scroll
+  scroll: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingBottom: 100,
+    paddingTop: 24,
   },
-  photoSection: {
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  photoContainer: {
-    position: 'relative',
+
+  // Glass Card
+  glassCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 18,
     marginBottom: 16,
+    overflow: 'hidden',
   },
-  profilePhoto: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  sectionLabel: {
+    fontSize: 10,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 1.2,
+    marginBottom: 16,
+    textTransform: 'uppercase',
   },
-  photoPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+
+  // Avatar section
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  avatarWrap: {
+    position: 'relative',
+    marginBottom: 14,
+  },
+  avatarImg: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    borderColor: 'rgba(112,143,150,0.4)',
+  },
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(112,143,150,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(112,143,150,0.4)',
   },
-  photoPlaceholderText: {
-    fontSize: 48,
+  avatarPlaceholderText: {
+    fontSize: 36,
     fontFamily: 'Poppins-Bold',
+    color: '#708F96',
   },
   cameraBtn: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#708F96',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#0f172a',
   },
-  name: {
-    fontSize: 24,
+  nameText: {
+    fontSize: 20,
     fontFamily: 'Poppins-Bold',
+    textAlign: 'center',
   },
-  email: {
-    fontSize: 14,
+  emailText: {
+    fontSize: 13,
     fontFamily: 'Urbanist-Regular',
-    marginTop: 4,
-  },
-  roleBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginTop: 12,
-  },
-  roleText: {
-    fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sectionCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-    letterSpacing: 1,
-    marginBottom: 16,
-  },
-  editFields: {
-    gap: 16,
-  },
-  fieldGroup: {
-    gap: 6,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    fontFamily: 'Urbanist-Regular',
-  },
-  infoList: {
-    gap: 16,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  infoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  infoValue: {
-    fontSize: 15,
-    fontFamily: 'Urbanist-Regular',
+    textAlign: 'center',
     marginTop: 2,
   },
+  roleBadge: {
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: 'rgba(112,143,150,0.15)',
+  },
+  roleBadgeText: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-Bold',
+    color: '#708F96',
+    textTransform: 'capitalize',
+  },
+
+  // Fields
+  fieldGroup: {},
+  fieldLabel: {
+    fontSize: 10,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 1,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  input: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+  },
+
+  // Save button
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 20,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: '#708F96',
+  },
+  saveBtnText: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: '#fff',
+  },
+
+  // Info rows
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  infoIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(112,143,150,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+  },
+
+  // Modal
   modalOverlay: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    width: '80%',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
     padding: 20,
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
@@ -625,11 +588,13 @@ const styles = StyleSheet.create({
   modalOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    paddingVertical: 16,
+    gap: 14,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
   },
   modalOptionText: {
-    fontSize: 16,
-    fontFamily: 'Urbanist-Medium',
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
   },
 });

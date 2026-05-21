@@ -43,6 +43,16 @@ interface ElectricityMeter {
   status: string;
 }
 
+interface GridTariff {
+  id: string;
+  property_id: string;
+  rate_per_unit: number;
+  effective_from: string;
+  effective_to: string | null;
+  created_by?: string;
+  created_at: string;
+}
+
 interface ElectricityReading {
   id: string;
   meter_id: string;
@@ -86,11 +96,13 @@ const fmtUnits = (val: number) => {
 
 // ─── Glass Card ───────────────────────────────────────────────────────────────
 
-function GlassCard({ children, style, intensity = 40 }: { children: React.ReactNode; style?: any; intensity?: number }) {
+function GlassCard({ children, style, intensity = 50 }: { children: React.ReactNode; style?: any; intensity?: number }) {
   return (
-    <SafeBlurView intensity={intensity} tint="dark" style={[styles.glassCard, { borderColor: 'rgba(255,255,255,0.08)' }, style]}>
+    <SafeBlurView intensity={intensity} tint="dark" style={[styles.glassCard, { borderColor: 'rgba(255,255,255,0.1)' }, style]}>
       <LinearGradient
-        colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']}
+        colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.15)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
       <View style={styles.glassCardInner}>{children}</View>
@@ -113,7 +125,7 @@ function TrendChart({
   color: string;
   labelColor: string;
   formatValue?: (v: number) => string;
-  fillGradient?: string[];
+  fillGradient?: readonly [string, string, ...string[]];
 }) {
   if (data.length === 0) return null;
   const maxVal = Math.max(...data.map((d) => d.value), 1);
@@ -142,7 +154,7 @@ function TrendChart({
                   />
                   {fillGradient && (
                     <LinearGradient
-                      colors={fillGradient}
+                      colors={fillGradient as readonly [string, string, ...string[]]}
                       style={[StyleSheet.absoluteFillObject, { opacity: 0.25, borderRadius: 4 }]}
                     />
                   )}
@@ -185,40 +197,44 @@ function MetricTile({
   isCustom?: boolean;
 }) {
   return (
-    <GlassCard style={[styles.metricTile, { borderTopWidth: 2, borderTopColor: accentColor + '60' }]}>
-      <View style={styles.metricHeader}>
-        <View style={[styles.metricIconWrap, { backgroundColor: accentColor + '20' }]}>
-          {icon}
+    <View style={{ flex: 1, borderRadius: 24, overflow: 'hidden', marginBottom: 12 }}>
+      <SafeBlurView intensity={60} tint="dark" style={[styles.glassCard, { borderColor: accentColor + '30', borderWidth: 1, margin: 0, padding: 0, flex: 1 }]}>
+        <LinearGradient colors={[accentColor + '15', 'transparent']} style={StyleSheet.absoluteFillObject} />
+        <View style={styles.glassCardInner}>
+          <View style={styles.metricHeader}>
+            <View style={[styles.metricIconWrap, { backgroundColor: accentColor + '25', shadowColor: accentColor, shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 5 }]}>
+              {icon}
+            </View>
+            {isCustom ? (
+              <View style={[styles.customBadge, { backgroundColor: accentColor + '18' }]}>
+                <Text style={[styles.customBadgeText, { color: accentColor }]}>Custom</Text>
+              </View>
+            ) : onTimeframeChange ? (
+              <View style={styles.metricToggle}>
+                <TouchableOpacity
+                  onPress={() => onTimeframeChange('today')}
+                  style={[styles.metricToggleBtn, timeframe === 'today' && { backgroundColor: accentColor + '25' }]}
+                >
+                  <Text style={[styles.metricToggleText, { color: timeframe === 'today' ? accentColor : '#94A3B8' }]}>Today</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => onTimeframeChange('month')}
+                  style={[styles.metricToggleBtn, timeframe === 'month' && { backgroundColor: accentColor + '25' }]}
+                >
+                  <Text style={[styles.metricToggleText, { color: timeframe === 'month' ? accentColor : '#94A3B8' }]}>Month</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.metricValueWrap}>
+            <Text style={[styles.metricValue, { color: '#FFFFFF' }]}>{value}</Text>
+            {unit && <Text style={[styles.metricUnit, { color: '#94A3B8' }]}>{unit}</Text>}
+          </View>
+          <Text style={[styles.metricSub, { color: '#94A3B8', marginBottom: 4 }]}>{subtitle}</Text>
+          <Text style={[styles.metricLabel, { color: '#64748B' }]}>{label}</Text>
         </View>
-        {isCustom ? (
-          <View style={[styles.customBadge, { backgroundColor: accentColor + '18' }]}>
-            <Text style={[styles.customBadgeText, { color: accentColor }]}>Custom</Text>
-          </View>
-        ) : onTimeframeChange ? (
-          <View style={styles.metricToggle}>
-            <TouchableOpacity
-              onPress={() => onTimeframeChange('today')}
-              style={[styles.metricToggleBtn, timeframe === 'today' && { backgroundColor: accentColor + '25' }]}
-            >
-              <Text style={[styles.metricToggleText, { color: timeframe === 'today' ? accentColor : '#94A3B8' }]}>Today</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => onTimeframeChange('month')}
-              style={[styles.metricToggleBtn, timeframe === 'month' && { backgroundColor: accentColor + '25' }]}
-            >
-              <Text style={[styles.metricToggleText, { color: timeframe === 'month' ? accentColor : '#94A3B8' }]}>Month</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.metricValueWrap}>
-        <Text style={[styles.metricValue, { color: '#E6EBEE' }]}>{value}</Text>
-        {unit && <Text style={[styles.metricUnit, { color: '#94A3B8' }]}>{unit}</Text>}
-      </View>
-      <View style={[styles.metricAccentLine, { backgroundColor: accentColor }]} />
-      {subtitle && <Text style={[styles.metricSub, { color: '#64748B' }]}>{subtitle}</Text>}
-      <Text style={[styles.metricLabel, { color: '#94A3B8' }]}>{label}</Text>
-    </GlassCard>
+      </SafeBlurView>
+    </View>
   );
 }
 
@@ -275,10 +291,11 @@ export default function ElectricityAnalyticsScreen() {
       setMeters(mts);
 
       // Tariff
-      const { data: tariffData } = await supabase
+      const { data: tariffData } = await (supabase as any)
         .rpc('get_active_grid_tariff', { p_property_id: propertyId, p_date: todayStr });
-      if (tariffData && (tariffData as any[]).length > 0) {
-        setActiveTariff((tariffData as any[])[0].rate_per_unit || 0);
+      const rpcTariffs = (tariffData || []) as GridTariff[];
+      if (rpcTariffs.length > 0) {
+        setActiveTariff(rpcTariffs[0].rate_per_unit || 0);
       } else {
         const { data: allTariffs } = await supabase
           .from('grid_tariffs')
@@ -286,8 +303,9 @@ export default function ElectricityAnalyticsScreen() {
           .eq('property_id', propertyId)
           .order('effective_from', { ascending: false })
           .limit(1);
-        if (allTariffs && allTariffs.length > 0) {
-          setActiveTariff(allTariffs[0].rate_per_unit || 0);
+        const tariffs = (allTariffs || []) as GridTariff[];
+        if (tariffs.length > 0) {
+          setActiveTariff(tariffs[0].rate_per_unit || 0);
         }
       }
 
@@ -475,7 +493,7 @@ export default function ElectricityAnalyticsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {/* Gradient Background */}
-      <LinearGradient colors={['#0f172a', '#1e1b4b', '#0f172a']} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={['#090E17', '#13112E', '#090E17']} style={StyleSheet.absoluteFillObject} />
 
       {/* Header */}
       <GlassCard intensity={60} style={styles.headerCard}>
@@ -553,8 +571,8 @@ export default function ElectricityAnalyticsScreen() {
             <MetricTile
               label="ELECTRICITY COST"
               value={fmtCost(displayCost)}
-              accentColor="#10B981"
-              icon={<IndianRupee size={18} color="#10B981" />}
+              accentColor="#2DD4BF"
+              icon={<IndianRupee size={18} color="#2DD4BF" />}
               subtitle={isCustomRange ? `${dateFrom} to ${dateTo}` : costTimeframe === 'today' ? 'Total today' : 'Total this month'}
               timeframe={isCustomRange ? undefined : costTimeframe}
               onTimeframeChange={isCustomRange ? undefined : setCostTimeframe}
@@ -563,8 +581,8 @@ export default function ElectricityAnalyticsScreen() {
             <MetricTile
               label="UNITS CONSUMED"
               value={fmtUnits(displayUnits)}
-              accentColor="#3B82F6"
-              icon={<Zap size={18} color="#3B82F6" />}
+              accentColor="#60A5FA"
+              icon={<Zap size={18} color="#60A5FA" />}
               subtitle={isCustomRange ? `${dateFrom} to ${dateTo}` : unitsTimeframe === 'today' ? 'Total today' : 'Total this month'}
               timeframe={isCustomRange ? undefined : unitsTimeframe}
               onTimeframeChange={isCustomRange ? undefined : setUnitsTimeframe}
@@ -573,44 +591,45 @@ export default function ElectricityAnalyticsScreen() {
           </View>
 
           {/* Daily Average */}
-          <GlassCard style={styles.averageCard}>
+          <GlassCard style={[styles.averageCard, { borderColor: '#F59E0B' + '30', borderWidth: 1 }]} intensity={60}>
+            <LinearGradient colors={['rgba(245,158,11,0.05)', 'transparent']} style={StyleSheet.absoluteFillObject} />
             <View style={styles.averageHeader}>
-              <View style={[styles.metricIconWrap, { backgroundColor: 'rgba(249,115,22,0.15)' }]}>
-                <BarChart3 size={18} color="#F97316" />
+              <View style={[styles.metricIconWrap, { backgroundColor: '#F59E0B' + '25', shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 5 }]}>
+                <BarChart3 size={18} color="#FBBF24" />
               </View>
               <Text style={[styles.metricLabel, { color: '#94A3B8', marginTop: 0 }]}>DAILY AVERAGE</Text>
             </View>
             <View style={styles.averageValues}>
               <View>
-                <Text style={[styles.metricValue, { color: '#E6EBEE' }]}>{fmtCost(Math.round(metrics.averages.cost))}</Text>
-                <View style={[styles.miniLine, { backgroundColor: '#F97316' }]} />
+                <Text style={[styles.metricValue, { color: '#FFFFFF', fontSize: 24 }]}>{fmtCost(Math.round(metrics.averages.cost))}</Text>
+                <View style={[styles.miniLine, { backgroundColor: '#FBBF24', width: 24, height: 3 }]} />
               </View>
               <View>
-                <Text style={[styles.averageValueSecondary, { color: '#94A3B8' }]}>{fmtUnits(Math.round(metrics.averages.units))}</Text>
-                <View style={[styles.miniLine, { backgroundColor: '#FDBA74' }]} />
+                <Text style={[styles.averageValueSecondary, { color: '#E2E8F0', fontSize: 20 }]}>{fmtUnits(Math.round(metrics.averages.units))}</Text>
+                <View style={[styles.miniLine, { backgroundColor: '#FCD34D', width: 24, height: 3 }]} />
               </View>
             </View>
           </GlassCard>
 
           {/* Daily Stats */}
           <GlassCard style={styles.statsCard}>
-            <Text style={[styles.chartTitle, { color: '#E6EBEE', marginBottom: 12 }]}>Daily Usage Summary</Text>
+            <Text style={[styles.chartTitle, { color: '#FFFFFF', marginBottom: 12 }]}>Daily Usage Summary</Text>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: '#64748B' }]}>Peak Day</Text>
-                <Text style={[styles.statValue, { color: '#FF3B30' }]}>{dailyStats.peak.toFixed(1)}</Text>
+                <Text style={[styles.statLabel, { color: '#94A3B8' }]}>Peak Day</Text>
+                <Text style={[styles.statValue, { color: '#F87171' }]}>{dailyStats.peak.toFixed(1)}</Text>
                 <Text style={[styles.statUnit, { color: '#64748B' }]}>kVAh</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: '#64748B' }]}>Average</Text>
-                <Text style={[styles.statValue, { color: '#708F96' }]}>{dailyStats.avg.toFixed(1)}</Text>
+                <Text style={[styles.statLabel, { color: '#94A3B8' }]}>Average</Text>
+                <Text style={[styles.statValue, { color: '#38BDF8' }]}>{dailyStats.avg.toFixed(1)}</Text>
                 <Text style={[styles.statUnit, { color: '#64748B' }]}>kVAh</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={[styles.statLabel, { color: '#64748B' }]}>Lowest</Text>
-                <Text style={[styles.statValue, { color: '#34C759' }]}>{dailyStats.low.toFixed(1)}</Text>
+                <Text style={[styles.statLabel, { color: '#94A3B8' }]}>Lowest</Text>
+                <Text style={[styles.statValue, { color: '#34D399' }]}>{dailyStats.low.toFixed(1)}</Text>
                 <Text style={[styles.statUnit, { color: '#64748B' }]}>kVAh</Text>
               </View>
             </View>
@@ -632,17 +651,17 @@ export default function ElectricityAnalyticsScreen() {
               <View style={styles.metricToggleRow}>
                 <TouchableOpacity
                   onPress={() => setTrendMetric('cost')}
-                  style={[styles.chartToggleBtn, trendMetric === 'cost' && { backgroundColor: 'rgba(16,185,129,0.15)' }]}
+                  style={[styles.chartToggleBtn, trendMetric === 'cost' && { backgroundColor: 'rgba(45,212,191,0.2)' }]}
                 >
-                  <IndianRupee size={12} color={trendMetric === 'cost' ? '#10B981' : '#64748B'} />
-                  <Text style={[styles.chartToggleText, { color: trendMetric === 'cost' ? '#10B981' : '#64748B' }]}>Cost</Text>
+                  <IndianRupee size={12} color={trendMetric === 'cost' ? '#2DD4BF' : '#64748B'} />
+                  <Text style={[styles.chartToggleText, { color: trendMetric === 'cost' ? '#2DD4BF' : '#64748B' }]}>Cost</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setTrendMetric('units')}
-                  style={[styles.chartToggleBtn, trendMetric === 'units' && { backgroundColor: 'rgba(59,130,246,0.15)' }]}
+                  style={[styles.chartToggleBtn, trendMetric === 'units' && { backgroundColor: 'rgba(96,165,250,0.2)' }]}
                 >
-                  <Zap size={12} color={trendMetric === 'units' ? '#3B82F6' : '#64748B'} />
-                  <Text style={[styles.chartToggleText, { color: trendMetric === 'units' ? '#3B82F6' : '#64748B' }]}>Units</Text>
+                  <Zap size={12} color={trendMetric === 'units' ? '#60A5FA' : '#64748B'} />
+                  <Text style={[styles.chartToggleText, { color: trendMetric === 'units' ? '#60A5FA' : '#64748B' }]}>Units</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.periodToggleRow}>
@@ -670,10 +689,10 @@ export default function ElectricityAnalyticsScreen() {
               <TrendChart
                 data={trendChartData}
                 height={200}
-                color={trendMetric === 'cost' ? '#10B981' : '#3B82F6'}
-                labelColor="#64748B"
+                color={trendMetric === 'cost' ? '#2DD4BF' : '#60A5FA'}
+                labelColor="#94A3B8"
                 formatValue={(v) => (trendMetric === 'cost' ? `₹${v}` : `${v}`)}
-                fillGradient={trendMetric === 'cost' ? ['#10B981', '#064E3B'] : ['#3B82F6', '#1E3A8A']}
+                fillGradient={trendMetric === 'cost' ? ['#2DD4BF', '#0F766E'] : ['#60A5FA', '#1D4ED8']}
               />
             )}
           </GlassCard>
@@ -857,7 +876,7 @@ const styles = StyleSheet.create({
 
   // Glass Card
   glassCard: {
-    borderRadius: 20,
+    borderRadius: 24,
     borderWidth: 1,
     overflow: 'hidden',
     marginBottom: 12,
@@ -868,7 +887,7 @@ const styles = StyleSheet.create({
   headerCard: { margin: 16, marginBottom: 8, marginTop: 8 },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   backBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 20, fontFamily: 'Poppins-Bold', color: '#E6EBEE' },
+  headerTitle: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
 
   tariffBadge: {
     flexDirection: 'row',
@@ -897,18 +916,18 @@ const styles = StyleSheet.create({
   meterSelectorText: { fontSize: 13, fontFamily: 'Poppins-Bold', color: '#E6EBEE' },
 
   // Tiles
-  tilesRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  tilesRow: { flexDirection: 'row', gap: 12, marginBottom: 10 },
   metricTile: { flex: 1, padding: 0, overflow: 'hidden' },
   metricHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  metricIconWrap: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  metricIconWrap: { width: 36, height: 36, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   customBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   customBadgeText: { fontSize: 10, fontFamily: 'Urbanist-Bold' },
   metricToggle: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: 2 },
   metricToggleBtn: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   metricToggleText: { fontSize: 10, fontFamily: 'Urbanist-Bold' },
   metricValueWrap: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 4 },
-  metricValue: { fontSize: 20, fontFamily: 'Poppins-Bold', letterSpacing: -0.5 },
-  metricUnit: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
+  metricValue: { fontSize: 24, fontFamily: 'Poppins-Bold', letterSpacing: -0.5 },
+  metricUnit: { fontSize: 12, fontFamily: 'Urbanist-Medium' },
   metricAccentLine: { height: 3, width: 24, borderRadius: 2, marginBottom: 6 },
   metricSub: { fontSize: 10, fontFamily: 'Urbanist-Medium', marginBottom: 2 },
   metricLabel: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5 },

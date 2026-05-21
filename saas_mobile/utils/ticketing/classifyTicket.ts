@@ -138,11 +138,16 @@ export function classifyWithRules(text: string) {
     }
   }
 
+  // Filter out shorter matches that are substrings of longer matches
+  const filteredMatches = matches.filter(m1 => {
+    return !matches.some(m2 => m1 !== m2 && m2.keyword.includes(m1.keyword) && m2.keyword_length > m1.keyword_length);
+  });
+
   // Scores
   const scores: Record<SkillGroup, number> = { technical: 0, plumbing: 0, vendor: 0, soft_services: 0 };
-  for (const m of matches) scores[m.skill_group]++;
+  for (const m of filteredMatches) scores[m.skill_group]++;
 
-  if (matches.length === 0) {
+  if (filteredMatches.length === 0) {
     return {
       issue_code: null,
       skill_group: 'technical' as SkillGroup,
@@ -154,7 +159,7 @@ export function classifyWithRules(text: string) {
   // Precedence
   const precedence = dictionary.precedence_order as SkillGroup[];
   for (const sg of precedence) {
-    const groupMatches = matches.filter(m => m.skill_group === sg);
+    const groupMatches = filteredMatches.filter(m => m.skill_group === sg);
     if (groupMatches.length > 0) {
       const counts: Record<string, number> = {};
       groupMatches.forEach(m => { counts[m.issue_code] = (counts[m.issue_code] || 0) + 1; });
@@ -231,7 +236,7 @@ export async function classifyWithGroq(
   ticketText: string,
   scores: Record<string, number>,
   dbPriority?: string,
-): Promise<{ priority: string; risk_flag: string | null; reasoning: string; secondary_category_code: string | null } | null> {
+): Promise<{ priority: string; risk_flag: string | null; reasoning: string; secondary_category_code: string | null; primary_category: string | null } | null> {
 
   const apiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
   if (!apiKey) {
@@ -272,6 +277,7 @@ export async function classifyWithGroq(
 
     return {
       priority,
+      primary_category: parsed.primary_category?.toLowerCase() || null,
       risk_flag: parsed.risk_flag || null,
       reasoning: parsed.reasoning || null,
       secondary_category_code: parsed.secondary_category || null,
@@ -292,15 +298,23 @@ export async function classifyTicket(text: string): Promise<ClassificationResult
   const llmResult = await classifyWithGroq(text, ruleResult.scores);
 
   if (llmResult) {
+    // LLM gets final say on the primary category if it returns a valid one
+    const llmSkillGroup = llmResult.primary_category as SkillGroup;
+    const isValidLlmGroup = ['technical', 'plumbing', 'vendor', 'soft_services'].includes(llmSkillGroup);
+    const finalSkillGroup = isValidLlmGroup ? llmSkillGroup : ruleResult.skill_group;
+    
+    // If the LLM overrides the rule engine's category, the old issue_code may not belong to the new group
+    const finalIssueCode = finalSkillGroup === ruleResult.skill_group ? ruleResult.issue_code : null;
+
     return {
-      issue_code: ruleResult.issue_code,
-      skill_group: ruleResult.skill_group,
-      confidence: ruleResult.confidence,
+      issue_code: finalIssueCode,
+      skill_group: finalSkillGroup,
+      confidence: finalSkillGroup !== ruleResult.skill_group ? 'high' : ruleResult.confidence,
       priority: llmResult.priority,
       risk_flag: llmResult.risk_flag,
       llm_reasoning: llmResult.reasoning,
       secondary_category_code: llmResult.secondary_category_code,
-      classification_source: ruleResult.confidence === 'high' ? 'hybrid' : 'groq_llm',
+      classification_source: finalSkillGroup === ruleResult.skill_group && ruleResult.confidence === 'high' ? 'hybrid' : 'groq_llm',
     };
   }
 

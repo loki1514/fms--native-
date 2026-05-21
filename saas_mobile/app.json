@@ -11,7 +11,7 @@
     },
     "icon": "./assets/images/icon.png",
     "scheme": "autopilot",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,

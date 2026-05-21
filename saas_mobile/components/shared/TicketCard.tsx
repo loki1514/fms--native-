@@ -68,8 +68,8 @@ const TicketCard = memo(function TicketCard({
     try {
       if (photoUrl && (await Sharing.isAvailableAsync())) {
         // Download the image to share it as a file
-        const fileUri = `${FileSystem.cacheDirectory}share_${id.slice(0, 8)}.jpg`;
-        const downloadResult = await File.downloadAsync(photoUrl, fileUri);
+        const fileUri = `${(FileSystem as any).cacheDirectory}share_${id.slice(0, 8)}.jpg`;
+        const downloadResult = await (FileSystem as any).downloadAsync(photoUrl, fileUri);
 
         // Use Sharing.shareAsync for files (Expo Go compatible)
         await Sharing.shareAsync(downloadResult.uri, {
