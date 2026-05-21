@@ -232,8 +232,7 @@ export default function CassandraHomeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.promptChips}
-          >
+            contentContainerStyle={styles.promptChips} showsVerticalScrollIndicator={false}>
             {[
               'Show critical tickets',
               'Energy spike today?',

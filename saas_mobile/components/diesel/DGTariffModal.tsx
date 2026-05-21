@@ -184,7 +184,7 @@ export default function DGTariffModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {error && (
               <View style={[styles.errorBox, { backgroundColor: colors.errorBg, borderColor: colors.errorBorder }]}>
                 <Ionicons name="alert-circle" size={16} color={colors.error} />
@@ -219,7 +219,7 @@ export default function DGTariffModal({
             {/* Effective From */}
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Effective From</Text>
             <TouchableOpacity style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, justifyContent: 'center' }]}>
-              <Text style={{ color: colors.text, fontFamily: 'Urbanist-Medium', fontSize: 15 }}>
+              <Text style={{ color: colors.text,  fontSize: 15 }}>
                 {new Date(effectiveFrom + 'T00:00:00').toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
               </Text>
             </TouchableOpacity>
@@ -309,7 +309,7 @@ export default function DGTariffModal({
         >
           <View style={[styles.pickerSheet, { backgroundColor: colors.surface }]}>
             <Text style={[styles.pickerSheetTitle, { color: colors.text }]}>Select Generator</Text>
-            <ScrollView style={{ maxHeight: 300 }}>
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
               {generators.map(gen => (
                 <TouchableOpacity
                   key={gen.id}
@@ -352,20 +352,17 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   sectionLabel: {
     fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
+        textTransform: 'uppercase',
     letterSpacing: 1,
     marginTop: 20,
     marginBottom: 8,
   },
   fieldLabel: {
     fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
+        textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
     marginTop: 12,
@@ -375,8 +372,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     fontSize: 15,
-    fontFamily: 'Urbanist-Medium',
-  },
+      },
   pickerBtn: {
     padding: 14,
     borderRadius: 12,
@@ -387,8 +383,7 @@ const styles = StyleSheet.create({
   },
   pickerBtnText: {
     fontSize: 15,
-    fontFamily: 'Urbanist-Medium',
-  },
+      },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -400,8 +395,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-SemiBold',
-    flex: 1,
+        flex: 1,
   },
   submitBtn: {
     padding: 16,
@@ -411,8 +405,7 @@ const styles = StyleSheet.create({
   },
   submitBtnText: {
     fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-    color: '#FFFFFF',
+        color: '#FFFFFF',
   },
   divider: {
     borderTopWidth: 1,
@@ -432,8 +425,7 @@ const styles = StyleSheet.create({
   },
   emptyHistoryText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   tariffCard: {
     padding: 14,
     borderRadius: 12,
@@ -446,8 +438,7 @@ const styles = StyleSheet.create({
   },
   tariffPrice: {
     fontSize: 18,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   activeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -455,8 +446,7 @@ const styles = StyleSheet.create({
   },
   activeBadgeText: {
     fontSize: 10,
-    fontFamily: 'Poppins-Bold',
-    textTransform: 'uppercase',
+        textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   tariffCardDates: {
@@ -465,8 +455,7 @@ const styles = StyleSheet.create({
   },
   tariffDateText: {
     fontSize: 11,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   pickerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -480,8 +469,7 @@ const styles = StyleSheet.create({
   },
   pickerSheetTitle: {
     fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-    marginBottom: 16,
+        marginBottom: 16,
     textAlign: 'center',
   },
   pickerOption: {
@@ -495,6 +483,5 @@ const styles = StyleSheet.create({
   },
   pickerOptionText: {
     fontSize: 15,
-    fontFamily: 'Urbanist-Medium',
-  },
+      },
 });

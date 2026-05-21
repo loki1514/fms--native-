@@ -311,23 +311,20 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     textAlign: 'center',
     marginBottom: 6,
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
   subtitle: {
     fontSize: 14,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   form: {},
   fieldGroup: { marginBottom: 16 },
   label: {
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 6,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -340,15 +337,13 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     fontSize: 15,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   eyeButton: { padding: 4 },
   fieldError: {
     fontSize: 12,
     fontWeight: '500',
     marginTop: 4,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   messageBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -362,8 +357,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     lineHeight: 18,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   submitButton: {
     borderRadius: 10,
     height: 50,
@@ -381,8 +375,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
   backRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -392,6 +385,5 @@ const styles = StyleSheet.create({
   backText: {
     fontSize: 14,
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
 });

@@ -299,14 +299,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.5,
     marginBottom: 4,
-    fontFamily: fontSans,
-  },
+      },
   userName: {
     fontSize: 28,
     fontWeight: '800',
     letterSpacing: -0.5,
-    fontFamily: fontDisplay,
-  },
+      },
   weatherWidget: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -319,8 +317,7 @@ const styles = StyleSheet.create({
   temperature: {
     fontSize: 20,
     fontWeight: '700',
-    fontFamily: fontDisplay,
-    letterSpacing: -0.3,
+        letterSpacing: -0.3,
   },
   propertyRow: {
     flexDirection: 'row',
@@ -344,14 +341,12 @@ const styles = StyleSheet.create({
   },
   pixelPropertyName: {
     fontSize: 11,
-    fontFamily: 'PressStart2P',
-    letterSpacing: 1.5,
+        letterSpacing: 1.5,
     fontWeight: '400',
   },
   locationName: {
     fontSize: 12,
-    fontFamily: fontSans,
-  },
+      },
   waveDivider: {
     alignItems: 'center',
     marginTop: 4,

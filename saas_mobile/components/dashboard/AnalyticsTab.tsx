@@ -68,15 +68,13 @@ const kpiStyles = StyleSheet.create({
     marginBottom: 8,
   },
   value: {
-    fontFamily: fontDisplay,
-    fontSize: 24,
+        fontSize: 24,
     fontWeight: '800',
     color: '#FFFFFF',
     marginTop: 4,
   },
   label: {
-    fontFamily: fontSans,
-    fontSize: 11,
+        fontSize: 11,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.55)',
     marginTop: 4,
@@ -174,7 +172,7 @@ export default function AnalyticsTab() {
         ) : (
           <FlatList
             data={filteredUsers}
-            keyExtractor={item => item.user_id}
+            keyExtractor={(item) => item.user_id}
             scrollEnabled={false}
             renderItem={({ item, index }) => (
               <View style={styles.userRow}>
@@ -204,8 +202,8 @@ const styles = StyleSheet.create({
   container: { gap: 20 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingVertical: 80 },
   loadingText: { fontSize: 13, fontWeight: '700', color: 'rgba(255,255,255,0.55)' },
-  title: { fontFamily: fontDisplay, fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
-  subtitle: { fontFamily: fontSans, fontSize: 13, color: 'rgba(255,255,255,0.50)', marginTop: 4 },
+  title: {  fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
+  subtitle: {  fontSize: 13, color: 'rgba(255,255,255,0.50)', marginTop: 4 },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   section: {
     backgroundColor: CARD_SURFACES.cardBg,
@@ -223,7 +221,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sectionTitle: { fontFamily: fontDisplay, fontSize: 16, fontWeight: '900', color: '#FFFFFF' },
+  sectionTitle: {  fontSize: 16, fontWeight: '900', color: '#FFFFFF' },
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -236,8 +234,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 12,
   },
-  searchInput: { flex: 1, fontSize: 13, fontWeight: '500', color: '#FFFFFF', fontFamily: fontSans },
-  emptyText: { textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: 13, padding: 32, fontFamily: fontSans },
+  searchInput: { flex: 1, fontSize: 13, fontWeight: '500', color: '#FFFFFF', },
+  emptyText: { textAlign: 'center', color: 'rgba(255,255,255,0.45)', fontSize: 13, padding: 32, },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -246,10 +244,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  rank: { fontSize: 13, fontWeight: '900', width: 32, fontFamily: fontDisplay },
-  userName: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', fontFamily: fontSans },
-  userEmail: { fontSize: 11, color: 'rgba(255,255,255,0.45)', fontFamily: fontSans },
+  rank: { fontSize: 13, fontWeight: '900', width: 32, },
+  userName: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', },
+  userEmail: { fontSize: 11, color: 'rgba(255,255,255,0.45)', },
   statsCol: { alignItems: 'center', minWidth: 52 },
-  statValue: { fontSize: 13, fontWeight: '900', color: 'rgba(255,255,255,0.80)', fontFamily: fontSans },
-  statLabel: { fontSize: 9, color: 'rgba(255,255,255,0.40)', textTransform: 'uppercase', letterSpacing: 0.5, fontFamily: fontSans },
+  statValue: { fontSize: 13, fontWeight: '900', color: 'rgba(255,255,255,0.80)', },
+  statLabel: { fontSize: 9, color: 'rgba(255,255,255,0.40)', textTransform: 'uppercase', letterSpacing: 0.5, },
 });

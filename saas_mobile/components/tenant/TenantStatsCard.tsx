@@ -240,14 +240,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.5,
     marginBottom: 2,
-    fontFamily: fontDisplay,
-  },
+      },
   label: {
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.2,
-    fontFamily: fontSans,
-  },
+      },
   sublabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -257,6 +255,5 @@ const styles = StyleSheet.create({
   sublabel: {
     fontSize: 10,
     fontWeight: '500',
-    fontFamily: fontSans,
-  },
+      },
 });

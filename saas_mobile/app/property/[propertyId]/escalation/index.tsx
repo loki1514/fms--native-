@@ -470,8 +470,7 @@ export default function EscalationScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4, gap: 12 }}
-        >
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4, gap: 12 }} showsVerticalScrollIndicator={false}>
           {[
             { label: 'Total Hierarchies', value: hierarchies.length, icon: Shield, color: '#6366F1' },
             { label: 'Total Levels', value: hierarchies.reduce((s, h) => s + h.levels.length, 0), icon: Zap, color: '#F59E0B' },
@@ -655,7 +654,7 @@ export default function EscalationScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  loadingText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
+  loadingText: { fontSize: 14, },
 
   // Header
   header: {
@@ -667,8 +666,8 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   headerTitleWrap: { flex: 1 },
-  headerTitle: { fontSize: 22, fontFamily: 'Poppins-Bold', letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 1 },
+  headerTitle: { fontSize: 22,  letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: 12,  marginTop: 1 },
   addBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 
   // Stat strip
@@ -677,8 +676,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18, paddingVertical: 14, gap: 4, minWidth: 110,
   },
   statIconWrap: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  statValue: { fontSize: 20, fontFamily: 'Poppins-Bold' },
-  statLabel: { fontSize: 10, fontFamily: 'Urbanist-Medium', textAlign: 'center' },
+  statValue: { fontSize: 20, },
+  statLabel: { fontSize: 10,  textAlign: 'center' },
 
   // List
   listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 },
@@ -686,39 +685,39 @@ const styles = StyleSheet.create({
   // Empty state
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  emptyTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
-  emptySubtitle: { fontSize: 13, fontFamily: 'Urbanist-Regular', textAlign: 'center', maxWidth: 240 },
+  emptyTitle: { fontSize: 18, },
+  emptySubtitle: { fontSize: 13,  textAlign: 'center', maxWidth: 240 },
   createFirstBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14, marginTop: 8 },
-  createFirstBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Poppins-Bold' },
+  createFirstBtnText: { color: '#FFFFFF', fontSize: 14, },
 
   // Hierarchy card
   hierarchyCard: { borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 14, overflow: 'hidden' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   cardIconWrap: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   cardHeaderContent: { flex: 1 },
-  cardName: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 2 },
-  cardDesc: { fontSize: 11, fontFamily: 'Urbanist-Regular' },
+  cardName: { fontSize: 16,  marginBottom: 2 },
+  cardDesc: { fontSize: 11, },
   cardHeaderRight: {},
   levelCountPill: { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  levelCountText: { fontSize: 18, fontFamily: 'Poppins-Bold', lineHeight: 22 },
-  levelCountLabel: { fontSize: 8, fontFamily: 'Urbanist-Bold', letterSpacing: 0.5 },
+  levelCountText: { fontSize: 18,  lineHeight: 22 },
+  levelCountLabel: { fontSize: 8,  letterSpacing: 0.5 },
 
   // Chain
   chainContainer: { marginBottom: 14 },
   chainItem: { flexDirection: 'row', gap: 10, marginBottom: 0 },
   chainLeft: { alignItems: 'center', width: 28 },
   chainDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
-  chainDotText: { fontSize: 11, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  chainDotText: { fontSize: 11,  color: '#FFFFFF' },
   chainLine: { width: 2, flex: 1, marginVertical: 2, minHeight: 12 },
   chainCard: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 6 },
-  chainLabel: { fontSize: 12, fontFamily: 'Urbanist-Bold', flex: 1 },
+  chainLabel: { fontSize: 12,  flex: 1 },
   chainTimePill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  chainTimeText: { fontSize: 10, fontFamily: 'Urbanist-Bold' },
+  chainTimeText: { fontSize: 10, },
 
   // Card footer
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, marginTop: 4, borderTopWidth: 1 },
   footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  footerText: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
+  footerText: { fontSize: 11, },
   footerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   deleteBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   editBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
@@ -730,37 +729,37 @@ const styles = StyleSheet.create({
   modalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   modalIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  modalTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
+  modalTitle: { fontSize: 18, },
   closeBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   formScroll: { flex: 1 },
 
   // Form
-  inputLabel: { fontSize: 11, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 14 },
-  input: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontFamily: 'Urbanist-Regular' },
+  inputLabel: { fontSize: 11,  textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 14 },
+  input: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, },
   totalTimeBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 16, borderWidth: 1 },
-  totalTimeText: { fontSize: 13, fontFamily: 'Poppins-Bold' },
+  totalTimeText: { fontSize: 13, },
   levelsSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 10 },
   addLevelBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  addLevelBtnText: { color: '#FFFFFF', fontSize: 12, fontFamily: 'Urbanist-Bold' },
+  addLevelBtnText: { color: '#FFFFFF', fontSize: 12, },
 
   levelCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12 },
   levelCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   levelNumberBadge: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  levelNumberText: { color: '#FFFFFF', fontSize: 13, fontFamily: 'Poppins-Bold' },
-  levelTitle: { flex: 1, fontSize: 15, fontFamily: 'Poppins-Bold' },
+  levelNumberText: { color: '#FFFFFF', fontSize: 13, },
+  levelTitle: { flex: 1, fontSize: 15, },
   removeLevelBtn: { padding: 4 },
-  levelInputLabel: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8, marginTop: 10 },
+  levelInputLabel: { fontSize: 10,  textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8, marginTop: 10 },
   roleChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   roleChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  roleChipText: { fontSize: 11, fontFamily: 'Urbanist-Bold' },
+  roleChipText: { fontSize: 11, },
   userSelectBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
-  userSelectText: { flex: 1, fontSize: 13, fontFamily: 'Urbanist-Regular' },
+  userSelectText: { flex: 1, fontSize: 13, },
   responseTimeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   timeChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
-  timeChipText: { fontSize: 11, fontFamily: 'Urbanist-Bold' },
+  timeChipText: { fontSize: 11, },
   arrowConnector: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14, paddingTop: 10, borderTopWidth: 1 },
-  arrowConnectorText: { fontSize: 11, fontFamily: 'Urbanist-Regular' },
+  arrowConnectorText: { fontSize: 11, },
 
   submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 14, paddingVertical: 15, marginTop: 10 },
-  submitBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins-Bold' },
+  submitBtnText: { color: '#FFFFFF', fontSize: 15, },
 });

@@ -118,22 +118,19 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: 36,
-    fontFamily: 'Poppins-SemiBold',
-    letterSpacing: -0.5,
+        letterSpacing: -0.5,
     lineHeight: 42,
     textAlign: 'center',
   },
   title: {
     fontSize: 12,
-    fontFamily: 'Urbanist-Medium',
-    textAlign: 'center',
+        textAlign: 'center',
     marginTop: 4,
     letterSpacing: 0.2,
   },
   subtitle: {
     fontSize: 10,
-    fontFamily: 'Urbanist-Regular',
-    textAlign: 'center',
+        textAlign: 'center',
     marginTop: 2,
   },
   valueSkeleton: {

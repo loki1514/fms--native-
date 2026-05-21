@@ -14,7 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 
-export type WeatherCondition = 'clear-night' | 'sunny' | 'cloudy' | 'rainy';
+export type WeatherCondition = 'clear-night' | 'sunny' | 'cloudy' | 'rainy' | 'cosmic';
 
 interface WeatherMeta {
   id: WeatherCondition;
@@ -57,6 +57,14 @@ const WEATHER_META: WeatherMeta[] = [
     image: require('@/assets/images/weather-rain.png'),
     tempColor: '#FFFFFF',
     haloColor: 'rgba(80,120,160,0.40)',
+  },
+  {
+    id: 'cosmic',
+    label: 'Cosmic',
+    temp: '24°',
+    image: require('@/assets/images/weather-moon.png'),
+    tempColor: '#FFFFFF',
+    haloColor: 'rgba(100,60,180,0.45)',
   },
 ];
 

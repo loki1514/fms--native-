@@ -166,8 +166,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.40)',
     marginTop: 4,
     fontWeight: '500',
-    fontFamily: fontSans,
-  },
+      },
   labelActive: {
     color: '#708F96',
     fontWeight: '700',

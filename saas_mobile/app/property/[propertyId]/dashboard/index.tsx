@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, Redirect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 
 // ─── Role-based Dashboard imports ─────────────────────────────────────────────
@@ -44,6 +44,8 @@ export default function DashboardScreen() {
     if (SECURITY_ROLES.includes(propRole)) return 'security';
     if (SOFT_SERVICE_ROLES.includes(propRole)) return 'soft_service';
 
+    if (propRole === 'procurement' || orgRole === 'procurement') return 'procurement';
+
     // 3. Default to staff
     return propRole || 'staff';
   }, [membership, propertyId]);
@@ -60,6 +62,10 @@ export default function DashboardScreen() {
   const pid = propertyId ?? '';
 
   // ─── Role-based render ────────────────────────────────────────────────────
+  if (effectiveRole === 'procurement') {
+    return <Redirect href={`/property/${pid}/procurement`} />;
+  }
+
   if (effectiveRole === 'mst') {
     return <LovableMstDashboard propertyId={pid} />;
   }

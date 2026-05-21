@@ -85,12 +85,12 @@ export default function SOPDueAlerts() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 24, paddingBottom: 48 },
-  title: { fontFamily: 'Poppins-Bold', fontSize: 22, fontWeight: '700', marginBottom: 4 },
-  subtitle: { fontFamily: 'Urbanist-Regular', fontSize: 14, marginBottom: 20 },
+  title: {  fontSize: 22, fontWeight: '700', marginBottom: 4 },
+  subtitle: {  fontSize: 14, marginBottom: 20 },
   emptyCard: { padding: 40, alignItems: 'center', gap: 12, marginTop: 20 },
-  emptyText: { fontFamily: 'Urbanist-Medium', fontSize: 14, textAlign: 'center' },
+  emptyText: {  fontSize: 14, textAlign: 'center' },
   alertCard: { padding: 14, marginBottom: 10 },
   alertRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  alertTitle: { fontFamily: 'Poppins-Medium', fontSize: 14, fontWeight: '600' },
-  alertMeta: { fontFamily: 'Urbanist-Regular', fontSize: 11, marginTop: 2 },
+  alertTitle: {  fontSize: 14, fontWeight: '600' },
+  alertMeta: {  fontSize: 11, marginTop: 2 },
 });

@@ -656,7 +656,7 @@ export default function StockScannerModal({
 
           {/* ── Manual Mode ── */}
           {scanMode === 'manual' && (
-            <ScrollView style={styles.manualWrapper} contentContainerStyle={{ padding: 16 }}>
+            <ScrollView style={styles.manualWrapper} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
               <View style={styles.manualCard}>
                 <Text style={styles.manualTitle}>Enter Item Code</Text>
                 <Text style={styles.manualSub}>
@@ -722,7 +722,7 @@ export default function StockScannerModal({
               {/* Item List */}
               <FlatList
                 data={queue}
-                keyExtractor={item => item.id}
+                keyExtractor={(item) => item.id}
                 renderItem={renderQueueItem}
                 style={styles.queueList}
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}

@@ -1519,8 +1519,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: 'Poppins-SemiBold',
-  },
+      },
   pageSubtitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.55)',
@@ -1608,15 +1607,13 @@ const styles = StyleSheet.create({
   kpiValue: {
     fontSize: 36,
     fontWeight: '800',
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   kpiLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   sparklineContainer: {
     marginTop: 8,
   },
@@ -1633,8 +1630,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-    fontFamily: 'Poppins-SemiBold',
-  },
+      },
   sectionSubtitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.55)',
@@ -1755,8 +1751,7 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 24,
     marginRight: 8,
-    fontFamily: 'Poppins-SemiBold',
-  },
+      },
   ticketActions: {
     flexDirection: 'row',
     gap: 6,
@@ -1825,8 +1820,7 @@ const styles = StyleSheet.create({
   assigneeName: {
     fontSize: 14,
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   assigneeEmail: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.40)',
@@ -1901,16 +1895,14 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     letterSpacing: 2,
     marginBottom: 12,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   countdownValue: {
     fontSize: 48,
     fontWeight: '800',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
     marginBottom: 16,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   countdownBar: {
     width: '80%',
     height: 6,
@@ -1986,8 +1978,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Poppins-SemiBold',
-  },
+      },
   leaderboardProperty: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.40)',
@@ -2102,8 +2093,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   profileInfo: {
     gap: 16,
   },
@@ -2118,14 +2108,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.40)',
     letterSpacing: 1,
     marginBottom: 4,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   profileValue: {
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
 
   // MST Glassmorphism Dashboard styles
   mstStatsRow: {
@@ -2151,13 +2139,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(255,255,255,0.50)',
     letterSpacing: 1.5,
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   mstSectionCount: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.35)',
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   mstTicketsList: {
     paddingHorizontal: 16,
     gap: 12,
@@ -2174,6 +2160,5 @@ const styles = StyleSheet.create({
   mstEmptyText: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.30)',
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
 });

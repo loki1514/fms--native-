@@ -171,8 +171,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   labelText: {
-    fontFamily: fontSans,
-    fontSize: 11,
+        fontSize: 11,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.7)',
     letterSpacing: 2, // approximation for 0.18em

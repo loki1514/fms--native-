@@ -302,16 +302,14 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   labelText: {
-    fontFamily: fontSans,
-    fontSize: 11,
+        fontSize: 11,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.60)',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   titleText: {
-    fontFamily: fontDisplay,
-    fontSize: 22,
+        fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.5,
@@ -346,15 +344,13 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   metricValue: {
-    fontFamily: fontDisplay,
-    fontSize: 22,
+        fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.5,
   },
   metricLabel: {
-    fontFamily: fontSans,
-    fontSize: 9,
+        fontSize: 9,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.50)',
     letterSpacing: 0.5,
@@ -373,8 +369,7 @@ const styles = StyleSheet.create({
 
   // List
   listTitle: {
-    fontFamily: fontSans,
-    fontSize: 12,
+        fontSize: 12,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.45)',
     letterSpacing: 1.2,
@@ -389,8 +384,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    fontFamily: fontSans,
-    fontSize: 14,
+        fontSize: 14,
     color: 'rgba(255,255,255,0.35)',
     fontWeight: '600',
   },
@@ -418,15 +412,13 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   attentionTitle: {
-    fontFamily: fontDisplay,
-    fontSize: 13,
+        fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
     flex: 1,
   },
   attentionDesc: {
-    fontFamily: fontSans,
-    fontSize: 11,
+        fontSize: 11,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 1,
     lineHeight: 16,
@@ -437,8 +429,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   typeBadgeText: {
-    fontFamily: fontSans,
-    fontSize: 8,
+        fontSize: 8,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,

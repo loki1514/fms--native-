@@ -24,6 +24,7 @@
     "@react-native-community/netinfo": "11.4.1",
     "@react-native-google-signin/google-signin": "^14.0.0",
     "@react-navigation/drawer": "^7.5.0",
+    "@shopify/react-native-skia": "2.2.12",
     "@supabase/supabase-js": "^2.49.0",
     "date-fns": "^4.1.0",
     "expo": "~54.0.34",

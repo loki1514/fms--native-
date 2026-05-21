@@ -196,7 +196,7 @@ function CustomDatePicker({
       </View>
       {/* Cancel */}
       <TouchableOpacity style={{ alignItems: 'center', paddingVertical: 10 }} onPress={onClose}>
-        <Text style={{ color: colors.textSecondary, fontFamily: 'Urbanist-Medium', fontSize: 13 }}>Cancel</Text>
+        <Text style={{ color: colors.textSecondary,  fontSize: 13 }}>Cancel</Text>
       </TouchableOpacity>
     </View>
   );
@@ -314,7 +314,7 @@ function GeneratorCard({
           )}
         </View>
         
-        <Text style={[styles.gaugeLabel, { color: 'rgba(255, 255, 255, 0.5)', fontSize: 13, fontFamily: 'Urbanist-Medium' }]}>
+        <Text style={[styles.gaugeLabel, { color: 'rgba(255, 255, 255, 0.5)', fontSize: 13, }]}>
           {formattedLevel} L / {tankCapacity.toLocaleString()}
         </Text>
       </View>
@@ -322,7 +322,7 @@ function GeneratorCard({
       <View style={styles.genCardFooter}>
         <View style={styles.genCardFooterItem}>
           <Ionicons name="time-outline" size={14} color="rgba(255, 255, 255, 0.4)" />
-          <Text style={[styles.genCardFooterText, { color: 'rgba(255, 255, 255, 0.4)', fontFamily: 'Urbanist-Medium' }]}>{lastReadingTime}</Text>
+          <Text style={[styles.genCardFooterText, { color: 'rgba(255, 255, 255, 0.4)', }]}>{lastReadingTime}</Text>
         </View>
         
         <View style={{ flex: 1 }} />
@@ -1161,7 +1161,7 @@ export default function DieselScreen() {
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
               {historyReadings.length === 0 ? (
                 <View style={{ alignItems: 'center', paddingTop: 60, gap: 8 }}>
                   <Fuel size={48} color={colors.textTertiary} />
@@ -1258,20 +1258,20 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
   },
-  headerTitle: { fontSize: 26, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.3 },
-  headerSubtitle: { fontSize: 13, fontFamily: 'Urbanist-Medium', color: 'rgba(255,255,255,0.65)', marginTop: 2 },
+  headerTitle: { fontSize: 26,  color: '#FFFFFF', letterSpacing: -0.3 },
+  headerSubtitle: { fontSize: 13,  color: 'rgba(255,255,255,0.65)', marginTop: 2 },
   periodRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   periodBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)' },
   periodBtnActive: { backgroundColor: 'rgba(255,255,255,0.9)' },
-  periodBtnText: { fontSize: 13, fontFamily: 'Urbanist-Bold', color: 'rgba(255,255,255,0.8)' },
+  periodBtnText: { fontSize: 13,  color: 'rgba(255,255,255,0.8)' },
   periodBtnTextActive: { color: '#1A2332' },
   quickStatsRow: { flexDirection: 'row', gap: 16, marginTop: 12, alignItems: 'center' },
   quickStat: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  quickStatText: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: 'rgba(255,255,255,0.75)' },
+  quickStatText: { fontSize: 12,  color: 'rgba(255,255,255,0.75)' },
   analyticsBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, marginLeft: 'auto' },
-  analyticsBtnText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: 'rgba(255,255,255,0.9)' },
+  analyticsBtnText: { fontSize: 12,  color: 'rgba(255,255,255,0.9)' },
   lowFuelAlertRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  lowFuelAlertText: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: '#FFE082' },
+  lowFuelAlertText: { fontSize: 12,  color: '#FFE082' },
 
   // Log FAB
   logFab: {
@@ -1288,10 +1288,10 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 5,
   },
-  logFabText: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  logFabText: { fontSize: 16,  color: '#FFFFFF' },
 
   // Section
-  sectionTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
+  sectionTitle: { fontSize: 16,  marginBottom: 12 },
 
   // Generator Cards
   genCardsList: { gap: 12 },
@@ -1306,61 +1306,61 @@ const styles = StyleSheet.create({
   },
   genCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 },
   genCardHeaderLeft: { flex: 1 },
-  genCardName: { fontSize: 16, fontFamily: 'Poppins-Bold' },
-  genCardMeta: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  genCardName: { fontSize: 16, },
+  genCardMeta: { fontSize: 12,  marginTop: 2 },
   genStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
   genStatusDot: { width: 6, height: 6, borderRadius: 3 },
-  genStatusText: { fontSize: 11, fontFamily: 'Urbanist-Bold' },
+  genStatusText: { fontSize: 11, },
   genCardFuel: { marginBottom: 12 },
   genCardFuelHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  genCardFuelLabel: { fontSize: 12, fontFamily: 'Urbanist-Medium' },
+  genCardFuelLabel: { fontSize: 12, },
   genCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   genCardFooterItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  genCardFooterText: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
+  genCardFooterText: { fontSize: 11, },
 
   // Gauge
   gaugeTrack: { borderRadius: 6, overflow: 'hidden' },
   gaugeFill: {},
-  gaugeLabel: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 3 },
+  gaugeLabel: { fontSize: 11,  marginTop: 3 },
 
   // Recent
   recentSection: { marginTop: 24 },
-  recentSectionTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
+  recentSectionTitle: { fontSize: 16,  marginBottom: 12 },
   readingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
   readingRowLeft: { flex: 1 },
-  readingGenName: { fontSize: 14, fontFamily: 'Poppins-Bold' },
-  readingTime: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  readingGenName: { fontSize: 14, },
+  readingTime: { fontSize: 11,  marginTop: 2 },
   readingRowRight: { alignItems: 'flex-end' },
-  readingValue: { fontSize: 14, fontFamily: 'Poppins-Bold' },
-  readingSub: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  readingValue: { fontSize: 14, },
+  readingSub: { fontSize: 11,  marginTop: 2 },
 
   // Empty
   emptyCard: { borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', padding: 32, alignItems: 'center', gap: 8 },
-  emptyText: { fontSize: 15, fontFamily: 'Urbanist-Medium' },
-  emptySubtext: { fontSize: 12, fontFamily: 'Urbanist-Regular' },
+  emptyText: { fontSize: 15, },
+  emptySubtext: { fontSize: 12, },
 
   // Bottom Sheet
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheetContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '90%' },
   sheetHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  sheetTitle: { fontSize: 20, fontFamily: 'Poppins-Bold' },
-  fieldLabel: { fontSize: 12, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 14 },
+  sheetTitle: { fontSize: 20, },
+  fieldLabel: { fontSize: 12,  textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 14 },
   picker: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1 },
-  pickerText: { fontSize: 15, fontFamily: 'Urbanist-Medium' },
+  pickerText: { fontSize: 15, },
   pickerDropdown: { borderRadius: 12, borderWidth: 1, marginTop: 4, overflow: 'hidden' },
   pickerOption: { padding: 12, paddingHorizontal: 16 },
-  pickerOptionText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
+  pickerOptionText: { fontSize: 14, },
   openingInfo: { flexDirection: 'row', gap: 16, padding: 12, borderRadius: 10, marginTop: 14 },
   openingItem: { flex: 1 },
-  openingLabel: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
-  openingValue: { fontSize: 18, fontFamily: 'Poppins-Bold', marginTop: 2 },
-  input: { padding: 14, borderRadius: 12, borderWidth: 1, fontSize: 15, fontFamily: 'Urbanist-Medium' },
+  openingLabel: { fontSize: 11, },
+  openingValue: { fontSize: 18,  marginTop: 2 },
+  input: { padding: 14, borderRadius: 12, borderWidth: 1, fontSize: 15, },
   notesInput: { height: 80, textAlignVertical: 'top' },
   consumedBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, marginTop: 14 },
-  consumedText: { fontSize: 14, fontFamily: 'Urbanist-Bold' },
+  consumedText: { fontSize: 14, },
   submitBtn: { padding: 16, borderRadius: 14, alignItems: 'center', marginTop: 20 },
-  submitBtnText: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  submitBtnText: { fontSize: 16,  color: '#FFFFFF' },
   topNav: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1387,15 +1387,13 @@ const styles = StyleSheet.create({
   },
   headerTitleLine1: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Bold',
-    color: 'rgba(255, 255, 255, 0.5)',
+        color: 'rgba(255, 255, 255, 0.5)',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   headerTitleLine2: {
     fontSize: 22,
-    fontFamily: 'Poppins-Bold',
-    color: '#FFFFFF',
+        color: '#FFFFFF',
     letterSpacing: -0.5,
     marginTop: -2,
   },
@@ -1425,8 +1423,7 @@ const styles = StyleSheet.create({
   },
   paramTitle: {
     fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    color: 'rgba(255, 255, 255, 0.5)',
+        color: 'rgba(255, 255, 255, 0.5)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -1448,8 +1445,7 @@ const styles = StyleSheet.create({
   },
   paramSelectorBtnText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Bold',
-    color: 'rgba(255, 255, 255, 0.6)',
+        color: 'rgba(255, 255, 255, 0.6)',
   },
   paramSelectorBtnTextActive: {
     color: '#0F1521',
@@ -1461,13 +1457,11 @@ const styles = StyleSheet.create({
   },
   oilUsedLabel: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Medium',
-    color: 'rgba(255, 255, 255, 0.5)',
+        color: 'rgba(255, 255, 255, 0.5)',
   },
   oilUsedValue: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Bold',
-    color: '#FFFFFF',
+        color: '#FFFFFF',
     marginLeft: 8,
   },
   liveRankRow: {
@@ -1478,8 +1472,7 @@ const styles = StyleSheet.create({
   },
   liveRankText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Medium',
-    color: '#FBBF24',
+        color: '#FBBF24',
   },
   bottomNav: {
     flexDirection: 'row',
@@ -1535,7 +1528,7 @@ const styles = StyleSheet.create({
     paddingTop: Math.max(60, 20),
     borderBottomWidth: 1,
   },
-  historyModalTitle: { fontSize: 20, fontFamily: 'Poppins-Bold' },
+  historyModalTitle: { fontSize: 20, },
   historyRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1546,9 +1539,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   historyRowLeft: { flex: 1 },
-  historyRowName: { fontSize: 14, fontFamily: 'Poppins-Bold', marginBottom: 2 },
-  historyRowDate: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
-  historyRowNotes: { fontSize: 11, fontFamily: 'Urbanist-Regular', marginTop: 2 },
+  historyRowName: { fontSize: 14,  marginBottom: 2 },
+  historyRowDate: { fontSize: 11, },
+  historyRowNotes: { fontSize: 11,  marginTop: 2 },
   viewHistoryBtn: {
     alignItems: 'center',
     paddingVertical: 12,
@@ -1556,8 +1549,7 @@ const styles = StyleSheet.create({
   },
   viewHistoryBtnText: {
     fontSize: 13,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
 
   // Custom Date Picker
   customDatePickerContainer: {
@@ -1577,8 +1569,7 @@ const styles = StyleSheet.create({
   },
   customDateTitle: {
     fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   customDateGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1591,8 +1582,7 @@ const styles = StyleSheet.create({
   },
   customDateDayLabel: {
     fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
   customDateDayBtn: {
     width: 36,
     height: 36,
@@ -1602,6 +1592,5 @@ const styles = StyleSheet.create({
   },
   customDateDayText: {
     fontSize: 14,
-    fontFamily: 'Urbanist-Bold',
-  },
+      },
 });

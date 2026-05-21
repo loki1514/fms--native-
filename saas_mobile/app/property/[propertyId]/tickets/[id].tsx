@@ -1961,7 +1961,7 @@ export default function TicketDetailScreen() {
                   backgroundColor: '#FFFFFF', maxHeight: 200, overflow: 'hidden',
                   shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5
                 }}>
-                  <ScrollView nestedScrollEnabled>
+                  <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
                     {procurementUsers.map((u, i) => (
                       <TouchableOpacity
                         key={u.id}
