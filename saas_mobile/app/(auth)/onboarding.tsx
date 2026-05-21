@@ -439,9 +439,10 @@ export default function OnboardingScreen() {
       // Upsert user profile (upsert = safety net in case the row doesn't exist yet,
       // e.g. signup happened through a path that didn't create the users row)
       const cleanPhone = phoneNumber.trim();
-      const profileUpsert: Record<string, string | boolean> = { onboarding_completed: true };
+      const profileUpsert: Record<string, string> = {};
       if (cleanPhone.length >= 10) profileUpsert.phone = cleanPhone;
       profileUpsert.full_name = authUser.user_metadata?.full_name ?? userName;
+      // TODO: onboarding_completed does not exist on the users table
 
       // @ts-expect-error Supabase client has no schema types — type suppression required
       const { error: userErr } = await supabase.from('users').upsert({

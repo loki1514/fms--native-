@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 
-export default function Placeholder() {
+export default function SecurityDashboard({ propertyId }: { propertyId?: string }) {
   return (
     <View>
-      <Text>Placeholder</Text>
+      <Text>Placeholder Security Dashboard {propertyId}</Text>
     </View>
   );
 }

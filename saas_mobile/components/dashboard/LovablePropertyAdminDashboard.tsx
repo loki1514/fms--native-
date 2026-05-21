@@ -27,10 +27,12 @@ import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal'
 import SidekickFace from '@/components/dashboard/SidekickFace';
 import DetailModal, { type TileDetail } from '@/components/dashboard/DetailModal';
 import NeedsAttentionModal from '@/components/dashboard/NeedsAttentionModal';
+import NotificationModal from '@/components/notifications/NotificationModal';
 import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
 import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
 import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
 import { useCassandraStore } from '@/stores/cassandraStore';
+import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
 import {
   SPACING,
   TYPOGRAPHY,
@@ -66,8 +68,10 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
+  const [showPermissionOnboarding, setShowPermissionOnboarding] = useState(false);
   const [showTileDetail, setShowTileDetail] = useState<TileDetail | null>(null);
   const [showNeedsAttention, setShowNeedsAttention] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -93,14 +97,14 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
 
   // ─── Needs Attention: merge RPC items with property-scoped ticket logic ───────
   // Matches saas_one web dashboard rules:
-  //   1. Tenant tickets      (internal === false, not resolved/closed/satisfied)   → severity: high
+  //   1. Tenant tickets      (is_internal === false, not resolved/closed)   → severity: high
   //   2. Critical tickets    (priority === 'critical', active)                      → severity: critical
   //   3. Urgent/High tickets (priority in ['urgent','high'], active)               → severity: high
   //   4. Stale tickets       (>3 days open with active status)                     → severity: medium
   const needsAttentionTickets = useMemo(() => {
-    // Drop RPC attention items for tickets that are now resolved/closed/satisfied
-    const RESOLVED_STATUSES = ['resolved', 'closed', 'satisfied'];
-    const ACTIVE_STATUSES = ['open', 'assigned', 'in_progress', 'paused', 'waitlist', 'blocked', 'client_raised', 'work_started'];
+    // Drop RPC attention items for tickets that are now resolved/closed
+    const RESOLVED_STATUSES = ['resolved', 'closed'];
+    const ACTIVE_STATUSES = ['open', 'assigned', 'in_progress', 'in_progress', 'waitlist', 'blocked', 'client_raised', 'work_started'];
 
     const activeAttentionItems = (attentionItems || []).filter((item) => {
       if (item.entity_type === 'ticket') {
@@ -237,7 +241,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         .single();
       if (propData) setPropertyName((propData as any).name);
 
-      // Tickets — fetch all active tickets for this property (not resolved/closed/satisfied)
+      // Tickets — fetch all active tickets for this property (not resolved/closed)
       // so that urgent/high/critical/tenant/stale logic in needsAttentionTickets is accurate.
       // Also include resolved internal tickets for historical stats.
       const { data: ticketData } = await supabase
@@ -349,6 +353,10 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
 
   useEffect(() => {
     fetchData();
+    // Show permission onboarding on first visit
+    hasRequestedPermissions().then(requested => {
+      if (!requested) setShowPermissionOnboarding(true);
+    });
   }, [fetchData]);
 
   const onRefresh = () => {
@@ -371,11 +379,11 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   }, [tickets, ticketTimeFilter]);
 
   const openTickets = useMemo(() => 
-    filteredTickets.filter((t) => ['open', 'assigned', 'in_progress', 'pending_validation', 'client_raised', 'waitlist'].includes(t.status)).length, 
+    filteredTickets.filter((t) => ['open', 'assigned', 'in_progress', 'resolved', 'client_raised', 'waitlist'].includes(t.status)).length, 
     [filteredTickets]
   );
   const resolvedTickets = useMemo(() => 
-    filteredTickets.filter((t) => ['resolved', 'closed', 'satisfied'].includes(t.status)).length, 
+    filteredTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length, 
     [filteredTickets]
   );
   const totalTickets = filteredTickets.length;
@@ -385,7 +393,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
     const counts: Record<string, number> = {
       'assigned': 0,
       'in_progress': 0,
-      'pending_validation': 0,
+      'resolved': 0,
       'closed': 0,
     };
     filteredTickets.forEach(t => {
@@ -401,7 +409,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const checklistPct = sopTotal > 0 ? Math.round((sopCount / sopTotal) * 100) : 100;
   
   // Stats for VMS and Vendor
-  const pendingValidationCount = useMemo(() => tickets.filter(t => t.status === 'pending_validation').length, [tickets]);
+  const pendingValidationCount = useMemo(() => tickets.filter(t => t.status === 'resolved').length, [tickets]);
 
   // Mock 7-day history for sparklines
   const ticketHistory = useMemo(() => {
@@ -653,7 +661,11 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
               onPress={() => router.push(`/property/${propertyId}/profile`)}
             >
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}</Text>
+                {user?.avatar ? (
+                  <Image source={{ uri: user.avatar }} style={styles.avatarImage} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.avatarText}>{user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}</Text>
+                )}
               </View>
               <View style={[styles.nameContainer, { flex: 1 }]}>
                 <Text style={styles.greetingText} numberOfLines={1}>Hey, {user?.user_metadata?.full_name?.split(' ')[0] || 'Admin'}</Text>
@@ -665,7 +677,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
             <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.7}>
               <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.headerIconBtn}>
+            <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowNotifications(true)}>
               <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
               <View style={styles.notificationBadge} />
             </TouchableOpacity>
@@ -699,6 +711,15 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         role="admin"
         onSuccess={fetchData}
       />
+      <NotificationModal
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        propertyId={propertyId}
+      />
+      <PermissionOnboarding
+        visible={showPermissionOnboarding}
+        onComplete={() => setShowPermissionOnboarding(false)}
+      />
       
       <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
         <View style={{ flex: 1, flexDirection: 'row' }}>
@@ -710,14 +731,16 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
                   style={[styles.drawerLogo, { tintColor: '#FFFFFF' }]} 
                   resizeMode="contain" 
                 />
-                <Text style={styles.drawerSubtitle}>PROPERTY ADMIN</Text>
               </View>
               <TouchableOpacity onPress={() => setShowDrawer(false)} style={styles.drawerCloseBtn}>
                 <Ionicons name="close" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.drawerSectionLabel}>OPERATIONS</Text>
+              <View style={styles.drawerSectionHeader}>
+                <Ionicons name="construct-outline" size={14} color="rgba(255,255,255,0.3)" />
+                <Text style={styles.drawerSectionLabel}>OPERATIONS</Text>
+              </View>
               {[
                 { label: 'Dashboard', route: 'dashboard', icon: 'grid-outline' },
                 { label: 'Tickets', route: 'tickets', icon: 'ticket-outline' },
@@ -731,9 +754,12 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
                 </TouchableOpacity>
               ))}
 
-              <Text style={[styles.drawerSectionLabel, { marginTop: 20 }]}>UTILITIES</Text>
+              <View style={[styles.drawerSectionHeader, { marginTop: 20 }]}>
+                <Ionicons name="hammer-outline" size={14} color="rgba(255,255,255,0.3)" />
+                <Text style={styles.drawerSectionLabel}>UTILITIES</Text>
+              </View>
               {[
-                { label: 'Diesel Manager', route: 'diesel', icon: 'fuel-outline' },
+                { label: 'Diesel Manager', route: 'diesel', icon: 'water-outline' },
                 { label: 'Electricity', route: 'electricity', icon: 'flash-outline' },
                 { label: 'Stock / Inventory', route: 'stock', icon: 'cube-outline' },
                 { label: 'SOPs & Checklists', route: 'checklist', icon: 'clipboard-outline' },
@@ -745,7 +771,10 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
                 </TouchableOpacity>
               ))}
 
-              <Text style={[styles.drawerSectionLabel, { marginTop: 20 }]}>MANAGEMENT</Text>
+              <View style={[styles.drawerSectionHeader, { marginTop: 20 }]}>
+                <Ionicons name="pie-chart-outline" size={14} color="rgba(255,255,255,0.3)" />
+                <Text style={styles.drawerSectionLabel}>MANAGEMENT</Text>
+              </View>
               {[
                 { label: 'Procurement', route: 'soft-service-manager', icon: 'cart-outline' },
                 { label: 'Escalation', route: 'escalation', icon: 'git-branch-outline' },
@@ -778,7 +807,8 @@ const styles = StyleSheet.create({
   hamburgerBtn: { padding: 4 },
   headerCenter: { flex: 1, paddingHorizontal: 16 },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  avatarImage: { width: 32, height: 32, borderRadius: 16 },
   avatarText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
   greetingText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
   headerSubtitle: { color: 'rgba(255,255,255,0.4)', fontSize: 11 },
@@ -812,7 +842,8 @@ const styles = StyleSheet.create({
   drawerCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
   drawerItem: { flexDirection: 'row', alignItems: 'center', gap: 15, paddingVertical: 15 },
   drawerItemLabel: { fontFamily: fontSans, fontSize: 16, color: '#FFF' },
-  drawerSectionLabel: { fontFamily: fontSans, fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5, marginBottom: 8, paddingHorizontal: 4 },
+  drawerSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 4, gap: 6 },
+  drawerSectionLabel: { fontFamily: fontSans, fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5 },
   drawerSignOut: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', marginBottom: 40 },
   drawerSignOutText: { color: '#EF4444', fontWeight: '700' },
   nameContainer: { flexDirection: 'column' as const },

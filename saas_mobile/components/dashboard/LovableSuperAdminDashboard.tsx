@@ -206,7 +206,7 @@ export default function LovableSuperAdminDashboard() {
         if (!c) return;
         c.total++;
         if (['open', 'blocked', 'client_raised'].includes(t.status)) c.open++;
-        else if (['resolved', 'closed', 'satisfied'].includes(t.status)) c.resolved++;
+        else if (['resolved', 'closed'].includes(t.status)) c.resolved++;
         if (t.priority === 'urgent' || t.priority === 'high') c.urgent++;
         const date = new Date(t.created_at);
         if (date >= sevenDaysAgo) {
@@ -529,9 +529,9 @@ export default function LovableSuperAdminDashboard() {
       {/* Modals */}
       <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="voice" />
       <SignOutModal
-        isOpen={showSignOut}
+        visible={showSignOut}
         onClose={() => setShowSignOut(false)}
-        onConfirm={signOut}
+        onSignOut={signOut}
       />
       <DetailModal
         detail={showTileDetail}

@@ -61,7 +61,7 @@ async function fetchRecentTickets(propertyId: string, limit: number): Promise<Ti
   const { data, error } = await (supabase.from('tickets') as any)
     .select('id, ticket_number, title, status, priority, created_at')
     .eq('property_id', propertyId)
-    .eq('internal', false)
+    .eq('is_internal', false)
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -81,10 +81,10 @@ async function fetchPropertyInfo(propertyId: string): Promise<PropertyEntry | nu
 
   const [{ count: open }, { count: total }] = await Promise.all([
     (supabase.from('tickets') as any).select('*', { count: 'exact', head: true })
-      .eq('property_id', propertyId).eq('internal', false)
+      .eq('property_id', propertyId).eq('is_internal', false)
       .not('status', 'in', '(resolved,closed)'),
     (supabase.from('tickets') as any).select('*', { count: 'exact', head: true })
-      .eq('property_id', propertyId).eq('internal', false),
+      .eq('property_id', propertyId).eq('is_internal', false),
   ]);
 
   return {

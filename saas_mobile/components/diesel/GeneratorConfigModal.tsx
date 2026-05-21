@@ -171,7 +171,7 @@ export default function GeneratorConfigModal({
         }
       } else {
         // Update existing generator
-        const { error: updateErr } = await supabase
+        const { error: updateErr } = await (supabase as any)
           .from('generators')
           .update({
             name: name.trim(),
@@ -179,7 +179,7 @@ export default function GeneratorConfigModal({
             capacity_kva: cap,
             tank_capacity_litres: tank,
             status,
-          } as any)
+          })
           .eq('id', existingGenerator!.id);
         
         if (updateErr) throw updateErr;

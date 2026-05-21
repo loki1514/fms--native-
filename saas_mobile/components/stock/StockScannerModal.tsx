@@ -259,7 +259,7 @@ export default function StockScannerModal({
 
     try {
       // Build orgId fallback map once (property → organization_id)
-      const orgIdMap: Record<string, string> = {};
+      const orgIdMap: Record<string, string | null> = {};
       for (const item of queue) {
         if (item.organization_id) {
           orgIdMap[item.id] = item.organization_id;
@@ -273,7 +273,7 @@ export default function StockScannerModal({
           .select('id, organization_id')
           .eq('id', propertyId)
           .maybeSingle();
-        const fallbackOrgId = propData?.organization_id || null;
+        const fallbackOrgId = (propData as { organization_id: string } | null)?.organization_id || null;
         missingOrgIds.forEach(q => { orgIdMap[q.id] = fallbackOrgId; });
       }
 
@@ -302,7 +302,7 @@ export default function StockScannerModal({
           if (insertErr) throw insertErr;
 
           // Update the actual stock quantity on stock_items
-          const { error: updateErr } = await supabase
+          const { error: updateErr } = await (supabase as any)
             .from('stock_items')
             .update({ quantity: quantityAfter })
             .eq('id', item.id);

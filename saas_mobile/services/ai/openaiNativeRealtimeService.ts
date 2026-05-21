@@ -94,7 +94,7 @@ export class OpenAINativeRealtimeService {
 
     try {
       // Send audio directly to backend — Whisper runs server-side with the API key
-      const audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const audioBase64 = await FileSystem.readAsStringAsync(uri, { encoding: (FileSystem as any).EncodingType.Base64 });
       const result = await this.callBackend(audioBase64, uri);
 
       const transcript = result.transcript ?? '';

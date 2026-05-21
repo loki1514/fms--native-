@@ -2,7 +2,7 @@
 // Auth Service - Authentication Operations
 // ============================================
 
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase/client';
 import { apiClient, ApiResponse } from './api/client';
 import { User, UserRole } from '@/types';
 
@@ -86,9 +86,10 @@ export const authService = {
           id: authData.user?.id,
           email: data.email,
           full_name: data.fullName,
-          organization_id: data.organizationId,
-          property_id: data.propertyId,
-          role: 'tenant',
+          // TODO: organization_id, property_id, and role do not exist on the users table — use membership tables instead
+          // organization_id: data.organizationId,
+          // property_id: data.propertyId,
+          // role: 'tenant',
         })
         .select()
         .single();

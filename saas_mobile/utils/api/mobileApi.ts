@@ -52,9 +52,8 @@ export async function getSupabaseToken(): Promise<string | null> {
     const { data: sessionData } = await supabase.auth.getSession();
     if (sessionData.session?.access_token) return sessionData.session.access_token;
 
-    // Fallback: validate token with server (handles expired/refresh scenarios)
-    const { data: userData } = await supabase.auth.getUser();
-    return userData.session?.access_token ?? null;
+    // Fallback: no session available
+    return null;
   } catch {
     return null;
   }
@@ -170,7 +169,9 @@ async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = await getSupabaseToken();
+  const supabase = createClient();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -179,6 +180,26 @@ async function apiFetch<T>(
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Next.js backend uses @supabase/ssr which requires cookies for auth.
+  // We simulate the web cookie using the session data.
+  if (sessionData?.session) {
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+    const projectIdMatch = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/);
+    if (projectIdMatch) {
+      const projectId = projectIdMatch[1];
+      const cookieName = `sb-${projectId}-auth-token`;
+      // @supabase/ssr expects JSON array with access_token & refresh_token
+      const cookieValue = JSON.stringify([
+        sessionData.session.access_token,
+        sessionData.session.refresh_token,
+        null,
+        null,
+        null
+      ]);
+      headers['Cookie'] = `${cookieName}=${encodeURIComponent(cookieValue)}`;
+    }
   }
 
   const response = await fetch(`${WEB_API_BASE}${endpoint}`, {
@@ -558,7 +579,6 @@ export interface ReportKPIs {
   totalSnags: number;
   closedSnags: number;
   openSnags: number;
-  pendingValidationCount: number;
   closureRate: number;
 }
 
@@ -572,8 +592,8 @@ export interface ChartDataSet {
 export interface ExecutiveReportResponse {
   property: { id: string; name: string; code: string };
   allTimeTotal: number;
-  prevMonth: { label: string; total: number; closed: number; open: number; pendingValidation: number; closureRate: number };
-  currMonth: { label: string; total: number; closed: number; open: number; pendingValidation: number; closureRate: number };
+  prevMonth: { label: string; total: number; closed: number; open: number; closureRate: number };
+  currMonth: { label: string; total: number; closed: number; open: number; closureRate: number };
   topCategories: { name: string; count: number }[];
   trends: {
     prev: number[];
@@ -638,7 +658,7 @@ export async function getExecutiveReport(propertyId: string): Promise<ExecutiveR
     .from('tickets')
     .select('id, category, status, created_at, resolved_at, issue_category:category_id(name)')
     .eq('property_id', propertyId)
-    .eq('internal', false)
+    .eq('is_internal', false)
     .order('created_at', { ascending: false });
 
   if (ticketsError) return { error: ticketsError.message } as ExecutiveReportResponse;
@@ -663,10 +683,9 @@ export async function getExecutiveReport(propertyId: string): Promise<ExecutiveR
   const getStats = (arr: typeof normalised) => {
     const total = arr.length;
     const closed = arr.filter(t => t.status === 'resolved' || t.status === 'closed').length;
-    const pendingValidation = arr.filter(t => t.status === 'pending_validation').length;
-    const open = total - closed - pendingValidation;
+    const open = total - closed;
     const rate = total > 0 ? Math.round((closed / total) * 100) : 0;
-    return { total, closed, open, pendingValidation, closureRate: rate };
+    return { total, closed, open, closureRate: rate };
   };
 
   const prevTickets = normalised.filter(t => {
@@ -921,24 +940,284 @@ export interface CreateUserResponse {
 }
 
 /**
- * Fetch all users for an organization or property using NextJS service API.
- * Mirrors GET /api/users/list
+ * Fetch all users for an organization or property directly via Supabase.
+ * Replaces the Vercel API call to avoid "Failed to fetch" on mobile.
  */
 export async function fetchUsersList(orgId?: string, propertyId?: string): Promise<UserListResponse> {
-  const params = new URLSearchParams();
-  if (orgId) params.set('orgId', orgId);
-  if (propertyId) params.set('propertyId', propertyId);
-  return apiFetch<UserListResponse>(`/api/users/list?${params.toString()}`);
+  const supabase = createClient();
+  try {
+    if (propertyId) {
+      const { data, error } = await (supabase as any)
+        .from('property_memberships')
+        .select('role, is_active, created_at, users:user_id(id, full_name, email, user_photo_url, phone)')
+        .eq('property_id', propertyId);
+      if (error) throw error;
+      const users = (data || []).map((m: any) => ({
+        id: m.users?.id,
+        full_name: m.users?.full_name || 'Unknown',
+        email: m.users?.email || '',
+        user_photo_url: m.users?.user_photo_url,
+        phone: m.users?.phone,
+        propertyRole: m.role,
+        propertyId,
+        is_active: m.is_active ?? true,
+        joined_at: m.created_at,
+      })).filter((u: any) => u.id);
+      return { users };
+    }
+    if (orgId) {
+      const { data, error } = await (supabase as any)
+        .from('organization_memberships')
+        .select('role, is_active, created_at, users:user_id(id, full_name, email, user_photo_url, phone)')
+        .eq('organization_id', orgId);
+      if (error) throw error;
+      const users = (data || []).map((m: any) => ({
+        id: m.users?.id,
+        full_name: m.users?.full_name || 'Unknown',
+        email: m.users?.email || '',
+        user_photo_url: m.users?.user_photo_url,
+        phone: m.users?.phone,
+        orgRole: m.role,
+        is_active: m.is_active ?? true,
+        joined_at: m.created_at,
+      })).filter((u: any) => u.id);
+      return { users };
+    }
+    return { users: [] };
+  } catch (err: any) {
+    console.error('[fetchUsersList] Supabase error:', err);
+    return { users: [] };
+  }
 }
 
 /**
- * Directly create a user account and add them to an organization/property.
- * Mirrors POST /api/users/create
+ * Create a membership record for an existing user.
+ * Note: Full user account creation (auth.admin.createUser) requires a backend.
+ * This adds an existing user to a property/org membership.
  */
 export async function createMemberUser(data: CreateUserRequest): Promise<CreateUserResponse> {
-  return apiFetch<CreateUserResponse>('/api/users/create', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
+  const supabase = createClient();
+  try {
+    // Check if user exists by email
+    const { data: existingUser, error: lookupError } = await (supabase as any)
+      .from('users')
+      .select('id, full_name, email')
+      .eq('email', data.email.toLowerCase().trim())
+      .maybeSingle();
+
+    if (lookupError) throw lookupError;
+    if (!existingUser) {
+      return { success: false, error: 'User not found. Ask the user to sign up first, then add them here.' };
+    }
+
+    // Add to property membership if propertyId given
+    if (data.property_id) {
+      const { error: memError } = await (supabase as any)
+        .from('property_memberships')
+        .upsert({
+          user_id: existingUser.id,
+          property_id: data.property_id,
+          organization_id: data.organization_id,
+          role: data.role || 'staff',
+          is_active: true,
+          joined_at: new Date().toISOString(),
+        }, { onConflict: 'user_id,property_id' });
+      if (memError) throw memError;
+    }
+
+    // Always add to org membership
+    const { error: orgMemError } = await (supabase as any)
+      .from('organization_memberships')
+      .upsert({
+        user_id: existingUser.id,
+        organization_id: data.organization_id,
+        role: data.role || 'staff',
+        is_active: true,
+        joined_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,organization_id' });
+    if (orgMemError) throw orgMemError;
+
+    return {
+      success: true,
+      message: `${existingUser.full_name} added successfully`,
+      user: { id: existingUser.id, email: existingUser.email, full_name: existingUser.full_name, role: data.role || 'staff' },
+    };
+  } catch (err: any) {
+    console.error('[createMemberUser] Error:', err);
+    return { success: false, error: err.message || 'Failed to add member' };
+  }
+}
+
+export interface UpdateRoleRequest {
+  userId: string;
+  newRole: string;
+  propertyId?: string;
+  organizationId?: string;
+  skills?: string[];
+  oldRole?: string;
+}
+
+export interface UpdateRoleResponse {
+  success?: boolean;
+  error?: string;
+}
+
+/**
+ * Update a user's role directly via Supabase.
+ * Replaces the Vercel API call.
+ */
+export async function updateMemberRole(data: UpdateRoleRequest): Promise<UpdateRoleResponse> {
+  const supabase = createClient();
+  try {
+    if (data.propertyId) {
+      const { error } = await (supabase as any)
+        .from('property_memberships')
+        .update({ role: data.newRole })
+        .eq('user_id', data.userId)
+        .eq('property_id', data.propertyId);
+      if (error) throw error;
+    }
+    if (data.organizationId) {
+      const { error } = await (supabase as any)
+        .from('organization_memberships')
+        .update({ role: data.newRole })
+        .eq('user_id', data.userId)
+        .eq('organization_id', data.organizationId);
+      if (error) throw error;
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('[updateMemberRole] Error:', err);
+    return { success: false, error: err.message || 'Failed to update role' };
+  }
+}
+
+// ---------------------------------------------------------------------
+// Meeting Room APIs
+// ---------------------------------------------------------------------
+
+export interface MeetingRoom {
+  id: string;
+  property_id: string;
+  name: string;
+  photo_url?: string;
+  location?: string;
+  capacity: number;
+  size?: number;
+  amenities?: string[];
+  status: string;
+  created_by?: string;
+  created_at: string;
+}
+
+export interface MeetingRoomBooking {
+  id: string;
+  meeting_room_id: string;
+  property_id: string;
+  user_id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  company_id?: string;
+  organization_id?: string;
+  created_at: string;
+  meeting_room?: { name: string; photo_url?: string; location?: string };
+  tenant?: { full_name: string; email: string };
+}
+
+export interface MeetingRoomCredit {
+  id: string;
+  property_id: string;
+  user_id?: string;
+  company_id?: string;
+  assigned_by?: string;
+  monthly_hours: number;
+  remaining_hours: number;
+  last_reset_at: string;
+  next_reset_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getMeetingRooms(propertyId: string, status?: string): Promise<{ rooms?: MeetingRoom[]; error?: string }> {
+  try {
+    const supabase = createClient();
+    let query = supabase.from('meeting_rooms').select('*').eq('property_id', propertyId).order('name', { ascending: true });
+    if (status) {
+      query = query.eq('status', status);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return { rooms: data as MeetingRoom[] };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export async function getMeetingRoomBookings(propertyId: string, status?: string): Promise<{ bookings?: MeetingRoomBooking[]; error?: string }> {
+  try {
+    const supabase = createClient();
+    let query = supabase.from('meeting_room_bookings').select('*, meeting_room:meeting_rooms(name, photo_url, location)').eq('property_id', propertyId).order('start_time', { ascending: true });
+    if (status) {
+      query = query.eq('status', status);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return { bookings: data as MeetingRoomBooking[] };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export async function getMeetingRoomCredits(propertyId: string): Promise<{ credit?: MeetingRoomCredit | null; company?: { id: string; name: string; logo_url?: string } | null; error?: string }> {
+  try {
+    const supabase = createClient();
+    const userId = await getCurrentUserId();
+    
+    let credit = null;
+    if (userId) {
+       const { data, error } = await supabase.from('meeting_room_credits').select('*').eq('property_id', propertyId).eq('user_id', userId).maybeSingle();
+       if (!error && data) {
+         credit = data;
+       }
+    }
+    return { credit: credit as MeetingRoomCredit | null };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export interface CreateBookingInput {
+  meetingRoomId: string;
+  propertyId: string;
+  date: string;      // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string;   // HH:MM
+}
+
+export async function createMeetingRoomBooking(input: CreateBookingInput): Promise<{ success?: boolean; booking?: MeetingRoomBooking; error?: string }> {
+  try {
+    const supabase = createClient();
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("Unauthorized");
+
+    const payload = {
+      meeting_room_id: input.meetingRoomId,
+      property_id: input.propertyId,
+      user_id: userId,
+      booking_date: input.date,
+      start_time: input.startTime,
+      end_time: input.endTime,
+      status: 'confirmed'
+    };
+
+    const { data, error } = await (supabase as any).from('meeting_room_bookings').insert(payload).select().single();
+    if (error) throw error;
+
+    return { success: true, booking: data as MeetingRoomBooking };
+  } catch (err: any) {
+    return { error: err.message };
+  }
 }
 

@@ -48,7 +48,7 @@ export default function ScannerView({
   const [torchOn, setTorchOn] = useState(false);
   const [manualInput, setManualInput] = useState('');
   const [scanned, setScanned] = useState(false);
-  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleBarCodeScanned = useCallback(
     ({ data }: { data: string }) => {

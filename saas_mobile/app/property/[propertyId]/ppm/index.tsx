@@ -15,6 +15,7 @@ import {
   Platform,
   Dimensions,
   Image,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,6 +49,7 @@ import {
   Phone,
   StickyNote,
   Upload,
+  DownloadCloud,
 } from 'lucide-react-native';
 
 // ─── Types (saas_one schema) ─────────────────────────────────────────────────
@@ -61,8 +63,8 @@ interface MaintenanceVendor {
 
 interface PPMSchedule {
   id: string;
-  organization_id: string;
-  property_id: string;
+  organization_id?: string | null;
+  property_id?: string | null;
   si_no?: string;
   system_name: string;
   detail_name?: string;
@@ -107,17 +109,69 @@ interface AMCContract {
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string): string {
-  if (!dateStr) return '-';
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const normalized = normalizeDate(dateStr);
+  if (!normalized) return '-';
+  return new Date(normalized + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function daysUntil(dateStr: string): number {
-  if (!dateStr) return 999;
-  const target = new Date(dateStr + 'T12:00:00');
+  const normalized = normalizeDate(dateStr);
+  if (!normalized) return 999;
+  const target = new Date(normalized + 'T12:00:00');
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   target.setHours(0, 0, 0, 0);
   return Math.ceil((target.getTime() - now.getTime()) / 86400000);
+}
+
+function normalizeDate(value?: string | null): string {
+  if (!value) return '';
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+
+  return '';
+}
+
+function normalizeFrequency(value?: string | null): PPMSchedule['frequency'] {
+  const normalized = (value ?? '').toLowerCase().trim();
+  if (normalized === 'annual') return 'yearly';
+  if (['yearly', 'quarterly', 'monthly', 'weekly'].includes(normalized)) {
+    return normalized as PPMSchedule['frequency'];
+  }
+  return 'monthly';
+}
+
+function normalizeStatus(value?: string | null): PPMSchedule['status'] {
+  const normalized = (value ?? '').toLowerCase().trim();
+  if (normalized === 'completed') return 'done';
+  if (['pending', 'done', 'postponed', 'skipped'].includes(normalized)) {
+    return normalized as PPMSchedule['status'];
+  }
+  return 'pending';
+}
+
+function normalizeSchedule(row: any): PPMSchedule {
+  const plannedDate = normalizeDate(row.planned_date ?? row.next_due);
+  const doneDate = normalizeDate(row.done_date ?? row.last_completed);
+
+  return {
+    ...row,
+    organization_id: row.organization_id ?? null,
+    property_id: row.property_id ?? null,
+    system_name: row.system_name ?? row.asset_name ?? row.detail_name ?? 'PPM Task',
+    detail_name: row.detail_name ?? row.description ?? null,
+    scope_of_work: row.scope_of_work ?? row.description ?? null,
+    frequency: normalizeFrequency(row.frequency ?? row.schedule_type),
+    planned_date: plannedDate,
+    done_date: doneDate || undefined,
+    status: normalizeStatus(row.status),
+  } as PPMSchedule;
 }
 
 function isOverdue(s: PPMSchedule): boolean {
@@ -178,7 +232,7 @@ function MonthCalendar({
 
   const getDots = (day: number): string[] => {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const daySchedules = schedules.filter((s) => s.planned_date === dateStr);
+    const daySchedules = schedules.filter((s) => normalizeDate(s.planned_date) === dateStr);
     const dots = new Set<string>();
     daySchedules.forEach((s) => {
       if (isOverdue(s)) dots.add('#EF4444');
@@ -264,6 +318,7 @@ export default function PPMScreen() {
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const hasPositionedCalendarRef = React.useRef(false);
 
   // Detail modal
   const [selectedSchedule, setSelectedSchedule] = useState<PPMSchedule | null>(null);
@@ -286,6 +341,8 @@ export default function PPMScreen() {
   const [formLocation, setFormLocation] = useState('');
   const [formVendorName, setFormVendorName] = useState('');
   const [formVendorPhone, setFormVendorPhone] = useState('');
+  
+  const [showReport, setShowReport] = useState(false);
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const isAdmin = useMemo(() => {
@@ -296,7 +353,7 @@ export default function PPMScreen() {
 
   const selectedDaySchedules = useMemo(() => {
     if (!selectedDate) return [];
-    return schedules.filter((s) => s.planned_date === selectedDate);
+    return schedules.filter((s) => normalizeDate(s.planned_date) === selectedDate);
   }, [schedules, selectedDate]);
 
   const overdueSchedules = useMemo(() => {
@@ -311,17 +368,41 @@ export default function PPMScreen() {
   const fetchSchedules = useCallback(async () => {
     if (!propertyId) return;
     try {
-      const { data, error } = await supabase
+      const baseSelect = '*, maintenance_vendors(id, company_name, contact_person, phone)';
+      const propertyQuery = supabase
         .from('ppm_schedules')
-        .select('*, maintenance_vendors(id, company_name, contact_person, phone)')
+        .select(baseSelect)
         .eq('property_id', propertyId)
         .order('planned_date');
-      if (error) throw error;
-      setSchedules((data || []) as PPMSchedule[]);
+
+      const orgWideQuery = membership?.org_id
+        ? supabase
+            .from('ppm_schedules')
+            .select(baseSelect)
+            .eq('organization_id', membership.org_id)
+            .is('property_id', null)
+            .order('planned_date')
+        : null;
+
+      const [propertyResult, orgWideResult] = await Promise.all([
+        propertyQuery,
+        orgWideQuery ?? Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (propertyResult.error) throw propertyResult.error;
+      if (orgWideResult.error) throw orgWideResult.error;
+
+      const byId = new Map<string, PPMSchedule>();
+      [...(propertyResult.data || []), ...(orgWideResult.data || [])]
+        .map(normalizeSchedule)
+        .filter((s) => s.planned_date)
+        .forEach((s) => byId.set(s.id, s));
+
+      setSchedules(Array.from(byId.values()).sort((a, b) => a.planned_date.localeCompare(b.planned_date)));
     } catch (err) {
       console.error('Error fetching PPM schedules:', err);
     }
-  }, [propertyId]);
+  }, [membership?.org_id, propertyId]);
 
   const fetchContracts = useCallback(async () => {
     if (!propertyId) return;
@@ -359,6 +440,32 @@ export default function PPMScreen() {
   useEffect(() => {
     if (propertyId) fetchAll();
   }, [propertyId, fetchAll]);
+
+  useEffect(() => {
+    if (hasPositionedCalendarRef.current || schedules.length === 0) return;
+
+    const monthHasTasks = schedules.some((s) => {
+      const date = normalizeDate(s.planned_date);
+      return date.startsWith(`${calYear}-${String(calMonth + 1).padStart(2, '0')}`);
+    });
+
+    if (monthHasTasks) {
+      hasPositionedCalendarRef.current = true;
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const target = schedules.find((s) => s.planned_date >= today) ?? schedules[0];
+    if (!target?.planned_date) return;
+
+    const [year, month] = target.planned_date.split('-').map(Number);
+    if (year && month) {
+      setCalYear(year);
+      setCalMonth(month - 1);
+      setSelectedDate(target.planned_date);
+      hasPositionedCalendarRef.current = true;
+    }
+  }, [calMonth, calYear, schedules]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleRefresh = () => fetchAll(true);
@@ -402,6 +509,7 @@ export default function PPMScreen() {
     try {
       const { error } = await (supabase.from('ppm_schedules') as any).insert({
         property_id: propertyId,
+        organization_id: membership?.org_id ?? null,
         system_name: formSystemName.trim(),
         detail_name: formDetailName.trim() || null,
         scope_of_work: formScope.trim() || null,
@@ -538,10 +646,11 @@ export default function PPMScreen() {
       <LinearGradient colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} style={StyleSheet.absoluteFillObject} />
 
       {/* Header */}
-      <SafeBlurView intensity={80} tint="dark" style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <SafeBlurView intensity={80} tint={isDark ? "dark" : "light"} style={[styles.header, { paddingTop: insets.top + 16, borderBottomWidth: 1, borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', overflow: 'hidden' }]}>
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: isDark ? 'rgba(22, 27, 40, 0.65)' : 'rgba(255, 255, 255, 0.7)' }]} />
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          <TouchableOpacity onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+            <ChevronLeft size={24} color={isDark ? "#FFFFFF" : "#000000"} />
           </TouchableOpacity>
           <View style={styles.headerTitleWrap}>
             <Text style={styles.headerTitleMain}>PPM</Text>
@@ -549,16 +658,21 @@ export default function PPMScreen() {
           </View>
           {isAdmin ? (
             <TouchableOpacity style={[styles.headerAddBtn, { backgroundColor: colors.primary }]} onPress={() => setShowAdd(true)} activeOpacity={0.8}>
-              <Plus size={20} color="#FFFFFF" />
+              <Plus size={22} color="#FFFFFF" />
             </TouchableOpacity>
-          ) : <View style={{ width: 40 }} />}
+          ) : <View style={{ width: 44 }} />}
         </View>
 
-        <View style={[styles.tabBar, { marginTop: 12 }]}>
+        <View style={[styles.tabBar, { marginTop: 20 }]}>
           {(['calendar', 'schedules', 'amc'] as PPMTab[]).map((tab) => (
             <TouchableOpacity
               key={tab}
-              style={[styles.tab, activeTab === tab ? { backgroundColor: colors.primary } : { backgroundColor: 'rgba(255,255,255,0.1)' }]}
+              style={[
+                styles.tab, 
+                activeTab === tab 
+                  ? { backgroundColor: colors.primary } 
+                  : { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }
+              ]}
               onPress={() => setActiveTab(tab)}
             >
               {tab === 'calendar' && <CalendarDays size={14} color={activeTab === tab ? '#fff' : colors.textSecondary} />}
@@ -913,33 +1027,39 @@ export default function PPMScreen() {
                 />
 
                 {/* Attachments */}
-                {editStatus === 'done' && (
+                {(editStatus === 'done' || selectedSchedule.status === 'done') && (
                   <View style={{ marginTop: 16 }}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ATTACHMENTS</Text>
-                    {selectedSchedule.attachments?.photos && selectedSchedule.attachments.photos.length > 0 && (
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ATTACHMENTS / PHOTOS</Text>
+                    {/* Combine both completion_photos (from web) and attachments.photos (from mobile) */}
+                    {(selectedSchedule.attachments?.photos?.length || selectedSchedule.completion_photos?.length) ? (
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                        {selectedSchedule.attachments.photos.map((url, idx) => (
+                        {[...(selectedSchedule.completion_photos || []), ...(selectedSchedule.attachments?.photos || [])].map((url, idx) => (
                           <View key={idx} style={styles.photoThumbWrap}>
                             <Image source={{ uri: url }} style={styles.photoThumb} />
-                            <TouchableOpacity style={styles.photoDeleteBtn} onPress={() => deletePhoto(idx)}>
-                              <Trash2 size={12} color="#FFFFFF" />
-                            </TouchableOpacity>
+                            {/* Only allow deleting photos if the task is still being edited/marked as done locally */}
+                            {editStatus === 'done' && (
+                              <TouchableOpacity style={styles.photoDeleteBtn} onPress={() => deletePhoto(idx)}>
+                                <Trash2 size={12} color="#FFFFFF" />
+                              </TouchableOpacity>
+                            )}
                           </View>
                         ))}
                       </ScrollView>
+                    ) : null}
+                    {editStatus === 'done' && (
+                      <TouchableOpacity
+                        style={[styles.uploadBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                        onPress={pickAndUploadPhotos}
+                        disabled={uploadingPhoto}
+                      >
+                        {uploadingPhoto ? <ActivityIndicator size="small" color={colors.primary} /> : (
+                          <>
+                            <Camera size={18} color={colors.primary} />
+                            <Text style={[styles.uploadBtnText, { color: colors.primary }]}>Add Photos</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     )}
-                    <TouchableOpacity
-                      style={[styles.uploadBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                      onPress={pickAndUploadPhotos}
-                      disabled={uploadingPhoto}
-                    >
-                      {uploadingPhoto ? <ActivityIndicator size="small" color={colors.primary} /> : (
-                        <>
-                          <Camera size={18} color={colors.primary} />
-                          <Text style={[styles.uploadBtnText, { color: colors.primary }]}>Add Photos</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
                   </View>
                 )}
 
@@ -958,16 +1078,26 @@ export default function PPMScreen() {
                   </View>
                 )}
 
-                {/* Save button */}
-                <TouchableOpacity
-                  style={[styles.markCompleteBtn, { backgroundColor: colors.primary }, isSaving && { opacity: 0.6 }]}
-                  onPress={handleUpdateSchedule}
-                  disabled={isSaving}
-                >
-                  {isSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
-                    <Text style={styles.markCompleteBtnText}>Update Task</Text>
-                  )}
-                </TouchableOpacity>
+                {/* Save or Report button */}
+                {selectedSchedule.status === 'done' ? (
+                  <TouchableOpacity
+                    style={[styles.markCompleteBtn, { backgroundColor: colors.success }, { flexDirection: 'row', justifyContent: 'center', gap: 8 }]}
+                    onPress={() => setShowReport(true)}
+                  >
+                    <FileText size={18} color="#FFFFFF" />
+                    <Text style={styles.markCompleteBtnText}>View Full Report</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.markCompleteBtn, { backgroundColor: colors.primary }, isSaving && { opacity: 0.6 }]}
+                    onPress={handleUpdateSchedule}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : (
+                      <Text style={styles.markCompleteBtnText}>Update Task</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </ScrollView>
             )}
           </View>
@@ -1077,6 +1207,105 @@ export default function PPMScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ── Report Modal ── */}
+      <Modal visible={showReport} animationType="slide" onRequestClose={() => setShowReport(false)}>
+        <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+          <LinearGradient colors={isDark ? ['#0f172a', '#1e1b4b', '#0f172a'] : ['#eef2f6', '#f8fafc', '#ffffff']} style={StyleSheet.absoluteFillObject} />
+          
+          <SafeBlurView intensity={80} tint="dark" style={[styles.header, { paddingTop: 16 }]}>
+            <View style={styles.headerTop}>
+              <TouchableOpacity onPress={() => setShowReport(false)} style={styles.backBtn}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+              <View style={styles.headerTitleWrap}>
+                <Text style={styles.headerTitleMain}>Completion Report</Text>
+              </View>
+            </View>
+          </SafeBlurView>
+
+          {selectedSchedule && (
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+              
+              <View style={[styles.sectionCard, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>TASK DETAILS</Text>
+                <Text style={[styles.sectionValue, { color: colors.text, fontSize: 18 }]}>{selectedSchedule.system_name}</Text>
+                <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>{selectedSchedule.detail_name || selectedSchedule.scope_of_work}</Text>
+                <View style={{ flexDirection: 'row', marginTop: 12, gap: 16 }}>
+                  <View>
+                    <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>FREQUENCY</Text>
+                    <Text style={[styles.sectionSub, { color: colors.text, textTransform: 'capitalize' }]}>{selectedSchedule.frequency}</Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>LOCATION</Text>
+                    <Text style={[styles.sectionSub, { color: colors.text }]}>{selectedSchedule.location || 'N/A'}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.sectionCard, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>COMPLETION INFO</Text>
+                <View style={{ flexDirection: 'row', marginBottom: 12, gap: 16 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>PLANNED DATE</Text>
+                    <Text style={[styles.sectionSub, { color: colors.text }]}>{formatDate(selectedSchedule.planned_date)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>COMPLETED ON</Text>
+                    <Text style={[styles.sectionSub, { color: colors.success, fontWeight: 'bold' }]}>{formatDate(selectedSchedule.done_date || '')}</Text>
+                  </View>
+                </View>
+                <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>COMPLETED BY / VENDOR</Text>
+                <Text style={[styles.sectionSub, { color: colors.text }]}>
+                  {selectedSchedule.maintenance_vendors?.company_name || selectedSchedule.vendor_name || selectedSchedule.maker || 'System / Vendor'}
+                </Text>
+                {selectedSchedule.remark && (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={[styles.sectionLabel, { color: colors.textTertiary }]}>REMARKS</Text>
+                    <Text style={[styles.sectionSub, { color: colors.text }]}>{selectedSchedule.remark}</Text>
+                  </View>
+                )}
+              </View>
+
+              {(selectedSchedule.attachments?.photos?.length || selectedSchedule.completion_photos?.length) ? (
+                <View style={[styles.sectionCard, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                  <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>PHOTOS</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                    {[...(selectedSchedule.completion_photos || []), ...(selectedSchedule.attachments?.photos || [])].map((url, idx) => (
+                      <View key={idx} style={{ marginRight: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+                        <Image source={{ uri: url }} style={{ width: 120, height: 120 }} />
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+
+              {(selectedSchedule.completion_doc_url || selectedSchedule.invoice_url || selectedSchedule.attachments?.certificate || selectedSchedule.attachments?.invoice) ? (
+                <View style={[styles.sectionCard, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
+                  <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>DOCUMENTS</Text>
+                  <View style={{ gap: 10, marginTop: 8 }}>
+                    {[
+                      { url: selectedSchedule.completion_doc_url || selectedSchedule.attachments?.certificate, label: 'Completion Certificate' },
+                      { url: selectedSchedule.invoice_url || selectedSchedule.attachments?.invoice, label: 'Invoice / Bill' }
+                    ].map((doc, idx) => doc.url ? (
+                      <TouchableOpacity 
+                        key={idx} 
+                        style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 10 }}
+                        onPress={() => Linking.openURL(doc.url as string)}
+                      >
+                        <DownloadCloud size={20} color={colors.primary} />
+                        <Text style={{ marginLeft: 10, color: colors.text, flex: 1, fontFamily: 'Urbanist-Medium' }}>{doc.label}</Text>
+                        <ChevronRight size={16} color={colors.textTertiary} />
+                      </TouchableOpacity>
+                    ) : null)}
+                  </View>
+                </View>
+              ) : null}
+
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1089,10 +1318,8 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
 
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 16,
-    borderBottomWidth: 1.5,
-    borderBottomColor: 'rgba(255,255,255,0.12)',
     zIndex: 10,
   },
   headerTop: {
@@ -1102,21 +1329,20 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitleWrap: { flex: 1, marginLeft: 12 },
-  headerTitleMain: { fontSize: 20, fontFamily: 'Poppins-Bold', letterSpacing: -0.5, color: '#FFFFFF' },
-  headerSubtitleMain: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 2 },
-  headerAddBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  headerTitleWrap: { flex: 1, marginLeft: 16 },
+  headerTitleMain: { fontSize: 22, fontFamily: 'Poppins-Bold', letterSpacing: -0.5, color: '#FFFFFF' },
+  headerSubtitleMain: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  headerAddBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 
-  tabBar: { flexDirection: 'row', gap: 8 },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  tabText: { fontSize: 12, fontFamily: 'Urbanist-Bold' },
+  tabBar: { flexDirection: 'row', gap: 10 },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24 },
+  tabText: { fontSize: 13, fontFamily: 'Urbanist-Bold' },
   badge: { backgroundColor: '#EF6B6B', borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
   badgeText: { color: '#FFFFFF', fontSize: 10, fontFamily: 'Urbanist-Bold' },
 

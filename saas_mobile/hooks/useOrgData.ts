@@ -43,7 +43,7 @@ export default function useOrgData(orgId: string) {
         .eq('id', orgId)
         .single();
       
-      const orgName = orgData?.name || 'Organization';
+      const orgName = (orgData as { name: string } | null)?.name || 'Organization';
 
       // 2. Fetch all properties belonging to this organization
       const { data: properties } = await supabase
@@ -51,8 +51,8 @@ export default function useOrgData(orgId: string) {
         .select('*')
         .eq('organization_id', orgId);
 
-      const propertyList = properties || [];
-      const propIds = propertyList.map((p) => p.id);
+      const propertyList = (properties || []) as any[];
+      const propIds = propertyList.map((p: any) => p.id);
 
       if (propIds.length === 0) {
         setData({
@@ -128,7 +128,7 @@ export default function useOrgData(orgId: string) {
       
       let vendorStats = { revenue: 0, commission: 0 };
       if (revData) {
-        const totalRev = revData.reduce((acc, row) => acc + (row.revenue_amount || 0), 0);
+        const totalRev = (revData as any[]).reduce((acc, row) => acc + (row.revenue_amount || 0), 0);
         vendorStats = { revenue: totalRev, commission: totalRev * 0.1 };
       }
 
@@ -137,7 +137,7 @@ export default function useOrgData(orgId: string) {
       let validScoresCount = 0;
       for (const propId of propIds) {
         try {
-          const { data: healthData } = await supabase.rpc('get_property_health_score', {
+          const { data: healthData } = await (supabase as any).rpc('get_property_health_score', {
             p_property_id: propId,
           });
           if (healthData && typeof healthData === 'number') {
@@ -152,7 +152,7 @@ export default function useOrgData(orgId: string) {
       let attentionItems: any[] = [];
       for (const propId of propIds) {
         try {
-          const { data: attentionData } = await supabase.rpc('get_attention_items', {
+          const { data: attentionData } = await (supabase as any).rpc('get_attention_items', {
             p_property_id: propId,
             p_limit: 3,
           });

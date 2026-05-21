@@ -69,31 +69,17 @@ export async function transcribeAudio(audioUri: string): Promise<string | null> 
     const fileInfo = await FileSystem.getInfoAsync(audioUri);
     if (!fileInfo.exists) return null;
 
-    // Build multipart form-data manually for React Native
-    const boundary = '----VoiceFormBoundary' + Math.random().toString(36).slice(2);
     const fileName = audioUri.split('/').pop() || 'recording.m4a';
     const mimeType = 'audio/m4a';
 
-    const fileBase64 = await FileSystem.readAsStringAsync(audioUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    const body = [
-      `--${boundary}`,
-      `Content-Disposition: form-data; name="file"; filename="${fileName}"`,
-      `Content-Type: ${mimeType}`,
-      '',
-      fileBase64,
-      `--${boundary}`,
-      `Content-Disposition: form-data; name="model"`,
-      '',
-      GROQ_WHISPER_MODEL,
-      `--${boundary}`,
-      `Content-Disposition: form-data; name="language"`,
-      '',
-      'en',
-      `--${boundary}--`,
-    ].join('\r\n');
+    const formData = new FormData();
+    formData.append('file', {
+      uri: audioUri,
+      name: fileName,
+      type: mimeType,
+    } as any);
+    formData.append('model', GROQ_WHISPER_MODEL);
+    formData.append('language', 'en');
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -102,9 +88,9 @@ export async function transcribeAudio(audioUri: string): Promise<string | null> 
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Type': 'multipart/form-data',
       },
-      body,
+      body: formData,
       signal: controller.signal,
     });
 

@@ -160,9 +160,9 @@ export default function SuperTenantSidebar({
         </View>
 
         <SignOutModal
-          isOpen={showSignOutModal}
+          visible={showSignOutModal}
           onClose={() => setShowSignOutModal(false)}
-          onConfirm={signOut}
+          onSignOut={signOut}
         />
       </Modal>
     </>

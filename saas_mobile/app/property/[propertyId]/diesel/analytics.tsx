@@ -42,6 +42,16 @@ interface Generator {
   status: string;
 }
 
+interface DGTariff {
+  id: string;
+  generator_id: string;
+  cost_per_litre: number;
+  effective_from: string;
+  effective_to: string | null;
+  created_by?: string;
+  created_at: string;
+}
+
 interface DieselReading {
   id: string;
   generator_id: string;
@@ -143,7 +153,7 @@ function TrendChart({
   color: string;
   labelColor: string;
   formatValue?: (v: number) => string;
-  fillGradient?: string[];
+  fillGradient?: readonly [string, string, ...string[]];
 }) {
   if (data.length === 0) return null;
   const maxVal = Math.max(...data.map((d) => d.value), 1);
@@ -172,7 +182,7 @@ function TrendChart({
                   />
                   {fillGradient && (
                     <LinearGradient
-                      colors={fillGradient}
+                      colors={fillGradient as readonly [string, string, ...string[]]}
                       style={[StyleSheet.absoluteFillObject, { opacity: 0.25, borderRadius: 4 }]}
                     />
                   )}
@@ -309,8 +319,9 @@ export default function DieselAnalyticsScreen() {
           .in('generator_id', gens.map((g) => g.id))
           .is('effective_to', null)
           .limit(1);
-        if (tariffData && tariffData.length > 0) {
-          setActiveTariff(tariffData[0].cost_per_litre || 0);
+        const tariffs = tariffData as DGTariff[] | null;
+        if (tariffs && tariffs.length > 0) {
+          setActiveTariff(tariffs[0].cost_per_litre || 0);
         }
       }
 

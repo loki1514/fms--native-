@@ -245,10 +245,10 @@ export function useCassandraVoice(
 
       const Audio = getAudio();
       if (!Audio) return;
-      const { sound } = await Audio.Sound.createAsync(
+      const { sound } = await (Audio as any).Sound.createAsync(
         { uri },
         { shouldPlay: true },
-        (status) => {
+        (status: any) => {
           if (status.isLoaded && status.didJustFinish) {
             onAudioPlaybackEnd?.();
             setVoiceState('idle');
@@ -349,14 +349,14 @@ export function useCassandraVoice(
     }
 
     try {
-      const { status } = await Audio.requestPermissionsAsync();
+      const { status } = await (Audio as any).requestPermissionsAsync();
       if (status !== 'granted') {
         onError?.('Microphone permission denied.');
         setVoiceState('error');
         return;
       }
 
-      await Audio.setAudioModeAsync({
+      await (Audio as any).setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
@@ -364,9 +364,9 @@ export function useCassandraVoice(
         playThroughEarpieceAndroid: false,
       });
 
-      const recording = new Audio.Recording();
+      const recording = new (Audio as any).Recording();
       await recording.prepareToRecordAsync(getRecordingOptions());
-      recording.setOnRecordingStatusUpdate((status) => {
+      recording.setOnRecordingStatusUpdate((status: any) => {
         if (status.isRecording && isRecordingRef.current) {
           // Send chunk every ~500ms
         }
@@ -387,7 +387,7 @@ export function useCassandraVoice(
               const FileSystem = getFileSystem();
               if (FileSystem) {
                 const base64 = await FileSystem.readAsStringAsync(uri, {
-                  encoding: FileSystem.EncodingType.Base64,
+                  encoding: (FileSystem as any).EncodingType.Base64,
                 });
                 const frame: AudioChunkFrame = {
                   type: 'audio_chunk',

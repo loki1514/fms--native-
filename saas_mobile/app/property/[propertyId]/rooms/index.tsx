@@ -1,1476 +1,927 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  FlatList,
   TouchableOpacity,
-  TextInput,
-  ScrollView,
+  FlatList,
   ActivityIndicator,
+  Alert,
+  StyleSheet,
   Image,
-  KeyboardAvoidingView,
-  Platform,
-  Switch,
+  ScrollView,
 } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@/context';
-import { Colors, DesignTokens } from '@/constants/Colors';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/hooks/useAuth';
+import { useTheme } from '@/context';
+import { Colors } from '@/constants/Colors';
 import SafeBlurView from '@/components/ui/SafeBlurView';
-import { supabase } from '@/utils/supabase/client';
-import { toast } from '@/lib/toast';
-import { Ionicons } from '@expo/vector-icons';
-
-
 import {
-  Plus,
-  Search,
-  DoorOpen,
+  getMeetingRooms,
+  getMeetingRoomBookings,
+  getMeetingRoomCredits,
+  createMeetingRoomBooking,
+  MeetingRoom,
+  MeetingRoomBooking,
+  MeetingRoomCredit,
+} from '@/utils/api/mobileApi';
+import {
+  ChevronLeft,
+  Settings2,
   Users,
   MapPin,
-  Wifi,
-  Projector,
-  Monitor,
-  Coffee,
-  Snowflake,
-  Tv,
-  LayoutGrid,
-  Calendar,
-  ChevronRight,
-  X,
   Clock,
-  User,
-  Edit2,
-  Trash2,
-  Check,
-  Building2,
+  CalendarDays,
+  Armchair,
+  CheckCircle2,
+  X,
+  CreditCard,
 } from 'lucide-react-native';
-import BottomSheet, { BottomSheetBackdrop, BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import {
+  BottomSheetModal,
+  BottomSheetScrollView,
+} from '@gorhom/bottom-sheet';
+import { format, addDays, isSameDay, parseISO } from 'date-fns';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Room {
-  id: string;
-  name: string;
-  photo_url: string;
-  location: string;
-  capacity: number;
-  size?: number;
-  amenities: string[];
-  status: string;
-  description?: string;
-  property_id: string;
-  created_at?: string;
+interface RoomWithBookings extends MeetingRoom {
+  todayBookings: MeetingRoomBooking[];
 }
 
-interface Booking {
-  id: string;
-  room_id: string;
-  room_name?: string;
-  title: string;
-  booked_by: string;
-  booked_by_name?: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  attendees?: number;
-  property_id: string;
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const TIME_SLOTS = [
+  { label: '09:00 AM', start: '09:00', end: '10:00' },
+  { label: '10:00 AM', start: '10:00', end: '11:00' },
+  { label: '11:00 AM', start: '11:00', end: '12:00' },
+  { label: '12:00 PM', start: '12:00', end: '13:00' },
+  { label: '01:00 PM', start: '13:00', end: '14:00' },
+  { label: '02:00 PM', start: '14:00', end: '15:00' },
+  { label: '03:00 PM', start: '15:00', end: '16:00' },
+  { label: '04:00 PM', start: '16:00', end: '17:00' },
+  { label: '05:00 PM', start: '17:00', end: '18:00' },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function isSlotBooked(
+  roomId: string,
+  date: Date,
+  startTime: string,
+  endTime: string,
+  bookings: MeetingRoomBooking[]
+): boolean {
+  const dateStr = format(date, 'yyyy-MM-dd');
+  return bookings.some(
+    (b) =>
+      b.meeting_room_id === roomId &&
+      b.booking_date === dateStr &&
+      b.status === 'confirmed' &&
+      b.start_time < endTime &&
+      b.end_time > startTime
+  );
 }
 
-interface StaffMember {
-  id: string;
-  name: string;
-  email: string;
-  full_name?: string;
-  designation?: string;
+function getAmenityIcon(amenity: string): string {
+  const map: Record<string, string> = {
+    projector: '📽️',
+    whiteboard: '📝',
+    tv: '📺',
+    video_conference: '🎥',
+    wifi: '📶',
+    coffee: '☕',
+    parking: '🅿️',
+    air_conditioning: '❄️',
+    wheelchair_access: '♿',
+    phone: '📞',
+  };
+  return map[amenity.toLowerCase()] || '✨';
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+function formatAmenityLabel(amenity: string): string {
+  return amenity
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (l) => l.toUpperCase());
+}
 
-const AMENITY_ICONS: Record<string, React.ReactNode> = {
-  wifi: <Wifi size={14} />,
-  projector: <Projector size={14} />,
-  tv: <Tv size={14} />,
-  whiteboard: <Monitor size={14} />,
-  coffee: <Coffee size={14} />,
-  ac: <Snowflake size={14} />,
-};
+// ─── Room Card ────────────────────────────────────────────────────────────────
 
-const AMENITY_LABELS: Record<string, string> = {
-  wifi: 'Wi-Fi',
-  projector: 'Projector',
-  tv: 'TV',
-  whiteboard: 'Whiteboard',
-  coffee: 'Coffee',
-  ac: 'AC',
-};
-
-const ALL_AMENITIES = Object.keys(AMENITY_LABELS);
-
-const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
-  available: { color: Colors.light.success, bg: Colors.light.successBg, label: 'Available' },
-  busy: { color: Colors.light.error, bg: Colors.light.errorBg, label: 'Busy' },
-  maintenance: { color: Colors.light.warning, bg: Colors.light.warningBg, label: 'Maintenance' },
-  active: { color: Colors.light.success, bg: Colors.light.successBg, label: 'Available' },
-  inactive: { color: Colors.light.textTertiary, bg: Colors.light.surface, label: 'Inactive' },
-};
-
-// ---------------------------------------------------------------------------
-// Room Card Component
-// ---------------------------------------------------------------------------
-
-function RoomCard({ room, onPress, onEdit, onDelete }: {
-  room: Room;
+function RoomCard({
+  room,
+  onPress,
+}: {
+  room: MeetingRoom;
   onPress: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
 }) {
-  const { theme } = useTheme();
-  const colors = Colors[theme];
-  const statusCfg = STATUS_CONFIG[room.status] ?? STATUS_CONFIG.available;
+  const amenities = room.amenities?.slice(0, 3) || [];
+  const extraCount = (room.amenities?.length || 0) - 3;
 
   return (
-    <TouchableOpacity
-      style={[styles.roomCard]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <SafeBlurView
-        intensity={40}
-        tint="dark"
-        style={[StyleSheet.absoluteFillObject, { borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }]}
-      >
+    <TouchableOpacity style={styles.cardWrapper} onPress={onPress} activeOpacity={0.75}>
+      <SafeBlurView intensity={60} tint="dark" style={styles.card}>
         <LinearGradient
-          colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']}
+          colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.04)', 'rgba(0,0,0,0.05)']}
           style={StyleSheet.absoluteFillObject}
         />
-      </SafeBlurView>
-      {/* Photo */}
-      <View style={styles.roomPhotoWrap}>
+        {/* Photo */}
         {room.photo_url ? (
-          <Image source={{ uri: room.photo_url }} style={styles.roomPhoto} resizeMode="cover" />
+          <Image source={{ uri: room.photo_url }} style={styles.cardImage} />
         ) : (
-          <DoorOpen size={32} color="#64748B" />
+          <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+            <Armchair size={32} color="rgba(255,255,255,0.3)" />
+          </View>
         )}
-        {/* Status badge */}
-        <View style={[styles.roomStatusBadge, { backgroundColor: statusCfg.bg }]}>
-          <View style={[styles.roomStatusDot, { backgroundColor: statusCfg.color }]} />
-          <Text style={[styles.roomStatusText, { color: statusCfg.color }]}>{statusCfg.label}</Text>
-        </View>
-      </View>
 
-      {/* Info */}
-      <View style={styles.roomInfo}>
-        <View style={styles.roomNameRow}>
-          <Text style={styles.roomName} numberOfLines={1}>{room.name}</Text>
-          <View style={styles.roomActions}>
-            <TouchableOpacity style={styles.roomActionBtn} onPress={onEdit}>
-              <Edit2 size={14} color="#64748B" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.roomActionBtn} onPress={onDelete}>
-              <Trash2 size={14} color="#EF4444" />
-            </TouchableOpacity>
+        {/* Content */}
+        <View style={styles.cardContent}>
+          <Text style={styles.cardName} numberOfLines={1}>
+            {room.name}
+          </Text>
+          <View style={styles.cardMetaRow}>
+            <View style={styles.cardMetaItem}>
+              <MapPin size={12} color="#708F96" />
+              <Text style={styles.cardMetaText} numberOfLines={1}>
+                {room.location || 'Main Building'}
+              </Text>
+            </View>
+            <View style={styles.cardMetaItem}>
+              <Users size={12} color="#708F96" />
+              <Text style={styles.cardMetaText}>{room.capacity} people</Text>
+            </View>
           </View>
-        </View>
 
-        <View style={styles.roomMeta}>
-          <View style={styles.roomMetaItem}>
-            <Users size={12} color="#94A3B8" />
-            <Text style={styles.roomMetaText}>{room.capacity} seats</Text>
-          </View>
-          {room.location && (
-            <View style={styles.roomMetaItem}>
-              <MapPin size={12} color="#94A3B8" />
-              <Text style={styles.roomMetaText} numberOfLines={1}>{room.location}</Text>
+          {/* Amenities */}
+          {amenities.length > 0 && (
+            <View style={styles.amenityRow}>
+              {amenities.map((a) => (
+                <View key={a} style={styles.amenityChip}>
+                  <Text style={styles.amenityEmoji}>{getAmenityIcon(a)}</Text>
+                  <Text style={styles.amenityText}>{formatAmenityLabel(a)}</Text>
+                </View>
+              ))}
+              {extraCount > 0 && (
+                <View style={styles.amenityChip}>
+                  <Text style={styles.amenityText}>+{extraCount} more</Text>
+                </View>
+              )}
             </View>
           )}
         </View>
-
-        {/* Amenities */}
-        {room.amenities && room.amenities.length > 0 && (
-          <View style={styles.amenitiesRow}>
-            {room.amenities.slice(0, 5).map((a) => (
-              <View key={a} style={styles.amenityChip}>
-                <Text style={{ marginRight: 3 }}>{AMENITY_ICONS[a]}</Text>
-                <Text style={styles.amenityChipText}>{AMENITY_LABELS[a] ?? a}</Text>
-              </View>
-            ))}
-            {room.amenities.length > 5 && (
-              <Text style={styles.amenityMore}>+{room.amenities.length - 5}</Text>
-            )}
-          </View>
-        )}
-      </View>
-
-      <ChevronRight size={16} color="#64748B" style={{ alignSelf: 'center' }} />
+      </SafeBlurView>
     </TouchableOpacity>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Room Detail Bottom Sheet
-// ---------------------------------------------------------------------------
+// ─── Room Detail Bottom Sheet ─────────────────────────────────────────────────
 
 function RoomDetailSheet({
   room,
   bookings,
-  loadingBookings,
+  credit,
+  isAdmin,
+  bottomSheetRef,
   onBook,
 }: {
-  room: Room;
-  bookings: Booking[];
-  loadingBookings: boolean;
+  room: MeetingRoom | null;
+  bookings: MeetingRoomBooking[];
+  credit: MeetingRoomCredit | null;
+  isAdmin: boolean;
+  bottomSheetRef: React.RefObject<BottomSheetModal | null>;
   onBook: () => void;
 }) {
-  const { theme } = useTheme();
-  const colors = Colors[theme];
-  const statusCfg = STATUS_CONFIG[room.status] ?? STATUS_CONFIG.available;
+  const snapPoints = useMemo(() => ['65%', '85%'], []);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedSlot, setSelectedSlot] = useState<(typeof TIME_SLOTS)[0] | null>(null);
+  const [bookingLoading, setBookingLoading] = useState(false);
+
+  // Reset selection when room changes
+  useEffect(() => {
+    setSelectedDate(new Date());
+    setSelectedSlot(null);
+  }, [room?.id]);
+
+  const dateOptions = useMemo(() => {
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      dates.push(addDays(new Date(), i));
+    }
+    return dates;
+  }, []);
+
+  async function handleBook() {
+    if (!room || !selectedSlot) return;
+    setBookingLoading(true);
+    try {
+      const response = await createMeetingRoomBooking({
+        meetingRoomId: room.id,
+        propertyId: room.property_id,
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        startTime: selectedSlot.start,
+        endTime: selectedSlot.end,
+      });
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      Alert.alert('Success', `Room booked for ${selectedSlot.label}`);
+      setSelectedSlot(null);
+      onBook();
+      bottomSheetRef.current?.dismiss();
+    } catch (err: any) {
+      Alert.alert('Booking Failed', err.message || 'Could not book this room.');
+    } finally {
+      setBookingLoading(false);
+    }
+  }
+
+  if (!room) return null;
 
   return (
-    <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-      {/* Header Photo */}
-      <View style={[styles.roomDetailPhoto, { backgroundColor: 'rgba(30,41,59,0.5)' }]}>
-        {room.photo_url ? (
-          <Image source={{ uri: room.photo_url }} style={styles.roomDetailPhotoImg} resizeMode="cover" />
-        ) : (
-          <DoorOpen size={56} color="#64748B" />
-        )}
-        <View style={[styles.roomDetailStatus, { backgroundColor: statusCfg.bg }]}>
-          <View style={[styles.roomStatusDot, { backgroundColor: statusCfg.color }]} />
-          <Text style={[styles.roomStatusText, { color: statusCfg.color }]}>{statusCfg.label}</Text>
-        </View>
-      </View>
-
-      {/* Room Info */}
-      <View style={styles.roomDetailInfo}>
-        <Text style={styles.roomDetailName}>{room.name}</Text>
-        {room.description && (
-          <Text style={styles.roomDetailDesc}>{room.description}</Text>
-        )}
-
-        <View style={styles.roomDetailMeta}>
-          <View style={styles.metaChip}>
-            <Users size={14} color="#60A5FA" />
-            <Text style={styles.metaChipText}>{room.capacity} seats</Text>
+    <BottomSheetModal
+      ref={bottomSheetRef}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      backgroundStyle={{ backgroundColor: '#0B0F1A' }}
+      handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.25)', width: 40 }}
+    >
+      <BottomSheetScrollView contentContainerStyle={styles.sheetContent}>
+        {/* Header */}
+        <LinearGradient colors={['rgba(112,143,150,0.15)', 'rgba(0,0,0,0)']} style={styles.sheetHeaderGrad}>
+          <View style={styles.sheetHeader}>
+            {room.photo_url ? (
+              <Image source={{ uri: room.photo_url }} style={styles.sheetImage} />
+            ) : (
+              <View style={[styles.sheetImage, styles.sheetImagePlaceholder]}>
+                <Armchair size={40} color="rgba(255,255,255,0.3)" />
+              </View>
+            )}
+            <Text style={styles.sheetName}>{room.name}</Text>
+            <View style={styles.sheetMetaRow}>
+              <View style={styles.sheetMetaItem}>
+                <MapPin size={13} color="#708F96" />
+                <Text style={styles.sheetMetaText}>{room.location || 'Main Building'}</Text>
+              </View>
+              <View style={styles.sheetMetaItem}>
+                <Users size={13} color="#708F96" />
+                <Text style={styles.sheetMetaText}>{room.capacity} people</Text>
+              </View>
+              {room.size ? (
+                <View style={styles.sheetMetaItem}>
+                  <Armchair size={13} color="#708F96" />
+                  <Text style={styles.sheetMetaText}>{room.size} sqft</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
-          {room.location && (
-            <View style={styles.metaChip}>
-              <MapPin size={14} color="#60A5FA" />
-              <Text style={styles.metaChipText}>{room.location}</Text>
-            </View>
-          )}
-          {room.size && (
-            <View style={styles.metaChip}>
-              <DoorOpen size={14} color="#60A5FA" />
-              <Text style={styles.metaChipText}>{room.size} sqft</Text>
-            </View>
-          )}
-        </View>
+        </LinearGradient>
 
         {/* Amenities */}
         {room.amenities && room.amenities.length > 0 && (
-          <View style={styles.roomDetailAmenities}>
+          <View style={styles.sheetSection}>
             <Text style={styles.sectionTitle}>Amenities</Text>
-            <View style={styles.amenitiesGrid}>
+            <View style={styles.amenityGrid}>
               {room.amenities.map((a) => (
-                <View key={a} style={styles.amenityItem}>
-                  <Text style={{ marginRight: 4 }}>{AMENITY_ICONS[a]}</Text>
-                  <Text style={styles.amenityItemText}>{AMENITY_LABELS[a] ?? a}</Text>
+                <View key={a} style={styles.amenityGridItem}>
+                  <Text style={styles.amenityGridEmoji}>{getAmenityIcon(a)}</Text>
+                  <Text style={styles.amenityGridText}>{formatAmenityLabel(a)}</Text>
                 </View>
               ))}
             </View>
           </View>
         )}
 
-        {/* Today's Bookings */}
-        <View style={styles.roomDetailBookings}>
-          <Text style={styles.sectionTitle}>Today's Schedule</Text>
-          {loadingBookings ? (
-            <ActivityIndicator size="small" color="#60A5FA" style={{ marginVertical: 12 }} />
-          ) : bookings.length === 0 ? (
-            <View style={styles.noBookings}>
-              <Clock size={16} color="#22C55E" />
-              <Text style={styles.noBookingsText}>Available all day</Text>
-            </View>
-          ) : (
-            bookings.map((b) => (
-              <View key={b.id} style={styles.bookingItem}>
-                <View style={[styles.bookingTimeBar, { backgroundColor: '#60A5FA' }]} />
-                <View style={styles.bookingContent}>
-                  <Text style={styles.bookingTitle}>{b.title}</Text>
-                  <Text style={styles.bookingMeta}>
-                    {format(new Date(b.start_time), 'h:mm a')} - {format(new Date(b.end_time), 'h:mm a')}
-                    {b.booked_by_name ? ` · ${b.booked_by_name}` : ''}
+        {/* Date Picker */}
+        <View style={styles.sheetSection}>
+          <Text style={styles.sectionTitle}>Select Date</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
+            {dateOptions.map((date) => {
+              const isSelected = isSameDay(date, selectedDate);
+              return (
+                <TouchableOpacity
+                  key={date.toISOString()}
+                  style={[styles.dateChip, isSelected && styles.dateChipActive]}
+                  onPress={() => {
+                    setSelectedDate(date);
+                    setSelectedSlot(null);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.dateDay, isSelected && styles.dateTextActive]}>
+                    {format(date, 'EEE')}
                   </Text>
-                </View>
-                <View style={[
-                  styles.bookingStatusBadge,
-                  { backgroundColor: b.status === 'confirmed' ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)' }
-                ]}>
-                  <Text style={[
-                    styles.bookingStatusText,
-                    { color: b.status === 'confirmed' ? '#22C55E' : '#F59E0B' }
-                  ]}>
-                    {b.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                  <Text style={[styles.dateNum, isSelected && styles.dateTextActive]}>
+                    {format(date, 'd')}
                   </Text>
-                </View>
-              </View>
-            ))
-          )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
-        {/* Book Button */}
-        <TouchableOpacity
-          style={styles.bookRoomBtn}
-          onPress={onBook}
-          activeOpacity={0.8}
-        >
-          <Calendar size={18} color="#60A5FA" />
-          <Text style={styles.bookRoomBtnText}>Book This Room</Text>
-        </TouchableOpacity>
-      </View>
-    </BottomSheetScrollView>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Room Form (Create / Edit) Bottom Sheet
-// ---------------------------------------------------------------------------
-
-function RoomForm({
-  room,
-  propertyId,
-  onClose,
-  onSuccess,
-}: {
-  room?: Room;
-  propertyId: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const { theme } = useTheme();
-  const colors = Colors[theme];
-
-  const [name, setName] = useState(room?.name ?? '');
-  const [location, setLocation] = useState(room?.location ?? '');
-  const [capacity, setCapacity] = useState(room?.capacity?.toString() ?? '');
-  const [size, setSize] = useState(room?.size?.toString() ?? '');
-  const [description, setDescription] = useState(room?.description ?? '');
-  const [amenities, setAmenities] = useState<string[]>(room?.amenities ?? []);
-  const [status, setStatus] = useState(room?.status ?? 'available');
-  const [loading, setLoading] = useState(false);
-
-  const toggleAmenity = (a: string) => {
-    setAmenities((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
-  };
-
-  const handleSave = async () => {
-    if (!name.trim()) { toast.error('Room name is required'); return; }
-    if (!capacity.trim() || isNaN(Number(capacity))) { toast.error('Valid capacity is required'); return; }
-    setLoading(true);
-    try {
-      const payload = {
-        name: name.trim(),
-        location: location.trim(),
-        capacity: Number(capacity),
-        size: size ? Number(size) : null,
-        description: description.trim() || null,
-        amenities,
-        status,
-        property_id: propertyId,
-      };
-      let error;
-      if (room?.id) {
-        ({ error } = await (supabase.from('meeting_rooms') as any).update(payload as any).eq('id', room.id));
-      } else {
-        ({ error } = await (supabase.from('meeting_rooms') as any).insert(payload as any));
-      }
-      if (error) throw error;
-      toast.success(room?.id ? 'Room updated' : 'Room created');
-      onSuccess();
-    } catch (err: any) {
-      toast.error(err.message || 'Save failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1 }}
-    >
-      <BottomSheetScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Text style={styles.formTitle}>{room?.id ? 'Edit Room' : 'Add New Room'}</Text>
-
-        <Text style={styles.fieldLabel}>Room Name *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Conference Room A"
-          placeholderTextColor="#475569"
-          value={name}
-          onChangeText={setName}
-        />
-
-        <Text style={styles.fieldLabel}>Location / Floor</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. 2nd Floor, Building B"
-          placeholderTextColor="#475569"
-          value={location}
-          onChangeText={setLocation}
-        />
-
-        <View style={styles.rowFields}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.fieldLabel}>Capacity *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Seats"
-              placeholderTextColor="#475569"
-              value={capacity}
-              onChangeText={setCapacity}
-              keyboardType="number-pad"
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.fieldLabel}>Size (sqft)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Square feet"
-              placeholderTextColor="#475569"
-              value={size}
-              onChangeText={setSize}
-              keyboardType="number-pad"
-            />
+        {/* Time Slots */}
+        <View style={styles.sheetSection}>
+          <Text style={styles.sectionTitle}>Available Slots</Text>
+          <View style={styles.slotGrid}>
+            {TIME_SLOTS.map((slot) => {
+              const booked = isSlotBooked(room.id, selectedDate, slot.start, slot.end, bookings);
+              const isSelected = selectedSlot?.start === slot.start;
+              return (
+                <TouchableOpacity
+                  key={slot.start}
+                  style={[
+                    styles.slotChip,
+                    booked && styles.slotChipBooked,
+                    isSelected && styles.slotChipSelected,
+                  ]}
+                  onPress={() => !booked && setSelectedSlot(slot)}
+                  activeOpacity={booked ? 1 : 0.7}
+                  disabled={booked}
+                >
+                  <Clock size={12} color={booked ? '#64748B' : isSelected ? '#FFFFFF' : '#94A3B8'} />
+                  <Text
+                    style={[
+                      styles.slotText,
+                      booked && styles.slotTextBooked,
+                      isSelected && styles.slotTextSelected,
+                    ]}
+                  >
+                    {slot.label}
+                  </Text>
+                  {booked && <Text style={styles.slotBookedLabel}>Booked</Text>}
+                  {isSelected && <CheckCircle2 size={14} color="#10B981" style={{ marginLeft: 4 }} />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        <Text style={styles.fieldLabel}>Description</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Brief description of the room"
-          placeholderTextColor="#475569"
-          value={description}
-          onChangeText={setDescription}
-          multiline
-          numberOfLines={3}
-        />
-
-        <Text style={styles.fieldLabel}>Amenities</Text>
-        <View style={styles.amenitiesGrid}>
-          {ALL_AMENITIES.map((a) => (
-            <TouchableOpacity
-              key={a}
-              style={[
-                styles.amenityToggle,
-                amenities.includes(a) && { backgroundColor: '#1E3A5F', borderColor: '#60A5FA' },
-              ]}
-              onPress={() => toggleAmenity(a)}
-            >
-              <Text style={{ marginRight: 4 }}>{AMENITY_ICONS[a]}</Text>
-              <Text style={[styles.amenityToggleText, amenities.includes(a) && { color: '#60A5FA' }]}>
-                {AMENITY_LABELS[a]}
-              </Text>
-              {amenities.includes(a) && <Check size={12} color="#60A5FA" style={{ marginLeft: 4 }} />}
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.fieldLabel}>Status</Text>
-        <View style={styles.statusToggle}>
-          {['available', 'maintenance'].map((s) => (
-            <TouchableOpacity
-              key={s}
-              style={[
-                styles.statusToggleBtn,
-                status === s && { backgroundColor: '#1E3A5F', borderColor: '#60A5FA' },
-              ]}
-              onPress={() => setStatus(s)}
-            >
-              <Text style={[styles.statusToggleText, status === s && { color: '#60A5FA' }]}>
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.formActions}>
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={onClose}
-          >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.saveBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleSave}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? <ActivityIndicator color="#60A5FA" size="small" /> : <Text style={styles.saveBtnText}>Save Room</Text>}
-          </TouchableOpacity>
-        </View>
-      </BottomSheetScrollView>
-    </KeyboardAvoidingView>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Booking Form Bottom Sheet
-// ---------------------------------------------------------------------------
-
-function BookingForm({
-  room,
-  propertyId,
-  onClose,
-  onSuccess,
-}: {
-  room: Room;
-  propertyId: string;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const { theme } = useTheme();
-  const colors = Colors[theme];
-
-  const [title, setTitle] = useState('');
-  const [bookedBy, setBookedBy] = useState('');
-  const [attendees, setAttendees] = useState('');
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('10:00');
-  const [loading, setLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<StaffMember[]>([]);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      if (bookedBy.length < 2) { setSuggestions([]); return; }
-      const { data } = await supabase
-        .from('users')
-        .select('id, full_name, email, designation')
-        .ilike('full_name', `%${bookedBy}%`)
-        .limit(5);
-      setSuggestions(data as StaffMember[] ?? []);
-    };
-    const debounce = setTimeout(fetchUsers, 300);
-    return () => clearTimeout(debounce);
-  }, [bookedBy]);
-
-  const handleBook = async () => {
-    if (!title.trim()) { toast.error('Meeting title is required'); return; }
-    if (!bookedBy.trim()) { toast.error('Booked by name is required'); return; }
-    setLoading(true);
-    try {
-      const startDateTime = `${date}T${startTime}:00`;
-      const endDateTime = `${date}T${endTime}:00`;
-      const { error } = await (supabase.from('room_bookings') as any).insert({
-        room_id: room.id,
-        room_name: room.name,
-        property_id: propertyId,
-        title: title.trim(),
-        booked_by: bookedBy.trim(),
-        start_time: startDateTime,
-        end_time: endDateTime,
-        attendees: attendees ? Number(attendees) : null,
-        status: 'confirmed',
-      } as any);
-      if (error) throw error;
-      toast.success('Room booked successfully');
-      onSuccess();
-    } catch (err: any) {
-      toast.error(err.message || 'Booking failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-      <BottomSheetScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <Text style={styles.formTitle}>Book {room.name}</Text>
-
-        <Text style={styles.fieldLabel}>Meeting Title *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. Team Standup"
-          placeholderTextColor="#475569"
-          value={title}
-          onChangeText={setTitle}
-        />
-
-        <Text style={styles.fieldLabel}>Booked By *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Your name"
-          placeholderTextColor="#475569"
-          value={bookedBy}
-          onChangeText={setBookedBy}
-        />
-        {suggestions.length > 0 && (
-          <View style={styles.suggestionsList}>
-            {suggestions.map((s) => (
-              <TouchableOpacity
-                key={s.id}
-                style={styles.suggestionItem}
-                onPress={() => { setBookedBy(s.full_name || s.name || ''); setSuggestions([]); }}
-              >
-                <User size={14} color="#94A3B8" />
-                <Text style={styles.suggestionText}>{s.full_name || s.name}</Text>
-              </TouchableOpacity>
-            ))}
+        {/* Credit Info */}
+        {!isAdmin && credit && (
+          <View style={styles.creditInfoBox}>
+            <CreditCard size={16} color="#FF9F0A" />
+            <Text style={styles.creditInfoText}>
+              You have <Text style={styles.creditHighlight}>{credit.remaining_hours}h</Text> remaining this month
+            </Text>
           </View>
         )}
 
-        <Text style={styles.fieldLabel}>Attendees</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Number of attendees"
-          placeholderTextColor="#475569"
-          value={attendees}
-          onChangeText={setAttendees}
-          keyboardType="number-pad"
-        />
-
-        <Text style={styles.fieldLabel}>Date</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#475569"
-          value={date}
-          onChangeText={setDate}
-        />
-
-        <View style={styles.rowFields}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.fieldLabel}>Start Time</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="HH:MM"
-              placeholderTextColor="#475569"
-              value={startTime}
-              onChangeText={setStartTime}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.fieldLabel}>End Time</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="HH:MM"
-              placeholderTextColor="#475569"
-              value={endTime}
-              onChangeText={setEndTime}
-            />
-          </View>
-        </View>
-
-        <View style={styles.formActions}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.saveBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleBook}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? <ActivityIndicator color="#60A5FA" size="small" /> : <Text style={styles.saveBtnText}>Confirm Booking</Text>}
-          </TouchableOpacity>
-        </View>
+        {/* Book Button */}
+        <TouchableOpacity
+          style={[styles.bookButton, (!selectedSlot || bookingLoading) && styles.bookButtonDisabled]}
+          onPress={handleBook}
+          disabled={!selectedSlot || bookingLoading}
+          activeOpacity={0.8}
+        >
+          {bookingLoading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.bookButtonText}>
+              {selectedSlot ? `Book for ${selectedSlot.label}` : 'Select a time slot'}
+            </Text>
+          )}
+        </TouchableOpacity>
       </BottomSheetScrollView>
-    </KeyboardAvoidingView>
+    </BottomSheetModal>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main Screen
-// ---------------------------------------------------------------------------
-
-type RoomTab = 'rooms' | 'bookings';
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function RoomsScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const router = useRouter();
   const { theme } = useTheme();
   const colors = Colors[theme];
-  const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
+  const { membership, user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<RoomTab>('rooms');
+  const [loading, setLoading] = useState(true);
+  const [rooms, setRooms] = useState<MeetingRoom[]>([]);
+  const [bookings, setBookings] = useState<MeetingRoomBooking[]>([]);
+  const [credit, setCredit] = useState<MeetingRoomCredit | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState<MeetingRoom | null>(null);
 
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const roomSheetRef = useRef<BottomSheetModal>(null);
 
-  // Bottom sheets
-  const detailSheetRef = useRef<BottomSheet>(null);
-  const formSheetRef = useRef<BottomSheet>(null);
-  const bookingSheetRef = useRef<BottomSheet>(null);
+  // Role detection
+  useEffect(() => {
+    if (!membership || !propertyId) return;
+    const role = membership.properties?.find((p: any) => p.id === propertyId)?.role;
+    setIsAdmin(role === 'property_admin' || role === 'staff' || role === 'org_super_admin');
+  }, [membership, propertyId]);
 
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [editingRoom, setEditingRoom] = useState<Room | undefined>(undefined);
-  const [roomBookings, setRoomBookings] = useState<Booking[]>([]);
-  const [loadingBookings, setLoadingBookings] = useState(false);
-
-  const snapPoints = useMemo(() => ['60%', '90%'], []);
-  const formSnapPoints = useMemo(() => ['85%'], []);
-
-  // Fetch rooms
-  const fetchRooms = useCallback(async () => {
+  // Fetch data
+  const fetchData = useCallback(async () => {
     if (!propertyId) return;
-    setIsLoading(true);
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('meeting_rooms')
-        .select('*')
-        .eq('property_id', propertyId)
-        .order('name');
-      if (error) throw error;
-      setRooms((data as Room[]) ?? []);
-    } catch (err) {
-      console.error('Error fetching rooms:', err);
+      const [roomsRes, bookingsRes, creditsRes] = await Promise.all([
+        getMeetingRooms(propertyId, 'available'),
+        getMeetingRoomBookings(propertyId, 'confirmed'),
+        isAdmin ? Promise.resolve({ credit: null }) : getMeetingRoomCredits(propertyId),
+      ]);
+
+      if (roomsRes.rooms) setRooms(roomsRes.rooms);
+      if (bookingsRes.bookings) setBookings(bookingsRes.bookings);
+      if (!isAdmin && creditsRes.credit !== undefined) {
+        setCredit(creditsRes.credit);
+      }
+    } catch (e) {
+      console.error('[Rooms] fetch error:', e);
+      Alert.alert('Error', 'Failed to load meeting rooms.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [propertyId]);
-
-  // Fetch bookings
-  const fetchBookings = useCallback(async () => {
-    if (!propertyId) return;
-    try {
-      const { start, end } = {
-        start: startOfDay(new Date()).toISOString(),
-        end: endOfDay(new Date()).toISOString(),
-      };
-      const { data, error } = await supabase
-        .from('room_bookings')
-        .select('*')
-        .eq('property_id', propertyId)
-        .gte('start_time', start)
-        .lte('start_time', end)
-        .order('start_time');
-      if (error) throw error;
-      setBookings((data as Booking[]) ?? []);
-    } catch (err) {
-      console.error('Error fetching bookings:', err);
-    }
-  }, [propertyId]);
+  }, [propertyId, isAdmin]);
 
   useEffect(() => {
-    fetchRooms();
-    fetchBookings();
-  }, [fetchRooms, fetchBookings]);
+    fetchData();
+  }, [fetchData]);
 
-  // Fetch today's bookings for selected room
-  const fetchRoomBookings = useCallback(async (roomId: string) => {
-    setLoadingBookings(true);
-    try {
-      const { start, end } = {
-        start: startOfDay(new Date()).toISOString(),
-        end: endOfDay(new Date()).toISOString(),
-      };
-      const { data } = await supabase
-        .from('room_bookings')
-        .select('*')
-        .eq('room_id', roomId)
-        .gte('start_time', start)
-        .lte('start_time', end)
-        .order('start_time');
-      setRoomBookings((data as Booking[]) ?? []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingBookings(false);
-    }
-  }, []);
-
-  const handleRoomPress = (room: Room) => {
+  function handleRoomPress(room: MeetingRoom) {
     setSelectedRoom(room);
-    fetchRoomBookings(room.id);
-    detailSheetRef.current?.expand();
-  };
-
-  const handleEditRoom = (room: Room) => {
-    detailSheetRef.current?.close();
-    setEditingRoom(room);
-    formSheetRef.current?.expand();
-  };
-
-  const handleAddRoom = () => {
-    setEditingRoom(undefined);
-    formSheetRef.current?.expand();
-  };
-
-  const handleDeleteRoom = async (room: Room) => {
-    // Simple confirm via alert
-    const { Alert } = require('react-native');
-    Alert.alert('Delete Room', `Are you sure you want to deactivate "${room.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const { error } = await (supabase.from('meeting_rooms') as any)
-              .update({ status: 'inactive' } as any)
-              .eq('id', room.id);
-            if (error) throw error;
-            toast.success('Room deactivated');
-            fetchRooms();
-          } catch (err: any) {
-            toast.error(err.message || 'Delete failed');
-          }
-        },
-      },
-    ]);
-  };
-
-  const handleBookRoom = () => {
-    detailSheetRef.current?.close();
-    bookingSheetRef.current?.expand();
-  };
-
-  const renderBackdrop = useCallback(
-    (props: any) => (
-      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.5} />
-    ),
-    []
-  );
-
-  const filteredRooms = rooms.filter((r) =>
-    searchQuery
-      ? r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.location?.toLowerCase().includes(searchQuery.toLowerCase())
-      : true
-  );
-
-  const renderRoomItem = ({ item }: { item: Room }) => (
-    <RoomCard
-      room={item}
-      onPress={() => handleRoomPress(item)}
-      onEdit={() => handleEditRoom(item)}
-      onDelete={() => handleDeleteRoom(item)}
-    />
-  );
+    roomSheetRef.current?.present();
+  }
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}>
-      <Stack.Screen options={{ headerShown: false }} />
+    <View style={styles.container}>
+      {/* Background */}
       <LinearGradient
-        colors={isDark ? ['#0B1120', '#0F172A', '#1E293B'] : ['#F1F5F9', '#F8FAFC', '#FFFFFF']}
+        colors={theme === 'dark' ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']}
         style={StyleSheet.absoluteFillObject}
       />
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <SafeBlurView intensity={80} tint="dark" style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitleMain}>Meeting Rooms</Text>
-            <Text style={styles.headerSubtitleMain}>Manage conference facilities</Text>
+            <Text style={styles.headerTitle}>Meeting Rooms</Text>
+            <Text style={styles.headerSubtitle}>
+              {rooms.length} room{rooms.length !== 1 ? 's' : ''} available
+            </Text>
           </View>
-          {activeTab === 'rooms' && (
-            <TouchableOpacity
-              style={[styles.headerAddBtnPill, { backgroundColor: '#1E3A5F' }]}
-              onPress={handleAddRoom}
-              activeOpacity={0.8}
-            >
-              <Plus size={14} color="#60A5FA" />
-              <Text style={styles.headerAddBtnText}>Add Room</Text>
+          {isAdmin ? (
+            <TouchableOpacity style={styles.adminBtn} activeOpacity={0.7}>
+              <Settings2 size={20} color="#708F96" />
             </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Tabs */}
-        <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'rooms' && styles.tabActive]}
-            onPress={() => setActiveTab('rooms')}
-            activeOpacity={0.8}
-          >
-            <Building2 size={14} color={activeTab === 'rooms' ? '#FFFFFF' : '#94A3B8'} />
-            <Text style={[styles.tabText, activeTab === 'rooms' && styles.tabTextActive]}>My Rooms</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'bookings' && styles.tabActive]}
-            onPress={() => setActiveTab('bookings')}
-            activeOpacity={0.8}
-          >
-            <Calendar size={14} color={activeTab === 'bookings' ? '#FFFFFF' : '#94A3B8'} />
-            <Text style={[styles.tabText, activeTab === 'bookings' && styles.tabTextActive]}>Today's Bookings</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {activeTab === 'rooms' ? (
-        <>
-          {/* Search */}
-          <View style={styles.searchRow}>
-            <View style={styles.searchWrap}>
-              <Search size={16} color="#64748B" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search by name or location..."
-                placeholderTextColor="#475569"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-          </View>
-
-          {/* Room List */}
-          {isLoading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#60A5FA" />
-            </View>
-          ) : filteredRooms.length === 0 ? (
-            <View style={styles.emptyWrap}>
-              <View style={styles.emptyIconGlow}>
-                <DoorOpen size={36} color="#60A5FA" />
-              </View>
-              <Text style={styles.emptyTitle}>No rooms found</Text>
-              <Text style={styles.emptySub}>
-                {searchQuery ? 'Try a different search' : 'Add your first meeting room'}
-              </Text>
-            </View>
           ) : (
-            <FlatList
-              data={filteredRooms}
-              renderItem={renderRoomItem}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-            />
+            <View style={{ width: 40 }} />
           )}
-        </>
+        </View>
+      </SafeBlurView>
+
+      {/* Credit Banner (non-admin) */}
+      {!isAdmin && credit && (
+        <View style={styles.creditBanner}>
+          <SafeBlurView intensity={60} tint="dark" style={styles.creditBannerInner}>
+            <LinearGradient
+              colors={['rgba(255,159,10,0.12)', 'rgba(255,159,10,0.04)']}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <CreditCard size={18} color="#FF9F0A" />
+            <Text style={styles.creditBannerText}>
+              Monthly Credits: <Text style={styles.creditBannerHighlight}>{credit.remaining_hours}h</Text> remaining
+            </Text>
+          </SafeBlurView>
+        </View>
+      )}
+
+      {/* Room List */}
+      {loading ? (
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color="#708F96" />
+          <Text style={styles.loadingText}>Loading meeting rooms...</Text>
+        </View>
       ) : (
-        /* Bookings List */
         <FlatList
-          data={bookings}
+          data={rooms}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => <RoomCard room={item} onPress={() => handleRoomPress(item)} />}
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 12) + 160 }]}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <View style={styles.emptyIconGlow}>
-                <Calendar size={36} color="#60A5FA" />
-              </View>
-              <Text style={styles.emptyTitle}>No bookings today</Text>
-              <Text style={styles.emptySub}>
-                Select a room to make a booking
-              </Text>
+            <View style={styles.emptyState}>
+              <SafeBlurView intensity={40} tint="dark" style={styles.emptyIconWrap}>
+                <Armchair size={32} color="#708F96" />
+              </SafeBlurView>
+              <Text style={styles.emptyTitle}>No meeting rooms</Text>
+              <Text style={styles.emptySubtitle}>No meeting rooms are set up for this property yet.</Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <View style={styles.bookingCard}>
-              <View style={styles.bookingCardTime}>
-                <Text style={styles.bookingCardTimeText}>
-                  {format(new Date(item.start_time), 'h:mm')}
-                </Text>
-                <Text style={styles.bookingCardAmPm}>
-                  {format(new Date(item.start_time), 'a')}
-                </Text>
-              </View>
-              <View style={styles.bookingCardInfo}>
-                <Text style={styles.bookingCardTitle}>{item.title}</Text>
-                <Text style={styles.bookingCardMeta}>
-                  {item.room_name} · {format(new Date(item.start_time), 'h:mm a')} - {format(new Date(item.end_time), 'h:mm a')}
-                </Text>
-                {item.booked_by_name && (
-                  <Text style={[styles.bookingCardMeta, { marginTop: 2 }]}>
-                    Booked by {item.booked_by_name}
-                  </Text>
-                )}
-              </View>
-              <View style={[
-                styles.bookingCardStatus,
-                { backgroundColor: item.status === 'confirmed' ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)' }
-              ]}>
-                <Text style={[
-                  styles.bookingCardStatusText,
-                  { color: item.status === 'confirmed' ? '#22C55E' : '#F59E0B' }
-                ]}>
-                  {item.status === 'confirmed' ? 'Confirmed' : 'Pending'}
-                </Text>
-              </View>
-            </View>
-          )}
         />
       )}
 
-      {/* Room Detail Bottom Sheet */}
-      <BottomSheet
-        ref={detailSheetRef}
-        index={-1}
-        snapPoints={snapPoints}
-        enablePanDownToClose
-        backdropComponent={renderBackdrop}
-        backgroundStyle={{ backgroundColor: '#0F172A' }}
-        handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
-        onChange={(index) => { if (index === -1) setSelectedRoom(null); }}
-      >
-        <BottomSheetView style={{ flex: 1 }}>
-          {selectedRoom && (
-            <RoomDetailSheet
-              room={selectedRoom}
-              bookings={roomBookings}
-              loadingBookings={loadingBookings}
-              onBook={handleBookRoom}
-            />
-          )}
-        </BottomSheetView>
-      </BottomSheet>
-
-      {/* Room Form (Create / Edit) Bottom Sheet */}
-      <BottomSheet
-        ref={formSheetRef}
-        index={-1}
-        snapPoints={formSnapPoints}
-        enablePanDownToClose
-        backdropComponent={renderBackdrop}
-        backgroundStyle={{ backgroundColor: '#0F172A' }}
-        handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
-      >
-        <BottomSheetView style={{ flex: 1 }}>
-          <RoomForm
-            room={editingRoom}
-            propertyId={propertyId!}
-            onClose={() => formSheetRef.current?.close()}
-            onSuccess={() => {
-              formSheetRef.current?.close();
-              fetchRooms();
-            }}
-          />
-        </BottomSheetView>
-      </BottomSheet>
-
-      {/* Booking Form Bottom Sheet */}
-      <BottomSheet
-        ref={bookingSheetRef}
-        index={-1}
-        snapPoints={formSnapPoints}
-        enablePanDownToClose
-        backdropComponent={renderBackdrop}
-        backgroundStyle={{ backgroundColor: '#0F172A' }}
-        handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
-      >
-        <BottomSheetView style={{ flex: 1 }}>
-          {selectedRoom && (
-            <BookingForm
-              room={selectedRoom}
-              propertyId={propertyId!}
-              onClose={() => bookingSheetRef.current?.close()}
-              onSuccess={() => {
-                bookingSheetRef.current?.close();
-                fetchBookings();
-                fetchRoomBookings(selectedRoom.id);
-              }}
-            />
-          )}
-        </BottomSheetView>
-      </BottomSheet>
-
-
-
+      {/* Room Detail Sheet */}
+      <RoomDetailSheet
+        room={selectedRoom}
+        bookings={bookings}
+        credit={credit}
+        isAdmin={isAdmin}
+        bottomSheetRef={roomSheetRef}
+        onBook={fetchData}
+      />
     </View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: {
+    flex: 1,
+  },
   header: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+    zIndex: 10,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   headerTitleWrap: {
+    alignItems: 'center',
     flex: 1,
-    marginLeft: 12,
   },
-  headerTitleMain: {
+  headerTitle: {
     fontSize: 20,
     fontFamily: 'Poppins-Bold',
     color: '#FFFFFF',
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
+    textAlign: 'center',
   },
-  headerSubtitleMain: {
+  headerSubtitle: {
     fontSize: 12,
     fontFamily: 'Urbanist-Medium',
     color: '#94A3B8',
-    marginTop: 2,
+    marginTop: 1,
+    textAlign: 'center',
   },
-  headerAddBtnPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  adminBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.3)',
-  },
-  headerAddBtnText: {
-    color: '#60A5FA',
-    fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-  },
-  // Tab bar
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(30,41,59,0.6)',
-    borderRadius: 12,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 6,
-    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
-  tabActive: {
-    backgroundColor: '#1E3A5F',
-  },
-  tabText: {
-    fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
-  },
-  // Search
-  searchRow: {
+  creditBanner: {
     paddingHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 12,
+    paddingTop: 12,
   },
-  searchWrap: {
+  creditBannerInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(30,41,59,0.5)',
-    borderRadius: 12,
+    gap: 10,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: 'Urbanist-Regular',
-    color: '#F1F5F9',
-    marginLeft: 10,
-    padding: 0,
-  },
-  // List & empty
-  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
-  loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 },
-  emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100, paddingBottom: 100 },
-  emptyIconGlow: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(96,165,250,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(96,165,250,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  emptyTitle: { fontSize: 18, fontFamily: 'Poppins-Bold', color: '#F8FAFC', marginBottom: 6 },
-  emptySub: { fontSize: 14, fontFamily: 'Urbanist-Regular', color: '#64748B', textAlign: 'center', paddingHorizontal: 40 },
-  // Room card
-  roomCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(30,41,59,0.4)',
-    borderRadius: 16,
-    padding: 14,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  roomPhotoWrap: {
-    width: 64,
-    height: 64,
+    paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,159,10,0.25)',
+    overflow: 'hidden',
+  },
+  creditBannerText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#E2E8F0',
+  },
+  creditBannerHighlight: {
+    color: '#FF9F0A',
+    fontFamily: 'Poppins-Bold',
+  },
+  loadingState: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    position: 'relative',
   },
-  roomPhoto: { width: 64, height: 64 },
-  roomStatusBadge: {
-    position: 'absolute',
-    bottom: 3,
-    left: 3,
-    right: 3,
+  loadingText: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
+    marginTop: 16,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  cardWrapper: {
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  card: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(15,23,42,0.65)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  cardImage: {
+    width: '100%',
+    height: 160,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  cardImagePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardContent: {
+    padding: 14,
+  },
+  cardName: {
+    fontSize: 17,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+    marginBottom: 6,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    gap: 14,
+    marginBottom: 10,
+  },
+  cardMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 6,
-    paddingVertical: 2,
-    gap: 3,
+    gap: 5,
   },
-  roomStatusDot: { width: 5, height: 5, borderRadius: 2.5 },
-  roomStatusText: { fontSize: 7, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
-  roomInfo: { flex: 1, gap: 4 },
-  roomNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  roomName: { fontSize: 15, fontFamily: 'Poppins-Bold', color: '#F8FAFC', flex: 1 },
-  roomActions: { flexDirection: 'row', gap: 6 },
-  roomActionBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  cardMetaText: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
   },
-  roomMeta: { flexDirection: 'row', gap: 14, marginTop: 2 },
-  roomMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  roomMetaText: { fontSize: 12, fontFamily: 'Urbanist-Regular', color: '#94A3B8' },
-  amenitiesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 },
+  amenityRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
   amenityChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 3,
-    backgroundColor: 'rgba(96,165,250,0.1)',
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  amenityChipText: { fontSize: 10, fontFamily: 'Urbanist-Bold', color: '#60A5FA' },
-  amenityMore: { fontSize: 10, fontFamily: 'Urbanist-Regular', color: '#64748B', alignSelf: 'center' },
-  // Room detail
-  roomDetailPhoto: { height: 180, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  roomDetailPhotoImg: { width: '100%', height: '100%' },
-  roomDetailStatus: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
+  amenityEmoji: {
+    fontSize: 11,
+  },
+  amenityText: {
+    fontSize: 10,
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#94A3B8',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+    paddingHorizontal: 32,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-Regular',
+    color: '#94A3B8',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // Bottom Sheet Styles
+  sheetContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 140,
+  },
+  sheetHeaderGrad: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: 8,
+  },
+  sheetHeader: {
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  sheetImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(112,143,150,0.4)',
+  },
+  sheetImagePlaceholder: {
+    backgroundColor: 'rgba(112,143,150,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetName: {
+    fontSize: 22,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  sheetMetaRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  sheetMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    gap: 5,
   },
-  roomDetailInfo: { padding: 16 },
-  roomDetailName: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#F8FAFC', marginBottom: 6 },
-  roomDetailDesc: { fontSize: 14, fontFamily: 'Urbanist-Regular', color: '#94A3B8', marginBottom: 12, lineHeight: 20 },
-  roomDetailMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  metaChip: {
+  sheetMetaText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
+  },
+  sheetSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  amenityGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  amenityGridItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  amenityGridEmoji: {
+    fontSize: 14,
+  },
+  amenityGridText: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#CBD5E1',
+  },
+  dateScroll: {
+    gap: 8,
+    paddingRight: 16,
+  },
+  dateChip: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 56,
+    height: 68,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  dateChipActive: {
+    backgroundColor: '#708F96',
+    borderColor: '#708F96',
+  },
+  dateDay: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
+    marginBottom: 4,
+  },
+  dateNum: {
+    fontSize: 18,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+  },
+  dateTextActive: {
+    color: '#FFFFFF',
+  },
+  slotGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  slotChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  metaChipText: { fontSize: 13, fontFamily: 'Urbanist-Medium', color: '#F1F5F9' },
-  roomDetailAmenities: { marginBottom: 16 },
-  sectionTitle: { fontSize: 15, fontFamily: 'Poppins-Bold', color: '#F8FAFC', marginBottom: 10, marginTop: 8 },
-  amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  amenityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 4,
-    backgroundColor: 'rgba(96,165,250,0.1)',
-  },
-  amenityItemText: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: '#60A5FA' },
-  roomDetailBookings: { marginBottom: 16 },
-  noBookings: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(34,197,94,0.08)',
-  },
-  noBookingsText: { fontSize: 14, fontFamily: 'Urbanist-Bold', color: '#22C55E' },
-  bookingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    marginBottom: 8,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(30,41,59,0.3)',
-  },
-  bookingTimeBar: { width: 4, alignSelf: 'stretch' },
-  bookingContent: { flex: 1, padding: 12 },
-  bookingTitle: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#F8FAFC', marginBottom: 2 },
-  bookingMeta: { fontSize: 12, fontFamily: 'Urbanist-Regular', color: '#94A3B8' },
-  bookingStatusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginRight: 12 },
-  bookingStatusText: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
-  bookRoomBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 8,
-    backgroundColor: '#1E3A5F',
-  },
-  bookRoomBtnText: { color: '#60A5FA', fontSize: 16, fontFamily: 'Poppins-Bold' },
-  // Booking card
-  bookingCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(30,41,59,0.4)',
-    padding: 14,
-    borderRadius: 16,
-    marginBottom: 12,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  bookingCardTime: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: '#1E3A5F',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bookingCardTimeText: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#60A5FA' },
-  bookingCardAmPm: { fontSize: 9, fontFamily: 'Urbanist-Bold', color: '#60A5FA', textTransform: 'uppercase', opacity: 0.7 },
-  bookingCardInfo: { flex: 1 },
-  bookingCardTitle: { fontSize: 15, fontFamily: 'Poppins-Bold', color: '#F8FAFC', marginBottom: 3 },
-  bookingCardMeta: { fontSize: 12, fontFamily: 'Urbanist-Regular', color: '#94A3B8', marginBottom: 1 },
-  bookingCardStatus: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  bookingCardStatusText: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
-  // Form
-  formTitle: { fontSize: 20, fontFamily: 'Poppins-Bold', color: '#F8FAFC', marginBottom: 16 },
-  fieldLabel: {
-    fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-    color: '#94A3B8',
-    marginBottom: 6,
-    marginTop: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(30,41,59,0.4)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    fontFamily: 'Urbanist-Regular',
-    color: '#F1F5F9',
-  },
-  textArea: { minHeight: 80, textAlignVertical: 'top', paddingTop: 12 },
-  rowFields: { flexDirection: 'row', gap: 12 },
-  suggestionsList: {
-    borderWidth: 1,
-    borderRadius: 10,
-    marginTop: 4,
-    overflow: 'hidden',
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(30,41,59,0.6)',
-  },
-  suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  suggestionText: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: '#F1F5F9' },
-  amenityToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 4,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(30,41,59,0.3)',
-  },
-  amenityToggleText: { fontSize: 13, fontFamily: 'Urbanist-Medium', color: '#F1F5F9' },
-  statusToggle: { flexDirection: 'row', gap: 8 },
-  statusToggleBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: 10,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(30,41,59,0.3)',
-  },
-  statusToggleText: { fontSize: 13, fontFamily: 'Urbanist-Bold', color: '#F1F5F9' },
-  formActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  cancelBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    minWidth: 100,
   },
-  cancelBtnText: { fontSize: 15, fontFamily: 'Poppins-Bold', color: '#94A3B8' },
-  saveBtn: {
-    flex: 2,
+  slotChipBooked: {
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderColor: 'rgba(239,68,68,0.25)',
+    opacity: 0.7,
+  },
+  slotChipSelected: {
+    backgroundColor: 'rgba(16,185,129,0.15)',
+    borderColor: '#10B981',
+  },
+  slotText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#CBD5E1',
+  },
+  slotTextBooked: {
+    color: '#64748B',
+  },
+  slotTextSelected: {
+    color: '#FFFFFF',
+  },
+  slotBookedLabel: {
+    fontSize: 9,
+    fontFamily: 'Urbanist-Bold',
+    color: '#EF4444',
+    marginLeft: 4,
+    textTransform: 'uppercase',
+  },
+  creditInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,159,10,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,159,10,0.2)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  creditInfoText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Medium',
+    color: '#E2E8F0',
+  },
+  creditHighlight: {
+    fontFamily: 'Poppins-Bold',
+    color: '#FF9F0A',
+  },
+  bookButton: {
+    backgroundColor: '#708F96',
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#1E3A5F',
   },
-  saveBtnText: { color: '#60A5FA', fontSize: 15, fontFamily: 'Poppins-Bold' },
-  submitBtnDisabled: { opacity: 0.6 },
+  bookButtonDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  bookButtonText: {
+    fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
+  },
 });

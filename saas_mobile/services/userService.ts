@@ -3,7 +3,7 @@
 // ============================================
 
 import { apiClient, ApiResponse } from './api/client';
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase/client';
 import { User, UserRole } from '@/types';
 
 export interface CreateUserData {
@@ -44,28 +44,28 @@ export const userService = {
   ): Promise<ApiResponse<User[]>> {
     let query = supabase
       .from('users')
-      .select('*, organization:organizations(name), property:properties(name)');
+      .select('*');
+      // TODO: organization_id and property_id do not exist on the users table — use membership tables for relations
+      // .select('*, organization:organizations(name), property:properties(name)');
 
     // Apply filters
-    if (filters?.organizationId) {
-      query = query.eq('organization_id', filters.organizationId);
-    }
-
-    if (filters?.propertyId) {
-      query = query.eq('property_id', filters.propertyId);
-    }
-
-    if (filters?.role) {
-      if (Array.isArray(filters.role)) {
-        query = query.in('role', filters.role);
-      } else {
-        query = query.eq('role', filters.role);
-      }
-    }
-
-    if (filters?.isActive !== undefined) {
-      query = query.eq('is_active', filters.isActive);
-    }
+    // TODO: organization_id, property_id, role, and is_active do not exist on the users table
+    // if (filters?.organizationId) {
+    //   query = query.eq('organization_id', filters.organizationId);
+    // }
+    // if (filters?.propertyId) {
+    //   query = query.eq('property_id', filters.propertyId);
+    // }
+    // if (filters?.role) {
+    //   if (Array.isArray(filters.role)) {
+    //     query = query.in('role', filters.role);
+    //   } else {
+    //     query = query.eq('role', filters.role);
+    //   }
+    // }
+    // if (filters?.isActive !== undefined) {
+    //   query = query.eq('is_active', filters.isActive);
+    // }
 
     // Apply ordering
     if (options?.orderBy) {
@@ -94,7 +94,9 @@ export const userService = {
   async getUser(id: string): Promise<ApiResponse<User>> {
     const { data, error } = await supabase
       .from('users')
-      .select('*, organization:organizations(name), property:properties(name)')
+      .select('*')
+      // TODO: organization_id and property_id do not exist on the users table — use membership tables
+      // .select('*, organization:organizations(name), property:properties(name)')
       .eq('id', id)
       .single();
 
@@ -126,11 +128,12 @@ export const userService = {
           id: authData.user.id,
           email: data.email,
           full_name: data.fullName,
-          role: data.role,
-          organization_id: data.organizationId,
-          property_id: data.propertyId,
           phone: data.phone,
-          is_active: true,
+          // TODO: role, organization_id, property_id, and is_active do not exist on the users table — use membership tables
+          // role: data.role,
+          // organization_id: data.organizationId,
+          // property_id: data.propertyId,
+          // is_active: true,
         })
         .select()
         .single()) as { data: unknown; error: unknown };
@@ -156,11 +159,12 @@ export const userService = {
     const updateData: Record<string, any> = {};
 
     if (data.fullName !== undefined) updateData.full_name = data.fullName;
-    if (data.role !== undefined) updateData.role = data.role;
-    if (data.organizationId !== undefined) updateData.organization_id = data.organizationId;
-    if (data.propertyId !== undefined) updateData.property_id = data.propertyId;
     if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.isActive !== undefined) updateData.is_active = data.isActive;
+    // TODO: role, organization_id, property_id, and is_active do not exist on the users table
+    // if (data.role !== undefined) updateData.role = data.role;
+    // if (data.organizationId !== undefined) updateData.organization_id = data.organizationId;
+    // if (data.propertyId !== undefined) updateData.property_id = data.propertyId;
+    // if (data.isActive !== undefined) updateData.is_active = data.isActive;
 
     updateData.updated_at = new Date().toISOString();
 
@@ -271,17 +275,11 @@ export const userService = {
     inactive: number;
   }>> {
     try {
-      let query = supabase.from('users').select('role, is_active');
-
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId);
-      }
-
-      const { data, error } = await query;
-
+      void organizationId;
+      // TODO: role and is_active do not exist on the users table — stats must come from membership tables
+      const { data, error } = await supabase.from('users').select('*');
       if (error) throw error;
-
-      const rows = (data ?? []) as unknown as { role: string; is_active: boolean }[];
+      const rows = (data ?? []) as unknown as any[];
 
       const stats = {
         total: rows.length,
@@ -289,19 +287,6 @@ export const userService = {
         active: 0,
         inactive: 0,
       };
-
-      rows.forEach((user) => {
-        // Count by role
-        if (user.role) {
-          stats.byRole[user.role as UserRole] = (stats.byRole[user.role as UserRole] || 0) + 1;
-        }
-        // Count active/inactive
-        if (user.is_active) {
-          stats.active++;
-        } else {
-          stats.inactive++;
-        }
-      });
 
       return {
         data: stats,

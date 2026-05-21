@@ -19,7 +19,7 @@ const BACKGROUND_IMAGES: Record<string, any> = {
   'rainy': require('@/assets/images/weather-rain.png'),
 };
 
-const THEME_GRADIENTS: Record<string, string[]> = {
+const THEME_GRADIENTS: Record<string, readonly [string, string, ...string[]]> = {
   'sunny': ['#f47133', '#e85d1e', '#d14309'],        // Glossy vibrant orange-red
   'clear-day': ['#f47133', '#e85d1e', '#d14309'],
   'clear-night': ['#030712', '#0f172a', '#1e293b'],  // Starry Deep Night

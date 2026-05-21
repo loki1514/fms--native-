@@ -79,20 +79,20 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
 
       if (rsData) setIsCheckedIn(rsData.is_checked_in);
 
-      const { data: shiftData }: any = await supabase
-        .from('shift_logs')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('property_id', propertyId)
-        .eq('status', 'active')
-        .order('check_in_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (shiftData) {
-        setActiveShiftId(shiftData.id);
-        setIsCheckedIn(true);
-      }
+      // TODO: shift_logs does not exist in saas_one schema
+      // const { data: shiftData }: any = await supabase
+      //   .from('shift_logs')
+      //   .select('id')
+      //   .eq('user_id', user.id)
+      //   .eq('property_id', propertyId)
+      //   .eq('status', 'active')
+      //   .order('check_in_at', { ascending: false })
+      //   .limit(1)
+      //   .maybeSingle();
+      // if (shiftData) {
+      //   setActiveShiftId(shiftData.id);
+      //   setIsCheckedIn(true);
+      // }
     } catch (error) {
       console.error('Error fetching shift status:', error);
     }
@@ -103,23 +103,24 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
     setIsCheckingInOut(true);
     const newStatus = !isCheckedIn;
     try {
-      if (newStatus) {
-        const { data: newShift, error: shiftErr }: any = await (supabase
-          .from('shift_logs') as any)
-          .insert({ user_id: user.id, property_id: propertyId, status: 'active', check_in_at: new Date().toISOString() })
-          .select()
-          .single();
-        if (shiftErr) throw shiftErr;
-        setActiveShiftId(newShift.id);
-      } else {
-        if (activeShiftId) {
-          const { error: shiftErr } = await (supabase.from('shift_logs') as any)
-            .update({ status: 'completed', check_out_at: new Date().toISOString() })
-            .eq('id', activeShiftId);
-          if (shiftErr) throw shiftErr;
-        }
-        setActiveShiftId(null);
-      }
+      // TODO: shift_logs does not exist in saas_one schema
+      // if (newStatus) {
+      //   const { data: newShift, error: shiftErr }: any = await (supabase
+      //     .from('shift_logs') as any)
+      //     .insert({ user_id: user.id, property_id: propertyId, status: 'active', check_in_at: new Date().toISOString() })
+      //     .select()
+      //     .single();
+      //   if (shiftErr) throw shiftErr;
+      //   setActiveShiftId(newShift.id);
+      // } else {
+      //   if (activeShiftId) {
+      //     const { error: shiftErr } = await (supabase.from('shift_logs') as any)
+      //       .update({ status: 'completed', check_out_at: new Date().toISOString() })
+      //       .eq('id', activeShiftId);
+      //     if (shiftErr) throw shiftErr;
+      //   }
+      //   setActiveShiftId(null);
+      // }
 
       const { error: rsErr } = await (supabase.from('resolver_stats') as any)
         .update({ is_checked_in: newStatus })
@@ -146,7 +147,7 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
       .eq('property_id', propertyId)
       .single() as any);
     if (member) {
-      const role = member.role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const role = member.role.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
       setUserRole(role);
     }
 
@@ -174,27 +175,27 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
       // Stock stats
       const { data: stockItems } = await (supabase
         .from('stock_items')
-        .select('id, current_stock, minimum_threshold')
+        .select('id, quantity, min_threshold')
         .eq('property_id', propertyId) as any);
 
       if (stockItems) {
         const total = stockItems.length;
-        const lowStock = stockItems.filter((s: any) => s.current_stock > 0 && s.current_stock <= (s.minimum_threshold ?? 10)).length;
-        const outOfStock = stockItems.filter((s: any) => s.current_stock === 0).length;
+        const lowStock = stockItems.filter((s: any) => s.quantity > 0 && s.quantity <= (s.min_threshold ?? 10)).length;
+        const outOfStock = stockItems.filter((s: any) => s.quantity === 0).length;
         setStockStats({ total, lowStock, outOfStock });
       }
 
+      // TODO: sop_checklists does not exist in saas_one schema
       // Checklist stats
-      const { data: checklists } = await (supabase
-        .from('sop_checklists')
-        .select('id, status')
-        .eq('property_id', propertyId) as any);
-
-      if (checklists) {
-        const total = checklists.length;
-        const completed = checklists.filter((c: any) => c.status === 'completed' || c.status === 'submitted').length;
-        setChecklistStats({ total, pending: total - completed, completed });
-      }
+      // const { data: checklists } = await (supabase
+      //   .from('sop_checklists')
+      //   .select('id, status')
+      //   .eq('property_id', propertyId) as any);
+      // if (checklists) {
+      //   const total = checklists.length;
+      //   const completed = checklists.filter((c: any) => c.status === 'completed' || c.status === 'submitted').length;
+      //   setChecklistStats({ total, pending: total - completed, completed });
+      // }
     } catch (e) {
       console.error('Error fetching data:', e);
     }
@@ -503,7 +504,7 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
         showLoggers={false}
       />
 
-      <SignOutModal isOpen={showSignOutModal} onClose={() => setShowSignOutModal(false)} onConfirm={signOut} />
+      <SignOutModal visible={showSignOutModal} onClose={() => setShowSignOutModal(false)} onSignOut={signOut} />
 
       <StockScannerModal
         isOpen={showScanner}

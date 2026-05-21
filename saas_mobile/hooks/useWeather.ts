@@ -27,6 +27,10 @@ export interface WeatherData {
   greeting: string;
   description: string;
   lastUpdated: Date;
+  auroraColors?: AuroraColors;
+  period?: string;
+  weatherIcon?: string;
+  isDaylight?: boolean;
 }
 
 // ─── Backward-compatible legacy exports ───
@@ -143,8 +147,26 @@ export function useWeather() {
     let description = getConditionDescription('sunny');
     let locationName: string | null = null;
 
-    if (lat !== null && lng !== null) {
-      // Fetch live weather
+    // Check user-selected dashboard background override
+    const storedBg = await AsyncStorage.getItem('fms_dashboard_background');
+    if (storedBg) {
+      const bgToCondition: Record<string, WeatherCondition> = {
+        sunny: 'sunny',
+        night: 'clear-night',
+        midnight: 'clear-night',
+        cloudy: 'cloudy',
+        raining: 'rainy',
+      };
+      if (storedBg in bgToCondition) {
+        condition = bgToCondition[storedBg];
+        const meta = WEATHER_MODES.find(m => m.id === condition);
+        if (meta) {
+          temp = meta.temp;
+          description = getConditionDescription(condition);
+        }
+      }
+    } else if (lat !== null && lng !== null) {
+      // Fetch live weather only if no background override
       const live = await fetchLiveWeather(lat, lng);
       if (live) {
         condition = live.condition;

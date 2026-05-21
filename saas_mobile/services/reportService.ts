@@ -120,10 +120,10 @@ async function fetchStockStats(propertyId: string | null, orgId: string | null) 
   if (propertyId) {
     const { data } = await (supabase
       .from('stock_items')
-      .select('quantity, min_quantity') as any) as { data: { quantity: number; min_quantity: number }[] | null; error: unknown };
+      .select('quantity, min_threshold') as any) as { data: { quantity: number; min_threshold: number }[] | null; error: unknown };
 
     const total = data?.length ?? 0;
-    const lowStock = data?.filter((s) => s.quantity > 0 && s.quantity <= s.min_quantity).length ?? 0;
+    const lowStock = data?.filter((s) => s.quantity > 0 && s.quantity <= s.min_threshold).length ?? 0;
     const outOfStock = data?.filter((s) => s.quantity === 0).length ?? 0;
 
     return { total, lowStock, outOfStock };
@@ -141,11 +141,11 @@ async function fetchStockStats(propertyId: string | null, orgId: string | null) 
 
     const { data } = await (supabase
       .from('stock_items')
-      .select('quantity, min_quantity') as any) as { data: { quantity: number; min_quantity: number }[] | null; error: unknown };
+      .select('quantity, min_threshold') as any) as { data: { quantity: number; min_threshold: number }[] | null; error: unknown };
 
     const filteredData = data?.filter((s) => allPropIds.includes((s as any).property_id)) ?? [];
     const total = filteredData.length;
-    const lowStock = filteredData.filter((s) => s.quantity > 0 && s.quantity <= s.min_quantity).length;
+    const lowStock = filteredData.filter((s) => s.quantity > 0 && s.quantity <= s.min_threshold).length;
     const outOfStock = filteredData.filter((s) => s.quantity === 0).length;
 
     return { total, lowStock, outOfStock };

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
 import {
   View,
   Text,
@@ -12,6 +13,8 @@ import {
   StatusBar,
   Alert,
   Dimensions,
+  Modal,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,14 +54,15 @@ import {
   type UserStats,
   type LeaderRow,
 } from '@/lib/gamification';
-import SidekickFace from '@/components/dashboard/SidekickFace';
-import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
 import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
-import CreateTicketModal from '@/components/shared/CreateTicketModal';
+
 import SignOutModal from '@/components/ui/SignOutModal';
-import { useCassandraStore } from '@/stores/cassandraStore';
-import FloatingMenu from '@/components/ui/FloatingMenu';
+import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
+import NotificationModal from '@/components/notifications/NotificationModal';
+import MobileFooter from '@/components/shared/MobileFooter';
+import Toast from '@/components/ui/Toast';
+import { Audio } from 'expo-av';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -96,13 +100,15 @@ function StatTile({
   label,
   tint,
   wide = false,
+  onPress,
 }: {
   value: string;
   label: string;
   tint: [string, string];
   wide?: boolean;
+  onPress?: () => void;
 }) {
-  return (
+  const content = (
     <LinearGradient
       colors={tint}
       start={{ x: 0, y: 0 }}
@@ -114,6 +120,15 @@ function StatTile({
       <Text style={styles.statTileLabel}>{label}</Text>
     </LinearGradient>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={[wide ? { flex: 1 } : { flex: 1 }]}>
+        {content}
+      </TouchableOpacity>
+    );
+  }
+  return content;
 }
 
 function TimeBlock({ val }: { val: number }) {
@@ -415,9 +430,12 @@ export default function LovableMstDashboard({ propertyId }: Props) {
   const [isCheckingInOut, setIsCheckingInOut] = useState(false);
 
   // Modals
-  const [showChat, setShowChat] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
+  const [showPermissionOnboarding, setShowPermissionOnboarding] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
+  const [toastConfig, setToastConfig] = useState<{ visible: boolean; message: string; type: 'success' | 'error' | 'info' }>({ visible: false, message: '', type: 'info' });
 
   // Gamification
   const { leaderboard: gamifyLb, myStats, loading: gamifyLoading } = useGamification(propertyId);
@@ -437,15 +455,6 @@ export default function LovableMstDashboard({ propertyId }: Props) {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // Cassandra voice state for orb
-  const voiceState = useCassandraStore((s) => s.voiceState);
-  const faceState: any = (() => {
-    if (voiceState === 'recording' || voiceState === 'processing' || voiceState === 'connecting') return 'listening';
-    if (voiceState === 'speaking') return 'speaking';
-    if (voiceState === 'error') return 'alert';
-    return 'idle';
-  })();
 
   // ── Data fetching ──
   const fetchData = useCallback(async () => {
@@ -478,19 +487,20 @@ export default function LovableMstDashboard({ propertyId }: Props) {
         .maybeSingle();
       if (shiftData) setIsCheckedIn(!!(shiftData as any).is_checked_in);
 
-      const { data: activeShift } = await supabase
-        .from('shift_logs')
-        .select('id')
-        .eq('user_id', user?.id as string)
-        .eq('property_id', propertyId)
-        .eq('status', 'active')
-        .order('check_in_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (activeShift) {
-        setActiveShiftId((activeShift as any).id);
-        setIsCheckedIn(true);
-      }
+      // TODO: shift_logs does not exist in saas_one schema
+      // const { data: activeShift } = await supabase
+      //   .from('shift_logs')
+      //   .select('id')
+      //   .eq('user_id', user?.id as string)
+      //   .eq('property_id', propertyId)
+      //   .eq('status', 'active')
+      //   .order('check_in_at', { ascending: false })
+      //   .limit(1)
+      //   .maybeSingle();
+      // if (activeShift) {
+      //   setActiveShiftId((activeShift as any).id);
+      //   setIsCheckedIn(true);
+      // }
     } catch (err) {
       console.warn('[LovableMstDashboard] fetch error:', err);
     } finally {
@@ -501,6 +511,9 @@ export default function LovableMstDashboard({ propertyId }: Props) {
 
   useEffect(() => {
     fetchData();
+    hasRequestedPermissions().then(requested => {
+      if (!requested) setShowPermissionOnboarding(true);
+    });
   }, [fetchData]);
 
   const onRefresh = () => {
@@ -515,35 +528,54 @@ export default function LovableMstDashboard({ propertyId }: Props) {
     const newStatus = !isCheckedIn;
 
     try {
-      if (newStatus) {
-        const { data: newShift, error: shiftErr }: any = await (supabase
-          .from('shift_logs') as any)
-          .insert({
-            user_id: user.id,
-            property_id: propertyId,
-            status: 'active',
-            check_in_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-        if (shiftErr) throw shiftErr;
-        setActiveShiftId(newShift.id);
-      } else {
-        if (activeShiftId) {
-          await (supabase.from('shift_logs') as any)
-            .update({ status: 'completed', check_out_at: new Date().toISOString() })
-            .eq('id', activeShiftId);
-        }
-        setActiveShiftId(null);
-      }
+      // TODO: shift_logs does not exist in saas_one schema
+      // if (newStatus) {
+      //   const { data: newShift, error: shiftErr }: any = await (supabase
+      //     .from('shift_logs') as any)
+      //     .insert({
+      //       user_id: user.id,
+      //       property_id: propertyId,
+      //       status: 'active',
+      //       check_in_at: new Date().toISOString(),
+      //     })
+      //     .select()
+      //     .single();
+      //   if (shiftErr) throw shiftErr;
+      //   setActiveShiftId(newShift.id);
+      // } else {
+      //   if (activeShiftId) {
+      //     await (supabase.from('shift_logs') as any)
+      //       .update({ status: 'completed', check_out_at: new Date().toISOString() })
+      //       .eq('id', activeShiftId);
+      //   }
+      //   setActiveShiftId(null);
+      // }
 
       await (supabase.from('resolver_stats') as any)
         .upsert({ property_id: propertyId, user_id: user.id, is_checked_in: newStatus });
 
       setIsCheckedIn(newStatus);
-      Alert.alert('Shift Updated', `You are now ${newStatus ? 'ON DUTY' : 'OFF DUTY'}.`);
+      
+      try {
+        const { sound } = await Audio.Sound.createAsync({
+          uri: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'
+        });
+        await sound.playAsync();
+      } catch (err) {
+        console.warn('Audio play failed:', err);
+      }
+
+      setToastConfig({
+        visible: true,
+        message: `You are now ${newStatus ? 'ON DUTY' : 'OFF DUTY'}.`,
+        type: 'success'
+      });
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update shift');
+      setToastConfig({
+        visible: true,
+        message: error.message || 'Failed to update shift',
+        type: 'error'
+      });
       setIsCheckedIn(!newStatus);
     } finally {
       setIsCheckingInOut(false);
@@ -557,10 +589,11 @@ export default function LovableMstDashboard({ propertyId }: Props) {
       ['open', 'in_progress', 'blocked', 'client_raised'].includes(t.status)
     ).length;
     const completed = tickets.filter((t) =>
-      ['resolved', 'closed', 'satisfied'].includes(t.status)
+      ['resolved', 'closed'].includes(t.status)
     ).length;
-    return { total, active, completed };
-  }, [tickets]);
+    const assignedToMe = tickets.filter(t => t.assigned_to === user?.id).length;
+    return { total, active, completed, assignedToMe };
+  }, [tickets, user]);
 
   // ── Gamification user ──
   const mstUser: UserStats = useMemo(() => {
@@ -606,13 +639,6 @@ export default function LovableMstDashboard({ propertyId }: Props) {
 
   const renderMyDashboard = () => (
     <>
-      <Animated.View entering={FadeInUp.duration(600)}>
-        <Text style={styles.heroTitle}>
-          Your {property?.name || 'Property'}
-          {'\n'}Tasks & Stats
-        </Text>
-      </Animated.View>
-
       {/* Gamification strip */}
       <Animated.View entering={FadeInUp.delay(100).duration(600)} style={styles.gamifyCard}>
         <SafeBlurView intensity={30} tint="dark" style={StyleSheet.absoluteFillObject} />
@@ -646,11 +672,12 @@ export default function LovableMstDashboard({ propertyId }: Props) {
             </TouchableOpacity>
           </View>
           <View style={styles.statsGrid}>
-            <StatTile value={String(stats.total)} label="TOTAL" tint={['rgba(99,102,241,0.35)', 'rgba(79,70,229,0.20)']} />
-            <StatTile value={String(stats.active)} label="ACTIVE" tint={['rgba(59,130,246,0.30)', 'rgba(37,99,235,0.15)']} />
+            <StatTile value={String(stats.total)} label="TOTAL" tint={['rgba(99,102,241,0.35)', 'rgba(79,70,229,0.20)']} onPress={() => router.push(`/property/${propertyId}/tickets`)} />
+            <StatTile value={String(stats.active)} label="ACTIVE" tint={['rgba(59,130,246,0.30)', 'rgba(37,99,235,0.15)']} onPress={() => router.push(`/property/${propertyId}/tickets?filter=active`)} />
           </View>
-          <View style={styles.statsWide}>
-            <StatTile value={String(stats.completed)} label="COMPLETED" tint={['rgba(16,185,129,0.30)', 'rgba(5,150,105,0.15)']} wide />
+          <View style={[styles.statsGrid, { marginTop: 12 }]}>
+            <StatTile value={String(stats.completed)} label="COMPLETED" tint={['rgba(16,185,129,0.30)', 'rgba(5,150,105,0.15)']} onPress={() => router.push(`/property/${propertyId}/tickets?filter=completed`)} />
+            <StatTile value={String(stats.assignedToMe)} label="ASSIGNED TO ME" tint={['rgba(245,158,11,0.30)', 'rgba(217,119,6,0.15)']} onPress={() => router.push(`/property/${propertyId}/tickets?filter=mine`)} />
           </View>
         </View>
       </Animated.View>
@@ -840,22 +867,6 @@ export default function LovableMstDashboard({ propertyId }: Props) {
       <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
       {weather && <WeatherBackground condition={weather.condition} />}
 
-      {/* Floating Menu */}
-      <FloatingMenu
-        title="MST Portal"
-        items={[
-          { label: 'My Dashboard', icon: 'grid', onPress: () => setActiveTab('dashboard') },
-          { label: 'Daily Board', icon: 'calendar', onPress: () => setActiveTab('daily') },
-          { label: 'Live Flow', icon: 'radio', onPress: () => setActiveTab('flow') },
-          { label: 'Flow Map', icon: 'git-branch', onPress: () => router.push(`/property/${propertyId}/flow-map`) },
-          { label: 'Visitors', icon: 'people', onPress: () => router.push(`/property/${propertyId}/visitors`) },
-          { label: 'Diesel', icon: 'water', onPress: () => router.push(`/property/${propertyId}/diesel`) },
-          { label: 'Electricity', icon: 'flash', onPress: () => router.push(`/property/${propertyId}/electricity`) },
-          { label: 'Settings', icon: 'settings', onPress: () => router.push(`/property/${propertyId}/settings`) },
-        ]}
-        footer={{ label: 'Sign Out', icon: 'log-out-outline', danger: true, onPress: () => setShowSignOut(true) }}
-      />
-
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -864,39 +875,67 @@ export default function LovableMstDashboard({ propertyId }: Props) {
         }
         contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}
       >
-        {/* Top greeting bar */}
-        <View style={[styles.topBar, { paddingTop: insets.top + 16 }]}>
-          {activeTab === 'profile' ? (
-            <TouchableOpacity style={styles.backBtn} onPress={() => setActiveTab('dashboard')}>
-              <Ionicons name="arrow-back" size={20} color="rgba(255,255,255,0.80)" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-              <Ionicons name="arrow-back" size={20} color="rgba(255,255,255,0.80)" />
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity style={styles.avatarBtn} onPress={() => setActiveTab('profile')}>
-            <LinearGradient
-              colors={['#8B5CF6', '#6366F1']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.avatarGradient}
-            >
-              <Text style={styles.avatarText}>{mstUser.initials}</Text>
-            </LinearGradient>
+        <Animated.View entering={FadeInUp.duration(500)} style={[styles.shellHeader, { paddingTop: insets.top + 16 }]}>
+          <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setShowDrawer(true)} activeOpacity={0.7}>
+            <Ionicons name="menu" size={28} color="#FFFFFF" />
           </TouchableOpacity>
-
-          <View style={styles.greeting}>
-            <Text style={styles.greetingName}>Hey, {mstUser.name.split(' ')[0]}</Text>
-            <Text style={styles.greetingTime}>Good Morning</Text>
+          <View style={styles.headerCenter}>
+            <TouchableOpacity style={styles.profileRow} activeOpacity={0.7} onPress={() => setActiveTab('profile')}>
+              <LinearGradient
+                colors={['#8B5CF6', '#6366F1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.headerAvatar}
+              >
+                <Text style={styles.avatarText}>
+                  {user?.user_metadata?.full_name
+                    ? user.user_metadata.full_name.split(' ').map((name: string) => name[0]).join('').toUpperCase().slice(0, 2)
+                    : mstUser.initials}
+                </Text>
+              </LinearGradient>
+              <View style={[styles.nameContainer, { flex: 1 }]}>
+                <Text style={styles.greetingName} numberOfLines={1}>
+                  Hey, {(user?.user_metadata?.full_name || mstUser.name).split(' ')[0]}
+                </Text>
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  {property?.name || 'MST Portal'}
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity style={styles.notifBtn}>
-            <Ionicons name="notifications" size={20} color="rgba(255,255,255,0.80)" />
-            <View style={styles.notifDot} />
-          </TouchableOpacity>
-        </View>
+          <View style={[styles.headerRight, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+            <TouchableOpacity 
+              style={[
+                styles.headerIconBtn, 
+                { 
+                  backgroundColor: isCheckedIn ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.10)',
+                  borderColor: isCheckedIn ? 'rgba(16,185,129,0.3)' : 'transparent',
+                  borderWidth: 1,
+                }
+              ]} 
+              onPress={toggleShift} 
+              activeOpacity={0.7}
+              disabled={isCheckingInOut}
+            >
+              {isCheckingInOut ? (
+                <ActivityIndicator size="small" color={isCheckedIn ? '#34D399' : '#FFFFFF'} />
+              ) : (
+                <Ionicons 
+                  name={isCheckedIn ? 'briefcase' : 'briefcase-outline'} 
+                  size={20} 
+                  color={isCheckedIn ? '#34D399' : '#FFFFFF'} 
+                />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowCreate(true)} activeOpacity={0.7}>
+              <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerIconBtn} onPress={() => setShowNotifications(true)} activeOpacity={0.7}>
+              <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+              <View style={styles.notificationBadge} />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
 
         {/* Tab content */}
         <View style={styles.tabContent}>
@@ -907,44 +946,113 @@ export default function LovableMstDashboard({ propertyId }: Props) {
         </View>
       </ScrollView>
 
-      {/* Bottom tab bar */}
-      <View style={[styles.bottomNav, { paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 16 }]}>
-        <SafeBlurView intensity={40} style={styles.bottomNavBlur} tint="dark">
-          <TabButton
-            icon="grid"
-            label="My Dashboard"
-            active={activeTab === 'dashboard'}
-            onPress={() => setActiveTab('dashboard')}
-          />
-          <TabButton
-            icon="clipboard"
-            label="Daily Board"
-            active={activeTab === 'daily'}
-            onPress={() => setActiveTab('daily')}
-          />
-          <TabButton
-            icon="radio"
-            label="Live Flow"
-            active={activeTab === 'flow'}
-            onPress={() => setActiveTab('flow')}
-          />
-        </SafeBlurView>
-      </View>
-
-      {/* ASK CASSANDRA floating button */}
-      <View style={[styles.askCassandraWrap, { bottom: insets.bottom > 0 ? insets.bottom + 72 : 80 }]}>
-        <TouchableOpacity style={styles.askCassandraBtn} onPress={() => setShowChat(true)} activeOpacity={0.8}>
-          <Text style={styles.askCassandraLabel}>ASK CASSANDRA</Text>
-          <View style={styles.askCassandraOrb}>
-            <SidekickFace size={40} state={faceState} compact />
-          </View>
-        </TouchableOpacity>
-      </View>
+      <MobileFooter activeTab="dashboard" onMorePress={() => setShowDrawer(true)} />
 
       {/* Modals */}
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} propertyId={propertyId} initialMode="voice" />
-      <CreateTicketModal visible={showCreate} onClose={() => setShowCreate(false)} propertyId={propertyId} />
-      <SignOutModal isOpen={showSignOut} onClose={() => setShowSignOut(false)} onConfirm={signOut} />
+      <TicketCreateModal isOpen={showCreate} onClose={() => setShowCreate(false)} propertyId={propertyId} organizationId={orgId} />
+      <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
+      <NotificationModal visible={showNotifications} onClose={() => setShowNotifications(false)} propertyId={propertyId} />
+      <PermissionOnboarding visible={showPermissionOnboarding} onComplete={() => setShowPermissionOnboarding(false)} />
+      <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <View style={[styles.drawerPanel, { paddingTop: insets.top + 16 }]}>
+            <View style={styles.drawerHeader}>
+              <View style={styles.drawerLogoContainer}>
+                <Image
+                  source={require('@/assets/images/autopilot-logo-new.png')}
+                  style={[styles.drawerLogo, { tintColor: '#FFFFFF' }]}
+                  resizeMode="contain"
+                />
+              </View>
+              <TouchableOpacity onPress={() => setShowDrawer(false)} style={styles.drawerCloseBtn}>
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.drawerSectionHeader}>
+                <Ionicons name="calendar-outline" size={14} color="rgba(255,255,255,0.3)" />
+                <Text style={styles.drawerSectionLabel}>DAILY WORK</Text>
+              </View>
+              {[
+                { label: 'Overview', icon: 'grid-outline', action: () => setActiveTab('dashboard') },
+                { label: 'Requests', icon: 'ticket-outline', action: () => setActiveTab('daily') },
+                { label: 'Live Flow Map', icon: 'git-branch-outline', action: () => router.push(`/property/${propertyId}/flow-map` as any) },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.label}
+                  style={styles.drawerItem}
+                  onPress={() => {
+                    setShowDrawer(false);
+                    item.action();
+                  }}
+                >
+                  <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <View style={[styles.drawerSectionHeader, { marginTop: 20 }]}>
+                <Ionicons name="hammer-outline" size={14} color="rgba(255,255,255,0.3)" />
+                <Text style={styles.drawerSectionLabel}>OPERATIONS</Text>
+              </View>
+              {[
+                { label: 'Tickets', icon: 'ticket-outline', route: 'tickets' },
+                { label: 'Visitors', icon: 'walk-outline', route: 'visitors' },
+                { label: 'Diesel Logger', icon: 'water-outline', route: 'diesel' },
+                { label: 'Electricity Logger', icon: 'flash-outline', route: 'electricity' },
+                { label: 'Checklists', icon: 'clipboard-outline', route: 'checklist' },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.route}
+                  style={styles.drawerItem}
+                  onPress={() => {
+                    setShowDrawer(false);
+                    router.push(`/property/${propertyId}/${item.route}` as any);
+                  }}
+                >
+                  <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <View style={[styles.drawerSectionHeader, { marginTop: 20 }]}>
+                <Ionicons name="person-outline" size={14} color="rgba(255,255,255,0.3)" />
+                <Text style={styles.drawerSectionLabel}>SYSTEM & PERSONAL</Text>
+              </View>
+              {[
+                { label: 'Settings', icon: 'settings-outline', route: 'settings', local: false },
+                { label: 'Profile', icon: 'person-outline', local: true },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.label}
+                  style={styles.drawerItem}
+                  onPress={() => {
+                    setShowDrawer(false);
+                    if (item.local) {
+                      setActiveTab('profile');
+                      return;
+                    }
+                    router.push(`/property/${propertyId}/${item.route}` as any);
+                  }}
+                >
+                  <Ionicons name={item.icon as any} size={20} color="rgba(255,255,255,0.6)" />
+                  <Text style={styles.drawerItemLabel}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={styles.drawerSignOut} onPress={() => { setShowDrawer(false); setShowSignOut(true); }}>
+              <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+              <Text style={styles.drawerSignOutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={styles.drawerBackdrop} onPress={() => setShowDrawer(false)} />
+        </View>
+      </Modal>
+
+      <Toast 
+        {...toastConfig} 
+        onClose={() => setToastConfig(prev => ({ ...prev, visible: false }))} 
+      />
     </View>
   );
 }
@@ -969,6 +1077,150 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: 'rgba(255,255,255,0.55)',
+  },
+
+  // Shell header
+  shellHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  hamburgerBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 12,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  nameContainer: {
+    marginLeft: 12,
+    minWidth: 0,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.60)',
+    marginTop: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  // Shell drawer
+  drawerPanel: {
+    width: 288,
+    backgroundColor: 'rgba(11, 17, 25, 0.98)',
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  drawerLogoContainer: {
+    flex: 1,
+  },
+  drawerLogo: {
+    width: 180,
+    height: 42,
+  },
+  drawerCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  drawerSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  drawerSectionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.35)',
+    letterSpacing: 1.5,
+  },
+  drawerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+  },
+  drawerItemLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.82)',
+  },
+  drawerSignOut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  drawerSignOutText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  drawerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
 
   // Top bar

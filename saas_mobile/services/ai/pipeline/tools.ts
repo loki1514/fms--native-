@@ -30,7 +30,7 @@ export async function listTicketsTool(
       .from('tickets')
       .select('id, ticket_number, title, status, priority, created_at')
       .eq('property_id', propertyId)
-      .eq('internal', false)
+      .eq('is_internal', false)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -57,7 +57,7 @@ export async function getTicketStatusTool(
       .from('tickets')
       .select('id, ticket_number, title, status, priority, created_at')
       .eq('property_id', propertyId)
-      .eq('internal', false)
+      .eq('is_internal', false)
       .order('created_at', { ascending: false });
 
     if (ticketId) {
@@ -237,10 +237,10 @@ export async function getPropertyInfoTool(propertyId: string): Promise<ToolResul
 
     const [{ count: openCount }, { count: totalCount }] = await Promise.all([
       supabase.from('tickets').select('*', { count: 'exact', head: true })
-        .eq('property_id', propertyId).eq('internal', false)
+        .eq('property_id', propertyId).eq('is_internal', false)
         .not('status', 'in', '(resolved,closed)'),
       supabase.from('tickets').select('*', { count: 'exact', head: true })
-        .eq('property_id', propertyId).eq('internal', false),
+        .eq('property_id', propertyId).eq('is_internal', false),
     ]);
 
     return {

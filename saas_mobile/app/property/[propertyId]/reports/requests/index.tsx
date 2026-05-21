@@ -184,10 +184,10 @@ export default function RequestsReportScreen() {
                 color="#F97316"
               />
               <KPICard
-                label="Pending Validation"
-                value={data.kpis.pendingValidationCount}
-                sub="awaiting sign-off"
-                color="#A855F7"
+                label="Closure Rate"
+                value={`${data.kpis.closureRate}%`}
+                sub="completion"
+                color="#22C55E"
               />
             </View>
 

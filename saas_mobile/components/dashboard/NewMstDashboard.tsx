@@ -50,7 +50,7 @@ import Animated, {
   interpolate,
 } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
-import { useWeather } from '@/hooks/useWeather';
+import { useWeather, type WeatherCondition } from '@/hooks/useWeather';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import ShareModal from '@/components/shared/ShareModal';
@@ -292,6 +292,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
   const [property, setProperty] = useState<{ name: string } | null>(null);
   const [countdown, setCountdown] = useState('00:00:00');
   const [searchQuery, setSearchQuery] = useState('');
+  const [manualCondition, setManualCondition] = useState<WeatherCondition | null>(null);
   const [shareModalTicket, setShareModalTicket] = useState<Ticket | null>(null);
 
   // Gamification hook
@@ -343,7 +344,7 @@ export default function NewMstDashboard({ propertyId }: MstDashboardProps) {
         assignee:users!assigned_to(id, full_name, email, user_photo_url)
       `)
       .eq('property_id', propertyId)
-      .eq('internal', false)
+      .eq('is_internal', false)
       .order('created_at', { ascending: false })
       .limit(20) as any);
 

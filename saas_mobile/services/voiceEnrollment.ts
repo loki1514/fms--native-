@@ -154,7 +154,7 @@ export class VoiceEnrollmentService {
         .maybeSingle();
 
       if (error) return { enrolled: false };
-      return { enrolled: !!data, embedding_id: data?.id };
+      return { enrolled: !!data, embedding_id: (data as { id: string } | null)?.id };
     } catch {
       return { enrolled: false };
     }
@@ -168,7 +168,7 @@ export class VoiceEnrollmentService {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      await supabase
+      await (supabase as any)
         .from('user_voice_embeddings')
         .update({ status: 'revoked' })
         .eq('user_id', session.user.id)
@@ -217,7 +217,7 @@ export class VoiceEnrollmentService {
       throw new Error(err.error ?? `Enrollment failed: ${res.status}`);
     }
 
-    return res.json() as { embedding_id: string; error?: string };
+    return (await res.json()) as unknown as { embedding_id: string; error?: string };
   }
 }
 

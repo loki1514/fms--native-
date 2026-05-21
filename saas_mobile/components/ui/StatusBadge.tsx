@@ -72,18 +72,15 @@ const TICKET_STATUS_VARIANT: Record<string, BadgeVariant> = {
   COMPLETED: 'success',
   CLOSED: 'neutral',
   RESOLVED: 'success',
-  PENDING_VALIDATION: 'purple',
   open: 'warning',
   assigned: 'info',
   in_progress: 'info',
   completed: 'success',
   closed: 'neutral',
   resolved: 'success',
-  pending_validation: 'purple',
   blocked: 'danger',
   client_raised: 'warning',
   work_started: 'info',
-  paused: 'neutral',
 };
 
 export function TicketStatusBadge({ status, size = 'sm', style }: { status: string; size?: 'sm' | 'md'; style?: ViewStyle }) {
@@ -101,10 +98,8 @@ const TICKET_DOT_COLORS: Record<string, string> = {
   completed: '#34C759',
   resolved: '#34C759',
   closed: '#9CA3AF',
-  paused: '#9CA3AF',
   blocked: '#FF3B30',
   client_raised: '#FF9F0A',
-  pending_validation: '#AF52DE',
 };
 
 export function TicketStatusDot({ status, size = 8 }: { status: string; size?: number }) {

@@ -10,6 +10,7 @@ import {
   Alert,
   RefreshControl,
   Animated,
+  LayoutAnimation,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -321,7 +322,7 @@ function NotificationModal({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <View style={[styles.modalOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }]}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
-        <GlassCard style={[styles.modalContent, isDark && { backgroundColor: 'rgba(30,30,30,0.95)' }]}>
+        <GlassCard style={[styles.modalContent, isDark ? { backgroundColor: 'rgba(30,30,30,0.95)' } : {}]}>
           {/* Header */}
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>Notifications</Text>
@@ -637,7 +638,9 @@ export default function NotificationBell() {
         onRefresh={() => {
           setRefreshing(true);
           setIsLoading(true);
-          supabase.from('notifications').select('*').eq('user_id', authUser?.id).order('created_at', { ascending: false }).limit(50).then(({ data, error }: any) => {
+          const uid = authUser?.id;
+          if (!uid) return;
+          supabase.from('notifications').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(50).then(({ data, error }: any) => {
             if (!error && data) {
               setNotifications(data);
               setUnreadCount(data.filter((n: any) => !n.is_read).length);

@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInUp, AnimatePresence } from 'react-native-reanimated';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
@@ -351,9 +351,13 @@ export default function LovableOrgSuperAdminDashboard({ propertyId }: Props) {
               onPress={() => router.push(`/property/${propertyId}/profile` as any)}
             >
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2) : 'SU'}
-                </Text>
+                {user?.avatar ? (
+                  <Image source={{ uri: user.avatar }} style={styles.avatarImage} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.avatarText}>
+                    {user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2) : 'SU'}
+                  </Text>
+                )}
               </View>
               <View style={[styles.nameContainer, { flex: 1 }]}>
                 <Text style={styles.greetingText} numberOfLines={1}>Hey, {user?.user_metadata?.full_name?.split(' ')[0] || 'Super'}</Text>
@@ -537,6 +541,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
   avatarText: {
     color: '#FFF',

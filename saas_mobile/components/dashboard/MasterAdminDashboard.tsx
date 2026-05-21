@@ -634,9 +634,9 @@ export default function MasterAdminDashboard() {
 
       {/* Sign Out Modal */}
       <SignOutModal
-        isOpen={showSignOutModal}
+        visible={showSignOutModal}
         onClose={() => setShowSignOutModal(false)}
-        onConfirm={signOut}
+        onSignOut={signOut}
       />
 
       {/* Create Organization Modal */}

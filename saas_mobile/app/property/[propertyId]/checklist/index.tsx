@@ -314,7 +314,8 @@ function computeDueStatus(
     }
 
     const currentSlotStr = computeCurrentSlotStart(frequency ?? '', startTime, refDate, endTime);
-    const lastDone = lastCompletedAt ? new Date(lastCompletedAt) : lastCompletionDate ? new Date(lastCompletionDate) : null;
+    const safeDate = (dStr: string) => new Date(dStr.includes('T') ? dStr : dStr + 'T00:00:00');
+    const lastDone = lastCompletedAt ? new Date(lastCompletedAt) : lastCompletionDate ? safeDate(lastCompletionDate) : null;
     const isDone = lastDone && lastDone >= currentSlot;
 
     if (isDone) {
@@ -339,7 +340,8 @@ function computeDueStatus(
 
   // Hourly without time window
   if (intervalH !== null) {
-    const lastTs = lastCompletedAt ? new Date(lastCompletedAt) : lastCompletionDate ? new Date(lastCompletionDate) : null;
+    const safeDate = (dStr: string) => new Date(dStr.includes('T') ? dStr : dStr + 'T00:00:00');
+    const lastTs = lastCompletedAt ? new Date(lastCompletedAt) : lastCompletionDate ? safeDate(lastCompletionDate) : null;
     if (!lastTs) return { due: true, label: 'Not started', status: 'due' };
     const diffMs = refDate.getTime() - lastTs.getTime();
     const intervalMs = intervalH * 60 * 60 * 1000;
@@ -387,7 +389,8 @@ function computeDueStatus(
     return { due: true, label: 'Due today', status: 'due' };
   }
 
-  const last = new Date(lastCompletionDate);
+  const safeDate = (dStr: string) => new Date(dStr.includes('T') ? dStr : dStr + 'T00:00:00');
+  const last = safeDate(lastCompletionDate);
   const diffDays = Math.floor((refDate.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
 
   if (frequency === 'weekly') {
@@ -504,17 +507,13 @@ function fmtRemaining(ms: number): string {
   return `${m}m`;
 }
 
-function getSlotWindow(completionDate: string, frequency: string, startTime?: string | null): string | null {
-  const intervalH = parseHourlyInterval(frequency);
-  if (!intervalH || !startTime) return null;
-  const [sH, sM] = startTime.slice(0, 5).split(':').map(Number);
-  const startMins = sH * 60 + sM;
-  const elapsed = 0; // For display of a specific completion
-  const slotIndex = Math.floor(elapsed / (intervalH * 60));
-  const slotStartMins = startMins + slotIndex * intervalH * 60;
-  const slotEndMins = slotStartMins + intervalH * 60;
-  const fmt = (mins: number) => `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-  return `${fmt(slotStartMins)} – ${fmt(slotEndMins)}`;
+function getSlotWindow(slotTime: string | null | undefined, frequency: string | undefined | null): string | null {
+  const intervalH = parseHourlyInterval(frequency || '');
+  if (!intervalH || !slotTime) return null;
+  const [sH, sM] = slotTime.slice(0, 5).split(':').map(Number);
+  const endH = (sH + intervalH) % 24;
+  const endSlot = `${String(endH).padStart(2, '0')}:${String(sM).padStart(2, '0')}:00`;
+  return `${fmt12h(slotTime)} – ${fmt12h(endSlot)}`;
 }
 
 // ─── Circular Progress Component ───────────────────────────────────────────────
@@ -813,27 +812,27 @@ export default function ChecklistScreen() {
     if (realtimeChannel.current) supabase.removeChannel(realtimeChannel.current);
     const channel = supabase
       .channel(`sop_session:${completionId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sop_completion_items', filter: `completion_id=eq.${completionId}` },
-        (payload: any) => {
-          const updated = payload.new;
-          setItemStates(prev => ({
-            ...prev,
-            [updated.checklist_item_id]: {
-              ...prev[updated.checklist_item_id],
-              checked: updated.is_checked,
-              checked: updated.is_checked,
-              photo: updated.photo_url,
-              video: updated.video_url,
-              value: updated.value,
-              comment: updated.comment,
-            },
-          }));
-          setActiveCompletion((prev: any) => {
-            if (!prev) return prev;
-            return { ...prev, items: prev.items.map((i: any) => i.id === updated.id ? { ...i, ...updated } : i) };
-          });
-        }
-      )
+      // TODO: sop_completion_items does not exist in saas_one schema
+      // .on('postgres_changes', { event: '*', schema: 'public', table: 'sop_completion_items', filter: `completion_id=eq.${completionId}` },
+      //   (payload: any) => {
+      //     const updated = payload.new;
+      //     setItemStates(prev => ({
+      //       ...prev,
+      //       [updated.checklist_item_id]: {
+      //         ...prev[updated.checklist_item_id],
+      //         checked: updated.is_checked,
+      //         photo: updated.photo_url,
+      //         video: updated.video_url,
+      //         value: updated.value,
+      //         comment: updated.comment,
+      //       },
+      //     }));
+      //     setActiveCompletion((prev: any) => {
+      //       if (!prev) return prev;
+      //       return { ...prev, items: prev.items.map((i: any) => i.id === updated.id ? { ...i, ...updated } : i) };
+      //     });
+      //   }
+      // )
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sop_completions', filter: `id=eq.${completionId}` },
         (payload: any) => {
           const updated = payload.new;
@@ -878,11 +877,7 @@ export default function ChecklistScreen() {
           items:sop_checklist_items(*),
           completions:sop_completions(
             *,
-            user:users(id, full_name),
-            items:sop_completion_items(
-              *,
-              checked_by_user:users!checked_by(full_name)
-            )
+            user:users(id, full_name)
           )
         `)
         .eq('property_id', propertyId)
@@ -951,10 +946,10 @@ export default function ChecklistScreen() {
     try {
       const { data } = await supabase
         .from('sop_completions')
-        .select('*, user:users(id, full_name), items:sop_completion_items(*)')
+        .select('*, user:users(id, full_name)')
         .eq('template_id', template.id)
         .eq('property_id', propertyId)
-        .order('completion_date', { ascending: false })
+        .order('completed_at', { ascending: false })
         .limit(20);
       setExpandedCompletions(prev => ({ ...prev, [template.id]: (data || []) as SOPCompletion[] }));
     } catch {}
@@ -1013,7 +1008,7 @@ export default function ChecklistScreen() {
           completion_date: logicalDateStr,
           ...(slotTime ? { slot_time: slotTime } : {}),
         })
-        .select('*, user:users(id, full_name), items:sop_completion_items(*)')
+        .select('*, user:users(id, full_name)')
         .single();
 
       if (error) {
@@ -1027,14 +1022,15 @@ export default function ChecklistScreen() {
         checklist_item_id: item.id,
         is_checked: false,
       }));
-      if (completionItems.length > 0) {
-        await (supabase.from('sop_completion_items') as any).insert(completionItems);
-      }
+      // TODO: sop_completion_items does not exist in saas_one schema
+      // if (completionItems.length > 0) {
+      //   await (supabase.from('sop_completion_items') as any).insert(completionItems);
+      // }
 
       // Refetch to get full items
       const { data: refreshed } = await supabase
         .from('sop_completions')
-        .select('*, user:users(id, full_name), items:sop_completion_items(*)')
+        .select('*, user:users(id, full_name)')
         .eq('id', newCompletion.id)
         .single();
       const fullCompletion = (refreshed || newCompletion) as SOPCompletion;
@@ -1129,9 +1125,8 @@ export default function ChecklistScreen() {
 
   const handleVideoCapture = async (item: ChecklistItem) => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    const micStatus = await ImagePicker.requestMicrophonePermissionsAsync();
-    if (status !== 'granted' || micStatus.status !== 'granted') {
-      Alert.alert('Permission required', 'Camera and Microphone access needed for video');
+    if (status !== 'granted') {
+      Alert.alert('Permission required', 'Camera access needed for video');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -1203,7 +1198,9 @@ export default function ChecklistScreen() {
         if (type === 'photo') updateData.photo_url = publicUrl;
         else updateData.video_url = publicUrl;
 
-        await mobileServices.updateSOPChecklistItem(propertyId as string, activeCompletion.id, compItem.id, updateData);
+        if (activeCompletion) {
+          await mobileServices.updateSOPChecklistItem(propertyId as string, activeCompletion.id, compItem.id, updateData);
+        }
       }
     } catch (err: any) {
       setItemStates(prev => ({ ...prev, [item.id]: { ...prev[item.id], [stateKey]: false } }));
@@ -1224,7 +1221,9 @@ export default function ChecklistScreen() {
           if (type === 'photo') updateData.photo_url = null;
           else updateData.video_url = null;
 
-          await mobileServices.updateSOPChecklistItem(propertyId as string, activeCompletion.id, compItem.id, updateData);
+          if (activeCompletion) {
+            await mobileServices.updateSOPChecklistItem(propertyId as string, activeCompletion.id, compItem.id, updateData);
+          }
 
           // Delete from storage
           const filePath = (type === 'photo' ? compItem.photo_url : compItem.video_url)?.split(bucket + '/')[1];
@@ -1263,8 +1262,8 @@ export default function ChecklistScreen() {
     try {
       const now = new Date();
       const nowMins = now.getHours() * 60 + now.getMinutes();
-      const isLate = activeTemplate.start_time && activeTemplate.end_time && !isWithinTimeWindow(nowMins, activeTemplate.start_time, activeTemplate.end_time);
-      await mobileServices.submitSOPChecklist(propertyId as string, activeCompletion.id, isLate);
+      const isLate = !!(activeTemplate.start_time && activeTemplate.end_time && !isWithinTimeWindow(nowMins, activeTemplate.start_time, activeTemplate.end_time));
+      await mobileServices.submitSOPChecklist(propertyId as string, activeCompletion!.id, isLate);
       if (realtimeChannel.current) { supabase.removeChannel(realtimeChannel.current); realtimeChannel.current = null; }
       setActiveTemplate(null);
       setActiveCompletion(null);
@@ -1355,8 +1354,7 @@ export default function ChecklistScreen() {
           title: item.title.trim(),
           description: item.description.trim() || null,
           type: item.type, requires_photo: item.requires_photo,
-          requires_comment: item.requires_comment, is_optional: item.is_optional,
-          section_title: item.section_title.trim() || null,
+          is_optional: item.is_optional,
           order_index: item.section_title ? (sectionIndexMap[item.section_title] * 100 + idx) : idx,
           start_time: item.start_time || null, end_time: item.end_time || null,
         };
@@ -1685,9 +1683,10 @@ export default function ChecklistScreen() {
                                 setItemStates(prev => ({ ...prev, [checkItem.id]: { ...prev[checkItem.id], value: opt, checked: true } }));
                                 const compItem = activeCompletion?.items?.find(ci => ci.checklist_item_id === checkItem.id);
                                 if (compItem) {
-                                  (supabase.from('sop_completion_items') as any)
-                                    .update({ value: opt, is_checked: true, checked_at: new Date().toISOString(), checked_by: user?.id })
-                                    .eq('id', compItem.id);
+                                  // TODO: sop_completion_items does not exist in saas_one schema
+                                  // (supabase.from('sop_completion_items') as any)
+                                  //   .update({ value: opt, is_checked: true, checked_at: new Date().toISOString(), checked_by: user?.id })
+                                  //   .eq('id', compItem.id);
                                 }
                               }}
                               disabled={runnerIsReadOnly}
@@ -1872,7 +1871,7 @@ export default function ChecklistScreen() {
                 {/* Video Proof */}
                 {compItem?.video_url && (
                   <TouchableOpacity
-                    style={{ marginHorizontal: 12, marginBottom: 12, height: 120, borderRadius: 12, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center', borderWeight: 1, borderColor: colors.border }}
+                    style={{ marginHorizontal: 12, marginBottom: 12, height: 120, borderRadius: 12, backgroundColor: '#1e293b', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border }}
                     onPress={() => Linking.openURL(compItem.video_url || '')}
                   >
                     <Play size={32} color="white" fill="rgba(255,255,255,0.4)" />
@@ -2032,26 +2031,6 @@ export default function ChecklistScreen() {
           {/* ── History Tab ── */}
           {view === 'history' && (
             <>
-              {/* Stats Grid */}
-              <View style={styles.statsGrid}>
-                <LinearGradient colors={['rgba(59, 130, 246, 0.1)', 'rgba(59, 130, 246, 0.05)']} style={[styles.statCard, { borderColor: 'rgba(59, 130, 246, 0.2)' }]}>
-                  <Text style={[styles.statLabel, { color: '#94A3B8' }]}>TOTAL ACTIONS</Text>
-                  <Text style={[styles.statValue, { color: '#60A5FA' }]}>{historyStats.total}</Text>
-                </LinearGradient>
-                <LinearGradient colors={['rgba(16, 185, 129, 0.1)', 'rgba(16, 185, 129, 0.05)']} style={[styles.statCard, { borderColor: 'rgba(16, 185, 129, 0.2)' }]}>
-                  <Text style={[styles.statLabel, { color: '#94A3B8' }]}>SAFE TO AIM</Text>
-                  <Text style={[styles.statValue, { color: '#34D399' }]}>{historyStats.completed}</Text>
-                </LinearGradient>
-                <LinearGradient colors={['rgba(245, 158, 11, 0.1)', 'rgba(245, 158, 11, 0.05)']} style={[styles.statCard, { borderColor: 'rgba(245, 158, 11, 0.2)' }]}>
-                  <Text style={[styles.statLabel, { color: '#94A3B8' }]}>ON HOLD</Text>
-                  <Text style={[styles.statValue, { color: '#FBBF24' }]}>{historyStats.upcoming}</Text>
-                </LinearGradient>
-                <LinearGradient colors={['rgba(239, 68, 68, 0.1)', 'rgba(239, 68, 68, 0.05)']} style={[styles.statCard, { borderColor: 'rgba(239, 68, 68, 0.2)' }]}>
-                  <Text style={[styles.statLabel, { color: '#94A3B8' }]}>AT RISK</Text>
-                  <Text style={[styles.statValue, { color: '#F87171' }]}>{historyStats.due + historyStats.missed}</Text>
-                </LinearGradient>
-              </View>
-
               {/* Filter Row */}
               <View style={styles.filterRow}>
                 {(['all', 'due', 'upcoming', 'paused', 'completed'] as HistoryFilter[]).map(f => (
@@ -2088,7 +2067,7 @@ export default function ChecklistScreen() {
                           </View>
                           <View style={styles.historyCardContent}>
                             <Text style={styles.historyTitle} numberOfLines={1}>{m.template.title}</Text>
-                            <Text style={styles.historyMeta}>MISSED: {m.label}</Text>
+                            <Text style={styles.historyMeta}>MISSED: {formatRelative(m.date)} {getSlotWindow(m.slotTime, m.template.frequency) ? `• ${getSlotWindow(m.slotTime, m.template.frequency)}` : m.slotTime ? `• ${fmt12h(m.slotTime)}` : ''}</Text>
                           </View>
                           <View style={styles.historyCardRight}>
                             <View style={[styles.statusBadge, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
@@ -2164,7 +2143,7 @@ export default function ChecklistScreen() {
                           <Text style={styles.historyTitle} numberOfLines={1}>{tmpl?.title || 'Checklist'}</Text>
                           <Text style={styles.historyMeta}>
                             {comp.completion_date ? new Date(comp.completion_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
-                            {comp.slot_time ? ` • ${fmt12h(comp.slot_time)}` : ''}
+                            {comp.slot_time ? ` • ${getSlotWindow(comp.slot_time, tmpl?.frequency) || fmt12h(comp.slot_time)}` : ''}
                           </Text>
                           <Text style={styles.historyMeta}>{comp.user?.full_name || 'Unknown'}</Text>
                         </View>

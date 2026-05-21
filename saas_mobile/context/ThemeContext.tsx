@@ -73,26 +73,14 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const THEME_KEY = '@autopilot_theme';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemScheme = useColorScheme();
-  const [theme, setTheme] = useState<Theme>(systemScheme === 'dark' ? 'dark' : 'light');
-
-  // Load saved theme on mount
-  React.useEffect(() => {
-    AsyncStorage.getItem(THEME_KEY).then((saved) => {
-      if (saved === 'light' || saved === 'dark') {
-        setTheme(saved);
-      }
-    });
-  }, []);
+  // Always force dark theme per requirements
+  const theme: Theme = 'dark';
+  const isDark = true;
+  const colors = darkColors;
 
   const toggleTheme = useCallback(() => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    AsyncStorage.setItem(THEME_KEY, newTheme);
-  }, [theme]);
-
-  const isDark = theme === 'dark';
-  const colors = isDark ? darkColors : lightColors;
+    // No-op since theme is forced to dark globally
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, isDark, colors }}>

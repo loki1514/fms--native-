@@ -9,10 +9,11 @@ import { useAuth } from '@/hooks/useAuth';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 
 interface MobileFooterProps {
-  activeTab?: 'dashboard' | 'tickets' | 'assets' | 'more';
+  activeTab?: 'dashboard' | 'tickets' | 'stock' | 'more';
+  onMorePress?: () => void;
 }
 
-export default function MobileFooter({ activeTab: propActiveTab }: MobileFooterProps) {
+export default function MobileFooter({ activeTab: propActiveTab, onMorePress }: MobileFooterProps) {
   const router = useRouter();
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const pathname = usePathname();
@@ -79,19 +80,38 @@ export default function MobileFooter({ activeTab: propActiveTab }: MobileFooterP
           <Text style={[styles.navLabel, { marginTop: 4 }]}>AI Assistant</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.navItem} 
-          onPress={() => router.push(`/property/${propertyId}/stock` as any)}
-        >
-          <Ionicons 
-            name={activeTab === 'assets' ? 'business' : 'business-outline'} 
-            size={22} 
-            color={activeTab === 'assets' ? '#FFF' : 'rgba(255,255,255,0.4)'} 
-          />
-          <Text style={[styles.navLabel, activeTab === 'assets' && styles.navLabelActive]}>Assets</Text>
-        </TouchableOpacity>
+        <View style={styles.navItem}>
+          <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+            <TouchableOpacity 
+              onPress={() => router.push(`/property/${propertyId}/stock` as any)}
+              style={{ alignItems: 'center', paddingHorizontal: 12 }}
+            >
+              <Ionicons 
+                name={activeTab === 'stock' ? 'business' : 'business-outline'} 
+                size={22} 
+                color={activeTab === 'stock' ? '#FFF' : 'rgba(255,255,255,0.4)'} 
+              />
+              <Text style={[styles.navLabel, activeTab === 'stock' && styles.navLabelActive]}>Stock</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity style={styles.navItem} onPress={() => {/* Show Drawer/More */}}>
+            <TouchableOpacity 
+              style={{ position: 'absolute', right: -4, top: -8, backgroundColor: 'rgba(59,130,246,0.25)', padding: 4, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(59,130,246,0.4)' }}
+              onPress={() => router.push(`/property/${propertyId}/stock/scan` as any)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="scan" size={12} color="#60A5FA" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => {
+            if (onMorePress) {
+              onMorePress();
+            }
+          }}
+        >
           <Ionicons name="ellipsis-horizontal" size={22} color="rgba(255,255,255,0.4)" />
           <Text style={styles.navLabel}>More</Text>
         </TouchableOpacity>

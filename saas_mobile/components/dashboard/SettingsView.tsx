@@ -134,7 +134,7 @@ export default function SettingsView({ onUpdate }: SettingsViewProps) {
       }
 
       await supabase.auth.updateUser({
-        data: { full_name: profile.full_name, avatar_url: avatarUrl, user_photo_url: avatarUrl, phone: profile.phone },
+        data: { full_name: profile.full_name, user_photo_url: avatarUrl, phone: profile.phone },
       });
 
       setToast({ message: 'Profile updated!', type: 'success' });

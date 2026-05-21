@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
-import { fetchUsersList, createMemberUser } from '@/utils/api/mobileApi';
+import { fetchUsersList, createMemberUser, updateMemberRole } from '@/utils/api/mobileApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -28,11 +28,9 @@ import SafeBlurView from '@/components/ui/SafeBlurView';
 import { Ionicons } from '@expo/vector-icons';
 
 
-import BottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetBackdropProps,
+import {
+  BottomSheetModal,
   BottomSheetScrollView,
-  BottomSheetView,
 } from '@gorhom/bottom-sheet';
 import {
   Search,
@@ -59,7 +57,6 @@ interface UserWithMembership {
   id: string;
   full_name: string;
   email: string;
-  avatar_url?: string;
   user_photo_url?: string;
   phone?: string;
   propertyRole?: string;
@@ -212,9 +209,9 @@ function UserCard({
             { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)' },
           ]}
         >
-          {user.user_photo_url || user.avatar_url ? (
+          {user.user_photo_url ? (
             <Image
-              source={{ uri: user.user_photo_url || user.avatar_url }}
+              source={{ uri: user.user_photo_url }}
               style={styles.avatarImage}
             />
           ) : (
@@ -357,7 +354,7 @@ function UserDetailSheet({
 }: {
   user: UserWithMembership;
   propertyId: string;
-  bottomSheetRef: React.RefObject<BottomSheet | null>;
+  bottomSheetRef: React.RefObject<BottomSheetModal | null>;
   colors: typeof Colors.light;
   onUpdate: () => void;
 }) {
@@ -387,15 +384,19 @@ function UserDetailSheet({
   async function handleUpdateRole() {
     setIsLoading(true);
     try {
-      const { error } = await (supabase
-        .from('property_memberships') as any)
-        .update({ role: selectedRole })
-        .eq('user_id', user.id)
-        .eq('property_id', propertyId);
-      if (error) throw error;
+      const response = await updateMemberRole({
+        userId: user.id,
+        newRole: selectedRole,
+        propertyId,
+        skills,
+        oldRole: user.propertyRole || user.role,
+      });
+      if (response.error) {
+        throw new Error(response.error);
+      }
       setShowRolePicker(false);
       onUpdate();
-      bottomSheetRef.current?.close();
+      bottomSheetRef.current?.dismiss();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to update role');
     } finally {
@@ -413,7 +414,7 @@ function UserDetailSheet({
         .eq('property_id', propertyId);
       if (error) throw error;
       onUpdate();
-      bottomSheetRef.current?.close();
+      bottomSheetRef.current?.dismiss();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to update status');
     } finally {
@@ -443,25 +444,13 @@ function UserDetailSheet({
         .eq('property_id', propertyId);
       if (error) throw error;
       onUpdate();
-      bottomSheetRef.current?.close();
+      bottomSheetRef.current?.dismiss();
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to remove member');
     } finally {
       setIsLoading(false);
     }
   }
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
-    ),
-    []
-  );
 
   const initials = user.full_name
     ? user.full_name
@@ -475,12 +464,10 @@ function UserDetailSheet({
   const roleBadge = getRoleBadgeColor(user.propertyRole || user.role || 'staff');
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={bottomSheetRef}
-      index={-1}
       snapPoints={snapPoints}
       enablePanDownToClose
-      backdropComponent={renderBackdrop}
       backgroundStyle={{ backgroundColor: '#0a0f1e' }}
       handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.25)', width: 40 }}
     >
@@ -490,8 +477,8 @@ function UserDetailSheet({
           <View style={styles.sheetHeader}>
             <View style={styles.sheetAvatarGlow}>
               <View style={styles.sheetAvatar}>
-                {user.user_photo_url || user.avatar_url ? (
-                  <Image source={{ uri: user.user_photo_url || user.avatar_url }} style={styles.sheetAvatarImage} />
+                {user.user_photo_url ? (
+                  <Image source={{ uri: user.user_photo_url }} style={styles.sheetAvatarImage} />
                 ) : (
                   <Text style={styles.sheetAvatarText}>{initials}</Text>
                 )}
@@ -615,7 +602,7 @@ function UserDetailSheet({
           )}
         </View>
       </BottomSheetScrollView>
-    </BottomSheet>
+    </BottomSheetModal>
   );
 }
 
@@ -654,7 +641,7 @@ function InviteMemberSheet({
   colors,
   onSuccess,
 }: {
-  bottomSheetRef: React.RefObject<BottomSheet | null>;
+  bottomSheetRef: React.RefObject<BottomSheetModal | null>;
   propertyId: string;
   organizationId: string;
   colors: typeof Colors.light;
@@ -671,18 +658,6 @@ function InviteMemberSheet({
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-      />
-    ),
-    []
-  );
 
   const SPEC_OPTIONS = [
     { code: '', label: 'General' },
@@ -746,7 +721,7 @@ function InviteMemberSheet({
         throw new Error(response.error);
       }
 
-      bottomSheetRef.current?.close();
+      bottomSheetRef.current?.dismiss();
       setFullName('');
       setEmail('');
       setPassword('');
@@ -763,12 +738,10 @@ function InviteMemberSheet({
   }
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={bottomSheetRef}
-      index={-1}
       snapPoints={snapPoints}
       enablePanDownToClose
-      backdropComponent={renderBackdrop}
       backgroundStyle={{ backgroundColor: colors.card }}
       handleIndicatorStyle={{ backgroundColor: colors.border }}
     >
@@ -1058,7 +1031,7 @@ function InviteMemberSheet({
             variant="ghost"
             size="md"
             onPress={() => {
-              bottomSheetRef.current?.close();
+              bottomSheetRef.current?.dismiss();
               setFullName('');
               setEmail('');
               setPassword('');
@@ -1071,7 +1044,7 @@ function InviteMemberSheet({
           />
         </View>
       </BottomSheetScrollView>
-    </BottomSheet>
+    </BottomSheetModal>
   );
 }
 
@@ -1132,8 +1105,8 @@ export default function UsersScreen() {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   // Bottom sheet refs
-  const userDetailSheetRef = useRef<BottomSheet>(null);
-  const inviteSheetRef = useRef<BottomSheet>(null);
+  const userDetailSheetRef = useRef<BottomSheetModal>(null);
+  const inviteSheetRef = useRef<BottomSheetModal>(null);
 
   useEffect(() => {
     if (propertyId) {
@@ -1180,7 +1153,6 @@ export default function UsersScreen() {
         id: m.user?.id || '',
         full_name: m.user?.full_name || 'Unknown',
         email: m.user?.email || '',
-        avatar_url: m.user?.user_photo_url,
         user_photo_url: m.user?.user_photo_url,
         phone: m.user?.phone,
         propertyRole: m.role,
@@ -1207,11 +1179,11 @@ export default function UsersScreen() {
 
   function handleUserPress(user: UserWithMembership) {
     setSelectedUser(user);
-    userDetailSheetRef.current?.expand();
+    userDetailSheetRef.current?.present();
   }
 
   function handleAddMember() {
-    inviteSheetRef.current?.expand();
+    inviteSheetRef.current?.present();
   }
 
   // Filter logic
@@ -1233,9 +1205,7 @@ export default function UsersScreen() {
   const activeCount = users.filter((u) => u.is_active).length;
 
   return (
-    <View
-      style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}
-    >
+    <View style={styles.container}>
       <Stack.Screen
         options={{
           headerShown: false,
@@ -1337,6 +1307,7 @@ export default function UsersScreen() {
               colors={colors}
             />
           )}
+          style={{ flex: 1 }}
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListEmptyComponent={<EmptyState colors={colors} />}
@@ -1500,7 +1471,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 120,
+    paddingBottom: 160,
   },
   separator: {
     height: 10,

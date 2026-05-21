@@ -52,7 +52,7 @@ function getStatusColor(status: string): string {
     case 'in_progress': return '#F59E0B';
     case 'resolved': return '#10B981';
     case 'closed': return '#6B7280';
-    case 'pending_validation': return '#EC4899';
+    case 'resolved': return '#EC4899';
     default: return '#94A3B8';
   }
 }

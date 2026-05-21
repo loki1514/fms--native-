@@ -70,7 +70,6 @@ const PropertyCard = React.memo(({ property, index, onPress }: PropertyCardProps
         onPress={onPress}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
-        activeOpacity={0.85}
       >
         {hasImage ? (
           <ImageBackground
@@ -84,13 +83,7 @@ const PropertyCard = React.memo(({ property, index, onPress }: PropertyCardProps
               end={{ x: 0, y: 1 }}
               style={styles.cardOverlay}
             >
-              <CardContent
-                property={property}
-                open={open}
-                resolved={resolved}
-                statusText={statusText}
-                statusColor={statusColor}
-              />
+              <CardContent property={property} />
             </LinearGradient>
           </ImageBackground>
         ) : (
@@ -100,13 +93,7 @@ const PropertyCard = React.memo(({ property, index, onPress }: PropertyCardProps
             end={{ x: 0, y: 1 }}
             style={styles.cardGradient}
           >
-            <CardContent
-              property={property}
-              open={open}
-              resolved={resolved}
-              statusText={statusText}
-              statusColor={statusColor}
-            />
+            <CardContent property={property} />
           </LinearGradient>
         )}
       </AnimatedPressable>

@@ -1,4 +1,4 @@
-import { supabase } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase/client';
 import { ApiResponse } from './api/client';
 import { getCurrentUserId } from '@/utils/api/mobileApi';
 import type { SOP, SOPStep, SOPChecklistRun, StepResult } from '@/types';
@@ -42,8 +42,7 @@ export const sopService = {
         description: row['description'] as string | undefined,
         category: row['category'] as string,
         frequency: row['frequency'] as SOP['frequency'],
-        assignedRoles: (row['assigned_roles'] ?? []) as string[],
-        qrCode: row['qr_code'] as string | undefined,
+        assignedRoles: (row['assigned_to'] ?? []) as string[],
         isActive: row['is_active'] as boolean,
         createdAt: row['created_at'] as string,
         updatedAt: row['updated_at'] as string,
@@ -71,7 +70,7 @@ export const sopService = {
         .from('sop_checklist_items')
         .select('*')
         .eq('template_id', id)
-        .order('order', { ascending: true }) as any)) as { data: unknown; error: unknown };
+        .order('order_index', { ascending: true }) as any)) as { data: unknown; error: unknown };
 
       if (stepsError) throw stepsError;
 
@@ -80,13 +79,13 @@ export const sopService = {
       const steps: SOPStep[] = stepsRows.map((row) => ({
         id: row['id'] as string,
         sopId: row['template_id'] as string,
-        order: row['order'] as number,
+        order: row['order_index'] as number,
         title: row['title'] as string,
         description: row['description'] as string | undefined,
         requiresPhoto: row['requires_photo'] as boolean,
-        requiresSignature: row['requires_signature'] as boolean,
-        requiresNote: row['requires_note'] as boolean,
-        section: row['section'] as string | undefined,
+        requiresSignature: false,
+        requiresNote: false,
+        section: undefined,
       }));
 
       const sop: SOP = {
@@ -97,8 +96,7 @@ export const sopService = {
         description: templateRow['description'] as string | undefined,
         category: templateRow['category'] as string,
         frequency: templateRow['frequency'] as SOP['frequency'],
-        assignedRoles: (templateRow['assigned_roles'] ?? []) as string[],
-        qrCode: templateRow['qr_code'] as string | undefined,
+        assignedRoles: (templateRow['assigned_to'] ?? []) as string[],
         isActive: templateRow['is_active'] as boolean,
         createdAt: templateRow['created_at'] as string,
         updatedAt: templateRow['updated_at'] as string,
@@ -121,8 +119,7 @@ export const sopService = {
         description: data.description,
         category: data.category,
         frequency: data.frequency,
-        assigned_roles: data.assignedRoles ?? [],
-        qr_code: data.qrCode,
+        assigned_to: data.assignedRoles ?? [],
         is_active: data.isActive ?? true,
       };
 
@@ -143,8 +140,7 @@ export const sopService = {
         description: row['description'] as string | undefined,
         category: row['category'] as string,
         frequency: row['frequency'] as SOP['frequency'],
-        assignedRoles: (row['assigned_roles'] ?? []) as string[],
-        qrCode: row['qr_code'] as string | undefined,
+        assignedRoles: (row['assigned_to'] ?? []) as string[],
         isActive: row['is_active'] as boolean,
         createdAt: row['created_at'] as string,
         updatedAt: row['updated_at'] as string,
@@ -165,8 +161,7 @@ export const sopService = {
       if (data.description !== undefined) payload.description = data.description;
       if (data.category !== undefined) payload.category = data.category;
       if (data.frequency !== undefined) payload.frequency = data.frequency;
-      if (data.assignedRoles !== undefined) payload.assigned_roles = data.assignedRoles;
-      if (data.qrCode !== undefined) payload.qr_code = data.qrCode;
+      if (data.assignedRoles !== undefined) payload.assigned_to = data.assignedRoles;
       if (data.isActive !== undefined) payload.is_active = data.isActive;
 
       const { data: updated, error }: any = await (supabase as any)
@@ -187,8 +182,7 @@ export const sopService = {
         description: row['description'] as string | undefined,
         category: row['category'] as string,
         frequency: row['frequency'] as SOP['frequency'],
-        assignedRoles: (row['assigned_roles'] ?? []) as string[],
-        qrCode: row['qr_code'] as string | undefined,
+        assignedRoles: (row['assigned_to'] ?? []) as string[],
         isActive: row['is_active'] as boolean,
         createdAt: row['created_at'] as string,
         updatedAt: row['updated_at'] as string,
@@ -234,8 +228,6 @@ export const sopService = {
         .insert({
           template_id: templateId,
           property_id: propertyId,
-          started_by: startedBy,
-          started_at: new Date().toISOString(),
           status: 'in_progress',
         })
         .select()
@@ -248,11 +240,10 @@ export const sopService = {
         id: row['id'] as string,
         sopId: row['template_id'] as string,
         propertyId: row['property_id'] as string,
-        startedBy: row['started_by'] as string,
-        startedAt: row['started_at'] as string,
+        startedBy: undefined as any,
+        startedAt: undefined as any,
         completedAt: row['completed_at'] as string | undefined,
         status: row['status'] as SOPChecklistRun['status'],
-        notes: row['notes'] as string | undefined,
         createdAt: row['created_at'] as string | undefined,
       };
 
@@ -268,60 +259,8 @@ export const sopService = {
     stepId: string,
     result: StepResult,
   ): Promise<ApiResponse<StepResult>> {
-    try {
-      const payload = {
-        completion_id: runId,
-        step_id: stepId,
-        completed: result.completed,
-        photo_url: result.photoUrl ?? null,
-        signature_data: result.signatureData ?? null,
-        note: result.note ?? null,
-        timestamp: new Date().toISOString(),
-      };
-
-      const { data: existing } = (await (supabase
-        .from('sop_step_results')
-        .select('id')
-        .eq('completion_id', runId)
-        .eq('step_id', stepId)
-        .maybeSingle() as any)) as { data: unknown; error: unknown };
-
-      let upserted: Record<string, unknown>;
-      if (existing) {
-        const { data, error }: any = await (supabase as any)
-          .from('sop_step_results')
-          .update(payload)
-          .eq('id', (existing as Record<string, unknown>)['id'] as string)
-          .select()
-          .single();
-        if (error) throw error;
-        upserted = data as Record<string, unknown>;
-      } else {
-        const { data, error }: any = await (supabase as any)
-          .from('sop_step_results')
-          .insert(payload)
-          .select()
-          .single();
-        if (error) throw error;
-        upserted = data as Record<string, unknown>;
-      }
-
-      const stepResult: StepResult = {
-        id: upserted['id'] as string,
-        completionId: upserted['completion_id'] as string,
-        stepId: upserted['step_id'] as string,
-        completed: upserted['completed'] as boolean,
-        photoUrl: upserted['photo_url'] as string | undefined,
-        signatureData: upserted['signature_data'] as string | undefined,
-        note: upserted['note'] as string | undefined,
-        timestamp: upserted['timestamp'] as string,
-      };
-
-      return { data: stepResult, error: null };
-    } catch (err) {
-      console.error('sopService.completeStep error:', err);
-      return { data: null, error: err as Error | string | null };
-    }
+    // TODO: sop_step_results does not exist in saas_one schema
+    return { data: null, error: 'sop_step_results table does not exist' };
   },
 
   async completeChecklistRun(
@@ -334,7 +273,7 @@ export const sopService = {
         .update({
           status: 'completed',
           completed_at: new Date().toISOString(),
-          rating: rating ?? null,
+  
         })
         .eq('id', runId)
         .select()
@@ -347,11 +286,10 @@ export const sopService = {
         id: row['id'] as string,
         sopId: row['template_id'] as string,
         propertyId: row['property_id'] as string,
-        startedBy: row['started_by'] as string,
-        startedAt: row['started_at'] as string,
+        startedBy: undefined as any,
+        startedAt: undefined as any,
         completedAt: row['completed_at'] as string | undefined,
         status: row['status'] as SOPChecklistRun['status'],
-        notes: row['notes'] as string | undefined,
         createdAt: row['created_at'] as string | undefined,
       };
 
@@ -381,11 +319,10 @@ export const sopService = {
         id: row['id'] as string,
         sopId: row['template_id'] as string,
         propertyId: row['property_id'] as string,
-        startedBy: row['started_by'] as string,
-        startedAt: row['started_at'] as string,
+        startedBy: undefined as any,
+        startedAt: undefined as any,
         completedAt: row['completed_at'] as string | undefined,
         status: row['status'] as SOPChecklistRun['status'],
-        notes: row['notes'] as string | undefined,
         createdAt: row['created_at'] as string | undefined,
       };
 
@@ -402,12 +339,9 @@ export const sopService = {
     try {
       const { data: runs, error } = (await (supabase
         .from('sop_completions')
-        .select(`
-          *,
-          sop_step_results (*)
-        `)
+        .select('*')
         .eq('template_id', templateId)
-        .order('started_at', { ascending: false }) as any)) as { data: unknown; error: unknown };
+        .order('completed_at', { ascending: false }) as any)) as { data: unknown; error: unknown };
 
       if (error) throw error;
 
@@ -417,11 +351,10 @@ export const sopService = {
           id: run['id'] as string,
           sopId: run['template_id'] as string,
           propertyId: run['property_id'] as string,
-          startedBy: run['started_by'] as string,
-          startedAt: run['started_at'] as string,
+          startedBy: undefined as any,
+          startedAt: undefined as any,
           completedAt: run['completed_at'] as string | undefined,
           status: run['status'] as SOPChecklistRun['status'],
-          notes: run['notes'] as string | undefined,
           createdAt: run['created_at'] as string | undefined,
         };
       });

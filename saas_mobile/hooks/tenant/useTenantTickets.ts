@@ -48,7 +48,7 @@ export function useTenantTickets(propertyId: string | undefined, userId: string 
         assignee:users!assigned_to(full_name, user_photo_url)
       `)
       .eq('property_id', propertyId)
-      .eq('internal', false)
+      .eq('is_internal', false)
       .order('created_at', { ascending: false });
 
     if (err) {

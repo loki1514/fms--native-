@@ -64,6 +64,7 @@ interface WeatherBadgeProps {
   condition: WeatherCondition;
   temperature?: string;
   locationName?: string | null;
+  onChange?: (condition: WeatherCondition | null) => void;
 }
 
 function OrbAnimation({ condition, children }: { condition: WeatherCondition; children: React.ReactNode }) {

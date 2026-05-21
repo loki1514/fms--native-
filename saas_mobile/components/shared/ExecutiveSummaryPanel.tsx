@@ -52,7 +52,7 @@ export default function ExecutiveSummaryPanel({ propertyId }: ExecutiveSummaryPa
           .from('tickets')
           .select('id, category, status, created_at, resolved_at, issue_category:category_id(name)')
           .eq('property_id', propertyId)
-          .eq('internal', false)
+          .eq('is_internal', false)
           .order('created_at', { ascending: false });
 
         if (ticketsError) throw new Error(ticketsError.message);
@@ -96,13 +96,12 @@ export default function ExecutiveSummaryPanel({ propertyId }: ExecutiveSummaryPa
     const getStats = (tickArr: TicketData[]) => {
       const total = tickArr.length;
       const closed = tickArr.filter(t => t.status === 'resolved' || t.status === 'closed').length;
-      const pendingValidation = tickArr.filter(t => t.status === 'pending_validation').length;
-      const open = total - closed - pendingValidation;
+      const open = total - closed;
       const rate = total > 0 ? (closed / total) * 100 : 0;
       const cats: Record<string, number> = {};
       tickArr.forEach(t => { const c = t.category || 'Other'; cats[c] = (cats[c] || 0) + 1; });
       const topCategories = Object.entries(cats).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-      return { total, closed, open, pendingValidation, rate, topCategories };
+      return { total, closed, open, rate, topCategories };
     };
 
     setDashboardData({

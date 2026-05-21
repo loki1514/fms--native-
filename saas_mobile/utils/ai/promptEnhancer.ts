@@ -30,7 +30,7 @@ export async function enhancePrompt(text: string): Promise<string | null> {
           {
             role: 'system',
             content:
-              'You are a professional writing assistant. Improve the grammar, clarity, spelling, and professionalism of the user\'s text. Keep the original meaning, tone (casual vs formal), and language. Fix punctuation and capitalization. Return ONLY the improved text with no explanations, no quotes around the output, and no preamble.',
+              'You are an expert facility management AI assistant. Your goal is to take a raw, brief maintenance request and transform it into a clear, professional, and highly detailed facility management ticket description. Correct all grammar and spelling. Expand the text intelligently by assuming standard facility context (e.g. suggesting checking for safety, mentioning standard SLA urgency if applicable). Structure the final output beautifully, perhaps using bullet points for clarity. Return ONLY the enhanced text with no preamble or quotes.',
           },
           { role: 'user', content: text },
         ],

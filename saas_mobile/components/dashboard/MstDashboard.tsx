@@ -234,21 +234,21 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         setIsMstCheckedIn(rsData.is_checked_in);
       }
 
-      // 2. Get active shift log if any
-      const { data: shiftData }: any = await supabase
-        .from('shift_logs')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('property_id', propertyId)
-        .eq('status', 'active')
-        .order('check_in_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (shiftData) {
-        setActiveShiftId(shiftData.id);
-        setIsMstCheckedIn(true); // Sync with logs
-      }
+      // TODO: shift_logs does not exist in saas_one schema
+      // // 2. Get active shift log if any
+      // const { data: shiftData }: any = await supabase
+      //   .from('shift_logs')
+      //   .select('id')
+      //   .eq('user_id', user.id)
+      //   .eq('property_id', propertyId)
+      //   .eq('status', 'active')
+      //   .order('check_in_at', { ascending: false })
+      //   .limit(1)
+      //   .maybeSingle();
+      // if (shiftData) {
+      //   setActiveShiftId(shiftData.id);
+      //   setIsMstCheckedIn(true); // Sync with logs
+      // }
     } catch (error) {
       console.error('Error fetching shift status:', error);
     }
@@ -261,36 +261,35 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
     const newStatus = !isMstCheckedIn;
 
     try {
-      if (newStatus) {
-        // --- CHECK IN ---
-        const { data: newShift, error: shiftErr }: any = await (supabase
-          .from('shift_logs') as any)
-          .insert({
-            user_id: user.id,
-            property_id: propertyId,
-            status: 'active',
-            check_in_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (shiftErr) throw shiftErr;
-        setActiveShiftId(newShift.id);
-      } else {
-        // --- CHECK OUT ---
-        if (activeShiftId) {
-          const { error: shiftErr } = await (supabase
-            .from('shift_logs') as any)
-            .update({
-              status: 'completed',
-              check_out_at: new Date().toISOString()
-            })
-            .eq('id', activeShiftId);
-
-          if (shiftErr) throw shiftErr;
-        }
-        setActiveShiftId(null);
-      }
+      // TODO: shift_logs does not exist in saas_one schema
+      // if (newStatus) {
+      //   // --- CHECK IN ---
+      //   const { data: newShift, error: shiftErr }: any = await (supabase
+      //     .from('shift_logs') as any)
+      //     .insert({
+      //       user_id: user.id,
+      //       property_id: propertyId,
+      //       status: 'active',
+      //       check_in_at: new Date().toISOString()
+      //     })
+      //     .select()
+      //     .single();
+      //   if (shiftErr) throw shiftErr;
+      //   setActiveShiftId(newShift.id);
+      // } else {
+      //   // --- CHECK OUT ---
+      //   if (activeShiftId) {
+      //     const { error: shiftErr } = await (supabase
+      //       .from('shift_logs') as any)
+      //       .update({
+      //         status: 'completed',
+      //         check_out_at: new Date().toISOString()
+      //       })
+      //       .eq('id', activeShiftId);
+      //     if (shiftErr) throw shiftErr;
+      //   }
+      //   setActiveShiftId(null);
+      // }
 
       // Update resolver_stats for load balancing
       const { error: rsErr } = await (supabase
@@ -650,10 +649,10 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
           let escalationChain = undefined;
           if (logs && logs.length > 0) {
             const sorted = [...logs].sort((a, b) => new Date(a.escalated_at).getTime() - new Date(b.escalated_at).getTime());
-            const chain = [];
-            sorted.forEach((log, i) => {
-              if (i === 0 && log.from_employee?.full_name) chain.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url });
-              if (log.to_employee?.full_name) chain.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url });
+            const chain: { name: string; avatar?: string | null }[] = [];
+            sorted.forEach((log: any, i: number) => {
+              if (i === 0 && log.from_employee?.full_name) chain.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url ?? null });
+              if (log.to_employee?.full_name) chain.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url ?? null });
             });
             if (chain.length > 0) escalationChain = chain;
           }
@@ -852,9 +851,9 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
       {/* Sign Out Modal */}
       <SignOutModal
-        isOpen={showSignOutModal}
+        visible={showSignOutModal}
         onClose={() => setShowSignOutModal(false)}
-        onConfirm={signOut}
+        onSignOut={signOut}
       />
 
       {/* Create Ticket Modal */}
@@ -862,7 +861,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         propertyId={propertyId}
-        organizationId={membership?.org_id ?? ''}
+        organizationId={''}
         role="staff"
         onSuccess={fetchTickets}
       />
@@ -1174,6 +1173,9 @@ const mstStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#64748B',
+  },
+  stackSection: {
+    marginBottom: 10,
   },
 });
 

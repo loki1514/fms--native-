@@ -15,7 +15,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { Camera } from 'expo-camera';
 import { Audio } from 'expo-av';
 import { useTheme } from '@/context';
-import { GlassCard } from '@/constants/designSystem';
+import { LinearGradient } from 'expo-linear-gradient';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 
 const PERMISSIONS_STORAGE_KEY = '@autopilot_permissions_requested';
 
@@ -159,8 +160,10 @@ export default function PermissionOnboarding({
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-      <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.6)' }]}>
-        <View style={styles.container}>
+      <View style={styles.container}>
+        <LinearGradient colors={['#0f172a', '#1e1b4b', '#0f172a']} style={StyleSheet.absoluteFillObject} />
+
+        <View style={styles.contentWrap}>
           {/* Progress dots */}
           {!allProcessed && (
             <View style={styles.dotsRow}>
@@ -179,167 +182,128 @@ export default function PermissionOnboarding({
 
           {allProcessed || !currentItem ? (
             /* Summary screen */
-            <GlassCard style={styles.card}>
-              <View style={styles.summaryIcon}>
-                <Ionicons name="checkmark-circle" size={48} color="#10B981" />
-              </View>
-              <Text
-                style={[
-                  styles.summaryTitle,
-                  { color: isDark ? '#F8FAFC' : '#1A2332' },
-                ]}
-              >
-                All Set!
-              </Text>
-              <Text
-                style={[
-                  styles.summarySubtitle,
-                  { color: isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)' },
-                ]}
-              >
-                You can manage these permissions anytime in your device settings.
-              </Text>
+            <SafeBlurView intensity={60} tint="dark" style={[styles.permissionCard, { borderColor: 'rgba(255,255,255,0.08)' }]}>
+              <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
+              <View style={styles.permissionInner}>
+                <Ionicons name="checkmark-circle" size={56} color="#10B981" />
+                
+                <Text style={styles.permissionTitle}>All Set!</Text>
+                <Text style={styles.permissionSub}>
+                  You can manage these permissions anytime in your device settings.
+                </Text>
 
-              <View style={styles.summaryList}>
-                {permissions.map((p) => {
-                  const item = permissionItems.find((pi) => pi.id === p.id);
-                  return (
-                    <View key={p.id} style={styles.summaryItem}>
-                      <Ionicons
-                        name={
-                          p.status === 'granted'
-                            ? 'checkmark-circle'
-                            : p.status === 'denied'
-                            ? 'close-circle'
-                            : 'ellipse-outline'
-                        }
-                        size={18}
-                        color={
-                          p.status === 'granted'
-                            ? '#10B981'
-                            : p.status === 'denied'
-                            ? '#EF4444'
-                            : '#94A3B8'
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.summaryItemText,
-                          { color: isDark ? '#E6EBEE' : '#1D1D1F' },
-                        ]}
-                      >
-                        {item?.title}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
+                <View style={styles.summaryList}>
+                  {permissions.map((p) => {
+                    const item = permissionItems.find((pi) => pi.id === p.id);
+                    return (
+                      <View key={p.id} style={styles.summaryItem}>
+                        <Ionicons
+                          name={
+                            p.status === 'granted'
+                              ? 'checkmark-circle'
+                              : p.status === 'denied'
+                              ? 'close-circle'
+                              : 'ellipse-outline'
+                          }
+                          size={18}
+                          color={
+                            p.status === 'granted'
+                              ? '#10B981'
+                              : p.status === 'denied'
+                              ? '#EF4444'
+                              : '#94A3B8'
+                          }
+                        />
+                        <Text style={styles.summaryItemText}>{item?.title}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
 
-              <TouchableOpacity
-                style={[styles.primaryBtn, { backgroundColor: '#708F96' }]}
-                onPress={handleComplete}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.primaryBtnText}>Continue to Dashboard</Text>
-              </TouchableOpacity>
-            </GlassCard>
+                <TouchableOpacity
+                  style={[styles.permissionBtn, { width: '100%', marginTop: 24 }]}
+                  onPress={handleComplete}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.permissionBtnText}>Continue to Dashboard</Text>
+                </TouchableOpacity>
+              </View>
+            </SafeBlurView>
           ) : (
             /* Permission request card */
-            <GlassCard style={styles.card}>
-              <View
-                style={[
-                  styles.iconCircle,
-                  { backgroundColor: `${currentItem.color}15` },
-                ]}
-              >
-                <Ionicons
-                  name={currentItem.icon}
-                  size={32}
-                  color={currentItem.color}
-                />
-              </View>
-
-              <Text
-                style={[
-                  styles.title,
-                  { color: isDark ? '#F8FAFC' : '#1A2332' },
-                ]}
-              >
-                {currentItem.title}
-              </Text>
-              <Text
-                style={[
-                  styles.description,
-                  { color: isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)' },
-                ]}
-              >
-                {currentItem.description}
-              </Text>
-
-              {/* Status indicator */}
-              {currentStatus === 'granted' && (
-                <View style={styles.statusRow}>
-                  <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                  <Text style={styles.statusGranted}>Permission granted</Text>
+            <SafeBlurView intensity={60} tint="dark" style={[styles.permissionCard, { borderColor: 'rgba(255,255,255,0.08)' }]}>
+              <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
+              <View style={styles.permissionInner}>
+                <View style={[styles.iconCircle, { backgroundColor: `${currentItem.color}15` }]}>
+                  <Ionicons name={currentItem.icon} size={48} color={currentItem.color} />
                 </View>
-              )}
-              {currentStatus === 'denied' && (
-                <View style={styles.statusRow}>
-                  <Ionicons name="close-circle" size={16} color="#EF4444" />
-                  <Text style={styles.statusDenied}>Permission denied</Text>
-                </View>
-              )}
 
-              {/* Action buttons */}
-              <View style={styles.btnRow}>
-                {currentStatus !== 'granted' && (
-                  <TouchableOpacity
-                    style={[
-                      styles.primaryBtn,
-                      { backgroundColor: currentItem.color },
-                      currentStatus === 'loading' && { opacity: 0.7 },
-                    ]}
-                    onPress={handleRequest}
-                    disabled={currentStatus === 'loading'}
-                    activeOpacity={0.8}
-                  >
-                    {currentStatus === 'loading' ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.primaryBtnText}>
-                        {currentStatus === 'denied' ? 'Try Again' : 'Allow Access'}
+                <Text style={styles.permissionTitle}>{currentItem.title}</Text>
+                <Text style={styles.permissionSub}>{currentItem.description}</Text>
+
+                {/* Status indicator */}
+                {currentStatus === 'granted' && (
+                  <View style={styles.statusRow}>
+                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                    <Text style={styles.statusGranted}>Permission granted</Text>
+                  </View>
+                )}
+                {currentStatus === 'denied' && (
+                  <View style={styles.statusRow}>
+                    <Ionicons name="close-circle" size={16} color="#EF4444" />
+                    <Text style={styles.statusDenied}>Permission denied</Text>
+                  </View>
+                )}
+
+                {/* Action buttons */}
+                <View style={styles.btnRow}>
+                  {currentStatus !== 'granted' && (
+                    <TouchableOpacity
+                      style={[
+                        styles.permissionBtn,
+                        { backgroundColor: '#708F96' },
+                        currentStatus === 'loading' && { opacity: 0.7 },
+                      ]}
+                      onPress={handleRequest}
+                      disabled={currentStatus === 'loading'}
+                      activeOpacity={0.8}
+                    >
+                      {currentStatus === 'loading' ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.permissionBtnText}>
+                          {currentStatus === 'denied' ? 'Try Again' : 'Grant Permission'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                  {!isLast && currentStatus !== 'granted' && (
+                    <TouchableOpacity
+                      style={styles.permissionClose}
+                      onPress={handleSkip}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.permissionCloseText}>Skip for Now</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {(isLast || currentStatus === 'granted') && (
+                    <TouchableOpacity
+                      style={[styles.permissionBtn, { backgroundColor: '#708F96' }]}
+                      onPress={
+                        isLast ? handleComplete : () => setCurrentIndex((i) => i + 1)
+                      }
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.permissionBtnText}>
+                        {isLast ? 'Continue' : 'Next'}
                       </Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-
-                {!isLast && currentStatus !== 'granted' && (
-                  <TouchableOpacity
-                    style={styles.secondaryBtn}
-                    onPress={handleSkip}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.secondaryBtnText}>Skip for Now</Text>
-                  </TouchableOpacity>
-                )}
-
-                {(isLast || currentStatus === 'granted') && (
-                  <TouchableOpacity
-                    style={[styles.primaryBtn, { backgroundColor: '#708F96' }]}
-                    onPress={
-                      isLast
-                        ? handleComplete
-                        : () => setCurrentIndex((i) => i + 1)
-                    }
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.primaryBtnText}>
-                      {isLast ? 'Continue' : 'Next'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            </GlassCard>
+            </SafeBlurView>
           )}
         </View>
       </View>
@@ -348,15 +312,13 @@ export default function PermissionOnboarding({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  container: {
+    flex: 1,
+  },
+  contentWrap: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
     padding: 24,
-  },
-  container: {
-    width: '100%',
-    maxWidth: 400,
   },
   dotsRow: {
     flexDirection: 'row',
@@ -368,120 +330,107 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   dotActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#708F96',
     width: 24,
   },
   dotDone: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
-  card: {
-    padding: 28,
+  permissionCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  permissionInner: {
+    padding: 32,
     alignItems: 'center',
+    gap: 16,
+    position: 'relative',
+    zIndex: 1,
   },
   iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 24,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 8,
   },
-  title: {
-    fontFamily: 'Poppins-Bold',
+  permissionTitle: {
     fontSize: 20,
     fontWeight: '700',
+    color: '#E6EBEE',
     textAlign: 'center',
-    marginBottom: 8,
-    letterSpacing: -0.3,
   },
-  description: {
-    fontFamily: 'Urbanist-Regular',
+  permissionSub: {
     fontSize: 14,
+    color: '#94A3B8',
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: 20,
+    marginBottom: 8,
+  },
+  btnRow: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  permissionBtn: {
+    backgroundColor: '#708F96',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    width: '100%',
+    alignItems: 'center',
+  },
+  permissionBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  permissionClose: {
+    paddingVertical: 12,
+  },
+  permissionCloseText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 20,
+    marginBottom: 8,
   },
   statusGranted: {
-    fontFamily: 'Poppins-Medium',
     fontSize: 13,
     fontWeight: '600',
     color: '#10B981',
   },
   statusDenied: {
-    fontFamily: 'Poppins-Medium',
     fontSize: 13,
     fontWeight: '600',
     color: '#EF4444',
   },
-  btnRow: {
-    width: '100%',
-    gap: 10,
-  },
-  primaryBtn: {
-    height: 50,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  primaryBtnText: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  secondaryBtn: {
-    height: 44,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  secondaryBtnText: {
-    fontFamily: 'Poppins-Medium',
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  summaryIcon: {
-    marginBottom: 16,
-  },
-  summaryTitle: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 22,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  summarySubtitle: {
-    fontFamily: 'Urbanist-Regular',
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
   summaryList: {
     width: '100%',
     gap: 10,
-    marginBottom: 24,
+    marginTop: 12,
   },
   summaryItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(112,143,150,0.06)',
-    borderRadius: 10,
-    padding: 12,
+    gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 14,
   },
   summaryItemText: {
-    fontFamily: 'Poppins-Medium',
     fontSize: 14,
     fontWeight: '600',
+    color: '#E6EBEE',
   },
 });

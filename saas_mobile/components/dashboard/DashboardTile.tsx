@@ -27,7 +27,7 @@ export type TileVariant = 'tickets' | 'checklist' | 'health' | 'energy';
 
 const TILE_ICON: Record<TileVariant, keyof typeof Ionicons.glyphMap> = {
   tickets: 'ticket',
-  checklist: 'checkmark-square',
+  checklist: 'checkbox-outline',
   health: 'heart',
   energy: 'flash',
 };

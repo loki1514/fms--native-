@@ -111,9 +111,9 @@ export default function DGTariffModal({
       dayBefore.setDate(dayBefore.getDate() - 1);
       const dayBeforeStr = dayBefore.toISOString().split('T')[0];
 
-      await supabase
+      await (supabase as any)
         .from('dg_tariffs')
-        .update({ effective_to: dayBeforeStr } as any)
+        .update({ effective_to: dayBeforeStr })
         .eq('generator_id', selectedGenId)
         .is('effective_to', null)
         .lt('effective_from', effectiveFrom);
@@ -175,7 +175,7 @@ export default function DGTariffModal({
           <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={[styles.headerIcon, { backgroundColor: colors.success + '18' }]}>
-                <Ionicons name="fuel" size={20} color={colors.success} />
+                <Ionicons name="flame-outline" size={20} color={colors.success} />
               </View>
               <Text style={[styles.headerTitle, { color: colors.text }]}>Fuel Cost Configuration</Text>
             </View>

@@ -345,7 +345,7 @@ export default function StockScreen() {
         <LinearGradient colors={[...TOKENS.bg.gradient]} style={StyleSheet.absoluteFillObject} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Loading assets...</Text>
+          <Text style={styles.loadingText}>Loading stock...</Text>
         </View>
       </View>
     );
@@ -363,7 +363,7 @@ export default function StockScreen() {
             <ArrowLeft size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.headerTitle}>Assets</Text>
+            <Text style={styles.headerTitle}>Stock Management</Text>
             <Text style={styles.headerSubtitle}>Inventory Management</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -424,7 +424,7 @@ export default function StockScreen() {
             <Search size={16} color={TOKENS.text.tertiary} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search assets..."
+              placeholder="Search stock..."
               placeholderTextColor={TOKENS.text.tertiary}
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -487,7 +487,7 @@ export default function StockScreen() {
             <Package size={48} color="rgba(255,255,255,0.15)" />
             <Text style={styles.emptyTitle}>No items found</Text>
             <Text style={styles.emptySubtitle}>
-              {searchQuery || selectedCategory ? 'Try adjusting your filters' : 'Tap + to add your first asset'}
+              {searchQuery || selectedCategory ? 'Try adjusting your filters' : 'Tap + to add your first item'}
             </Text>
           </View>
         }
@@ -537,7 +537,7 @@ export default function StockScreen() {
               <LinearGradient colors={['#1a2e3b', '#0f1f2a']} style={StyleSheet.absoluteFillObject} />
               <View style={styles.modalHandle} />
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add asset</Text>
+                <Text style={styles.modalTitle}>Add Stock Item</Text>
                 <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }}>
                   <X size={20} color="rgba(255,255,255,0.50)" />
                 </TouchableOpacity>
@@ -571,7 +571,7 @@ export default function StockScreen() {
                 </View>
               </ScrollView>
               <TouchableOpacity style={[styles.submitBtn, isSaving && { opacity: 0.6 }]} onPress={handleAddItem} disabled={isSaving}>
-                {isSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.submitBtnText}>Save asset</Text>}
+                {isSaving ? <ActivityIndicator size="small" color="#FFFFFF" /> : <Text style={styles.submitBtnText}>Save Stock Item</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
   // Header
   headerWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   headerTop: { flexDirection: 'row', alignItems: 'center' },
-  headerTitle: { fontSize: 26, fontFamily: 'Poppins-Bold', color: TOKENS.text.primary, letterSpacing: -0.5 },
+  headerTitle: { fontSize: 20, fontFamily: 'Poppins-Bold', color: TOKENS.text.primary, letterSpacing: -0.5 },
   headerSubtitle: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: TOKENS.text.secondary, marginTop: 2 },
   headerIconBtn: {
     width: 40,

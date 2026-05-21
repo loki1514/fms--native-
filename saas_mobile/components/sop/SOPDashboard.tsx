@@ -28,9 +28,9 @@ export default function SOPDashboard({ propertyId: propId }: SOPDashboardProps) 
     const fetchStats = async () => {
       const { data, error } = await supabase
         .from('sop_completions')
-        .select('status')
+        .select('status, created_at')
         .eq('property_id', pid)
-        .gte('due_at', new Date(Date.now() - 7 * 86400000).toISOString());
+        .gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString());
 
       if (!error && data) {
         setStats({

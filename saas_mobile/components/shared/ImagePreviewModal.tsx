@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 // @ts-ignore
 import * as MediaLibrary from 'expo-media-library';
 
@@ -41,8 +41,8 @@ export default function ImagePreviewModal({ isOpen, onClose, imageUrl, title }: 
         return;
       }
       const ext = imageUrl.split('.').pop()?.split('?')[0] || 'jpg';
-      const localUri = `${FileSystem.cacheDirectory}download_${Date.now()}.${ext}`;
-      const { uri } = await File.downloadAsync(imageUrl, localUri);
+      const localUri = `${(FileSystem as any).cacheDirectory}download_${Date.now()}.${ext}`;
+      const { uri } = await (FileSystem as any).downloadAsync(imageUrl, localUri);
       await MediaLibrary.saveToLibraryAsync(uri);
       Alert.alert('Saved', 'Image saved to your photo library.');
     } catch (err) {
@@ -60,8 +60,8 @@ export default function ImagePreviewModal({ isOpen, onClose, imageUrl, title }: 
       setLoadingLabel('Preparing photo...');
       // Download image to local cache first so we share the actual file, not just a URL
       const ext = imageUrl.split('.').pop()?.split('?')[0] || 'jpg';
-      const localUri = `${FileSystem.cacheDirectory}share_${Date.now()}.${ext}`;
-      const { uri: localPath } = await File.downloadAsync(imageUrl, localUri);
+      const localUri = `${(FileSystem as any).cacheDirectory}share_${Date.now()}.${ext}`;
+      const { uri: localPath } = await (FileSystem as any).downloadAsync(imageUrl, localUri);
 
       await Share.share({
         url: `file://${localPath}`,
