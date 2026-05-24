@@ -357,7 +357,7 @@ export function TicketCreateModal({
                     <Text style={styles.sectionLabel}>
                       <Ionicons name="business-outline" size={11} color="rgba(255,255,255,0.4)" /> Organization
                     </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
                       {organizations.map(org => (
                         <TouchableOpacity
                           key={org.id}
@@ -374,7 +374,7 @@ export function TicketCreateModal({
                     <Text style={[styles.sectionLabel, { marginTop: 16 }]}>
                       <Ionicons name="location-outline" size={11} color="rgba(255,255,255,0.4)" /> Property
                     </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
                       {availableProperties.map(prop => (
                         <TouchableOpacity
                           key={prop.id}
@@ -406,11 +406,11 @@ export function TicketCreateModal({
                     </View>
                   )}
 
-                  <BlurView intensity={18} tint="dark" style={[styles.inputInner, { zIndex: showMentionDropdown ? 50 : 10 }]}>
+                  <View style={[styles.inputInner, { zIndex: showMentionDropdown ? 50 : 10 }]}>
                     <TextInput
                       style={[styles.textArea, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
                       placeholder="e.g., Water leaking from the AC on the 2nd Floor..."
-                      placeholderTextColor="rgba(255,255,255,0.25)"
+                      placeholderTextColor="rgba(255,255,255,0.45)"
                       selectionColor={colors.primary}
                       multiline
                       value={description}
@@ -420,7 +420,7 @@ export function TicketCreateModal({
 
                     {/* Predictive Chips */}
                     {suggestions.length > 0 && (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" style={styles.suggestionsScroll}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" style={styles.suggestionsScroll} showsVerticalScrollIndicator={false}>
                         {suggestions.map((sug, idx) => (
                           <TouchableOpacity key={idx} style={styles.suggestionChip} onPress={() => applySuggestion(sug)} activeOpacity={0.7}>
                             <Text style={styles.suggestionText}>{sug}</Text>
@@ -535,7 +535,7 @@ export function TicketCreateModal({
                         )}
                       </TouchableOpacity>
                     </View>
-                  </BlurView>
+                  </View>
                 </View>
 
                 {/* AI Classification */}
@@ -743,8 +743,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(30, 35, 55, 0.75)',
     overflow: 'hidden',
   },
   textArea: {

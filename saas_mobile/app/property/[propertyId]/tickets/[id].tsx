@@ -207,9 +207,7 @@ export default function TicketDetailScreen() {
       // from AuthContext, which has the session correctly loaded via onAuthStateChange.
       // The supabase client in utils/supabase/client.ts may not share session state with
       // AuthContext's client on Expo Go (separate AsyncStorage hydration), so we bypass it.
-      if (__DEV__) {
-        console.log('[fetchTicket] Auth user (from context):', authUser?.id, authUser?.email);
-      }
+      console.log('[fetchTicket] Auth user (from context):', authUser?.id, authUser?.email);
 
       // Fetch ticket with property_id filter for segregation.
       // IMPORTANT: We fetch assigned_to as a raw column alongside the users!assigned_to
@@ -258,15 +256,13 @@ export default function TicketDetailScreen() {
       }
 
       // DEBUG: Log assignee resolution for web-vs-mobile comparison
-      if (__DEV__) {
-        console.log('[fetchTicket] Ticket loaded:', {
-          ticketId: ticketData.id,
-          status: ticketData.status,
-          rawAssignedTo: ticketData.assigned_to,
-          resolvedAssigneeId: ticketData.assignee?.id,
-          resolvedAssigneeName: ticketData.assignee?.full_name,
-        });
-      }
+      console.log('[fetchTicket] Ticket loaded:', {
+        ticketId: ticketData.id,
+        status: ticketData.status,
+        rawAssignedTo: ticketData.assigned_to,
+        resolvedAssigneeId: ticketData.assignee?.id,
+        resolvedAssigneeName: ticketData.assignee?.full_name,
+      });
 
       // Property segregation guard
       if (ticketData.property_id !== propertyId) {
@@ -398,17 +394,13 @@ export default function TicketDetailScreen() {
     // Determine organization_id based on propertyId
     let orgId = ticket?.organization_id;
     if (!orgId && propertyId) {
-       if (__DEV__) {
-         console.log('[fetchProcurementUsers] Fetching orgId for property:', propertyId);
-       }
+       console.log('[fetchProcurementUsers] Fetching orgId for property:', propertyId);
        const { data: property, error: propErr } = await (supabase.from('properties').select('organization_id').eq('id', propertyId).single() as unknown) as { data: { organization_id: string } | null; error: any };
        if (propErr) console.error('[fetchProcurementUsers] Property fetch error:', propErr);
        orgId = property?.organization_id;
     }
 
-    if (__DEV__) {
-      console.log('[fetchProcurementUsers] Final orgId:', orgId, 'propertyId:', propertyId);
-    }
+    console.log('[fetchProcurementUsers] Final orgId:', orgId, 'propertyId:', propertyId);
 
     if (orgId && orgId !== 'undefined' && orgId !== '') {
       // 1. Fetch from organization_memberships FIRST
@@ -456,9 +448,7 @@ export default function TicketDetailScreen() {
       }
     }
     
-    if (__DEV__) {
-      console.log('[fetchProcurementUsers] Success! Found users:', users.length);
-    }
+    console.log('[fetchProcurementUsers] Success! Found users:', users.length);
 
     setProcurementUsers(users);
   };
@@ -606,9 +596,7 @@ export default function TicketDetailScreen() {
         updates.resolved_at = null;
       }
 
-      if (__DEV__) {
-        console.log('[handleUpdateStatus] Updating ticket:', id, 'with:', updates);
-      }
+      console.log('[handleUpdateStatus] Updating ticket:', id, 'with:', updates);
       const { error } = await (supabase.from('tickets') as any)
         .update(updates)
         .eq('id', id)
@@ -959,7 +947,7 @@ export default function TicketDetailScreen() {
   const canOperateOnTicket = isAssignee || isMSTUser;
 
   // DEBUG: Log isAssignee resolution every render
-  if (typeof __DEV__ !== 'undefined' && __DEV__ && ticket) {
+  if (__DEV__ && ticket) {
     console.log('[TicketDetail] isAssignee check:', {
       authUserId: authUser?.id,
       assigneeRelId: ticket.assignee?.id,
@@ -1973,7 +1961,7 @@ export default function TicketDetailScreen() {
                   backgroundColor: '#FFFFFF', maxHeight: 200, overflow: 'hidden',
                   shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5
                 }}>
-                  <ScrollView nestedScrollEnabled>
+                  <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
                     {procurementUsers.map((u, i) => (
                       <TouchableOpacity
                         key={u.id}

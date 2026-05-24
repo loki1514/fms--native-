@@ -153,7 +153,7 @@ export default function PropertyDetailScreen({
       <MobileFooter activeTab="dashboard" />
 
       <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} propertyId={property.id} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
     </View>
   );
 }
@@ -193,9 +193,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   avatarImage: { width: 36, height: 36, borderRadius: 18 },
-  avatarText: { color: '#FFF', fontSize: 13, fontWeight: '700', fontFamily: fontSans },
-  greetingText: { color: '#FFF', fontSize: 14, fontWeight: '700', fontFamily: fontSans },
-  headerSubtitle: { color: 'rgba(255,255,255,0.40)', fontSize: 11, fontFamily: fontSans, marginTop: 1 },
+  avatarText: { color: '#FFF', fontSize: 13, fontWeight: '700', },
+  greetingText: { color: '#FFF', fontSize: 14, fontWeight: '700', },
+  headerSubtitle: { color: 'rgba(255,255,255,0.40)', fontSize: 11,  marginTop: 1 },
   headerRight: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   headerIconBtn: { position: 'relative' },
   notificationBadge: { position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
@@ -203,14 +203,14 @@ const styles = StyleSheet.create({
   // Hero
   headerHero: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: SPACING.xl, marginTop: 8 },
   heroLeft: { flex: 1, paddingTop: 4 },
-  welcomeText: { fontFamily: fontSans, fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: 1.5 },
-  propertyName: { fontFamily: fontDisplay, fontSize: 42, fontWeight: '800', color: '#FFFFFF', marginTop: 0, letterSpacing: -1.2 },
-  propertyCode: { fontFamily: fontSans, fontSize: 14, color: 'rgba(255,255,255,0.4)', marginTop: 4, fontWeight: '500' },
+  welcomeText: {  fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: 1.5 },
+  propertyName: {  fontSize: 42, fontWeight: '800', color: '#FFFFFF', marginTop: 0, letterSpacing: -1.2 },
+  propertyCode: {  fontSize: 14, color: 'rgba(255,255,255,0.4)', marginTop: 4, fontWeight: '500' },
   heroRight: { alignItems: 'flex-end' },
   tempContainer: { flexDirection: 'row', alignItems: 'center', gap: 10, position: 'relative' },
-  tempText: { fontFamily: fontDisplay, fontSize: 64, fontWeight: '800', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 10, zIndex: 10 },
+  tempText: {  fontSize: 64, fontWeight: '800', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 10, zIndex: 10 },
   moonImage: { width: 120, height: 120, position: 'absolute', right: -20, top: -15, opacity: 0.8 },
   weatherStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -8, marginRight: 30 },
-  weatherStatusText: { fontFamily: fontSans, fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.6)', letterSpacing: 1 },
+  weatherStatusText: {  fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.6)', letterSpacing: 1 },
   dashboardGrid: { paddingVertical: 10, gap: 4 },
 });

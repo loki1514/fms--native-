@@ -40,8 +40,7 @@ export function ContextBar({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.breadcrumbRow}
-      >
+        contentContainerStyle={styles.breadcrumbRow} showsVerticalScrollIndicator={false}>
         {levels.map((level, i) => {
           const isLast = i === levels.length - 1;
           const canNavigate = !isLast && onNavigateUp;

@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * FluidOrb — Crystal energy orb with atmospheric palette
+ * FluidOrb — Crystal energy orb with sky/indigo palette
  *
- * Primary: Slate Blue-Green (#708F96) with Warm Tan/Gold accent (#AA895F).
+ * Sky blue primary (#38bdf8) with indigo accent (#818cf8).
  * Slower, calmer animation for a serene variant.
  * GPU-rendered via expo-gl — all animation on GPU via GLSL.
  */
@@ -15,8 +15,8 @@ export default function FluidOrb() {
   return (
     <CrystalOrbCore
       size={70}
-      primaryColor="#708F96"
-      secondaryColor="#AA895F"
+      primaryColor="#38bdf8"
+      secondaryColor="#818cf8"
       speed={0.6}
       intensity={1.0}
     />

@@ -23,16 +23,17 @@ import SafeBlurView from '@/components/ui/SafeBlurView';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createClient } from '@/utils/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '../../utils/supabase/client';
+import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
-import TicketCard from '@/components/shared/TicketCard';
-import SignOutModal from '@/components/ui/SignOutModal';
-import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
-import MobileFooter from '@/components/shared/MobileFooter';
-import { LoggersMenu } from '@/components/shared/LoggersMenu';
-import StockScannerModal from '@/components/stock/StockScannerModal';
-import { TicketShuffleStack } from '@/components/shared/TicketShuffleStack';
+import NotificationBell from '@/components/dashboard/NotificationBell';
+import TicketCard from '../shared/TicketCard';
+import SignOutModal from '../ui/SignOutModal';
+import { TicketCreateModal } from '../tickets/TicketCreateModal';
+import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
+import { LoggersMenu } from '../shared/LoggersMenu';
+import StockScannerModal from '../stock/StockScannerModal';
+import { TicketShuffleStack } from '../shared/TicketShuffleStack';
 import FloatingMenu from '@/components/ui/FloatingMenu';
 import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
 import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
@@ -683,13 +684,11 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
           >
             <Ionicons name="qr-code-outline" size={22} color="#708F96" />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.bellButton}
-            onPress={() => Alert.alert('Notifications', 'Notifications coming soon!')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
+          <NotificationBell 
+            style={styles.bellButton} 
+            iconSize={24} 
+            iconColor={colors.textSecondary} 
+          />
         </View>
       </View>
 
@@ -699,7 +698,14 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
         {activeTab === 'profile' && renderProfileTab()}
       </View>
 
-      <MobileFooter activeTab="dashboard" />
+      <AppBottomNav
+        activeTab={activeTab as TabKey}
+        propertyId={propertyId}
+        onLoggersPress={() => setShowLoggersMenu(true)}
+        onCreateRequestPress={() => setShowCreateModal(true)}
+        baseRoute="/staff"
+        showLoggers={false}
+      />
 
       <LoggersMenu visible={showLoggersMenu} onClose={() => setShowLoggersMenu(false)} propertyId={propertyId} />
 

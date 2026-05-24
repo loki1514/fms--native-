@@ -144,7 +144,7 @@ export default function InviteMemberModal({ isOpen, onClose, orgId, orgName, pro
             {/* Role */}
             <View style={styles.field}>
               <Text style={styles.label}>Role</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false}>
                 <View style={styles.chipRow}>
                   {ROLES.map(r => (
                     <TouchableOpacity key={r.value} style={[styles.roleChip, role === r.value && styles.roleChipActive]} onPress={() => setRole(r.value)}>

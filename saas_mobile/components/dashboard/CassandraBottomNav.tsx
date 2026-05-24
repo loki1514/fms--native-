@@ -4,19 +4,17 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
+import { Colors, Radius } from '@/constants/cassandra-theme';
 import { SPACING } from '@/constants/designSystem';
-import SidekickFace from '@/components/dashboard/SidekickFace';
 
-const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
-
-export type NavItem = 'home' | 'calendar' | 'activity' | 'rewards' | 'cassandra';
+export type NavItem = 'home' | 'calendar' | 'activity' | 'rewards';
 
 interface CassandraBottomNavProps {
   active: NavItem;
   onChange: (item: NavItem) => void;
-  onChat?: () => void;
 }
 
 const NAV_ITEMS: { key: NavItem; label: string; icon: (active: boolean) => React.ReactNode }[] = [
@@ -65,13 +63,11 @@ const NAV_ITEMS: { key: NavItem; label: string; icon: (active: boolean) => React
 export const CassandraBottomNav: React.FC<CassandraBottomNavProps> = ({
   active,
   onChange,
-  onChat,
 }) => {
   return (
     <View style={styles.container}>
       <View style={styles.pill}>
-        {/* Left items */}
-        {NAV_ITEMS.slice(0, 2).map((item) => {
+        {NAV_ITEMS.map((item) => {
           const isActive = active === item.key;
           return (
             <TouchableOpacity
@@ -80,42 +76,15 @@ export const CassandraBottomNav: React.FC<CassandraBottomNavProps> = ({
               activeOpacity={0.8}
               style={styles.item}
             >
-              {isActive && <View style={styles.activePill} />}
+              {isActive && (
+                <View
+                  style={styles.activePill}
+                />
+              )}
               <View style={styles.iconWrapper}>{item.icon(isActive)}</View>
-              {isActive && <Text style={styles.activeLabel}>{item.label}</Text>}
-            </TouchableOpacity>
-          );
-        })}
-
-        {/* Center Cassandra Orb */}
-        <TouchableOpacity
-          style={styles.centerItem}
-          onPress={() => onChat ? onChat() : onChange('cassandra')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.askPill}>
-            <Text style={styles.askPillText}>ASK CASSANDRA</Text>
-          </View>
-          <View style={styles.orbContainer}>
-            <View style={styles.orbGlow}>
-              <SidekickFace size={36} state="idle" compact />
-            </View>
-          </View>
-        </TouchableOpacity>
-
-        {/* Right items */}
-        {NAV_ITEMS.slice(2).map((item) => {
-          const isActive = active === item.key;
-          return (
-            <TouchableOpacity
-              key={item.key}
-              onPress={() => onChange(item.key)}
-              activeOpacity={0.8}
-              style={styles.item}
-            >
-              {isActive && <View style={styles.activePill} />}
-              <View style={styles.iconWrapper}>{item.icon(isActive)}</View>
-              {isActive && <Text style={styles.activeLabel}>{item.label}</Text>}
+              {isActive && (
+                <Text style={styles.activeLabel}>{item.label}</Text>
+              )}
             </TouchableOpacity>
           );
         })}
@@ -127,26 +96,22 @@ export const CassandraBottomNav: React.FC<CassandraBottomNavProps> = ({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
+    bottom: 24,
     left: 0,
     right: 0,
-    bottom: 0,
     alignItems: 'center',
     zIndex: 100,
   },
   pill: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-evenly',
-    width: '100%',
-    backgroundColor: 'rgba(14, 14, 22, 0.92)',
-    paddingTop: 10,
-    paddingBottom: 6,
-    paddingHorizontal: 12,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30,30,35,0.92)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
@@ -160,54 +125,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     position: 'relative',
-  },
-  centerItem: {
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: 0,
-    width: 80,
-    gap: 2,
-    paddingBottom: 4,
-    position: 'relative',
-  },
-  askPill: {
-    position: 'absolute',
-    top: -14,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  askPillText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 8,
-    fontWeight: '800',
-    fontFamily: fontSans,
-    letterSpacing: 0.5,
-  },
-  orbContainer: {
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -24,
-  },
-  orbGlow: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.2)',
-    shadowColor: '#3B82F6',
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 10,
   },
   activePill: {
     ...StyleSheet.absoluteFillObject,

@@ -18,13 +18,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { createClient } from '@/utils/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '../../utils/supabase/client';
+import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
-import SignOutModal from '@/components/ui/SignOutModal';
-import MobileFooter from '@/components/shared/MobileFooter';
-import StockScannerModal from '@/components/stock/StockScannerModal';
+import SignOutModal from '../ui/SignOutModal';
+import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
+import StockScannerModal from '../stock/StockScannerModal';
 import FloatingMenu from '@/components/ui/FloatingMenu';
+import NotificationBell from '@/components/dashboard/NotificationBell';
 
 const DRAWER_WIDTH = 280;
 
@@ -218,7 +219,8 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
   // ─── Overview Tab ───────────────────────────────────────────────────────────
   const renderOverviewTab = () => (
     <LinearGradient colors={isDark ? ['#0F172A', '#1E293B'] : ['#F8FAFC', '#E2E8F0']} style={styles.tabContent}>
-      <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+          showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={styles.ssmHeader}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.ssmHeaderTitle, { color: colors.textSecondary }]}>
@@ -319,7 +321,7 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
             </TouchableOpacity>
             <TouchableOpacity style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.08)' }]} onPress={() => router.push('/property/' + propertyId + '/checklist' as any)}>
               <Ionicons name="list-outline" size={20} color="#F59E0B" />
-              <Text style={[styles.actionBtnText, { color: '#F59E0B' }]}>SOP</Text>
+              <Text style={[styles.actionBtnText, { color: '#F59E0B' }]}>Checklists</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -386,7 +388,7 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
       <View style={styles.checklistEmbedArea}>
         <TouchableOpacity style={[styles.stockEmbedBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => router.push('/property/' + propertyId + '/checklist' as any)}>
           <Ionicons name="checkbox-outline" size={32} color="#10B981" />
-          <Text style={[styles.stockEmbedTitle, { color: colors.textPrimary }]}>Checklists & SOPs</Text>
+          <Text style={[styles.stockEmbedTitle, { color: colors.textPrimary }]}>Checklists</Text>
           <Text style={[styles.stockEmbedSub, { color: colors.textSecondary }]}>Manage daily checklists and standard operating procedures</Text>
           <View style={[styles.stockEmbedStatRow, { backgroundColor: isDark ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.06)' }]}>
             <Ionicons name="list-outline" size={14} color="#10B981" />
@@ -404,7 +406,7 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
 
   // ─── Profile Tab ───────────────────────────────────────────────────────────
   const renderProfileTab = () => (
-    <ScrollView style={[styles.tabContent, { backgroundColor: colors.background }]}>
+    <ScrollView style={[styles.tabContent, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
       <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.profileHeader}>
           <View style={[styles.profileAvatar, { backgroundColor: colors.primary }]}>
@@ -470,9 +472,7 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
           >
             <Ionicons name="qr-code-outline" size={22} color="#708F96" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.bellButton} onPress={() => Alert.alert('Notifications', 'Notifications coming soon!')} activeOpacity={0.7}>
-            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
+          <NotificationBell style={styles.bellButton} iconSize={24} iconColor={colors.textSecondary} />
         </View>
       </View>
 
@@ -495,7 +495,14 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
         {activeTab === 'profile' && renderProfileTab()}
       </View>
 
-      <MobileFooter activeTab="dashboard" />
+      <AppBottomNav
+        activeTab={activeTab === 'stock' ? 'stock' : (activeTab === 'checklist' ? 'overview' : activeTab) as TabKey}
+        propertyId={propertyId}
+        onLoggersPress={() => {}}
+        onCreateRequestPress={() => {}}
+        baseRoute="/soft-service-manager"
+        showLoggers={false}
+      />
 
       <SignOutModal visible={showSignOutModal} onClose={() => setShowSignOutModal(false)} onSignOut={signOut} />
 
@@ -528,18 +535,18 @@ const styles = StyleSheet.create({
   drawerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1 },
   drawerCloseBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   drawerBadge: { alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, borderWidth: 1, marginTop: 8, marginBottom: 4 },
-  drawerBadgeText: { fontFamily: 'Poppins-Bold', fontSize: 8, fontWeight: '900', letterSpacing: 1.5 },
-  drawerSectionLabel: { fontFamily: 'Poppins-Bold', fontSize: 9, fontWeight: '700', letterSpacing: 1.2, paddingHorizontal: 16, marginBottom: 6, marginTop: 12 },
+  drawerBadgeText: {  fontSize: 8, fontWeight: '900', letterSpacing: 1.5 },
+  drawerSectionLabel: {  fontSize: 9, fontWeight: '700', letterSpacing: 1.2, paddingHorizontal: 16, marginBottom: 6, marginTop: 12 },
   drawerItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, paddingHorizontal: 16, marginHorizontal: 8, borderRadius: 12, marginBottom: 2 },
-  drawerItemLabel: { fontFamily: 'Urbanist-Medium', fontSize: 15, letterSpacing: 0.1 },
+  drawerItemLabel: {  fontSize: 15, letterSpacing: 0.1 },
   drawerBottom: { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 },
   drawerUserCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, padding: 10, marginBottom: 10, borderWidth: 1 },
   drawerAvatar: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-  drawerAvatarText: { fontFamily: 'Poppins-Bold', fontSize: 14, color: '#708F96' },
-  drawerUserName: { fontFamily: 'Poppins-Medium', fontSize: 13, fontWeight: '600' },
-  drawerUserRole: { fontFamily: 'Urbanist-Regular', fontSize: 11, marginTop: 1 },
+  drawerAvatarText: {  fontSize: 14, color: '#708F96' },
+  drawerUserName: {  fontSize: 13, fontWeight: '600' },
+  drawerUserRole: {  fontSize: 11, marginTop: 1 },
   drawerSignOut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12 },
-  drawerSignOutText: { fontFamily: 'Urbanist-Medium', fontSize: 14, fontWeight: '600', color: '#EF4444' },
+  drawerSignOutText: {  fontSize: 14, fontWeight: '600', color: '#EF4444' },
 
   // Content
   tabContent: { flex: 1 },

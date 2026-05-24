@@ -399,8 +399,7 @@ const s = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontFamily: 'Poppins-Bold',
-    color: '#fff',
+        color: '#fff',
     letterSpacing: 0.3,
   },
 
@@ -422,8 +421,7 @@ const s = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 10,
-    fontFamily: 'Urbanist-Bold',
-    letterSpacing: 1.2,
+        letterSpacing: 1.2,
     marginBottom: 16,
     textTransform: 'uppercase',
   },
@@ -456,8 +454,7 @@ const s = StyleSheet.create({
   },
   avatarPlaceholderText: {
     fontSize: 36,
-    fontFamily: 'Poppins-Bold',
-    color: '#708F96',
+        color: '#708F96',
   },
   cameraBtn: {
     position: 'absolute',
@@ -474,13 +471,11 @@ const s = StyleSheet.create({
   },
   nameText: {
     fontSize: 20,
-    fontFamily: 'Poppins-Bold',
-    textAlign: 'center',
+        textAlign: 'center',
   },
   emailText: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Regular',
-    textAlign: 'center',
+        textAlign: 'center',
     marginTop: 2,
   },
   roleBadge: {
@@ -492,8 +487,7 @@ const s = StyleSheet.create({
   },
   roleBadgeText: {
     fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-    color: '#708F96',
+        color: '#708F96',
     textTransform: 'capitalize',
   },
 
@@ -501,8 +495,7 @@ const s = StyleSheet.create({
   fieldGroup: {},
   fieldLabel: {
     fontSize: 10,
-    fontFamily: 'Urbanist-Bold',
-    letterSpacing: 1,
+        letterSpacing: 1,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
@@ -512,8 +505,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
 
   // Save button
   saveBtn: {
@@ -528,8 +520,7 @@ const s = StyleSheet.create({
   },
   saveBtnText: {
     fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-    color: '#fff',
+        color: '#fff',
   },
 
   // Info rows
@@ -551,14 +542,12 @@ const s = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-    letterSpacing: 0.5,
+        letterSpacing: 0.5,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
 
   // Modal
   modalOverlay: {
@@ -583,8 +572,7 @@ const s = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   modalOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -595,6 +583,5 @@ const s = StyleSheet.create({
   },
   modalOptionText: {
     fontSize: 15,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
 });

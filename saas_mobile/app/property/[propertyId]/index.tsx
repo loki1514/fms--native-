@@ -3,10 +3,7 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 
-/**
- * Property Index — Role-based dashboard routing
- * All property admin roles now use LovablePropertyAdminDashboard
- */
+// All roles now use the unified sidebar dashboard with capability-based module filtering.
 export default function PropertyIndex() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { user, membership, isLoading } = useAuth();
@@ -29,7 +26,7 @@ export default function PropertyIndex() {
 
   // Role-based dashboard routing
   const propMembership = membership.properties?.find(
-    (p) => p.id?.toLowerCase() === propertyId.toLowerCase()
+    (p) => p.id.toLowerCase() === propertyId.toLowerCase()
   );
   const propRole = propMembership?.role?.trim()?.toLowerCase();
   const orgRole = (membership.org_role ?? '').trim().toLowerCase();
@@ -47,6 +44,17 @@ export default function PropertyIndex() {
 
   const isTenant = ['tenant', 'super_tenant'].includes(propRole ?? '');
 
+  const isProcurement = propRole === 'procurement' || orgRole === 'procurement';
+
+  // Lovable test dashboards — email-gated override
+  const userEmail = user.email?.toLowerCase() ?? '';
+  if (userEmail === 'srustikarta2022@gmail.com') {
+    return <Redirect href={`/property/${propertyId}/lovable-mst`} />;
+  }
+  if (userEmail === 'lohitexplores@gmail.com') {
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
+  }
+
   if (isOrgSuperAdmin) {
     return <Redirect href={`/property/${propertyId}/lovable-super-admin`} />;
   }
@@ -55,7 +63,7 @@ export default function PropertyIndex() {
     return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
 
-  // Unified dashboard router at /dashboard handles MST, Staff, and unmapped roles
+  // We now have a unified dashboard router at /dashboard that handles MST and Staff
   if (isMst) {
     return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
@@ -64,7 +72,10 @@ export default function PropertyIndex() {
     return <Redirect href={`/property/${propertyId}/tenant`} />;
   }
 
-  // Fallback to unified dashboard for unhandled roles (vendor, technician, etc.)
+  if (isProcurement) {
+    return <Redirect href={`/property/${propertyId}/procurement`} />;
+  }
+
   return <Redirect href={`/property/${propertyId}/dashboard`} />;
 }
 

@@ -2,7 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, Redirect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 
 // ─── Role-based Dashboard imports ─────────────────────────────────────────────
@@ -17,10 +17,9 @@ import LovableStaffDashboard from '@/components/dashboard/LovableStaffDashboard'
 
 const MST_ROLES = ['master_admin', 'mst', 'super_admin'];
 const ORG_ADMIN_ROLES = ['org_super_admin', 'org_admin', 'owner'];
-const PROPERTY_ADMIN_ROLES = ['property_admin', 'admin', 'manager', 'property_manager', 'facility_manager', 'spoc', 'administrator'];
+const PROPERTY_ADMIN_ROLES = ['property_admin', 'admin'];
 const SECURITY_ROLES = ['security', 'security_guard', 'guard'];
 const SOFT_SERVICE_ROLES = ['soft_service_manager', 'soft_services', 'housekeeping_manager'];
-const STAFF_ROLES = ['staff', 'maintenance_staff', 'technician', 'helper', 'cleaner'];
 
 export default function DashboardScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
@@ -44,15 +43,11 @@ export default function DashboardScreen() {
     if (PROPERTY_ADMIN_ROLES.includes(propRole)) return 'property_admin';
     if (SECURITY_ROLES.includes(propRole)) return 'security';
     if (SOFT_SERVICE_ROLES.includes(propRole)) return 'soft_service';
-    if (STAFF_ROLES.includes(propRole)) return 'staff';
 
-    // 3. Log unrecognized roles for debugging
-    if (propRole && propRole !== '') {
-      console.warn(`[DashboardRouter] Unrecognized role "${propRole}" — falling back to staff dashboard`);
-    }
+    if (propRole === 'procurement' || orgRole === 'procurement') return 'procurement';
 
-    // 4. Default to staff
-    return 'staff';
+    // 3. Default to staff
+    return propRole || 'staff';
   }, [membership, propertyId]);
 
   // Show spinner while membership loads
@@ -67,6 +62,10 @@ export default function DashboardScreen() {
   const pid = propertyId ?? '';
 
   // ─── Role-based render ────────────────────────────────────────────────────
+  if (effectiveRole === 'procurement') {
+    return <Redirect href={`/property/${pid}/procurement`} />;
+  }
+
   if (effectiveRole === 'mst') {
     return <LovableMstDashboard propertyId={pid} />;
   }
@@ -84,12 +83,12 @@ export default function DashboardScreen() {
     return <LovableStaffDashboard propertyId={pid} />;
   }
 
-  // property_admin and any other mapped role → property admin dashboard
+  // property_admin, tenant, vendor, and any other role → property admin dashboard
   if (effectiveRole === 'property_admin') {
     return <LovablePropertyAdminDashboard propertyId={pid} />;
   }
 
-  // Any unhandled role defaults to the staff dashboard
+  // Any other role (including staff, technician, unhandled roles) defaults to the staff dashboard
   return <LovableStaffDashboard propertyId={pid} />;
 }
 

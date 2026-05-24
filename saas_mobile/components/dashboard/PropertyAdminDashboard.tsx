@@ -17,16 +17,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { createClient } from '@/utils/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '../../utils/supabase/client';
+import { useAuth } from '../../hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/context';
 import { AuroraBackground } from '@/components/shared/AuroraBackground';
-import TicketCard from '@/components/shared/TicketCard';
-import SignOutModal from '@/components/ui/SignOutModal';
-import Skeleton from '@/components/ui/Skeleton';
-import MobileFooter from '@/components/shared/MobileFooter';
+import TicketCard from '../shared/TicketCard';
+import SignOutModal from '../ui/SignOutModal';
+import Skeleton from '../ui/Skeleton';
 
 // Types
 type Tab = 'overview' | 'requests' | 'users' | 'visitors' | 'diesel' | 'electricity' | 'settings' | 'profile';
@@ -233,6 +232,7 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
     <ScrollView 
       style={styles.tabContent}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
     >
       {/* Property Header */}
       <View style={styles.propertyHeader}>
@@ -365,6 +365,7 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
     <ScrollView 
       style={styles.tabContent}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
     >
       {/* Search */}
       <View style={styles.searchContainer}>
@@ -388,8 +389,7 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
         horizontal 
         showsHorizontalScrollIndicator={false}
         style={styles.filterScroll}
-        contentContainerStyle={styles.filterContainer}
-      >
+        contentContainerStyle={styles.filterContainer} showsVerticalScrollIndicator={false}>
         {[
           { key: 'all', label: 'All', icon: 'layers' },
           { key: 'open', label: 'Open', icon: 'alert-circle' },
@@ -447,7 +447,7 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
   );
 
   const renderUsersTab = () => (
-    <ScrollView style={styles.tabContent} contentContainerStyle={styles.navigableTabContent}>
+    <ScrollView style={styles.tabContent} contentContainerStyle={styles.navigableTabContent} showsVerticalScrollIndicator={false}>
       {/* Card to navigate to Users page */}
       <TouchableOpacity
         style={styles.navCard}
@@ -481,7 +481,7 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
   );
 
   const renderVisitorsTab = () => (
-    <ScrollView style={styles.tabContent} contentContainerStyle={styles.navigableTabContent}>
+    <ScrollView style={styles.tabContent} contentContainerStyle={styles.navigableTabContent} showsVerticalScrollIndicator={false}>
       {/* Card to navigate to Visitors page */}
       <TouchableOpacity
         style={styles.navCard}
@@ -515,7 +515,7 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
   );
 
   const renderProfileTab = () => (
-    <ScrollView style={styles.tabContent}>
+    <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
           <View style={[styles.profileAvatar, { backgroundColor: 'rgba(112,143,150,0.20)' }]}>
@@ -614,7 +614,56 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
       {activeTab === 'visitors' && renderVisitorsTab()}
       {activeTab === 'profile' && renderProfileTab()}
 
-      <MobileFooter activeTab="dashboard" />
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity 
+          style={styles.navItem} 
+          onPress={() => setActiveTab('overview')}
+        >
+          <Ionicons 
+            name={activeTab === 'overview' ? 'grid' : 'grid-outline'} 
+            size={24} 
+            color={activeTab === 'overview' ? '#708F96' : 'rgba(255,255,255,0.40)'} 
+          />
+          <Text style={[styles.navText, activeTab === 'overview' && styles.navTextActive]}>Overview</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.navItem} 
+          onPress={() => setActiveTab('requests')}
+        >
+          <Ionicons 
+            name={activeTab === 'requests' ? 'ticket' : 'ticket-outline'} 
+            size={24} 
+            color={activeTab === 'requests' ? '#708F96' : 'rgba(255,255,255,0.40)'} 
+          />
+          <Text style={[styles.navText, activeTab === 'requests' && styles.navTextActive]}>Requests</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navItem} 
+          onPress={() => setActiveTab('users')}
+        >
+          <Ionicons 
+            name={activeTab === 'users' ? 'people' : 'people-outline'} 
+            size={24} 
+            color={activeTab === 'users' ? '#708F96' : 'rgba(255,255,255,0.40)'} 
+          />
+          <Text style={[styles.navText, activeTab === 'users' && styles.navTextActive]}>Users</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.navItem} 
+          onPress={() => setActiveTab('profile')}
+        >
+          <Ionicons 
+            name={activeTab === 'profile' ? 'person' : 'person-outline'} 
+            size={24} 
+            color={activeTab === 'profile' ? '#708F96' : 'rgba(255,255,255,0.40)'} 
+          />
+          <Text style={[styles.navText, activeTab === 'profile' && styles.navTextActive]}>Profile</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Sign Out Modal */}
       <SignOutModal
@@ -641,8 +690,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: 'rgba(255,255,255,0.55)',
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -655,15 +703,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginTop: 16,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   errorText: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 8,
     textAlign: 'center',
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   retryButton: {
     marginTop: 24,
     paddingHorizontal: 24,
@@ -674,8 +720,7 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   topNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -695,15 +740,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Poppins-Bold',
-    letterSpacing: -0.5,
+        letterSpacing: -0.5,
   },
   topNavSubtitle: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 2,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   tabContent: {
     flex: 1,
   },
@@ -734,14 +777,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   propertyAddress: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 4,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   propertyCodeBadge: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -756,8 +797,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.55)',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   quickActions: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -785,8 +825,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.80)',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   statsGrid: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -806,15 +845,13 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: '800',
     color: '#708F96',
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   statLabelLarge: {
     fontSize: 14,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.55)',
     marginTop: 4,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   statsColumn: {
     flex: 1,
     gap: 12,
@@ -837,8 +874,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     color: '#FFFFFF',
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   statNumberUrgent: {
     color: '#708F96',
   },
@@ -847,8 +883,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: 'rgba(255,255,255,0.55)',
     marginTop: 2,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   statLabelUrgent: {
     color: 'rgba(255,255,255,0.70)',
   },
@@ -880,14 +915,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: '#FFFFFF',
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   secondaryStatLabel: {
     fontSize: 12,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.55)',
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   section: {
     padding: 20,
   },
@@ -901,8 +934,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   seeAllText: {
     fontSize: 13,
     fontWeight: '600',
@@ -917,8 +949,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: 'rgba(255,255,255,0.55)',
     fontWeight: '500',
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   ticketsList: {
     gap: 12,
   },
@@ -940,8 +971,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 15,
     color: '#FFFFFF',
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   filterScroll: {
     maxHeight: 60,
   },
@@ -985,15 +1015,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginTop: 16,
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   comingSoonText: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 8,
     textAlign: 'center',
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   // Navigable tab content (Users, Visitors tabs)
   navigableTabContent: {
     padding: 20,
@@ -1020,13 +1048,11 @@ const styles = StyleSheet.create({
   navCardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    fontFamily: 'Poppins-SemiBold',
-    marginBottom: 4,
+        marginBottom: 4,
   },
   navCardDesc: {
     fontSize: 13,
-    fontFamily: 'Urbanist-Regular',
-    lineHeight: 18,
+        lineHeight: 18,
   },
   quickStatsGrid: {
     flexDirection: 'row',
@@ -1042,13 +1068,11 @@ const styles = StyleSheet.create({
   quickStatNumber: {
     fontSize: 28,
     fontWeight: '700',
-    fontFamily: 'Poppins-Bold',
-    marginBottom: 4,
+        marginBottom: 4,
   },
   quickStatLabel: {
     fontSize: 12,
-    fontFamily: 'Urbanist-Medium',
-    textAlign: 'center',
+        textAlign: 'center',
   },
   profileCard: {
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -1075,8 +1099,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.90)',
-    fontFamily: 'Poppins-Bold',
-  },
+      },
   profileBadge: {
     backgroundColor: 'rgba(112,143,150,0.15)',
     paddingHorizontal: 16,
@@ -1104,14 +1127,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'rgba(255,255,255,0.55)',
     textTransform: 'uppercase',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   profileValue: {
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
-    fontFamily: 'Urbanist-SemiBold',
-  },
+      },
   signOutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1149,8 +1170,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: 'rgba(255,255,255,0.40)',
     marginTop: 4,
-    fontFamily: 'Urbanist-Regular',
-  },
+      },
   navTextActive: {
     color: '#708F96',
   },

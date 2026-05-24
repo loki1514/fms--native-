@@ -390,8 +390,7 @@ const styles = StyleSheet.create({
   // ── Typography hierarchy ───────────────────────
   // Title: 26px bold — largest, most prominent
   propertyName: {
-    fontFamily: display,
-    fontSize: 26,
+        fontSize: 26,
     fontWeight: '700',
     color: T.textPrimary,
     letterSpacing: -0.4,
@@ -402,8 +401,7 @@ const styles = StyleSheet.create({
   },
   // Address: 13px regular, 60% opacity — clearly secondary
   address: {
-    fontFamily: display,
-    fontSize: 13,
+        fontSize: 13,
     fontWeight: '400',
     color: T.textSecondary,
     marginTop: T.spaceXs,
@@ -431,8 +429,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   badgeText: {
-    fontFamily: display,
-    fontSize: 11,
+        fontSize: 11,
     fontWeight: '500',
   },
 });

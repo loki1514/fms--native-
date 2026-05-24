@@ -18,7 +18,6 @@ import GlobalNavigationDrawer from '@/components/shared/GlobalNavigationDrawer';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import { useUnreadStore } from '@/stores/unreadStore';
 import { useAuth } from '@/hooks/useAuth';
-import { getPropertyRole } from '@/types/membership';
 
 const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 
@@ -31,14 +30,6 @@ export default function GlobalBottomNav() {
 
   const [showChat, setShowChat] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
-
-  // Determine role for current property
-  const role = useMemo(() => {
-    if (!propertyId) return null;
-    return getPropertyRole(membership, propertyId);
-  }, [membership, propertyId]);
-
-  const isTenant = role === 'tenant' || role === 'super_tenant';
 
   // Cassandra voice state
   const voiceState = useCassandraStore((s) => s.voiceState);
@@ -58,7 +49,6 @@ export default function GlobalBottomNav() {
     const p = pathname.toLowerCase();
     if (p.endsWith('/dashboard') || p.endsWith('/property/' + propertyId?.toLowerCase()) || p.match(/\/property\/[^\/]+$/)) return 'dashboard';
     if (p.includes('/tickets')) return 'tickets';
-    if (p.includes('/visitors')) return 'visitors';
     if (p.includes('/stock')) return 'stock';
     return 'more';
   }, [pathname, propertyId]);
@@ -71,10 +61,9 @@ export default function GlobalBottomNav() {
     <>
       <View style={styles.container}>
         <SafeBlurView intensity={80} style={[styles.navPill, { paddingBottom: insets.bottom > 0 ? insets.bottom + 6 : 14 }]} tint="dark">
-          {/* Dashboard */}
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'dashboard' && styles.navItemActive]}
-            onPress={() => navigate(isTenant ? 'tenant' : 'dashboard')}
+            onPress={() => navigate('dashboard')}
             activeOpacity={0.7}
           >
             <Ionicons
@@ -85,10 +74,9 @@ export default function GlobalBottomNav() {
             <Text style={[styles.navLabel, activeTab === 'dashboard' && styles.navLabelActive]}>Dashboard</Text>
           </TouchableOpacity>
 
-          {/* Tickets */}
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'tickets' && styles.navItemActive]}
-            onPress={() => navigate(isTenant ? 'tenant/requests' : 'tickets')}
+            onPress={() => navigate('tickets')}
             activeOpacity={0.7}
           >
             <Ionicons
@@ -99,36 +87,35 @@ export default function GlobalBottomNav() {
             <Text style={[styles.navLabel, activeTab === 'tickets' && styles.navLabelActive]}>Tickets</Text>
           </TouchableOpacity>
 
-          {/* Center Cassandra Orb */}
-          <TouchableOpacity style={[styles.navItem, styles.navItemCenter]} onPress={() => { setShowChat(true); useUnreadStore.getState().clearTicketChat(); }} activeOpacity={0.8}>
-            <SidekickFace state={faceState} size={44} onClick={() => { setShowChat(true); useUnreadStore.getState().clearTicketChat(); }} />
-            {ticketChatCount > 0 && (
-              <View style={[styles.badge, { top: -2, right: 8 }]}>
-                <Text style={styles.badgeText}>
-                  {ticketChatCount > 99 ? '99+' : ticketChatCount}
-                </Text>
+          <TouchableOpacity style={styles.navItemCenter} onPress={() => { setShowChat(true); useUnreadStore.getState().clearTicketChat(); }} activeOpacity={0.8}>
+            <View style={styles.orbWrapper}>
+              <View style={styles.orb}>
+                <SidekickFace state={faceState} size={32} onClick={() => { setShowChat(true); useUnreadStore.getState().clearTicketChat(); }} />
               </View>
-            )}
+              {ticketChatCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {ticketChatCount > 99 ? '99+' : ticketChatCount}
+                  </Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.navLabel}>Cassandra</Text>
           </TouchableOpacity>
 
-          {/* Visitors (tenant) or Stock (admin/staff) */}
           <TouchableOpacity
-            style={[styles.navItem, activeTab === (isTenant ? 'visitors' : 'stock') && styles.navItemActive]}
-            onPress={() => navigate(isTenant ? 'visitors' : 'stock')}
+            style={[styles.navItem, activeTab === 'stock' && styles.navItemActive]}
+            onPress={() => navigate('stock')}
             activeOpacity={0.7}
           >
             <Ionicons
-              name={activeTab === (isTenant ? 'visitors' : 'stock') ? (isTenant ? 'people' : 'business') : (isTenant ? 'people-outline' : 'business-outline')}
+              name={activeTab === 'stock' ? 'business' : 'business-outline'}
               size={22}
-              color={activeTab === (isTenant ? 'visitors' : 'stock') ? '#FFF' : 'rgba(255,255,255,0.4)'}
+              color={activeTab === 'stock' ? '#FFF' : 'rgba(255,255,255,0.4)'}
             />
-            <Text style={[styles.navLabel, activeTab === (isTenant ? 'visitors' : 'stock') && styles.navLabelActive]}>
-              {isTenant ? 'Visitors' : 'Stock'}
-            </Text>
+            <Text style={[styles.navLabel, activeTab === 'stock' && styles.navLabelActive]}>Stock</Text>
           </TouchableOpacity>
 
-          {/* More */}
           <TouchableOpacity
             style={[styles.navItem, activeTab === 'more' && styles.navItemActive]}
             onPress={() => setShowDrawer(true)}
@@ -148,7 +135,6 @@ export default function GlobalBottomNav() {
         visible={showChat}
         onClose={() => setShowChat(false)}
         orgId={orgId}
-        propertyId={propertyId}
         initialMode="voice"
       />
 
@@ -172,7 +158,7 @@ const styles = StyleSheet.create({
   },
   navPill: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-evenly',
     width: '100%',
     paddingTop: 10,
@@ -186,30 +172,48 @@ const styles = StyleSheet.create({
   },
   navItem: {
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     flex: 1,
     gap: 3,
     paddingVertical: 6,
     paddingHorizontal: 4,
-    paddingBottom: 4,
   },
   navItemActive: {
     // subtle highlight if needed
   },
   navItemCenter: {
-    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1.2,
+    gap: 3,
+    marginTop: -6,
   },
   navLabel: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 9,
     fontWeight: '700',
-    fontFamily: fontSans,
-    marginTop: 2,
+        marginTop: 2,
   },
   navLabelActive: {
     color: '#FFF',
   },
-
+  orb: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.2)',
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  orbWrapper: {
+    position: 'relative',
+  },
   badge: {
     position: 'absolute',
     top: -2,
@@ -228,6 +232,5 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 9,
     fontWeight: '800',
-    fontFamily: fontSans,
-  },
+      },
 });

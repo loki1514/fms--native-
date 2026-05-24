@@ -34,22 +34,23 @@ import {
 } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { createClient } from '@/utils/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '../../utils/supabase/client';
+import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
-import TicketCard from '@/components/shared/TicketCard';
-import SignOutModal from '@/components/ui/SignOutModal';
-import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
-import MobileFooter from '@/components/shared/MobileFooter';
-import { LoggersMenu } from '@/components/shared/LoggersMenu';
-import { TicketShuffleStack } from '@/components/shared/TicketShuffleStack';
+import TicketCard from '../shared/TicketCard';
+import SignOutModal from '../ui/SignOutModal';
+import { TicketCreateModal } from '../tickets/TicketCreateModal';
+import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
+import { LoggersMenu } from '../shared/LoggersMenu';
+import { TicketShuffleStack } from '../shared/TicketShuffleStack';
 import FloatingMenu from '@/components/ui/FloatingMenu';
 import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import NotificationBell from '@/components/dashboard/NotificationBell';
 
 // ---- Dotted Background Pattern ----
 const DottedBackground = ({ color, isDark }: { color?: string; isDark: boolean }) => {
@@ -164,7 +165,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   const { colors, isDark, theme } = useTheme();
 
   // State
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [property, setProperty] = useState<Property | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -448,6 +449,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
       <ScrollView 
         style={{ flex: 1 }}
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* High-Fidelity Header Row */}
@@ -597,6 +599,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
     <ScrollView 
       style={styles.tabContent}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
+      showsVerticalScrollIndicator={false}
     >
       {/* Filter Tabs */}
       <View style={[styles.filterContainer, { backgroundColor: colors.background }]}>
@@ -715,7 +718,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
   );
 
   const renderProfileTab = () => (
-    <ScrollView style={[styles.tabContent, { backgroundColor: colors.background }]}>
+    <ScrollView style={[styles.tabContent, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
       <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.profileHeader}>
           <View style={[styles.profileAvatar, { backgroundColor: colors.primary }]}>
@@ -820,13 +823,7 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
         {/* Top Right Actions */}
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            style={styles.bellButton}
-            onPress={() => { Alert.alert('Notifications', 'Notifications coming soon!'); }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="notifications-outline" size={24} color={colors.textSecondary} />
-          </TouchableOpacity>
+          <NotificationBell style={styles.bellButton} iconSize={24} iconColor={colors.textSecondary} />
         </View>
       </View>
 
@@ -836,7 +833,12 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
         {activeTab === 'requests' && renderRequestsTab()}
       </View>
 
-      <MobileFooter activeTab="dashboard" />
+      <AppBottomNav 
+        activeTab={activeTab}
+        propertyId={propertyId}
+        onLoggersPress={() => setShowLoggersMenu(true)}
+        onCreateRequestPress={() => setShowCreateModal(true)}
+      />
 
       <LoggersMenu 
         visible={showLoggersMenu}
@@ -1303,14 +1305,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   drawerBadgeText: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 8,
+        fontSize: 8,
     fontWeight: '900',
     letterSpacing: 1.5,
   },
   drawerSectionLabel: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 9,
+        fontSize: 9,
     fontWeight: '700',
     letterSpacing: 1.2,
     paddingHorizontal: 16,
@@ -1336,8 +1336,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   drawerQuickActionText: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 8,
+        fontSize: 8,
     fontWeight: '900',
     letterSpacing: 0.8,
   },
@@ -1352,8 +1351,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   drawerItemLabel: {
-    fontFamily: 'Urbanist-Medium',
-    fontSize: 15,
+        fontSize: 15,
     letterSpacing: 0.1,
   },
   drawerBottom: {
@@ -1380,18 +1378,15 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   drawerAvatarText: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 14,
+        fontSize: 14,
     color: '#708F96',
   },
   drawerUserName: {
-    fontFamily: 'Poppins-Medium',
-    fontSize: 13,
+        fontSize: 13,
     fontWeight: '600',
   },
   drawerUserRole: {
-    fontFamily: 'Urbanist-Regular',
-    fontSize: 11,
+        fontSize: 11,
     marginTop: 1,
   },
   drawerSignOut: {
@@ -1403,8 +1398,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   drawerSignOutText: {
-    fontFamily: 'Urbanist-Medium',
-    fontSize: 14,
+        fontSize: 14,
     fontWeight: '600',
     color: '#EF4444',
   },
@@ -1480,13 +1474,11 @@ const styles = StyleSheet.create({
   welcomeText: {
     fontSize: 13,
     fontWeight: '600',
-    fontFamily: 'Urbanist-Medium',
-  },
+      },
   nameText: {
     fontSize: 26,
     fontWeight: '900',
-    fontFamily: 'Poppins-Bold',
-    letterSpacing: -0.5,
+        letterSpacing: -0.5,
   },
   stackSection: {
     marginBottom: 10,
@@ -1512,8 +1504,7 @@ const styles = StyleSheet.create({
     color: '#1A2332',
   },
   headerSubtitle: {
-    fontFamily: 'NDot57',
-    fontSize: 14,
+        fontSize: 14,
     color: '#1A2332',
     marginTop: 0,
     letterSpacing: 1.5,
