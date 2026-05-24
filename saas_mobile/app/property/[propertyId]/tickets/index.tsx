@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
@@ -13,40 +12,47 @@ import {
   ScrollView,
   TextInput,
   Image,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { createClient } from '@/utils/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { useTheme } from '@/context';
-import TicketListItem from '@/components/tickets/TicketListItem';
-import MediaCaptureModal, { MediaFile } from '@/components/shared/MediaCaptureModal';
-import { GlassCard } from '@/constants/designSystem';
-import SafeBlurView from '@/components/ui/SafeBlurView';
-import { RotatingBorder } from '@/components/shared/RotatingBorder';
-import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
-import { LinearGradient } from 'expo-linear-gradient';
+} from "react-native";
+import { FlashList } from "@shopify/flash-list";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { createClient } from "@/utils/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/context";
+import TicketListItem from "@/components/tickets/TicketListItem";
+import MediaCaptureModal, {
+  MediaFile,
+} from "@/components/shared/MediaCaptureModal";
+import { GlassCard } from "@/constants/designSystem";
+import SafeBlurView from "@/components/ui/SafeBlurView";
+import { RotatingBorder } from "@/components/shared/RotatingBorder";
+import { TicketCreateModal } from "@/components/tickets/TicketCreateModal";
+import { LinearGradient } from "expo-linear-gradient";
 
-
-
-type StatusFilter = 'all' | 'mine' | 'open' | 'in_progress' | 'resolved' | 'closed';
-type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
+type StatusFilter =
+  | "all"
+  | "mine"
+  | "open"
+  | "in_progress"
+  | "resolved"
+  | "closed";
+type DateRangeFilter = "all" | "today" | "week" | "month";
 
 const FILTER_TABS: { key: StatusFilter; label: string }[] = [
-  { key: 'all',                label: 'All' },
-  { key: 'mine',               label: 'My Tickets' },
-  { key: 'open',               label: 'Opened' },
-  { key: 'in_progress',        label: 'In Progress' },
-  { key: 'resolved',           label: 'Resolved' },
-  { key: 'closed',             label: 'Closed' },
+  { key: "all", label: "All" },
+  { key: "mine", label: "My Tickets" },
+  { key: "open", label: "Opened" },
+  { key: "in_progress", label: "In Progress" },
+  { key: "resolved", label: "Resolved" },
+  { key: "closed", label: "Closed" },
 ];
 
 const DATE_RANGES: { key: DateRangeFilter; label: string }[] = [
-  { key: 'all',   label: 'All Time' },
-  { key: 'today', label: 'Today' },
-  { key: 'week', label: 'This Week' },
-  { key: 'month', label: 'This Month' },
+  { key: "all", label: "All Time" },
+  { key: "today", label: "Today" },
+  { key: "week", label: "This Week" },
+  { key: "month", label: "This Month" },
 ];
 
 interface TicketEscalationLog {
@@ -68,8 +74,12 @@ interface Ticket {
   updated_at: string;
   property_id: string;
   organization_id: string;
-  assignee: { id: string; full_name: string; user_photo_url?: string | null } | null;
-  creator:  { id: string; full_name: string } | null;
+  assignee: {
+    id: string;
+    full_name: string;
+    user_photo_url?: string | null;
+  } | null;
+  creator: { id: string; full_name: string } | null;
   photo_before_url?: string | null;
   is_internal?: boolean | null;
   ticket_escalation_logs?: TicketEscalationLog[];
@@ -78,13 +88,16 @@ interface Ticket {
 const PAGE_SIZE = 20;
 
 export default function TicketsScreen() {
-  const { propertyId, filter } = useLocalSearchParams<{ propertyId: string; filter?: string }>();
+  const { propertyId, filter } = useLocalSearchParams<{
+    propertyId: string;
+    filter?: string;
+  }>();
   const router = useRouter();
-  const isNeedsAttentionMode = filter === 'needs_attention';
+  const isNeedsAttentionMode = filter === "needs_attention";
   const supabase = createClient();
   const { membership, user: authUser } = useAuth();
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
@@ -92,108 +105,132 @@ export default function TicketsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [dateRange, setDateRange] = useState<DateRangeFilter>('all');
-  const [statusCounts, setStatusCounts] = useState<Record<StatusFilter, number>>({
-    all: 0, mine: 0, open: 0, in_progress: 0, resolved: 0, closed: 0,
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [dateRange, setDateRange] = useState<DateRangeFilter>("all");
+  const [statusCounts, setStatusCounts] = useState<
+    Record<StatusFilter, number>
+  >({
+    all: 0,
+    mine: 0,
+    open: 0,
+    in_progress: 0,
+    resolved: 0,
+    closed: 0,
   });
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const insets = useSafeAreaInsets();
-  const orgId = membership?.org_id ?? '';
+  const orgId = membership?.org_id ?? "";
 
   // Client-side filter for needs-attention mode
   const displayedTickets = useMemo(() => {
     if (!isNeedsAttentionMode) return tickets;
     return tickets.filter((t) => {
       // Critical priority
-      if (t.priority === 'critical') return true;
+      if (t.priority === "critical") return true;
       // High priority + active
-      if (t.priority === 'high' && !['resolved', 'closed'].includes(t.status)) return true;
+      if (t.priority === "high" && !["resolved", "closed"].includes(t.status))
+        return true;
       // Tenant ticket + active
-      if (t.is_internal === false && !['resolved', 'closed'].includes(t.status)) return true;
+      if (t.is_internal === false && !["resolved", "closed"].includes(t.status))
+        return true;
       // Stale ticket (>3 days open)
-      const daysOpen = (Date.now() - new Date(t.created_at).getTime()) / (1000 * 60 * 60 * 24);
-      if (daysOpen > 3 && ['open', 'assigned', 'in_progress'].includes(t.status)) return true;
+      const daysOpen =
+        (Date.now() - new Date(t.created_at).getTime()) / (1000 * 60 * 60 * 24);
+      if (
+        daysOpen > 3 &&
+        ["open", "assigned", "in_progress"].includes(t.status)
+      )
+        return true;
       return false;
     });
   }, [tickets, isNeedsAttentionMode]);
 
-  const buildQuery = useCallback((offset: number, limit: number) => {
-    if (!propertyId) return null;
-    let q = supabase
-      .from('tickets')
-      .select(`id, title, description, status, priority, ticket_number, created_at, updated_at,
+  const buildQuery = useCallback(
+    (offset: number, limit: number) => {
+      if (!propertyId) return null;
+      let q = supabase
+        .from("tickets")
+        .select(
+          `id, title, description, status, priority, ticket_number, created_at, updated_at,
                property_id, organization_id, photo_before_url, is_internal,
                assignee:users!assigned_to(id, full_name, user_photo_url),
                creator:users!raised_by(id, full_name),
                ticket_escalation_logs(from_level, to_level, escalated_at,
                  from_employee:users!from_employee_id(full_name, user_photo_url),
-                 to_employee:users!to_employee_id(full_name, user_photo_url))`)
-      .eq('property_id', propertyId)
-      .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+                 to_employee:users!to_employee_id(full_name, user_photo_url))`,
+        )
+        .eq("property_id", propertyId)
+        .or(
+          "is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))",
+        )
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
 
-    if (isNeedsAttentionMode) {
-      // Fetch all active tickets so we can client-side filter for needs attention
-      q = q.not('status', 'in', '("resolved","closed")');
-    } else if (statusFilter === 'mine') {
-      q = q.eq('assigned_to', authUser?.id ?? '');
-    } else if (statusFilter === 'open') {
-      q = q.in('status', ['open', 'assigned']);
-    } else if (statusFilter === 'in_progress') {
-      q = q.in('status', ['in_progress']);
-    } else if (statusFilter !== 'all') {
-      q = q.eq('status', statusFilter);
-    }
-
-    if (dateRange !== 'all') {
-      const now = new Date();
-      const end = now.toISOString().split('T')[0] + 'T23:59:59';
-      let start: string;
-      if (dateRange === 'today') {
-        start = now.toISOString().split('T')[0];
-      } else if (dateRange === 'week') {
-        const d = new Date(now);
-        d.setDate(d.getDate() - 7);
-        start = d.toISOString().split('T')[0];
-      } else {
-        const d = new Date(now);
-        d.setDate(d.getDate() - 30);
-        start = d.toISOString().split('T')[0];
+      if (isNeedsAttentionMode) {
+        // Fetch all active tickets so we can client-side filter for needs attention
+        q = q.not("status", "in", '("resolved","closed")');
+      } else if (statusFilter === "mine") {
+        q = q.eq("assigned_to", authUser?.id ?? "");
+      } else if (statusFilter === "open") {
+        q = q.in("status", ["open", "assigned"]);
+      } else if (statusFilter === "in_progress") {
+        q = q.in("status", ["in_progress"]);
+      } else if (statusFilter !== "all") {
+        q = q.eq("status", statusFilter);
       }
-      q = q.gte('created_at', start).lte('created_at', end);
-    }
 
-    return q;
-  }, [propertyId, statusFilter, dateRange, supabase, isNeedsAttentionMode]);
-
-  const fetchTickets = useCallback(async (reset = false) => {
-    if (!propertyId) return;
-    if (reset) setLoading(true);
-    try {
-      const q = buildQuery(0, PAGE_SIZE + 1);
-      if (!q) return;
-      const { data, error } = await q;
-      let items: Ticket[] = (data ?? []) as Ticket[];
-      if (error && error.code === 'PGRST116') {
-        // No rows — not an error, just empty
-        items = [];
-      } else if (error) {
-        throw error;
+      if (dateRange !== "all") {
+        const now = new Date();
+        const end = now.toISOString().split("T")[0] + "T23:59:59";
+        let start: string;
+        if (dateRange === "today") {
+          start = now.toISOString().split("T")[0];
+        } else if (dateRange === "week") {
+          const d = new Date(now);
+          d.setDate(d.getDate() - 7);
+          start = d.toISOString().split("T")[0];
+        } else {
+          const d = new Date(now);
+          d.setDate(d.getDate() - 30);
+          start = d.toISOString().split("T")[0];
+        }
+        q = q.gte("created_at", start).lte("created_at", end);
       }
-      const hasMoreItems = items.length > PAGE_SIZE;
-      setTickets(items.slice(0, PAGE_SIZE));
-      setHasMore(hasMoreItems);
-    } catch (err) {
-      console.error('Error fetching tickets:', err);
-      setTickets([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [propertyId, buildQuery]);
+
+      return q;
+    },
+    [propertyId, statusFilter, dateRange, supabase, isNeedsAttentionMode],
+  );
+
+  const fetchTickets = useCallback(
+    async (reset = false) => {
+      if (!propertyId) return;
+      if (reset) setLoading(true);
+      try {
+        const q = buildQuery(0, PAGE_SIZE + 1);
+        if (!q) return;
+        const { data, error } = await q;
+        let items: Ticket[] = (data ?? []) as Ticket[];
+        if (error && error.code === "PGRST116") {
+          // No rows — not an error, just empty
+          items = [];
+        } else if (error) {
+          throw error;
+        }
+        const hasMoreItems = items.length > PAGE_SIZE;
+        setTickets(items.slice(0, PAGE_SIZE));
+        setHasMore(hasMoreItems);
+      } catch (err) {
+        console.error("Error fetching tickets:", err);
+        setTickets([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [propertyId, buildQuery],
+  );
 
   useEffect(() => {
     fetchTickets(true);
@@ -212,12 +249,12 @@ export default function TicketsScreen() {
       if (!q) return;
       const { data, error } = await q;
       let items: Ticket[] = (data ?? []) as Ticket[];
-      if (error && error.code === 'PGRST116') items = [];
+      if (error && error.code === "PGRST116") items = [];
       else if (error) throw error;
-      setTickets(prev => [...prev, ...items.slice(0, PAGE_SIZE)]);
+      setTickets((prev) => [...prev, ...items.slice(0, PAGE_SIZE)]);
       setHasMore(items.length > PAGE_SIZE);
     } catch (err) {
-      console.error('Error loading more:', err);
+      console.error("Error loading more:", err);
     } finally {
       setLoadingMore(false);
     }
@@ -227,65 +264,107 @@ export default function TicketsScreen() {
     if (!propertyId) return;
     try {
       const counts: Record<StatusFilter, number> = {
-        all: 0, mine: 0, open: 0, in_progress: 0, resolved: 0, closed: 0,
+        all: 0,
+        mine: 0,
+        open: 0,
+        in_progress: 0,
+        resolved: 0,
+        closed: 0,
       };
 
       const getDateRange = (range: DateRangeFilter) => {
         const now = new Date();
-        const end = now.toISOString().split('T')[0] + 'T23:59:59';
-        if (range === 'today') return { start: now.toISOString().split('T')[0], end };
-        if (range === 'week') { const d = new Date(now); d.setDate(d.getDate() - 7); return { start: d.toISOString().split('T')[0], end }; }
-        if (range === 'month') { const d = new Date(now); d.setDate(d.getDate() - 30); return { start: d.toISOString().split('T')[0], end }; }
-        return { start: '1970-01-01', end };
+        const end = now.toISOString().split("T")[0] + "T23:59:59";
+        if (range === "today")
+          return { start: now.toISOString().split("T")[0], end };
+        if (range === "week") {
+          const d = new Date(now);
+          d.setDate(d.getDate() - 7);
+          return { start: d.toISOString().split("T")[0], end };
+        }
+        if (range === "month") {
+          const d = new Date(now);
+          d.setDate(d.getDate() - 30);
+          return { start: d.toISOString().split("T")[0], end };
+        }
+        return { start: "1970-01-01", end };
       };
       const { start, end } = getDateRange(dateRange);
 
-      const { count: allCount } = await supabase
-        .from('tickets').select('id', { count: 'exact', head: true })
-        .eq('property_id', propertyId)
-        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
-        .gte('created_at', start).lte('created_at', end) as any;
+      const { count: allCount } = (await supabase
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", propertyId)
+        .or(
+          "is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))",
+        )
+        .gte("created_at", start)
+        .lte("created_at", end)) as any;
       counts.all = allCount ?? 0;
 
-      const { count: mineCount } = await supabase
-        .from('tickets').select('id', { count: 'exact', head: true })
-        .eq('property_id', propertyId)
-        .eq('assigned_to', authUser?.id ?? '')
-        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
-        .gte('created_at', start).lte('created_at', end) as any;
+      const { count: mineCount } = (await supabase
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", propertyId)
+        .eq("assigned_to", authUser?.id ?? "")
+        .or(
+          "is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))",
+        )
+        .gte("created_at", start)
+        .lte("created_at", end)) as any;
       counts.mine = mineCount ?? 0;
 
-      const { count: openCount } = await supabase
-        .from('tickets').select('id', { count: 'exact', head: true })
-        .eq('property_id', propertyId).in('status', ['open', 'assigned'])
-        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
-        .gte('created_at', start).lte('created_at', end) as any;
+      const { count: openCount } = (await supabase
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", propertyId)
+        .in("status", ["open", "assigned"])
+        .or(
+          "is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))",
+        )
+        .gte("created_at", start)
+        .lte("created_at", end)) as any;
       counts.open = openCount ?? 0;
 
-      const { count: progressCount } = await supabase
-        .from('tickets').select('id', { count: 'exact', head: true })
-        .eq('property_id', propertyId).in('status', ['in_progress', 'resolved'])
-        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
-        .gte('created_at', start).lte('created_at', end) as any;
+      const { count: progressCount } = (await supabase
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", propertyId)
+        .in("status", ["in_progress", "resolved"])
+        .or(
+          "is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))",
+        )
+        .gte("created_at", start)
+        .lte("created_at", end)) as any;
       counts.in_progress = progressCount ?? 0;
 
-      const { count: resolvedCount } = await supabase
-        .from('tickets').select('id', { count: 'exact', head: true })
-        .eq('property_id', propertyId).eq('status', 'resolved')
-        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
-        .gte('created_at', start).lte('created_at', end) as any;
+      const { count: resolvedCount } = (await supabase
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", propertyId)
+        .eq("status", "resolved")
+        .or(
+          "is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))",
+        )
+        .gte("created_at", start)
+        .lte("created_at", end)) as any;
       counts.resolved = resolvedCount ?? 0;
 
-      const { count: closedCount } = await supabase
-        .from('tickets').select('id', { count: 'exact', head: true })
-        .eq('property_id', propertyId).eq('status', 'closed')
-        .or('is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))')
-        .gte('created_at', start).lte('created_at', end) as any;
+      const { count: closedCount } = (await supabase
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", propertyId)
+        .eq("status", "closed")
+        .or(
+          "is_internal.eq.true,and(is_internal.eq.false,status.not.in.(resolved,closed))",
+        )
+        .gte("created_at", start)
+        .lte("created_at", end)) as any;
       counts.closed = closedCount ?? 0;
 
       setStatusCounts(counts);
     } catch (err) {
-      console.error('Error fetching status counts:', err);
+      console.error("Error fetching status counts:", err);
     }
   };
 
@@ -294,28 +373,35 @@ export default function TicketsScreen() {
     fetchTickets(true);
   };
 
-
   // Override status filter to 'all' when entering needs-attention mode
   useEffect(() => {
-    if (isNeedsAttentionMode && statusFilter !== 'all') {
-      setStatusFilter('all');
+    if (isNeedsAttentionMode && statusFilter !== "all") {
+      setStatusFilter("all");
     }
   }, [isNeedsAttentionMode]);
 
-  const renderTicket = ({ item }: { item: Ticket }) => {
+  const renderTicket = useCallback(({ item }: { item: Ticket }) => {
     const logs = item.ticket_escalation_logs;
     let escalationChain: { name: string; avatar?: string | null }[] | undefined;
     if (logs && logs.length > 0) {
       const sorted = [...logs].sort(
-        (a, b) => new Date(a.escalated_at).getTime() - new Date(b.escalated_at).getTime()
+        (a, b) =>
+          new Date(a.escalated_at).getTime() -
+          new Date(b.escalated_at).getTime(),
       );
       escalationChain = [];
       sorted.forEach((log, i) => {
         if (i === 0 && log.from_employee?.full_name) {
-          escalationChain!.push({ name: log.from_employee.full_name, avatar: log.from_employee.user_photo_url ?? undefined });
+          escalationChain!.push({
+            name: log.from_employee.full_name,
+            avatar: log.from_employee.user_photo_url ?? undefined,
+          });
         }
         if (log.to_employee?.full_name) {
-          escalationChain!.push({ name: log.to_employee.full_name, avatar: log.to_employee.user_photo_url ?? undefined });
+          escalationChain!.push({
+            name: log.to_employee.full_name,
+            avatar: log.to_employee.user_photo_url ?? undefined,
+          });
         }
       });
       if (escalationChain.length === 0) escalationChain = undefined;
@@ -325,23 +411,27 @@ export default function TicketsScreen() {
         id={item.id}
         title={item.title}
         status={item.status}
-        priority={item.priority ?? 'medium'}
+        priority={item.priority ?? "medium"}
         ticketNumber={item.ticket_number ?? item.id.slice(0, 8).toUpperCase()}
         createdAt={item.created_at}
         assignedTo={item.assignee?.full_name}
         assigneePhotoUrl={item.assignee?.user_photo_url}
         photoUrl={item.photo_before_url ?? undefined}
         escalationChain={escalationChain}
-        onPress={() => router.push(`/property/${propertyId}/tickets/${item.id}`)}
+        onPress={() =>
+          router.push(`/property/${propertyId}/tickets/${item.id}`)
+        }
       />
     );
-  };
+  }, []);
 
-  const bg = isDark ? '#0F1521' : '#F5F0E8';
-  const cardBg = isDark ? 'rgba(30,38,55,0.88)' : 'rgba(255,255,255,0.88)';
-  const textPrimary = isDark ? '#F0F4F8' : '#1A2332';
-  const textSecondary = isDark ? '#A0AEC0' : '#64748B';
-  const borderColor = isDark ? 'rgba(80,100,130,0.30)' : 'rgba(180,195,210,0.35)';
+  const bg = isDark ? "#0F1521" : "#F5F0E8";
+  const cardBg = isDark ? "rgba(30,38,55,0.88)" : "rgba(255,255,255,0.88)";
+  const textPrimary = isDark ? "#F0F4F8" : "#1A2332";
+  const textSecondary = isDark ? "#A0AEC0" : "#64748B";
+  const borderColor = isDark
+    ? "rgba(80,100,130,0.30)"
+    : "rgba(180,195,210,0.35)";
 
   return (
     <View style={{ flex: 1 }}>
@@ -351,22 +441,36 @@ export default function TicketsScreen() {
         }}
       />
 
-      <LinearGradient 
-        colors={isDark ? ['#0F1521', '#121824', '#090d16'] : ['#F5F0E8', '#EAE0D5', '#DFD3C3']} 
-        style={StyleSheet.absoluteFillObject} 
+      <LinearGradient
+        colors={
+          isDark
+            ? ["#0F1521", "#121824", "#090d16"]
+            : ["#F5F0E8", "#EAE0D5", "#DFD3C3"]
+        }
+        style={StyleSheet.absoluteFillObject}
       />
 
       <View style={[styles.container, { paddingBottom: 0 }]}>
         {/* Modern Header */}
-        <SafeBlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <SafeBlurView
+          intensity={80}
+          tint={isDark ? "dark" : "light"}
+          style={[styles.header, { paddingTop: insets.top + 10 }]}
+        >
           <View style={styles.headerTop}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backBtn}
+            >
               <Ionicons name="chevron-back" size={24} color={textPrimary} />
             </TouchableOpacity>
             <Text style={[styles.headerTitleMain, { color: textPrimary }]}>
-              {isNeedsAttentionMode ? 'Needs Attention' : 'Requests'}
+              {isNeedsAttentionMode ? "Needs Attention" : "Requests"}
             </Text>
-            <TouchableOpacity onPress={() => setShowCreateModal(true)} style={styles.headerAddBtn}>
+            <TouchableOpacity
+              onPress={() => setShowCreateModal(true)}
+              style={styles.headerAddBtn}
+            >
               <Ionicons name="add" size={24} color={textPrimary} />
             </TouchableOpacity>
           </View>
@@ -379,13 +483,15 @@ export default function TicketsScreen() {
               contentContainerStyle={styles.tabScroll}
               style={styles.tabBarContainer}
             >
-              {FILTER_TABS.map(tab => (
+              {FILTER_TABS.map((tab) => (
                 <TouchableOpacity
                   key={tab.key}
                   style={[
                     styles.tab,
                     statusFilter === tab.key && {
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.05)',
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.15)"
+                        : "rgba(0,0,0,0.05)",
                     },
                   ]}
                   onPress={() => setStatusFilter(tab.key)}
@@ -393,16 +499,36 @@ export default function TicketsScreen() {
                   <Text
                     style={[
                       styles.tabText,
-                      { color: statusFilter === tab.key ? textPrimary : textSecondary },
-                      statusFilter === tab.key && { fontWeight: '800' },
+                      {
+                        color:
+                          statusFilter === tab.key
+                            ? textPrimary
+                            : textSecondary,
+                      },
+                      statusFilter === tab.key && { fontWeight: "800" },
                     ]}
                   >
                     {tab.label}
                   </Text>
-                  <View style={[styles.countBadge, {
-                    backgroundColor: statusFilter === tab.key ? '#7CB9A8' : 'rgba(124,185,168,0.2)',
-                  }]}>
-                    <Text style={[styles.countBadgeText, { color: statusFilter === tab.key ? '#FFF' : '#7CB9A8' }]}>
+                  <View
+                    style={[
+                      styles.countBadge,
+                      {
+                        backgroundColor:
+                          statusFilter === tab.key
+                            ? "#7CB9A8"
+                            : "rgba(124,185,168,0.2)",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.countBadgeText,
+                        {
+                          color: statusFilter === tab.key ? "#FFF" : "#7CB9A8",
+                        },
+                      ]}
+                    >
                       {statusCounts[tab.key]}
                     </Text>
                   </View>
@@ -412,7 +538,13 @@ export default function TicketsScreen() {
           )}
           {isNeedsAttentionMode && (
             <View style={{ marginTop: 8 }}>
-              <Text style={{ fontSize: 12, color: textSecondary, fontWeight: '600' }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: textSecondary,
+                  fontWeight: "600",
+                }}
+              >
                 Critical, tenant & stale tickets
               </Text>
             </View>
@@ -420,7 +552,9 @@ export default function TicketsScreen() {
         </SafeBlurView>
 
         {/* Date Range Filter */}
-        <View style={[styles.dateFilterRow, { borderBottomColor: borderColor }]}>
+        <View
+          style={[styles.dateFilterRow, { borderBottomColor: borderColor }]}
+        >
           <TouchableOpacity
             style={styles.dateFilterBtn}
             onPress={() => setShowDateFilter(!showDateFilter)}
@@ -428,10 +562,11 @@ export default function TicketsScreen() {
           >
             <Ionicons name="calendar-outline" size={15} color={textSecondary} />
             <Text style={[styles.dateFilterLabel, { color: textSecondary }]}>
-              {DATE_RANGES.find(d => d.key === dateRange)?.label ?? 'All Time'}
+              {DATE_RANGES.find((d) => d.key === dateRange)?.label ??
+                "All Time"}
             </Text>
             <Ionicons
-              name={showDateFilter ? 'chevron-up' : 'chevron-down'}
+              name={showDateFilter ? "chevron-up" : "chevron-down"}
               size={14}
               color={textSecondary}
             />
@@ -440,20 +575,37 @@ export default function TicketsScreen() {
 
         {/* Date Range Dropdown */}
         {showDateFilter && (
-          <View style={[styles.dateFilterDropdown, { backgroundColor: cardBg, borderColor }]}>
-            {DATE_RANGES.map(opt => (
+          <View
+            style={[
+              styles.dateFilterDropdown,
+              { backgroundColor: cardBg, borderColor },
+            ]}
+          >
+            {DATE_RANGES.map((opt) => (
               <TouchableOpacity
                 key={opt.key}
                 style={[
                   styles.dateFilterOption,
-                  dateRange === opt.key && { backgroundColor: isDark ? 'rgba(124,185,168,0.12)' : 'rgba(124,185,168,0.08)' },
+                  dateRange === opt.key && {
+                    backgroundColor: isDark
+                      ? "rgba(124,185,168,0.12)"
+                      : "rgba(124,185,168,0.08)",
+                  },
                 ]}
-                onPress={() => { setDateRange(opt.key); setShowDateFilter(false); }}
+                onPress={() => {
+                  setDateRange(opt.key);
+                  setShowDateFilter(false);
+                }}
               >
-                <Text style={[styles.dateFilterOptionText, {
-                  color: dateRange === opt.key ? '#7CB9A8' : textSecondary,
-                  fontWeight: dateRange === opt.key ? '700' : '500',
-                }]}>
+                <Text
+                  style={[
+                    styles.dateFilterOptionText,
+                    {
+                      color: dateRange === opt.key ? "#7CB9A8" : textSecondary,
+                      fontWeight: dateRange === opt.key ? "700" : "500",
+                    },
+                  ]}
+                >
                   {opt.label}
                 </Text>
                 {dateRange === opt.key && (
@@ -471,14 +623,20 @@ export default function TicketsScreen() {
           </View>
         ) : displayedTickets.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="ticket-outline" size={64} color={isDark ? '#4B5563' : '#CBD5E1'} />
-            <Text style={[styles.emptyTitle, { color: textPrimary }]}>No Requests</Text>
+            <Ionicons
+              name="ticket-outline"
+              size={64}
+              color={isDark ? "#4B5563" : "#CBD5E1"}
+            />
+            <Text style={[styles.emptyTitle, { color: textPrimary }]}>
+              No Requests
+            </Text>
             <Text style={[styles.emptySubtitle, { color: textSecondary }]}>
               {isNeedsAttentionMode
-                ? 'No tickets need attention right now. Great job!'
-                : statusFilter === 'all'
-                  ? 'No requests found for this property.'
-                  : `No ${statusFilter.replace('_', ' ')} requests.`}
+                ? "No tickets need attention right now. Great job!"
+                : statusFilter === "all"
+                  ? "No requests found for this property."
+                  : `No ${statusFilter.replace("_", " ")} requests.`}
             </Text>
             <TouchableOpacity
               style={styles.emptyCreateBtn}
@@ -488,18 +646,19 @@ export default function TicketsScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <FlatList
+          <FlashList
             data={displayedTickets}
             renderItem={renderTicket}
-            keyExtractor={item => item.id}
+            keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
+            estimatedItemSize={140}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
                 tintColor="#7CB9A8"
-                colors={['#7CB9A8']}
+                colors={["#7CB9A8"]}
               />
             }
             onEndReached={loadMore}
@@ -517,21 +676,21 @@ export default function TicketsScreen() {
             }
           />
         )}
-
-
       </View>
 
-        <TicketCreateModal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          propertyId={propertyId ?? ''}
-          organizationId={orgId}
-          role={(membership as any)?.role === 'org_super_admin' ? 'super_admin' : ((membership as any)?.role === 'property_admin' ? 'admin' : 'tenant')}
-        />
-
-
-
-
+      <TicketCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        propertyId={propertyId ?? ""}
+        organizationId={orgId}
+        role={
+          (membership as any)?.role === "org_super_admin"
+            ? "super_admin"
+            : (membership as any)?.role === "property_admin"
+              ? "admin"
+              : "tenant"
+        }
+      />
     </View>
   );
 }
@@ -542,52 +701,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    borderBottomColor: "rgba(255,255,255,0.1)",
   },
   headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitleMain: {
     fontSize: 20,
-    fontWeight: '900',
+    fontWeight: "900",
     letterSpacing: 0.5,
   },
   headerAddBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   tabBarContainer: {
     marginTop: 0,
   },
   tabScroll: {
     gap: 8,
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   tab: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   countBadge: {
     marginLeft: 8,
@@ -595,51 +754,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     minWidth: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   countBadgeText: {
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   dateFilterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
   dateFilterBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
     borderWidth: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
   dateFilterLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   dateFilterDropdown: {
-    position: 'absolute',
+    position: "absolute",
     top: 180,
     left: 20,
     right: 20,
     borderRadius: 16,
     borderWidth: 1,
     zIndex: 100,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 20,
     elevation: 10,
   },
   dateFilterOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -648,8 +807,8 @@ const styles = StyleSheet.create({
   },
   centered: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   listContent: {
     paddingTop: 12,
@@ -657,60 +816,60 @@ const styles = StyleSheet.create({
   },
   loadingMore: {
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   loadMoreBtn: {
     marginVertical: 16,
-    alignSelf: 'center',
+    alignSelf: "center",
     paddingHorizontal: 24,
     paddingVertical: 10,
-    backgroundColor: '#7CB9A8',
+    backgroundColor: "#7CB9A8",
     borderRadius: 20,
   },
   loadMoreBtnText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   emptyState: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 40,
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 24,
   },
   emptyCreateBtn: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: '#7CB9A8',
+    backgroundColor: "#7CB9A8",
     borderRadius: 12,
   },
   emptyCreateBtnText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   fab: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 24,
     right: 20,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#7CB9A8',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    backgroundColor: "#7CB9A8",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -718,9 +877,9 @@ const styles = StyleSheet.create({
   },
   modalContainer: { flex: 1 },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
@@ -729,22 +888,22 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(124,185,168,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(124,185,168,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalTitle: {
     fontSize: 16,
-    fontWeight: '900',
-    textTransform: 'uppercase',
+    fontWeight: "900",
+    textTransform: "uppercase",
     letterSpacing: 1,
   },
   modalForm: { flex: 1 },
   field: { marginBottom: 20 },
   label: {
     fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
+    fontWeight: "800",
+    textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: 8,
   },
@@ -760,12 +919,12 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 15,
     height: 120,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   chipRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   chip: {
     paddingHorizontal: 14,
@@ -775,56 +934,56 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   mediaPlaceholder: {
     height: 100,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     borderWidth: 2,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     gap: 8,
   },
   mediaPlaceholderText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   mediaPreview: {
     height: 160,
     borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
+    overflow: "hidden",
+    position: "relative",
   },
   previewImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   removeMedia: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorText: {
-    color: '#EF4444',
+    color: "#EF4444",
     fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
+    fontWeight: "700",
+    textAlign: "center",
     marginBottom: 16,
   },
   submitBtn: {
-    flexDirection: 'row',
-    backgroundColor: '#7CB9A8',
+    flexDirection: "row",
+    backgroundColor: "#7CB9A8",
     padding: 18,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     gap: 10,
     marginTop: 8,
     marginBottom: 40,
@@ -833,24 +992,24 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitBtnText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: 15,
-    fontWeight: '900',
-    textTransform: 'uppercase',
+    fontWeight: "900",
+    textTransform: "uppercase",
     letterSpacing: 1,
   },
   successView: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 60,
   },
   successText: {
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: "900",
     marginTop: 20,
     marginBottom: 8,
   },
   successSubtext: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

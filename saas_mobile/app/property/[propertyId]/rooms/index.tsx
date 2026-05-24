@@ -466,7 +466,7 @@ export default function RoomsScreen() {
             </Text>
           </View>
           {isAdmin ? (
-            <TouchableOpacity style={styles.adminBtn} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.adminBtn} activeOpacity={0.7} onPress={() => router.push(`/property/${propertyId}/rooms/admin-credits`)}>
               <Settings2 size={20} color="#708F96" />
             </TouchableOpacity>
           ) : (

@@ -174,9 +174,12 @@ async function apiFetch<T>(
   const token = sessionData?.session?.access_token;
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   };
+
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -1142,14 +1145,8 @@ export interface MeetingRoomCredit {
 
 export async function getMeetingRooms(propertyId: string, status?: string): Promise<{ rooms?: MeetingRoom[]; error?: string }> {
   try {
-    const supabase = createClient();
-    let query = supabase.from('meeting_rooms').select('*').eq('property_id', propertyId).order('name', { ascending: true });
-    if (status) {
-      query = query.eq('status', status);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    return { rooms: data as MeetingRoom[] };
+    const res = await apiFetch<any>(`/api/meeting-rooms/available?propertyId=${propertyId}${status ? `&status=${status}` : ''}`);
+    return { rooms: res.rooms as MeetingRoom[] };
   } catch (err: any) {
     return { error: err.message };
   }
@@ -1157,14 +1154,8 @@ export async function getMeetingRooms(propertyId: string, status?: string): Prom
 
 export async function getMeetingRoomBookings(propertyId: string, status?: string): Promise<{ bookings?: MeetingRoomBooking[]; error?: string }> {
   try {
-    const supabase = createClient();
-    let query = supabase.from('meeting_room_bookings').select('*, meeting_room:meeting_rooms(name, photo_url, location)').eq('property_id', propertyId).order('start_time', { ascending: true });
-    if (status) {
-      query = query.eq('status', status);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    return { bookings: data as MeetingRoomBooking[] };
+    const res = await apiFetch<any>(`/api/meeting-room-bookings?propertyId=${propertyId}${status ? `&status=${status}` : ''}`);
+    return { bookings: res.bookings as MeetingRoomBooking[] };
   } catch (err: any) {
     return { error: err.message };
   }
@@ -1172,20 +1163,19 @@ export async function getMeetingRoomBookings(propertyId: string, status?: string
 
 export async function getMeetingRoomCredits(propertyId: string): Promise<{ credit?: MeetingRoomCredit | null; company?: { id: string; name: string; logo_url?: string } | null; error?: string }> {
   try {
-    const supabase = createClient();
-    const userId = await getCurrentUserId();
-    
-    let credit = null;
-    if (userId) {
-       const { data, error } = await supabase.from('meeting_room_credits').select('*').eq('property_id', propertyId).eq('user_id', userId).maybeSingle();
-       if (!error && data) {
-         credit = data;
-       }
-    }
-    return { credit: credit as MeetingRoomCredit | null };
+    const res = await apiFetch<any>(`/api/meeting-room-credits?propertyId=${propertyId}`);
+    return { credit: res.credit as MeetingRoomCredit | null, company: res.company || null };
   } catch (err: any) {
     return { error: err.message };
   }
+}
+
+export async function updateMeetingRoomCreditsApi(payload: any) {
+  return apiFetch<any>('/api/meeting-room-credits', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateMeetingRoomRefillRequestApi(id: string, payload: any) {
+  return apiFetch<any>(`/api/meeting-room-credits/refill-requests/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
 export interface CreateBookingInput {
@@ -1198,26 +1188,58 @@ export interface CreateBookingInput {
 
 export async function createMeetingRoomBooking(input: CreateBookingInput): Promise<{ success?: boolean; booking?: MeetingRoomBooking; error?: string }> {
   try {
-    const supabase = createClient();
-    const userId = await getCurrentUserId();
-    if (!userId) throw new Error("Unauthorized");
-
-    const payload = {
-      meeting_room_id: input.meetingRoomId,
-      property_id: input.propertyId,
-      user_id: userId,
-      booking_date: input.date,
-      start_time: input.startTime,
-      end_time: input.endTime,
-      status: 'confirmed'
-    };
-
-    const { data, error } = await (supabase as any).from('meeting_room_bookings').insert(payload).select().single();
-    if (error) throw error;
-
-    return { success: true, booking: data as MeetingRoomBooking };
+    const res = await apiFetch<any>('/api/meeting-room-bookings', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+    return { success: true, booking: res.booking as MeetingRoomBooking };
   } catch (err: any) {
     return { error: err.message };
   }
+}
+
+export async function getChecklistDataApi(propertyId: string) {
+  return apiFetch<any>(`/api/checklist?propertyId=${propertyId}`);
+}
+export async function getChecklistTemplateCompletionsApi(propertyId: string, templateId: string, limit?: number) {
+  return apiFetch<any>(`/api/checklist/template-completions?propertyId=${propertyId}&templateId=${templateId}${limit ? `&limit=${limit}` : ''}`);
+}
+export async function createChecklistTemplateApi(payload: any) {
+  return apiFetch<any>('/api/checklist/templates', { method: 'POST', body: JSON.stringify(payload) });
+}
+export async function startChecklistCompletionApi(payload: any) {
+  return apiFetch<any>('/api/checklist/completions', { method: 'POST', body: JSON.stringify(payload) });
+}
+export async function updateChecklistCompletionApi(id: string, payload: any) {
+  return apiFetch<any>(`/api/checklist/completions/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+export async function updateChecklistTemplateApi(id: string, payload: any) {
+  return apiFetch<any>(`/api/checklist/templates/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+export async function uploadChecklistMediaApi(formData: FormData) {
+  return apiFetch<any>('/api/checklist/media', { method: 'POST', body: formData });
+}
+export async function deleteChecklistMediaApi(type: string, url: string, completionId?: string) {
+  return apiFetch<any>('/api/checklist/media', { method: 'DELETE', body: JSON.stringify({ type, url, completionId }) });
+}
+
+export async function getPpmDataApi(propertyId: string) {
+  return apiFetch<any>(`/api/ppm?propertyId=${propertyId}`);
+}
+export async function createPpmScheduleApi(payload: any) {
+  return apiFetch<any>('/api/ppm', { method: 'POST', body: JSON.stringify(payload) });
+}
+export async function updatePpmStatusApi(payload: any) {
+  return apiFetch<any>('/api/ppm/status', { method: 'PATCH', body: JSON.stringify(payload) });
+}
+export async function uploadPpmMediaApi(formData: FormData) {
+  return apiFetch<any>('/api/ppm/media', { method: 'POST', body: formData });
+}
+export async function deletePpmMediaApi(payload: any) {
+  return apiFetch<any>('/api/ppm/media', { method: 'DELETE', body: JSON.stringify(payload) });
+}
+
+export async function getCompaniesWithCreditsApi(propertyId: string) {
+  return apiFetch<any>(`/api/companies?propertyId=${propertyId}`);
 }
 
