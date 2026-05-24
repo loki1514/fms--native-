@@ -187,11 +187,11 @@ export function KPICard({ label, value, sub, color, trend }: {
 
 const $styles = StyleSheet.create({
   chartWrap: { marginBottom: 16 },
-  chartTitle: {  fontSize: 13, color: '#1A2332', marginBottom: 8 },
+  chartTitle: { fontFamily: 'Poppins-Bold', fontSize: 13, color: '#1A2332', marginBottom: 8 },
   legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendLabel: {  fontSize: 11, color: '#708F96' },
+  legendLabel: { fontFamily: 'Urbanist-Regular', fontSize: 11, color: '#708F96' },
   kpiCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -203,10 +203,10 @@ const $styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  kpiLabel: {  fontSize: 11, color: '#708F96', marginBottom: 2 },
-  kpiValue: {  fontSize: 22, marginBottom: 2 },
-  kpiSub: {  fontSize: 10, color: '#708F96' },
+  kpiLabel: { fontFamily: 'Urbanist-Regular', fontSize: 11, color: '#708F96', marginBottom: 2 },
+  kpiValue: { fontFamily: 'Poppins-Bold', fontSize: 22, marginBottom: 2 },
+  kpiSub: { fontFamily: 'Urbanist-Regular', fontSize: 10, color: '#708F96' },
   kpiTrendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  kpiTrend: {  fontSize: 11 },
-  kpiTrendLabel: {  fontSize: 10, color: '#708F96' },
+  kpiTrend: { fontFamily: 'Poppins-Bold', fontSize: 11 },
+  kpiTrendLabel: { fontFamily: 'Urbanist-Regular', fontSize: 10, color: '#708F96' },
 });

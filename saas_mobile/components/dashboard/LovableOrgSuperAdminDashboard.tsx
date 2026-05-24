@@ -94,7 +94,7 @@ export default function LovableOrgSuperAdminDashboard({ propertyId }: Props) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }]}>
         <ActivityIndicator size="large" color="#FFFFFF" />
-        <Text style={{ color: 'rgba(255,255,255,0.6)', marginTop: 12, }}>Synchronizing Organization Vault...</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.6)', marginTop: 12, fontFamily: fontSans }}>Synchronizing Organization Vault...</Text>
       </View>
     );
   }
@@ -404,7 +404,7 @@ export default function LovableOrgSuperAdminDashboard({ propertyId }: Props) {
 
         {/* ─── Tabs Navigator Grid ─── */}
         <View style={styles.tabsScroller}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScrollContent}>
             {(['overview', 'properties', 'users', 'visitors', 'vendors', 'super-tenants', 'analytics'] as OrgSubTab[]).map((tab) => (
               <TouchableOpacity 
                 key={tab} 
@@ -428,7 +428,7 @@ export default function LovableOrgSuperAdminDashboard({ propertyId }: Props) {
       <MobileFooter activeTab="dashboard" />
 
       <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} propertyId={propertyId} />
       
       {/* ─── Side Menu Drawer ─────────────────────────────────────────────── */}
       <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
@@ -560,12 +560,14 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
     fontSize: 10,
     fontWeight: '500',
-      },
+    fontFamily: fontSans,
+  },
   headerSubtitle: {
     color: '#FFF',
     fontSize: 11,
     fontWeight: '700',
-      },
+    fontFamily: fontSans,
+  },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -602,20 +604,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   welcomeText: {
-        fontSize: 10,
+    fontFamily: fontSans,
+    fontSize: 10,
     fontWeight: '800',
     color: 'rgba(255,255,255,0.4)',
     letterSpacing: 1.5,
   },
   propertyName: {
-        fontSize: 32,
+    fontFamily: fontDisplay,
+    fontSize: 32,
     fontWeight: '800',
     color: '#FFFFFF',
     marginTop: 4,
     letterSpacing: -1,
   },
   propertyCode: {
-        fontSize: 12,
+    fontFamily: fontSans,
+    fontSize: 12,
     color: 'rgba(255,255,255,0.4)',
     marginTop: 4,
   },
@@ -628,7 +633,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tempText: {
-        fontSize: 48,
+    fontFamily: fontDisplay,
+    fontSize: 48,
     fontWeight: '800',
     color: '#FFFFFF',
   },
@@ -636,7 +642,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   weatherStatusText: {
-        fontSize: 10,
+    fontFamily: fontSans,
+    fontSize: 10,
     fontWeight: '800',
     color: 'rgba(255,255,255,0.6)',
     letterSpacing: 1,
@@ -664,7 +671,8 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)',
     fontSize: 10,
     fontWeight: '800',
-        letterSpacing: 0.5,
+    fontFamily: fontSans,
+    letterSpacing: 0.5,
   },
   tabButtonLabelActive: {
     color: '#000',
@@ -677,18 +685,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionHeaderLabel: {
-        fontSize: 10,
+    fontFamily: fontSans,
+    fontSize: 10,
     fontWeight: '800',
     color: 'rgba(255,255,255,0.4)',
     letterSpacing: 1.5,
   },
   sectionHeaderValue: {
-        fontSize: 10,
+    fontFamily: fontSans,
+    fontSize: 10,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.6)',
   },
   sectionHeaderLink: {
-        fontSize: 11,
+    fontFamily: fontSans,
+    fontSize: 11,
     fontWeight: '700',
     color: '#3B82F6',
   },
@@ -705,17 +716,20 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 36,
     fontWeight: '800',
-      },
+    fontFamily: fontDisplay,
+  },
   tileMetricMid: {
     color: '#FFF',
     fontSize: 24,
     fontWeight: '800',
-      },
+    fontFamily: fontDisplay,
+  },
   tileSubtext: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 10,
     marginTop: 2,
-      },
+    fontFamily: fontSans,
+  },
   propertyPillContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -744,7 +758,8 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 32,
     fontWeight: '800',
-      },
+    fontFamily: fontDisplay,
+  },
   healthScorePill: {
     backgroundColor: 'rgba(31, 194, 110, 0.15)',
     paddingHorizontal: 12,
@@ -789,7 +804,8 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 13,
     fontWeight: '700',
-      },
+    fontFamily: fontSans,
+  },
   incidentMeta: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 10,
@@ -799,13 +815,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   tabTitle: {
-        fontSize: 24,
+    fontFamily: fontDisplay,
+    fontSize: 24,
     fontWeight: '800',
     color: '#FFF',
     marginBottom: 4,
   },
   tabSubtitle: {
-        fontSize: 12,
+    fontFamily: fontSans,
+    fontSize: 12,
     color: 'rgba(255,255,255,0.5)',
     marginBottom: 16,
   },
@@ -905,7 +923,8 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 24,
     fontWeight: '800',
-      },
+    fontFamily: fontDisplay,
+  },
   statBoxLabel: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 10,
@@ -931,7 +950,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 4,
     marginBottom: 16,
-      },
+    fontFamily: fontDisplay,
+  },
   revDivider: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.1)',
@@ -958,17 +978,18 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.4)',
     fontSize: 12,
     fontWeight: '500',
-      },
+    fontFamily: fontSans,
+  },
   drawerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   drawerPanel: { width: 280, height: '100%', backgroundColor: '#111', borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 20 },
   drawerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   drawerLogoContainer: { flexDirection: 'row', alignItems: 'center' },
-  drawerLogoText: {  fontSize: 20, fontWeight: '800', color: '#FFF' },
-  drawerSubtitle: {  fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: 1 },
+  drawerLogoText: { fontFamily: fontDisplay, fontSize: 20, fontWeight: '800', color: '#FFF' },
+  drawerSubtitle: { fontFamily: fontSans, fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: 1 },
   drawerCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
-  drawerSectionLabel: {  fontSize: 9, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5, marginBottom: 8, marginTop: 12 },
+  drawerSectionLabel: { fontFamily: fontSans, fontSize: 9, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5, marginBottom: 8, marginTop: 12 },
   drawerItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4 },
   drawerItemActive: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  drawerItemLabel: {  fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
+  drawerItemLabel: { fontFamily: fontSans, fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.7)' },
   drawerItemLabelActive: { color: '#FFF' },
 });

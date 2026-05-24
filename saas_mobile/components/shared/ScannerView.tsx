@@ -211,19 +211,19 @@ const styles = StyleSheet.create({
   // Permission
   permissionCard: { flex: 1, margin: 24, borderRadius: 24, borderWidth: 1, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   permissionInner: { padding: 32, alignItems: 'center', gap: 16, position: 'relative', zIndex: 1 },
-  permissionTitle: { fontSize: 20,  color: '#E6EBEE', textAlign: 'center' },
-  permissionSub: { fontSize: 14,  color: '#94A3B8', textAlign: 'center', lineHeight: 20 },
+  permissionTitle: { fontSize: 20, fontFamily: 'Poppins-Bold', color: '#E6EBEE', textAlign: 'center' },
+  permissionSub: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: '#94A3B8', textAlign: 'center', lineHeight: 20 },
   permissionBtn: { backgroundColor: '#708F96', paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14, marginTop: 8 },
-  permissionBtnText: { fontSize: 14,  color: '#FFFFFF' },
+  permissionBtnText: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
   permissionClose: { paddingVertical: 8 },
-  permissionCloseText: { fontSize: 14,  color: '#64748B' },
+  permissionCloseText: { fontSize: 14, fontFamily: 'Urbanist-Bold', color: '#64748B' },
 
   // Header
   header: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, zIndex: 10 },
   headerBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' },
   headerTextWrap: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 16,  color: '#E6EBEE' },
-  headerSub: { fontSize: 11,  color: '#94A3B8', marginTop: 2 },
+  headerTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#E6EBEE' },
+  headerSub: { fontSize: 11, fontFamily: 'Urbanist-Medium', color: '#94A3B8', marginTop: 2 },
 
   // Overlay
   overlay: { backgroundColor: 'rgba(0,0,0,0.55)' },
@@ -235,20 +235,20 @@ const styles = StyleSheet.create({
   cornerBL: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 },
   cornerBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 },
   scanningIndicator: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 8 },
-  scanningText: { marginTop: 8, fontSize: 12,  color: '#E6EBEE' },
+  scanningText: { marginTop: 8, fontSize: 12, fontFamily: 'Urbanist-Bold', color: '#E6EBEE' },
 
   // Mode toggle
   modeToggle: { position: 'absolute', top: 76, alignSelf: 'center', flexDirection: 'row', borderRadius: 14, borderWidth: 1, padding: 3, gap: 3, zIndex: 10 },
   modeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 11 },
   modeBtnActive: { backgroundColor: 'rgba(255,255,255,0.12)' },
-  modeText: { fontSize: 12,  color: '#94A3B8' },
+  modeText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: '#94A3B8' },
   modeTextActive: { color: '#E6EBEE' },
 
   // Manual
   manualWrap: { marginTop: 180, marginHorizontal: 24, gap: 12 },
-  manualInput: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, color: '#E6EBEE', fontSize: 15, },
+  manualInput: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, color: '#E6EBEE', fontSize: 15, fontFamily: 'Poppins-Bold' },
   manualBtn: { backgroundColor: '#708F96', paddingVertical: 14, borderRadius: 16, alignItems: 'center' },
-  manualBtnText: { fontSize: 14,  color: '#FFFFFF' },
+  manualBtnText: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
 
   // Bottom
   bottomControls: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 10 },

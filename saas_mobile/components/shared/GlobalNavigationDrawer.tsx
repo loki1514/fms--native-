@@ -75,7 +75,7 @@ export default function GlobalNavigationDrawer({ visible, onClose, propertyId }:
                 { label: 'Diesel Manager', route: 'diesel', icon: 'fuel-outline' },
                 { label: 'Electricity', route: 'electricity', icon: 'flash-outline' },
                 { label: 'Stock / Inventory', route: 'stock', icon: 'cube-outline' },
-                { label: 'Checklists', route: 'checklist', icon: 'clipboard-outline' },
+                { label: 'SOPs & Checklists', route: 'checklist', icon: 'clipboard-outline' },
                 { label: 'PPM', route: 'ppm', icon: 'calendar-clear-outline' },
               ].map((item) => (
                 <TouchableOpacity key={item.route} style={styles.drawerItem} onPress={() => navigateTo(item.route)}>
@@ -86,8 +86,7 @@ export default function GlobalNavigationDrawer({ visible, onClose, propertyId }:
 
               <Text style={[styles.drawerSectionLabel, { marginTop: 20 }]}>MANAGEMENT</Text>
               {[
-                { label: 'Procurement', route: 'procurement', icon: 'cart-outline' },
-                { label: 'Soft Services', route: 'soft-service-manager', icon: 'leaf-outline' },
+                { label: 'Procurement', route: 'soft-service-manager', icon: 'cart-outline' },
                 { label: 'Escalation', route: 'escalation', icon: 'git-branch-outline' },
                 { label: 'Vendor Revenue', route: 'vendor', icon: 'restaurant-outline' },
                 { label: 'Reports', route: 'reports', icon: 'document-text-outline' },
@@ -123,8 +122,8 @@ const styles = StyleSheet.create({
   drawerLogo: { width: 160, height: 42, resizeMode: 'contain' },
   drawerCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
   drawerItem: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 14, paddingHorizontal: 8, borderRadius: 12 },
-  drawerItemLabel: {  fontSize: 15, fontWeight: '500', color: '#FFF' },
-  drawerSectionLabel: {  fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.35)', letterSpacing: 1.5, marginBottom: 10, paddingHorizontal: 8, marginTop: 6 },
+  drawerItemLabel: { fontFamily: fontSans, fontSize: 15, fontWeight: '500', color: '#FFF' },
+  drawerSectionLabel: { fontFamily: fontSans, fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.35)', letterSpacing: 1.5, marginBottom: 10, paddingHorizontal: 8, marginTop: 6 },
   drawerSignOut: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 24, paddingTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', marginBottom: 40, paddingHorizontal: 8 },
   drawerSignOutText: { color: '#EF4444', fontWeight: '700', fontSize: 15 },
 });

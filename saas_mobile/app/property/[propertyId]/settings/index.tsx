@@ -526,7 +526,7 @@ export default function SettingsScreen() {
                 <Text style={[styles.securityTitle, { color: colors.text }]}>Change Password</Text>
                 <Text style={[styles.securityDesc, { color: colors.textSecondary }]}>
                   We will send a password reset email to{'\n'}
-                  <Text style={{ color: colors.text, }}>{userProfile?.email || user?.email}</Text>
+                  <Text style={{ color: colors.text, fontFamily: 'Poppins-Bold' }}>{userProfile?.email || user?.email}</Text>
                 </Text>
                 <TouchableOpacity style={styles.securityActionBtn} onPress={handleChangePassword} activeOpacity={0.8}>
                   <Mail size={18} color="#fff" />
@@ -581,7 +581,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-        color: '#fff',
+    fontFamily: 'Poppins-Bold',
+    color: '#fff',
     letterSpacing: 0.3,
   },
   userCard: {
@@ -604,20 +605,24 @@ const styles = StyleSheet.create({
   avatarImg: { width: 56, height: 56, borderRadius: 28 },
   avatarLetter: {
     fontSize: 22,
-        color: '#fff',
+    fontFamily: 'Poppins-Bold',
+    color: '#fff',
   },
   userName: {
     fontSize: 17,
-        color: '#fff',
+    fontFamily: 'Poppins-Bold',
+    color: '#fff',
   },
   userEmail: {
     fontSize: 12,
-        color: 'rgba(255,255,255,0.65)',
+    fontFamily: 'Urbanist-Regular',
+    color: 'rgba(255,255,255,0.65)',
     marginTop: 1,
   },
   userRole: {
     fontSize: 11,
-        color: 'rgba(255,255,255,0.45)',
+    fontFamily: 'Urbanist-SemiBold',
+    color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
     textTransform: 'capitalize',
   },
@@ -640,7 +645,8 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 10,
-        letterSpacing: 1.2,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 1.2,
     marginBottom: 14,
     textTransform: 'uppercase',
   },
@@ -652,10 +658,12 @@ const styles = StyleSheet.create({
   },
   propertyName: {
     fontSize: 15,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   propertyCode: {
     fontSize: 12,
-        marginTop: 2,
+    fontFamily: 'Urbanist-Regular',
+    marginTop: 2,
   },
 
   // Menu Row
@@ -682,10 +690,12 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: 14,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   menuSubtitle: {
     fontSize: 11,
-        marginTop: 1,
+    fontFamily: 'Urbanist-Regular',
+    marginTop: 1,
   },
 
   // Toggle
@@ -716,7 +726,8 @@ const styles = StyleSheet.create({
   },
   permBadgeText: {
     fontSize: 11,
-      },
+    fontFamily: 'Urbanist-Bold',
+  },
 
   // Sign out
   signOutBtn: {
@@ -730,11 +741,13 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     fontSize: 15,
-        color: '#EF4444',
+    fontFamily: 'Poppins-Bold',
+    color: '#EF4444',
   },
   versionText: {
     fontSize: 12,
-      },
+    fontFamily: 'Urbanist-Regular',
+  },
 
   // Modal overlay
   modalOverlay: {
@@ -760,7 +773,8 @@ const styles = StyleSheet.create({
   },
   bgPickerTitle: {
     fontSize: 20,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
 
   // Background grid
   bgGrid: {
@@ -786,7 +800,8 @@ const styles = StyleSheet.create({
   },
   bgOptionLabel: {
     fontSize: 11,
-        textAlign: 'center',
+    fontFamily: 'Urbanist-SemiBold',
+    textAlign: 'center',
     paddingVertical: 6,
   },
   bgOptionCheck: {
@@ -811,7 +826,8 @@ const styles = StyleSheet.create({
   },
   resetText: {
     fontSize: 14,
-        color: 'rgba(255,255,255,0.6)',
+    fontFamily: 'Poppins-Bold',
+    color: 'rgba(255,255,255,0.6)',
   },
 
   // Security modal
@@ -834,11 +850,13 @@ const styles = StyleSheet.create({
   },
   securityTitle: {
     fontSize: 16,
-        marginBottom: 6,
+    fontFamily: 'Poppins-Bold',
+    marginBottom: 6,
   },
   securityDesc: {
     fontSize: 13,
-        textAlign: 'center',
+    fontFamily: 'Urbanist-Regular',
+    textAlign: 'center',
     lineHeight: 20,
     marginBottom: 18,
   },
@@ -855,6 +873,7 @@ const styles = StyleSheet.create({
   },
   securityActionText: {
     fontSize: 14,
-        color: '#fff',
+    fontFamily: 'Poppins-Bold',
+    color: '#fff',
   },
 });

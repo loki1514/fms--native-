@@ -1,181 +1,159 @@
-'use client';
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, useLocalSearchParams, usePathname } from 'expo-router';
+import SafeBlurView from '@/components/ui/SafeBlurView';
+import SidekickFace from '@/components/dashboard/SidekickFace';
 
-const fontSans = Platform.select({ web: 'system-ui, -apple-system, sans-serif', ios: 'System', android: 'sans-serif', default: 'System' });
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import Svg, { Path, Circle } from 'react-native-svg';
+const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 
-type TabKey = 'home' | 'tickets' | 'rooms' | 'profile';
+type NavId = 'home' | 'tickets' | 'cassandra' | 'rooms' | 'communities';
 
-interface TenantBottomNavProps {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-  style?: object;
+interface NavItemDef {
+  id: NavId;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
 }
 
-const TAB_KEYS: TabKey[] = ['home', 'tickets', 'rooms', 'profile'];
-const TAB_LABELS: Record<TabKey, string> = {
-  home: 'Home',
-  tickets: 'Tickets',
-  rooms: 'Rooms',
-  profile: 'Profile',
-};
-const TAB_POSITIONS: Record<TabKey, number> = {
-  home: 0,
-  tickets: 1,
-  rooms: 2,
-  profile: 3,
-};
+const leftItems: NavItemDef[] = [
+  { id: 'home', icon: 'grid', label: 'Dashboard' },
+  { id: 'tickets', icon: 'ticket', label: 'Tickets' },
+];
 
-const HomeIcon = ({ color, active }: { color: string; active: boolean }) => (
-  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-    <Path d="M9 22V12h6v10" />
-  </Svg>
-);
+const rightItems: NavItemDef[] = [
+  { id: 'rooms', icon: 'business', label: 'Rooms' },
+  { id: 'communities', icon: 'people', label: 'Communities' },
+];
 
-const TicketIcon = ({ color, active }: { color: string; active: boolean }) => (
-  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
-    <Path d="M13 5v14" />
-    <Path d="M17 9H9" />
-  </Svg>
-);
+export default function TenantBottomNav() {
+  const router = useRouter();
+  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
 
-const RoomIcon = ({ color, active }: { color: string; active: boolean }) => (
-  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M3 21V7l9-4 9 4v14" />
-    <Path d="M9 21V12h6v9" />
-    <Path d="M3 21h18" />
-    <Path d="M12 3v4" />
-  </Svg>
-);
+  const activeId: NavId = (() => {
+    const parts = pathname.split('/').filter(Boolean);
+    const last = parts[parts.length - 1] ?? '';
+    const secondLast = parts[parts.length - 2] ?? '';
 
-const ProfileIcon = ({ color, active }: { color: string; active: boolean }) => (
-  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-    <Circle cx="12" cy="8" r="4.5" />
-    <Path d="M5.5 20c0-3.6 3-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
-  </Svg>
-);
+    if (last === 'requests') return 'tickets';
+    if (last === 'rooms' || last === 'visitors') return 'rooms';
+    if (last === 'communities') return 'communities';
+    if (last === 'cassandra') return 'cassandra';
+    if (last === 'tenant' || (secondLast === 'tenant' && last === propertyId)) return 'home';
+    return 'home';
+  })();
 
-const ICONS: Record<TabKey, typeof HomeIcon> = {
-  home: HomeIcon,
-  tickets: TicketIcon,
-  rooms: RoomIcon,
-  profile: ProfileIcon,
-};
-
-// Each tab occupies 25% of the nav width
-// Indicator starts 12px in, each tab is (screenWidth - 16) / 4
-const SCREEN_W = Dimensions.get('window').width;
-const PILL_WIDTH = 52;
-const NAV_PADDING = 8;
-const TAB_AREA_WIDTH = SCREEN_W - NAV_PADDING * 2;
-const TAB_WIDTH = TAB_AREA_WIDTH / 4;
-const PILL_OFFSET = 12; // left inset matching container padding
-
-export function TenantBottomNav({ activeTab, onTabChange, style }: TenantBottomNavProps) {
-  const activeIndex = TAB_POSITIONS[activeTab];
-  const indicatorTranslateX = useSharedValue(activeIndex * TAB_WIDTH);
-
-  useEffect(() => {
-    indicatorTranslateX.value = withSpring(activeIndex * TAB_WIDTH, {
-      damping: 18,
-      stiffness: 200,
-      mass: 0.6,
-    });
-  }, [activeIndex]);
-
-  const handleTabPress = (key: TabKey) => {
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const handlePress = (id: NavId) => {
+    if (!propertyId) return;
+    switch (id) {
+      case 'home':
+        router.push(`/property/${propertyId}/tenant` as any);
+        break;
+      case 'tickets':
+        router.push(`/property/${propertyId}/tenant/requests` as any);
+        break;
+      case 'cassandra':
+        router.push(`/cassandra?propertyId=${propertyId}` as any);
+        break;
+      case 'rooms':
+        router.push(`/property/${propertyId}/tenant/rooms` as any);
+        break;
+      case 'communities':
+        router.push(`/property/${propertyId}/tenant/communities` as any);
+        break;
     }
-    onTabChange(key);
   };
 
-  const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: indicatorTranslateX.value + PILL_OFFSET }],
-  }));
+  const NavItem = ({ item }: { item: NavItemDef }) => {
+    const isActive = activeId === item.id;
+    return (
+      <TouchableOpacity
+        style={styles.navItem}
+        onPress={() => handlePress(item.id)}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={item.icon as any}
+          size={22}
+          color={isActive ? '#FFFFFF' : 'rgba(255,255,255,0.45)'}
+        />
+        <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
+          {item.label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
-    <View style={[styles.container, style]}>
-      {/* Sliding pill indicator */}
-      <Animated.View style={[styles.pill, indicatorStyle]} />
+    <SafeBlurView intensity={60} tint="dark" style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={styles.navBar}>
+        {leftItems.map((item) => (
+          <NavItem key={item.id} item={item} />
+        ))}
 
-      {TAB_KEYS.map((key) => {
-        const active = key === activeTab;
-        const color = active ? '#708F96' : 'rgba(255,255,255,0.35)';
-        const Icon = ICONS[key];
+        {/* Center Cassandra Orb — SidekickFace */}
+        <TouchableOpacity
+          style={[styles.navItem, styles.centerItem]}
+          onPress={() => handlePress('cassandra')}
+          activeOpacity={0.85}
+        >
+          <SidekickFace compact size={44} state="idle" />
+          <Text style={[styles.navLabel, activeId === 'cassandra' && styles.navLabelActive]}>
+            AI Assistant
+          </Text>
+        </TouchableOpacity>
 
-        return (
-          <TouchableOpacity
-            key={key}
-            onPress={() => handleTabPress(key)}
-            style={styles.tab}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            activeOpacity={0.7}
-          >
-            <Icon color={color} active={active} />
-            <Text style={[styles.label, active && styles.labelActive]}>
-              {TAB_LABELS[key]}
-            </Text>
-            {active && <View style={styles.activeDot} />}
-          </TouchableOpacity>
-        );
-      })}
-    </View>
+        {rightItems.map((item) => (
+          <NavItem key={item.id} item={item} />
+        ))}
+      </View>
+    </SafeBlurView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    height: 84,
-    flexDirection: 'row',
-    position: 'relative',
-    backgroundColor: 'rgba(10,15,25,0.80)',
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 8,
-    paddingBottom: 20,
-    backdropFilter: 'blur(20px)',
+    backgroundColor: 'rgba(14, 14, 22, 0.92)',
   },
-  pill: {
-    position: 'absolute',
-    bottom: 54,
-    width: PILL_WIDTH,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(112,143,150,0.20)',
-    borderWidth: 1,
-    borderColor: 'rgba(112,143,150,0.30)',
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    paddingBottom: 6,
+    paddingHorizontal: 12,
   },
-  tab: {
-    flex: 1,
+  navItem: {
     alignItems: 'center',
-    paddingTop: 12,
+    justifyContent: 'flex-end',
+    flex: 1,
+    gap: 3,
+    paddingVertical: 6,
+    paddingBottom: 4,
   },
-  label: {
+  navLabel: {
+    color: 'rgba(255,255,255,0.45)',
     fontSize: 10,
-    color: 'rgba(255,255,255,0.40)',
-    marginTop: 4,
-    fontWeight: '500',
-      },
-  labelActive: {
-    color: '#708F96',
-    fontWeight: '700',
+    fontWeight: '600',
+    marginTop: 2,
+    fontFamily: fontSans,
   },
-  activeDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#708F96',
-    marginTop: 3,
+  navLabelActive: {
+    color: '#FFFFFF',
+  },
+  centerItem: {
+    position: 'relative',
   },
 });

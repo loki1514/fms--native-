@@ -38,8 +38,8 @@ import {
 } from './lovable/types';
 
 import PropertyCard from './lovable/PropertyCard';
-import BottomNav from './lovable/BottomNav';
-import PropertyDetailScreen from './lovable/PropertyDetailScreen';
+import MobileFooter from '@/components/shared/MobileFooter';
+import LovablePropertyAdminDashboard from './LovablePropertyAdminDashboard';
 import AnalyticsScreen from './lovable/AnalyticsScreen';
 import SkeletonLoader from './lovable/SkeletonLoader';
 import {
@@ -404,14 +404,12 @@ export default function LovableSuperAdminDashboard() {
       {/* Main Content Area */}
       <View style={{ flex: 1 }}>
         {screen === 'property-detail' && activeProperty ? (
-          <PropertyDetailScreen
-            property={activeProperty}
+          <LovablePropertyAdminDashboard
+            propertyId={activeProperty.id}
             onBack={() => {
               setScreen('properties');
               setActiveProperty(null);
             }}
-            onShowChat={() => setShowChat(true)}
-            onShowTileDetail={(detail) => setShowTileDetail(detail)}
           />
         ) : screen === 'properties' ? (
           <Animated.ScrollView
@@ -516,18 +514,10 @@ export default function LovableSuperAdminDashboard() {
         ) : null}
       </View>
 
-      {/* Bottom nav */}
-      <BottomNav
-        active={screen === 'console' ? 'console' : screen === 'property-detail' ? 'detail' : screen === 'analytics' ? 'analytics' : 'properties'}
-        onProperties={() => setScreen('properties')}
-        onConsole={() => setScreen('console')}
-        onAnalytics={() => setScreen('analytics')}
-        onChat={() => setShowChat(true)}
-        insets={insets}
-      />
+      <MobileFooter activeTab="dashboard" />
 
       {/* Modals */}
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="voice" />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} propertyId={activeProperty?.id} initialMode="voice" />
       <SignOutModal
         visible={showSignOut}
         onClose={() => setShowSignOut(false)}
@@ -555,18 +545,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginTop: 20,
-      },
+    fontFamily: fontDisplay,
+  },
   accessSubtitle: {
     fontSize: 15,
     color: 'rgba(255,255,255,0.55)',
     marginTop: 8,
     textAlign: 'center',
-      },
+    fontFamily: fontSans,
+  },
   accessEmail: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.30)',
     marginTop: 12,
-      },
+    fontFamily: fontSans,
+  },
   accessSignOut: {
     marginTop: 32,
     paddingHorizontal: 24,
@@ -587,7 +580,8 @@ const styles = StyleSheet.create({
   consoleTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
   consoleTabActive: { backgroundColor: 'rgba(112,143,150,0.25)' },
   consoleTabText: {
-        fontSize: 13,
+    fontFamily: fontSans,
+    fontSize: 13,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.45)',
   },
@@ -605,13 +599,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -1.2,
-        lineHeight: 36,
+    fontFamily: fontDisplay,
+    lineHeight: 36,
   },
   mainSubtitle: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.45)',
     marginTop: 2,
-      },
+    fontFamily: fontSans,
+  },
   signOutIconBtn: {
     width: 40,
     height: 40,
@@ -639,12 +635,14 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#FFFFFF',
-        paddingVertical: 0,
+    fontFamily: fontSans,
+    paddingVertical: 0,
   },
   propertiesList: { paddingHorizontal: SPACING.xl, gap: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.md },
   emptyState: { alignItems: 'center', paddingVertical: 80 },
   emptyText: {
-        fontSize: 15,
+    fontFamily: fontSans,
+    fontSize: 15,
     color: 'rgba(255,255,255,0.45)',
     marginTop: 12,
   },
@@ -663,11 +661,13 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     flex: 1,
-        fontSize: 13,
+    fontFamily: fontSans,
+    fontSize: 13,
     color: '#FF9500',
   },
   errorBannerRetry: {
-        fontSize: 13,
+    fontFamily: fontSans,
+    fontSize: 13,
     fontWeight: '700',
     color: '#FF9500',
     textDecorationLine: 'underline',

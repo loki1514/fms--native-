@@ -298,13 +298,15 @@ const styles = StyleSheet.create({
   tabContent: { flex: 1, zIndex: 10 },
   consoleHeader: { padding: 20, paddingBottom: 8 },
   consoleTitle: {
-        fontSize: 28,
+    fontFamily: fontDisplay,
+    fontSize: 28,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.8,
   },
   consoleSubtitle: {
-        fontSize: 13,
+    fontFamily: fontSans,
+    fontSize: 13,
     color: 'rgba(255,255,255,0.50)',
     marginTop: 2,
   },
@@ -336,13 +338,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   statNumber: {
-        fontSize: 26,
+    fontFamily: fontDisplay,
+    fontSize: 26,
     fontWeight: '800',
     color: '#FFFFFF',
     marginTop: 8,
   },
   statLabel: {
-        fontSize: 11,
+    fontFamily: fontSans,
+    fontSize: 11,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.55)',
     marginTop: 4,
@@ -355,12 +359,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-        fontSize: 18,
+    fontFamily: fontDisplay,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   seeAll: { 
-     
+    fontFamily: fontSans, 
     fontSize: 13, 
     fontWeight: '600', 
     color: '#708F96' 
@@ -387,25 +392,26 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
   },
   orgIconText: {
-        fontSize: 14,
+    fontFamily: fontDisplay,
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   orgInfo: { flex: 1 },
   orgName: { 
-     
+    fontFamily: fontSans, 
     fontSize: 15, 
     fontWeight: '600', 
     color: '#FFFFFF' 
   },
   orgCode: { 
-     
+    fontFamily: fontSans, 
     fontSize: 12, 
     color: 'rgba(255,255,255,0.55)', 
     marginTop: 2 
   },
   orgMeta: { 
-     
+    fontFamily: fontSans, 
     fontSize: 12, 
     color: 'rgba(255,255,255,0.40)', 
     marginTop: 4 
@@ -419,7 +425,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(76,175,80,0.25)',
   },
   activeText: {
-        fontSize: 10,
+    fontFamily: fontSans,
+    fontSize: 10,
     fontWeight: '700',
     color: '#4CAF50',
     textTransform: 'uppercase',
@@ -433,7 +440,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239,68,68,0.25)',
   },
   deletedText: {
-        fontSize: 10,
+    fontFamily: fontSans,
+    fontSize: 10,
     fontWeight: '700',
     color: '#EF4444',
     textTransform: 'uppercase',
@@ -460,19 +468,20 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
   },
   userAvatarText: {
-        fontSize: 14,
+    fontFamily: fontDisplay,
+    fontSize: 14,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.70)',
   },
   userInfo: { flex: 1 },
   userName: { 
-     
+    fontFamily: fontSans, 
     fontSize: 15, 
     fontWeight: '600', 
     color: '#FFFFFF' 
   },
   userEmail: { 
-     
+    fontFamily: fontSans, 
     fontSize: 13, 
     color: 'rgba(255,255,255,0.55)', 
     marginTop: 2 
@@ -499,7 +508,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
   },
   profileAvatarText: {
-        fontSize: 32,
+    fontFamily: fontDisplay,
+    fontSize: 32,
     fontWeight: '700',
     color: '#FFFFFF',
   },
@@ -512,7 +522,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(112,143,150,0.30)',
   },
   profileBadgeText: {
-        fontSize: 11,
+    fontFamily: fontSans,
+    fontSize: 11,
     fontWeight: '800',
     color: '#708F96',
     letterSpacing: 1,
@@ -526,13 +537,14 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   profileLabel: {
-        fontSize: 12,
+    fontFamily: fontSans,
+    fontSize: 12,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.55)',
     textTransform: 'uppercase',
   },
   profileValue: { 
-     
+    fontFamily: fontSans, 
     fontSize: 14, 
     fontWeight: '600', 
     color: '#FFFFFF' 
@@ -550,7 +562,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239,68,68,0.25)',
   },
   signOutText: { 
-     
+    fontFamily: fontSans, 
     fontSize: 15, 
     fontWeight: '600', 
     color: '#FF3B30' 
@@ -572,14 +584,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#FFFFFF',
-        paddingVertical: 0,
+    fontFamily: fontSans,
+    paddingVertical: 0,
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
   },
   emptyText: {
-        fontSize: 15,
+    fontFamily: fontSans,
+    fontSize: 15,
     color: 'rgba(255,255,255,0.45)', // Fixed Issue #14: was rgba(0,0,0,0.35)
     marginTop: 12,
   },

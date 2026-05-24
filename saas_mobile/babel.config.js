@@ -21,6 +21,8 @@ module.exports = function (api) {
             '@/types': path.resolve(__dirname, 'types'),
             '@/utils': path.resolve(__dirname, 'utils'),
             '@/constants': path.resolve(__dirname, 'constants'),
+            '@/stores': path.resolve(__dirname, 'stores'),
+            '@/services': path.resolve(__dirname, 'services'),
           },
           extensions: ['.ios.ts', '.android.ts', '.ts', '.ios.tsx', '.android.tsx', '.tsx', '.jsx', '.js', '.json'],
         },

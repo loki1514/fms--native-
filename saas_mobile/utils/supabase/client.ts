@@ -1,4 +1,5 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database.types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -66,11 +67,11 @@ const customStorage = {
 // ─── Lazy-initialized singleton ────────────────────────────────────────────
 // Module-level initialization is deferred so Metro/SSR don't crash.
 
-let _supabase: ReturnType<typeof createSupabaseClient> | null = null;
+let _supabase: ReturnType<typeof createSupabaseClient<Database>> | null = null;
 
 function getSupabaseClient() {
   if (!_supabase) {
-    _supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+    _supabase = createSupabaseClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         storage: customStorage,
         autoRefreshToken: true,
@@ -82,7 +83,7 @@ function getSupabaseClient() {
   return _supabase;
 }
 
-export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
+export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient<Database>>, {
   get(_target, prop) {
     return getSupabaseClient()[prop as keyof ReturnType<typeof createSupabaseClient>];
   },

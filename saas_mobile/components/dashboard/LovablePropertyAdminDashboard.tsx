@@ -55,9 +55,10 @@ type TabKey = 'overview' | 'tickets';
 
 interface Props {
   propertyId: string;
+  onBack?: () => void;
 }
 
-export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
+export default function LovablePropertyAdminDashboard({ propertyId, onBack }: Props) {
   const { user, signOut, membership } = useAuth();
   const insets = useSafeAreaInsets();
   const { weather } = useWeather();
@@ -495,11 +496,11 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       breakdownTitle: 'Health Components',
       breakdown: [
         { label: 'Tickets', value: openTickets, color: healthColor },
-        { label: 'Checklist Compliance', value: `${checklistPct}%`, color: STATUS_COLORS.optimal.bg },
+        { label: 'SOP Compliance', value: `${checklistPct}%`, color: STATUS_COLORS.optimal.bg },
       ],
       aiAnalysis: healthStatus === 'critical'
         ? 'Facility health has declined significantly. High open ticket count is the primary driver. Schedule emergency review.'
-        : 'Facility health is stable. Continue monitoring ticket resolution rates and checklist compliance.',
+        : 'Facility health is stable. Continue monitoring ticket resolution rates and SOP compliance.',
     },
     energy: {
       id: 'energy',
@@ -577,9 +578,9 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       {prioritizedAttentionItems.length > 0 && (
         <>
           <Animated.View entering={FadeInUp.delay(160).duration(500)} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, marginBottom: SPACING.md }}>
-            <Text style={{  fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 2, textTransform: 'uppercase' }}>⚠️ NEEDS ATTENTION</Text>
+            <Text style={{ fontFamily: fontSans, fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 2, textTransform: 'uppercase' }}>⚠️ NEEDS ATTENTION</Text>
             <TouchableOpacity onPress={() => setShowNeedsAttention(true)}>
-              <Text style={{  fontSize: 11, fontWeight: '700', color: '#3B82F6' }}>VIEW ALL</Text>
+              <Text style={{ fontFamily: fontSans, fontSize: 11, fontWeight: '700', color: '#3B82F6' }}>VIEW ALL</Text>
             </TouchableOpacity>
           </Animated.View>
           {prioritizedAttentionItems.slice(0, 3).map((item, index) => (
@@ -653,7 +654,15 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
       {weather && <WeatherBackground condition={weather.condition} />}
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="rgba(255,255,255,0.6)" />} contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}>
         <Animated.View entering={FadeInUp.duration(500)} style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setShowDrawer(true)} activeOpacity={0.7}><Ionicons name="menu" size={28} color="#FFFFFF" /></TouchableOpacity>
+          {onBack ? (
+            <TouchableOpacity style={styles.hamburgerBtn} onPress={onBack} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.hamburgerBtn} onPress={() => setShowDrawer(true)} activeOpacity={0.7}>
+              <Ionicons name="menu" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
           <View style={styles.headerCenter}>
             <TouchableOpacity 
               style={styles.profileRow} 
@@ -702,7 +711,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         }}
       />
       <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="voice" />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} propertyId={propertyId} initialMode="voice" />
       <TicketCreateModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -762,7 +771,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
                 { label: 'Diesel Manager', route: 'diesel', icon: 'water-outline' },
                 { label: 'Electricity', route: 'electricity', icon: 'flash-outline' },
                 { label: 'Stock / Inventory', route: 'stock', icon: 'cube-outline' },
-                { label: 'Checklists', route: 'checklist', icon: 'clipboard-outline' },
+                { label: 'SOPs & Checklists', route: 'checklist', icon: 'clipboard-outline' },
                 { label: 'PPM', route: 'ppm', icon: 'calendar-clear-outline' },
               ].map((item) => (
                 <TouchableOpacity key={item.route} style={styles.drawerItem} onPress={() => { setShowDrawer(false); router.push(`/property/${propertyId}/${item.route}` as any); }}>
@@ -776,8 +785,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
                 <Text style={styles.drawerSectionLabel}>MANAGEMENT</Text>
               </View>
               {[
-                { label: 'Procurement', route: 'procurement', icon: 'cart-outline' },
-                { label: 'Soft Services', route: 'soft-service-manager', icon: 'leaf-outline' },
+                { label: 'Procurement', route: 'soft-service-manager', icon: 'cart-outline' },
                 { label: 'Escalation', route: 'escalation', icon: 'git-branch-outline' },
                 { label: 'Vendor Revenue', route: 'vendor', icon: 'restaurant-outline' },
                 { label: 'Reports', route: 'reports', icon: 'document-text-outline' },
@@ -817,15 +825,15 @@ const styles = StyleSheet.create({
   headerIconBtn: { position: 'relative' },
   notificationBadge: { position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
   overviewHeader: { paddingHorizontal: SPACING.xl, marginTop: 20 },
-  overviewTitle: {  fontSize: 24, fontWeight: '800', color: '#FFFFFF', lineHeight: 26, letterSpacing: -0.5 },
+  overviewTitle: { fontFamily: fontDisplay, fontSize: 24, fontWeight: '800', color: '#FFFFFF', lineHeight: 26, letterSpacing: -0.5 },
   tileWrapper: { marginHorizontal: SPACING.xl, marginBottom: 12, borderRadius: 20, overflow: 'hidden' },
   tileBlur: { minHeight: 140 },
   tileContent: { padding: 16 },
   tileTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  tileMetricBig: {  fontSize: 42, fontWeight: '800', color: '#FFFFFF' },
-  tileMetricMid: {  fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
+  tileMetricBig: { fontFamily: fontDisplay, fontSize: 42, fontWeight: '800', color: '#FFFFFF' },
+  tileMetricMid: { fontFamily: fontDisplay, fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
   tileSuffix: { fontSize: 16, color: 'rgba(255,255,255,0.3)', fontWeight: '600' },
-  tileSubtext: {  fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 },
+  tileSubtext: { fontFamily: fontSans, fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 },
   timeToggleRow: { flexDirection: 'row', gap: 6, marginBottom: 14, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 4, width: '100%' },
   timeToggleBtn: { flex: 1, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
   timeToggleBtnActive: { backgroundColor: 'rgba(255,255,255,0.12)' },
@@ -839,12 +847,12 @@ const styles = StyleSheet.create({
   drawerLogoContainer: { flex: 1 },
   drawerLogo: { width: 140, height: 35, marginLeft: -5 },
   drawerSubtitle: { color: 'rgba(255,255,255,0.3)', fontSize: 9, fontWeight: '900', letterSpacing: 2, marginTop: 4, marginLeft: 2 },
-  drawerTitle: {  fontSize: 24, fontWeight: '700', color: '#FFF' },
+  drawerTitle: { fontFamily: fontDisplay, fontSize: 24, fontWeight: '700', color: '#FFF' },
   drawerCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
   drawerItem: { flexDirection: 'row', alignItems: 'center', gap: 15, paddingVertical: 15 },
-  drawerItemLabel: {  fontSize: 16, color: '#FFF' },
+  drawerItemLabel: { fontFamily: fontSans, fontSize: 16, color: '#FFF' },
   drawerSectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 4, gap: 6 },
-  drawerSectionLabel: {  fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5 },
+  drawerSectionLabel: { fontFamily: fontSans, fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5 },
   drawerSignOut: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 20, paddingTop: 20, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', marginBottom: 40 },
   drawerSignOutText: { color: '#EF4444', fontWeight: '700' },
   nameContainer: { flexDirection: 'column' as const },

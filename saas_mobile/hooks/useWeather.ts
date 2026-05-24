@@ -17,7 +17,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type WeatherCondition = 'clear-night' | 'sunny' | 'cloudy' | 'rainy' | 'cosmic';
+export type WeatherCondition = 'clear-night' | 'sunny' | 'cloudy' | 'rainy';
 
 export interface WeatherData {
   condition: WeatherCondition;
@@ -59,7 +59,6 @@ const WEATHER_MODES: {
   { id: 'sunny',       label: 'Sunny',       temp: '31°' },
   { id: 'cloudy',      label: 'Cloudy',      temp: '26°' },
   { id: 'rainy',       label: 'Rainy',       temp: '19°' },
-  { id: 'cosmic',      label: 'Cosmic',      temp: '24°' },
 ];
 
 function getGreeting(hour: number): string {
@@ -88,7 +87,6 @@ function getConditionDescription(condition: WeatherCondition): string {
     case 'cloudy': return 'Partly cloudy';
     case 'clear-night': return 'Clear night';
     case 'sunny': return 'Clear sky';
-    case 'cosmic': return 'Cosmic space';
   }
 }
 
@@ -158,7 +156,6 @@ export function useWeather() {
         midnight: 'clear-night',
         cloudy: 'cloudy',
         raining: 'rainy',
-        cosmic: 'cosmic',
       };
       if (storedBg in bgToCondition) {
         condition = bgToCondition[storedBg];

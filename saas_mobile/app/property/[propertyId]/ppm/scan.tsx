@@ -214,23 +214,23 @@ const styles = StyleSheet.create({
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8, borderBottomWidth: 1, borderRadius: 0 },
   headerBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 16,  color: '#E6EBEE', flex: 1, textAlign: 'center', marginHorizontal: 8 },
+  headerTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#E6EBEE', flex: 1, textAlign: 'center', marginHorizontal: 8 },
 
-  sectionLabel: { fontSize: 12,  color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  sectionLabel: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
 
   scheduleCard: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
   scheduleInner: { padding: 16, position: 'relative', zIndex: 1 },
   scheduleTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
   scheduleLeft: { flex: 1, paddingRight: 8 },
-  scheduleType: { fontSize: 13,  color: '#E6EBEE', textTransform: 'capitalize' },
-  scheduleDesc: { fontSize: 12,  color: '#94A3B8', marginTop: 2 },
+  scheduleType: { fontSize: 13, fontFamily: 'Poppins-Bold', color: '#E6EBEE', textTransform: 'capitalize' },
+  scheduleDesc: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: '#94A3B8', marginTop: 2 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  statusText: { fontSize: 10,  textTransform: 'capitalize' },
+  statusText: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'capitalize' },
 
   scheduleMeta: { flexDirection: 'row', gap: 16 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  metaItemText: { fontSize: 11,  color: '#94A3B8' },
+  metaItemText: { fontSize: 11, fontFamily: 'Urbanist-Medium', color: '#94A3B8' },
 
   rescanBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14 },
-  rescanText: { fontSize: 13,  color: '#64748B' },
+  rescanText: { fontSize: 13, fontFamily: 'Urbanist-Bold', color: '#64748B' },
 });

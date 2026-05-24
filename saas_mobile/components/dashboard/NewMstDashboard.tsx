@@ -1044,7 +1044,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-      },
+    fontFamily: 'Poppins-SemiBold',
+  },
   pageSubtitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.55)',
@@ -1092,13 +1093,15 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '700',
     marginBottom: 4,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   kpiLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1,
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
 
   // Section
   section: {
@@ -1115,7 +1118,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 4,
-      },
+    fontFamily: 'Poppins-SemiBold',
+  },
   sectionSubtitle: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.55)',
@@ -1187,7 +1191,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     flex: 1,
     lineHeight: 22,
-      },
+    fontFamily: 'Poppins-SemiBold',
+  },
   ticketActions: {
     flexDirection: 'row',
     gap: 8,
@@ -1295,13 +1300,15 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1,
     marginBottom: 8,
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
   countdownValue: {
     fontSize: 32,
     fontWeight: '700',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   leaderboardContainer: {
     gap: 12,
     marginBottom: 24,

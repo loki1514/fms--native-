@@ -1,4 +1,5 @@
 import React, { useEffect, Component, ReactNode, useState, useCallback, useRef } from 'react';
+import { initSentry, Sentry } from '@/lib/sentry';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Font from 'expo-font';
@@ -8,19 +9,25 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider, ThemeProvider } from '@/context';
 import { useColorScheme, View, Text, StyleSheet, Platform } from 'react-native';
-import AutopilotSplashScreen from '@/components/splash/AutopilotSplashScreen';
-import { useAuth } from '@/hooks/useAuth';
+import AutopilotSplash from '@/components/splash/AutopilotSplash';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import NotificationBanner from '@/components/notifications/NotificationBanner';
 
-// Global error handler to catch silent crashes
+// Initialize Sentry crash reporting before anything else
+initSentry();
+
+// Global error handler to catch silent crashes (fallback when Sentry is not configured)
 if (typeof window !== 'undefined') {
+  const originalOnError = window.onerror;
   window.onerror = (msg, src, line, col, err) => {
     console.log('[GLOBAL ERROR]', msg, 'at', src, 'line:', line, 'col:', col, err?.stack);
+    if (originalOnError) return originalOnError(msg, src, line, col, err);
     return false;
   };
-  window.onunhandledrejection = (e) => {
+  const originalOnUnhandledRejection = window.onunhandledrejection;
+  window.onunhandledrejection = (e: PromiseRejectionEvent) => {
     console.log('[UNHANDLED REJECTION]', e.reason);
+    if (originalOnUnhandledRejection) originalOnUnhandledRejection(e);
   };
 }
 
@@ -57,13 +64,19 @@ const styles = StyleSheet.create({
   errorContainer: { flex: 1, backgroundColor: '#ffcccc', padding: 20, justifyContent: 'center' },
   errorTitle: { fontSize: 20, fontWeight: '700', color: '#cc0000', marginBottom: 8 },
   errorMsg: { fontSize: 14, color: '#333', marginBottom: 8 },
-  errorStack: { fontSize: 10, color: '#666', },
+  errorStack: { fontSize: 10, color: '#666', fontFamily: 'monospace' },
 });
 
-export default function RootLayout() {
+function RootLayoutInner() {
   const colorScheme = useColorScheme();
+  const [showSplash, setShowSplash] = useState(true);
   const [appReady, setAppReady] = useState(false);
   const appReadyRef = useRef(false);
+
+  // Always reset splash to visible on mount (handles Fast Refresh / reload)
+  useEffect(() => {
+    setShowSplash(true);
+  }, []);
 
   console.log('[RootLayout] Rendering...');
 
@@ -104,7 +117,20 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  // No old doodle splash screen here anymore
+  // Dismiss splash when animation completes — uses ref to avoid stale closure
+  const handleSplashComplete = useCallback(() => {
+    setShowSplash(false);
+  }, []);
+
+  // Show custom splash immediately on first mount
+  if (showSplash) {
+    return (
+      <AutopilotSplash
+        key="splash"
+        onComplete={handleSplashComplete}
+      />
+    );
+  }
 
   return (
     <ErrorBoundary>
@@ -123,24 +149,17 @@ export default function RootLayout() {
   );
 }
 
+export default Sentry.wrap(RootLayoutInner);
+
 function AppContent({ colorScheme }: { colorScheme: any }) {
   // Register push notifications inside AuthProvider context
   usePushNotifications();
-  const { isLoading, isMembershipLoading } = useAuth();
-  const [isSplashActive, setIsSplashActive] = useState(true);
-  const isReady = !isLoading && !isMembershipLoading;
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#040506' }}>
+    <>
       <NotificationBanner />
       <Stack screenOptions={{ headerShown: false }} />
-      {isSplashActive && (
-        <AutopilotSplashScreen
-          isReady={isReady}
-          onAnimationComplete={() => setIsSplashActive(false)}
-        />
-      )}
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-    </View>
+    </>
   );
 }

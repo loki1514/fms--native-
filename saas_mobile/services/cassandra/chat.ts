@@ -2,13 +2,19 @@ import { supabase } from "@/utils/supabase";
 
 const BASE_URL = process.env.EXPO_PUBLIC_CASSANDRA_API_URL;
 
+export interface StreamChatOptions {
+  photoUrl?: string;
+  propertyId?: string;
+}
+
 export function streamChat(
   message: string,
   sessionId: string,
   onToken: (token: string) => void,
   onDone: () => void,
   onError: (err: string) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: StreamChatOptions
 ) {
   supabase.auth.getSession().then(({ data: { session } }) => {
     if (!session?.access_token) {
@@ -51,6 +57,10 @@ export function streamChat(
 
     signal?.addEventListener("abort", () => xhr.abort());
 
-    xhr.send(JSON.stringify({ message, session_id: sessionId }));
+    const body: Record<string, unknown> = { message, session_id: sessionId };
+    if (options?.photoUrl) body.photo_url = options.photoUrl;
+    if (options?.propertyId) body.property_id = options.propertyId;
+
+    xhr.send(JSON.stringify(body));
   });
 }

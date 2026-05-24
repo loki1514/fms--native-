@@ -38,7 +38,6 @@ import {
   Mail,
   Phone,
   Shield,
-  User,
   Building2,
   Calendar,
   Key,
@@ -124,7 +123,8 @@ function SegmentedControl({
       horizontal
       showsHorizontalScrollIndicator={false}
       style={styles.segmentScroll}
-      contentContainerStyle={styles.segmentScrollContent} showsVerticalScrollIndicator={false}>
+      contentContainerStyle={styles.segmentScrollContent}
+    >
       <SafeBlurView
         intensity={60}
         tint="dark"
@@ -471,7 +471,7 @@ function UserDetailSheet({
       backgroundStyle={{ backgroundColor: '#0a0f1e' }}
       handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.25)', width: 40 }}
     >
-      <BottomSheetScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+      <BottomSheetScrollView contentContainerStyle={styles.sheetContent}>
         {/* Header */}
         <LinearGradient colors={['rgba(112,143,150,0.18)', 'rgba(0,0,0,0)']} style={styles.sheetHeaderGrad}>
           <View style={styles.sheetHeader}>
@@ -647,8 +647,7 @@ function InviteMemberSheet({
   colors: typeof Colors.light;
   onSuccess: () => void;
 }) {
-  const snapPoints = useMemo(() => ['92%'], []);
-  const [mode, setMode] = useState<'invite' | 'create'>('create');
+  const snapPoints = useMemo(() => ['85%'], []);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -659,7 +658,6 @@ function InviteMemberSheet({
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   const SPEC_OPTIONS = [
     { code: '', label: 'General' },
@@ -686,22 +684,12 @@ function InviteMemberSheet({
     return [];
   }, [role]);
 
-  function resetForm() {
-    setFullName('');
-    setEmail('');
-    setPassword('');
-    setPhone('');
-    setRole('staff');
-    setSpecialization('');
-    setSelectedSkills([]);
+  async function handleInvite() {
     setError('');
-    setSuccess('');
-  }
-
-  async function handleSubmit() {
-    setError('');
-    setSuccess('');
-
+    if (!fullName.trim()) {
+      setError('Full Name is required');
+      return;
+    }
     if (!email.trim()) {
       setError('Email is required');
       return;
@@ -710,12 +698,8 @@ function InviteMemberSheet({
       setError('Please enter a valid email address');
       return;
     }
-    if (mode === 'create' && !fullName.trim()) {
-      setError('Full Name is required');
-      return;
-    }
     if (!organizationId) {
-      setError('Organization not resolved. Please reload.');
+      setError('Failed to resolve Organization ID. Please wait a moment or reload.');
       return;
     }
 
@@ -724,9 +708,9 @@ function InviteMemberSheet({
       const response = await createMemberUser({
         email: email.trim().toLowerCase(),
         password: password.trim() || undefined,
-        full_name: mode === 'create' ? fullName.trim() : undefined,
+        full_name: fullName.trim(),
         phone: phone.trim() || undefined,
-        organization_id: organizationId!,
+        organization_id: organizationId,
         role: role,
         property_id: propertyId,
         specialization: role === 'staff' ? (specialization || undefined) : undefined,
@@ -737,16 +721,15 @@ function InviteMemberSheet({
         throw new Error(response.error);
       }
 
-      setSuccess(mode === 'invite'
-        ? 'Invitation sent successfully'
-        : `Account created${(response as any).temp_password ? `. Temp password: ${(response as any).temp_password}` : ''}`
-      );
-
-      setTimeout(() => {
-        bottomSheetRef.current?.dismiss();
-        resetForm();
-        onSuccess();
-      }, 2000);
+      bottomSheetRef.current?.dismiss();
+      setFullName('');
+      setEmail('');
+      setPassword('');
+      setPhone('');
+      setRole('staff');
+      setSpecialization('');
+      setSelectedSkills([]);
+      onSuccess();
     } catch (err: any) {
       setError(err.message || 'Failed to create member');
     } finally {
@@ -754,140 +737,142 @@ function InviteMemberSheet({
     }
   }
 
-  const inputGlass = {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderColor: 'rgba(255,255,255,0.08)',
-  };
-
   return (
     <BottomSheetModal
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       enablePanDownToClose
-      backgroundStyle={{ backgroundColor: '#0B0F1A' }}
-      handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.2)', width: 40 }}
+      backgroundStyle={{ backgroundColor: colors.card }}
+      handleIndicatorStyle={{ backgroundColor: colors.border }}
     >
-      <BottomSheetScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+      <BottomSheetScrollView contentContainerStyle={styles.sheetContent}>
         {/* Header */}
         <View style={styles.inviteHeader}>
-          <LinearGradient colors={['rgba(112,143,150,0.15)', 'rgba(0,0,0,0)']} style={styles.inviteHeaderGrad}>
-            <View style={styles.inviteIconWrap}>
-              <UserPlus size={24} color="#708F96" />
-            </View>
-            <Text style={styles.inviteTitle}>Add Team Member</Text>
-            <Text style={styles.inviteSubtitle}>
-              {mode === 'invite' ? 'Send an email invitation to join.' : 'Create a direct account for this property.'}
-            </Text>
-          </LinearGradient>
-        </View>
-
-        {/* Mode Toggle */}
-        <View style={styles.modeToggleContainer}>
-          <TouchableOpacity
-            style={[styles.modeToggleBtn, mode === 'create' && styles.modeToggleActive]}
-            onPress={() => setMode('create')}
-            activeOpacity={0.8}
+          <View
+            style={[
+              styles.inviteIconWrap,
+              { backgroundColor: colors.primaryLight },
+            ]}
           >
-            <Text style={[styles.modeToggleText, mode === 'create' && styles.modeToggleTextActive]}>
-              Create Directly
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeToggleBtn, mode === 'invite' && styles.modeToggleActive]}
-            onPress={() => setMode('invite')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.modeToggleText, mode === 'invite' && styles.modeToggleTextActive]}>
-              Invite via Email
-            </Text>
-          </TouchableOpacity>
+            <UserPlus size={24} color={colors.primary} />
+          </View>
+          <Text style={[styles.inviteTitle, { color: colors.text }]}>
+            Add Team Member
+          </Text>
+          <Text style={[styles.inviteSubtitle, { color: colors.textSecondary }]}>
+            Create an account for this property using mobile APIs.
+          </Text>
         </View>
 
         {/* Form */}
         <View style={styles.inviteForm}>
           {error ? (
-            <View style={styles.alertCard}>
-              <Ionicons name="alert-circle" size={16} color="#EF4444" />
-              <Text style={styles.alertText}>{error}</Text>
-            </View>
-          ) : null}
-          {success ? (
-            <View style={[styles.alertCard, { borderColor: 'rgba(16,185,129,0.3)', backgroundColor: 'rgba(16,185,129,0.08)' }]}>
-              <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-              <Text style={[styles.alertText, { color: '#10B981' }]}>{success}</Text>
-            </View>
+            <Text style={[styles.inputError, { color: colors.error, textAlign: 'center', marginBottom: 8 }]}>
+              {error}
+            </Text>
           ) : null}
 
-          {/* Email */}
-          <View style={styles.glassInputGroup}>
-            <View style={styles.glassInputIcon}>
-              <Mail size={16} color="rgba(255,255,255,0.4)" />
-            </View>
+          {/* Full Name */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+              Full Name
+            </Text>
             <TextInput
-              style={styles.glassInput}
-              placeholder="Email Address"
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              style={[
+                styles.emailInput,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="John Doe"
+              placeholderTextColor={colors.textTertiary}
+              value={fullName}
+              onChangeText={setFullName}
+            />
+          </View>
+
+          {/* Email Address */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+              Email Address
+            </Text>
+            <TextInput
+              style={[
+                styles.emailInput,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="member@example.com"
+              placeholderTextColor={colors.textTertiary}
               value={email}
-              onChangeText={(text) => { setEmail(text); setError(''); }}
+              onChangeText={(text) => {
+                setEmail(text);
+                setError('');
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
             />
           </View>
 
-          {/* Full Name — create mode only */}
-          {mode === 'create' && (
-            <View style={styles.glassInputGroup}>
-              <View style={styles.glassInputIcon}>
-                <User size={16} color="rgba(255,255,255,0.4)" />
-              </View>
+          {/* Password */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+              Password (Optional)
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TextInput
-                style={styles.glassInput}
-                placeholder="Full Name"
-                placeholderTextColor="rgba(255,255,255,0.3)"
-                value={fullName}
-                onChangeText={setFullName}
-              />
-            </View>
-          )}
-
-          {/* Password — create mode only */}
-          {mode === 'create' && (
-            <View style={styles.glassInputGroup}>
-              <View style={styles.glassInputIcon}>
-                <Key size={16} color="rgba(255,255,255,0.4)" />
-              </View>
-              <TextInput
-                style={[styles.glassInput, { flex: 1, paddingRight: 40 }]}
-                placeholder="Password (auto-generated if blank)"
-                placeholderTextColor="rgba(255,255,255,0.3)"
+                style={[
+                  styles.emailInput,
+                  {
+                    flex: 1,
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    paddingRight: 40,
+                  },
+                ]}
+                placeholder="•••••••• (Temp password generated if blank)"
+                placeholderTextColor={colors.textTertiary}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
                 autoCapitalize="none"
               />
               <TouchableOpacity
-                style={{ position: 'absolute', right: 14 }}
+                style={{ position: 'absolute', right: 12 }}
                 onPress={() => setShowPassword(!showPassword)}
               >
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
-                  color="rgba(255,255,255,0.4)"
+                  size={20}
+                  color={colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
-          )}
+          </View>
 
-          {/* Phone */}
-          <View style={styles.glassInputGroup}>
-            <View style={styles.glassInputIcon}>
-              <Phone size={16} color="rgba(255,255,255,0.4)" />
-            </View>
+          {/* Phone Number */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+              Phone Number (Optional)
+            </Text>
             <TextInput
-              style={styles.glassInput}
-              placeholder="Phone Number (optional)"
-              placeholderTextColor="rgba(255,255,255,0.3)"
+              style={[
+                styles.emailInput,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="+1234567890"
+              placeholderTextColor={colors.textTertiary}
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
@@ -896,7 +881,9 @@ function InviteMemberSheet({
 
           {/* Role */}
           <View style={styles.inputGroup}>
-            <Text style={styles.sectionLabel}>Role</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+              Role
+            </Text>
             <View style={styles.roleSelectorContainer}>
               {PROPERTY_ROLE_OPTIONS.map((r) => {
                 const isSelected = role === r;
@@ -905,7 +892,14 @@ function InviteMemberSheet({
                     key={r}
                     style={[
                       styles.roleChip,
-                      isSelected && styles.roleChipActive,
+                      {
+                        backgroundColor: isSelected
+                          ? colors.primary
+                          : colors.surfaceElevated,
+                        borderColor: isSelected
+                          ? colors.primary
+                          : colors.border,
+                      },
                     ]}
                     onPress={() => {
                       setRole(r);
@@ -914,7 +908,14 @@ function InviteMemberSheet({
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.roleChipText, isSelected && styles.roleChipTextActive]}>
+                    <Text
+                      style={[
+                        styles.roleChipText,
+                        {
+                          color: isSelected ? '#FFFFFF' : colors.textSecondary,
+                        },
+                      ]}
+                    >
                       {formatRole(r)}
                     </Text>
                   </TouchableOpacity>
@@ -923,21 +924,40 @@ function InviteMemberSheet({
             </View>
           </View>
 
-          {/* Specialization */}
+          {/* Specialization Selection */}
           {role === 'staff' && (
             <View style={styles.inputGroup}>
-              <Text style={styles.sectionLabel}>Specialization</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                Specialization
+              </Text>
               <View style={styles.roleSelectorContainer}>
                 {SPEC_OPTIONS.map((spec) => {
                   const isSelected = specialization === spec.code;
                   return (
                     <TouchableOpacity
                       key={spec.code}
-                      style={[styles.roleChip, isSelected && styles.roleChipActive]}
+                      style={[
+                        styles.roleChip,
+                        {
+                          backgroundColor: isSelected
+                            ? colors.primary
+                            : colors.surfaceElevated,
+                          borderColor: isSelected
+                            ? colors.primary
+                            : colors.border,
+                        },
+                      ]}
                       onPress={() => setSpecialization(spec.code)}
                       activeOpacity={0.7}
                     >
-                      <Text style={[styles.roleChipText, isSelected && styles.roleChipTextActive]}>
+                      <Text
+                        style={[
+                          styles.roleChipText,
+                          {
+                            color: isSelected ? '#FFFFFF' : colors.textSecondary,
+                          },
+                        ]}
+                      >
                         {spec.label}
                       </Text>
                     </TouchableOpacity>
@@ -947,17 +967,25 @@ function InviteMemberSheet({
             </View>
           )}
 
-          {/* Skills */}
+          {/* Skills Selection */}
           {(role === 'mst' || role === 'staff') && (
             <View style={styles.inputGroup}>
-              <Text style={styles.sectionLabel}>Member Skills</Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                Member Skills
+              </Text>
               <View style={styles.skillListContainer}>
                 {SKILL_OPTIONS.map((skill) => {
                   const isSelected = selectedSkills.includes(skill.code);
                   return (
                     <TouchableOpacity
                       key={skill.code}
-                      style={[styles.skillItem, isSelected && styles.skillItemActive]}
+                      style={[
+                        styles.skillItem,
+                        {
+                          backgroundColor: isSelected ? colors.primaryLight : colors.surfaceElevated,
+                          borderColor: isSelected ? colors.primary : colors.border,
+                        },
+                      ]}
                       onPress={() => {
                         setSelectedSkills((prev) =>
                           isSelected ? prev.filter((s) => s !== skill.code) : [...prev, skill.code]
@@ -965,10 +993,18 @@ function InviteMemberSheet({
                       }}
                       activeOpacity={0.7}
                     >
-                      <Text style={[styles.skillItemText, isSelected && styles.skillItemTextActive]}>
+                      <Text style={[styles.skillItemText, { color: isSelected ? colors.primary : colors.text }]}>
                         {skill.label}
                       </Text>
-                      <View style={[styles.skillCheckbox, isSelected && styles.skillCheckboxActive]}>
+                      <View
+                        style={[
+                          styles.skillCheckbox,
+                          {
+                            backgroundColor: isSelected ? colors.primary : colors.card,
+                            borderColor: isSelected ? colors.primary : colors.border,
+                          },
+                        ]}
+                      >
                         {isSelected && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
                       </View>
                     </TouchableOpacity>
@@ -981,37 +1017,31 @@ function InviteMemberSheet({
 
         {/* Actions */}
         <View style={styles.inviteActions}>
-          <TouchableOpacity
-            style={[styles.submitBtn, isLoading && { opacity: 0.6 }]}
-            onPress={handleSubmit}
-            disabled={isLoading}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#708F96', '#4A6B73']}
-              style={StyleSheet.absoluteFill}
-            />
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <>
-                <UserPlus size={16} color="#fff" />
-                <Text style={styles.submitBtnText}>
-                  {mode === 'invite' ? 'Send Invitation' : 'Create Member'}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.cancelBtn}
+          <Button
+            title="Create Member Account"
+            variant="primary"
+            size="lg"
+            onPress={handleInvite}
+            loading={isLoading}
+            leftIcon={<UserPlus size={16} color="#FFFFFF" />}
+            style={styles.inviteButton}
+          />
+          <Button
+            title="Cancel"
+            variant="ghost"
+            size="md"
             onPress={() => {
               bottomSheetRef.current?.dismiss();
-              resetForm();
+              setFullName('');
+              setEmail('');
+              setPassword('');
+              setPhone('');
+              setRole('staff');
+              setSpecialization('');
+              setSelectedSkills([]);
+              setError('');
             }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.cancelBtnText}>Cancel</Text>
-          </TouchableOpacity>
+          />
         </View>
       </BottomSheetScrollView>
     </BottomSheetModal>
@@ -1358,12 +1388,14 @@ const styles = StyleSheet.create({
   },
   headerTitleMain: {
     fontSize: 20,
-        letterSpacing: -0.5,
+    fontFamily: 'Poppins-Bold',
+    letterSpacing: -0.5,
     textAlign: 'center',
   },
   headerSubtitleMain: {
     fontSize: 12,
-        marginTop: 1,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 1,
     textAlign: 'center',
   },
   headerAddBtn: {
@@ -1392,7 +1424,8 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-        paddingVertical: 0,
+    fontFamily: 'Urbanist-Medium',
+    paddingVertical: 0,
   },
   segmentWrapper: {
     paddingHorizontal: 16,
@@ -1426,14 +1459,16 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     fontSize: 13,
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
   searchIconBtn: {
     padding: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   segmentTextSelected: {
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 160,
@@ -1476,7 +1511,8 @@ const styles = StyleSheet.create({
   },
   avatarInitials: {
     fontSize: 16,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   userCardInfo: {
     flex: 1,
     marginLeft: 12,
@@ -1490,7 +1526,8 @@ const styles = StyleSheet.create({
   },
   userCardName: {
     fontSize: 15,
-        flexShrink: 1,
+    fontFamily: 'Poppins-Bold',
+    flexShrink: 1,
   },
   roleBadge: {
     paddingHorizontal: 8,
@@ -1500,12 +1537,14 @@ const styles = StyleSheet.create({
   },
   roleBadgeText: {
     fontSize: 9,
-        textTransform: 'uppercase',
+    fontFamily: 'Poppins-Bold',
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   userCardEmail: {
     fontSize: 13,
-        marginBottom: 4,
+    fontFamily: 'Urbanist-Regular',
+    marginBottom: 4,
   },
   userCardMeta: {
     flexDirection: 'row',
@@ -1519,7 +1558,8 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 11,
-      },
+    fontFamily: 'Urbanist-Medium',
+  },
   metaDivider: {
     fontSize: 11,
   },
@@ -1545,12 +1585,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-        textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
+    textAlign: 'center',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-        textAlign: 'center',
+    fontFamily: 'Urbanist-Regular',
+    textAlign: 'center',
     lineHeight: 20,
   },
   loadingState: {
@@ -1561,7 +1603,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-        marginTop: 16,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 16,
   },
   // Bottom Sheet styles — Glassmorphic Dark
   sheetContent: { paddingHorizontal: 20, paddingBottom: 40 },
@@ -1579,13 +1622,13 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   sheetAvatarImage: { width: '100%', height: '100%' },
-  sheetAvatarText: { fontSize: 30,  color: '#FFFFFF' },
-  sheetName: { fontSize: 22,  color: '#FFFFFF', marginBottom: 8, letterSpacing: -0.3 },
+  sheetAvatarText: { fontSize: 30, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  sheetName: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#FFFFFF', marginBottom: 8, letterSpacing: -0.3 },
   sheetRoleBadge: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, borderWidth: 1, marginBottom: 8 },
-  sheetRoleBadgeText: { fontSize: 10,  textTransform: 'uppercase', letterSpacing: 1 },
+  sheetRoleBadgeText: { fontSize: 10, fontFamily: 'Poppins-Bold', textTransform: 'uppercase', letterSpacing: 1 },
   sheetStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
   sheetStatusDot: { width: 7, height: 7, borderRadius: 4 },
-  sheetStatusText: { fontSize: 12, },
+  sheetStatusText: { fontSize: 12, fontFamily: 'Urbanist-SemiBold' },
   sheetSection: {
     borderRadius: 18, borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
@@ -1600,8 +1643,8 @@ const styles = StyleSheet.create({
   },
   detailIcon: { width: 28, alignItems: 'center' },
   detailContent: { flex: 1, marginLeft: 10 },
-  detailLabel: { fontSize: 9,  textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(255,255,255,0.4)', marginBottom: 2 },
-  detailValue: { fontSize: 14,  color: '#FFFFFF' },
+  detailLabel: { fontSize: 9, fontFamily: 'Urbanist-Medium', textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(255,255,255,0.4)', marginBottom: 2 },
+  detailValue: { fontSize: 14, fontFamily: 'Urbanist-Regular', color: '#FFFFFF' },
   sheetActions: { gap: 10 },
   actionButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -1613,7 +1656,7 @@ const styles = StyleSheet.create({
   actionButtonDanger: { borderWidth: 1 },
   actionIconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   actionLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  actionText: { fontSize: 15,  color: '#FFFFFF' },
+  actionText: { fontSize: 15, fontFamily: 'Urbanist-SemiBold', color: '#FFFFFF' },
   rolePickerContainer: {
     borderRadius: 16, borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
@@ -1624,7 +1667,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12,
   },
-  roleOptionText: { fontSize: 14,  color: '#FFFFFF' },
+  roleOptionText: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: '#FFFFFF' },
   roleOptionDot: { width: 8, height: 8, borderRadius: 4 },
   confirmDeleteContainer: {
     borderRadius: 16, borderWidth: 1,
@@ -1632,122 +1675,55 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239,68,68,0.08)',
     padding: 18,
   },
-  confirmDeleteText: { fontSize: 14,  color: '#FCA5A5', textAlign: 'center', marginBottom: 14 },
+  confirmDeleteText: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: '#FCA5A5', textAlign: 'center', marginBottom: 14 },
   confirmDeleteButtons: { flexDirection: 'row', gap: 10, justifyContent: 'center' },
-
-
-  // Invite Sheet styles — Rebuilt glassmorphism
+  // Invite Sheet styles
   inviteHeader: {
     alignItems: 'center',
     paddingVertical: 20,
-    overflow: 'hidden',
-    borderRadius: 20,
-  },
-  inviteHeaderGrad: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 20,
-    borderRadius: 20,
   },
   inviteIconWrap: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(112,143,150,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(112,143,150,0.3)',
   },
   inviteTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
     marginBottom: 6,
   },
   inviteSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.45)',
+    fontSize: 14,
+    fontFamily: 'Urbanist-Regular',
     textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  modeToggleContainer: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  modeToggleBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  modeToggleActive: {
-    backgroundColor: '#708F96',
-  },
-  modeToggleText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.5)',
-  },
-  modeToggleTextActive: {
-    color: '#FFFFFF',
   },
   inviteForm: {
-    gap: 14,
+    gap: 16,
     marginBottom: 20,
   },
-  glassInputGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 14,
-    height: 52,
-    overflow: 'hidden',
-  },
-  glassInputIcon: {
-    width: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glassInput: {
-    flex: 1,
-    height: 52,
-    fontSize: 15,
-    color: '#FFFFFF',
-    marginLeft: 8,
-  },
   inputGroup: {},
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: 'rgba(255,255,255,0.35)',
+  inputLabel: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-SemiBold',
+    marginBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginBottom: 10,
+    letterSpacing: 0.5,
   },
-  alertCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
+  emailInput: {
+    height: 48,
     borderRadius: 12,
-    backgroundColor: 'rgba(239,68,68,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.2)',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: 'Urbanist-Regular',
   },
-  alertText: {
-    fontSize: 13,
-    color: '#FCA5A5',
-    flex: 1,
+  inputError: {
+    fontSize: 12,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 5,
   },
   roleSelectorContainer: {
     flexDirection: 'row',
@@ -1759,49 +1735,16 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  roleChipActive: {
-    backgroundColor: '#708F96',
-    borderColor: '#708F96',
   },
   roleChipText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.6)',
-  },
-  roleChipTextActive: {
-    color: '#FFFFFF',
+    fontFamily: 'Urbanist-SemiBold',
   },
   inviteActions: {
-    gap: 10,
-    marginTop: 8,
-  },
-  submitBtn: {
-    height: 52,
-    borderRadius: 16,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
   },
-  submitBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  cancelBtn: {
-    height: 48,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.5)',
+  inviteButton: {
+    width: '100%',
   },
   skillListContainer: {
     gap: 8,
@@ -1815,34 +1758,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  skillItemActive: {
-    backgroundColor: 'rgba(112,143,150,0.12)',
-    borderColor: 'rgba(112,143,150,0.35)',
   },
   skillItemText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.7)',
-  },
-  skillItemTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    fontFamily: 'Urbanist-SemiBold',
   },
   skillCheckbox: {
     width: 20,
     height: 20,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  skillCheckboxActive: {
-    backgroundColor: '#708F96',
-    borderColor: '#708F96',
-  },
 });
+

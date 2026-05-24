@@ -210,10 +210,6 @@ export const DASHBOARD_BACKGROUNDS = {
     label: 'Raining',
     image: require('@/assets/images/weather-rain.png'),
   },
-  cosmic: {
-    label: 'Cosmic',
-    image: require('@/assets/images/weather-moon.png'),
-  },
 } as const;
 
 export type DashboardBgKey = keyof typeof DASHBOARD_BACKGROUNDS;

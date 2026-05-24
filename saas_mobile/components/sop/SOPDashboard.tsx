@@ -60,7 +60,7 @@ export default function SOPDashboard({ propertyId: propId }: SOPDashboardProps) 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#1A2332' }]}>Checklists</Text>
         <Text style={[styles.subtitle, { color: isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)' }]}>
-          Track and complete your checklists
+          Track and complete your SOPs
         </Text>
 
         {loading ? (
@@ -92,14 +92,14 @@ export default function SOPDashboard({ propertyId: propId }: SOPDashboardProps) 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { padding: 24, paddingBottom: 48 },
-  title: {  fontSize: 28, fontWeight: '700', letterSpacing: -0.5, marginBottom: 4 },
-  subtitle: {  fontSize: 14, marginBottom: 24 },
+  title: { fontFamily: 'Poppins-Bold', fontSize: 28, fontWeight: '700', letterSpacing: -0.5, marginBottom: 4 },
+  subtitle: { fontFamily: 'Urbanist-Regular', fontSize: 14, marginBottom: 24 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
   statCard: { width: '47%', padding: 16, alignItems: 'center', gap: 8 },
   iconCircle: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  statValue: {  fontSize: 24, fontWeight: '700' },
-  statLabel: {  fontSize: 12, fontWeight: '500' },
+  statValue: { fontFamily: 'Poppins-Bold', fontSize: 24, fontWeight: '700' },
+  statLabel: { fontFamily: 'Urbanist-Medium', fontSize: 12, fontWeight: '500' },
   actionBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 8 },
   actionGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16 },
-  actionText: {  fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  actionText: { fontFamily: 'Poppins-Bold', fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
 });

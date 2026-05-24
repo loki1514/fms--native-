@@ -22,6 +22,9 @@ export interface ChatMessage {
   role: 'user' | 'cassandra';
   text: string;
   timestamp: number;
+  variant?: 'default' | 'tool_call' | 'blocked';
+  toolData?: { ticketId?: string; ticketNumber?: string; description?: string; status?: string };
+  blockedReason?: string;
 }
 
 export interface SuggestedPrompt {
@@ -90,7 +93,7 @@ const initialState = {
   ] as SuggestedPrompt[],
 };
 
-export const useCassandraStore = create<CassandraStore>((set, get) => ({
+export const useCassandraStore = create<CassandraStore>((set, _get) => ({
   ...initialState,
 
   // ── Voice ────────────────────────────────────────────────────────────

@@ -510,7 +510,6 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
     `${basePath}/lovable-mst`,
     `${basePath}/lovable-admin`,
     `${basePath}/lovable-super-admin`,
-    `${basePath}/soft-service-manager`,
     `${basePath}/tenant`,
   ];
 
@@ -528,7 +527,6 @@ export function getRoleAllowedPaths(role: string, propertyId: string): string[] 
   if (capabilities.procurement || capabilities.stock) {
     paths.push(`${basePath}/stock`);
     paths.push(`${basePath}/stock/scan`);
-    paths.push(`${basePath}/procurement`);
   }
   if (capabilities.reports) paths.push(`${basePath}/reports`);
   if (capabilities.security) paths.push(`${basePath}/security`);
@@ -551,17 +549,6 @@ export function getRoleDefaultPath(role: string, propertyId: string): string {
     return `/property/${propertyId}/lovable-mst`;
   }
   if ([
-    'soft_service_manager', 'soft_service_supervisor', 'soft_service_staff',
-    'hk', 'fe', 'se', 'technician', 'field_staff', 'bms_operator'
-  ].includes(normalizedRole)) {
-    return `/property/${propertyId}/soft-service-manager`;
-  }
-  if ([
-    'purchase_manager', 'purchase_executive'
-  ].includes(normalizedRole)) {
-    return `/property/${propertyId}/procurement`;
-  }
-  if ([
     'property_admin', 'admin', 'manager', 'property manager',
     'property_manager', 'facility_manager', 'facility manager',
     'spoc', 'administrator'
@@ -574,7 +561,7 @@ export function getRoleDefaultPath(role: string, propertyId: string): string {
   if (['tenant', 'super_tenant'].includes(normalizedRole)) {
     return `/property/${propertyId}/tenant`;
   }
-  return `/property/${propertyId}/lovable-mst`; // Fallback
+  return `/property/${propertyId}/lovable-mst`; // Fallback to Lovable MST
 }
 
 /**

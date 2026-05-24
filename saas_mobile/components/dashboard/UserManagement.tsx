@@ -108,7 +108,7 @@ export default function UserManagement({ orgId }: { orgId: string }) {
       ) : (
         <FlatList
           data={filteredUsers}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ gap: 8 }}
           renderItem={({ item }) => (

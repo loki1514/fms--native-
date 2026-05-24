@@ -7,6 +7,10 @@ import SafeBlurView from '@/components/ui/SafeBlurView';
 import SidekickFace from '@/components/dashboard/SidekickFace';
 import { useAuth } from '@/hooks/useAuth';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
+import { getPropertyRole } from '@/types/membership';
+import { useCassandraStore } from '@/stores/cassandraStore';
+
+const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 
 interface MobileFooterProps {
   activeTab?: 'dashboard' | 'tickets' | 'stock' | 'more';
@@ -23,7 +27,17 @@ export default function MobileFooter({ activeTab: propActiveTab, onMorePress }: 
 
   const orgId = membership?.org_id ?? '211e1330-ad83-446d-941f-dcea48396798';
 
-  console.log('[MobileFooter] render. activeTab:', propActiveTab, 'showCassandraChat:', showCassandraChat, 'orgId:', orgId);
+  const role = propertyId ? getPropertyRole(membership, propertyId) : null;
+
+  // Cassandra voice state for animated orb
+  const voiceState = useCassandraStore((s) => s.voiceState);
+  const faceState: any = (() => {
+    if (voiceState === 'recording' || voiceState === 'processing' || voiceState === 'connecting') return 'listening';
+    if (voiceState === 'speaking') return 'speaking';
+    if (voiceState === 'error') return 'alert';
+    return 'idle';
+  })();
+  const isTenant = role === 'tenant' || role === 'super_tenant';
 
   const activeTab = propActiveTab || (pathname.includes('/tickets') ? 'tickets' : pathname.includes('/dashboard') ? 'dashboard' : 'dashboard');
 
@@ -59,50 +73,30 @@ export default function MobileFooter({ activeTab: propActiveTab, onMorePress }: 
           />
           <Text style={[styles.navLabel, activeTab === 'tickets' && styles.navLabelActive]}>Tickets</Text>
         </TouchableOpacity>
+
+        {/* Center Cassandra Orb */}
         <TouchableOpacity 
-          style={styles.navItemCenter} 
-          onPress={() => {
-            console.log('[MobileFooter] Orb tapped! Setting showCassandraChat to true...');
-            setShowCassandraChat(true);
-          }}
+          style={[styles.navItem, styles.navItemCenter]} 
+          onPress={() => setShowCassandraChat(true)}
         >
-          <View style={styles.orbWrapper}>
-             <SidekickFace 
-               size={48} 
-               state="idle" 
-               compact 
-               onClick={() => {
-                 console.log('[MobileFooter] SidekickFace clicked directly! Setting showCassandraChat to true...');
-                 setShowCassandraChat(true);
-               }}
-             />
-          </View>
-          <Text style={[styles.navLabel, { marginTop: 4 }]}>AI Assistant</Text>
+          <SidekickFace size={44} state={faceState} compact />
+          <Text style={styles.navLabel}>Cassandra</Text>
         </TouchableOpacity>
 
-        <View style={styles.navItem}>
-          <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
-            <TouchableOpacity 
-              onPress={() => router.push(`/property/${propertyId}/stock` as any)}
-              style={{ alignItems: 'center', paddingHorizontal: 12 }}
-            >
-              <Ionicons 
-                name={activeTab === 'stock' ? 'business' : 'business-outline'} 
-                size={22} 
-                color={activeTab === 'stock' ? '#FFF' : 'rgba(255,255,255,0.4)'} 
-              />
-              <Text style={[styles.navLabel, activeTab === 'stock' && styles.navLabelActive]}>Stock</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={{ position: 'absolute', right: -4, top: -8, backgroundColor: 'rgba(59,130,246,0.25)', padding: 4, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(59,130,246,0.4)' }}
-              onPress={() => router.push(`/property/${propertyId}/stock/scan` as any)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="scan" size={12} color="#60A5FA" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Visitors (tenant) or Stock (admin/staff) */}
+        <TouchableOpacity 
+          style={styles.navItem}
+          onPress={() => navTo(isTenant ? 'visitors' : 'stock')}
+        >
+          <Ionicons 
+            name={activeTab === 'stock' ? (isTenant ? 'people' : 'business') : (isTenant ? 'people-outline' : 'business-outline')} 
+            size={22} 
+            color={activeTab === 'stock' ? '#FFF' : 'rgba(255,255,255,0.4)'} 
+          />
+          <Text style={[styles.navLabel, activeTab === 'stock' && styles.navLabelActive]}>
+            {isTenant ? 'Visitors' : 'Stock'}
+          </Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.navItem}
@@ -121,6 +115,7 @@ export default function MobileFooter({ activeTab: propActiveTab, onMorePress }: 
         visible={showCassandraChat}
         onClose={() => setShowCassandraChat(false)}
         orgId={orgId}
+        propertyId={propertyId}
         initialMode="voice"
       />
     </View>
@@ -133,33 +128,34 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    alignItems: 'center',
     zIndex: 1000,
   },
   blur: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-around',
     width: '100%',
-    paddingTop: 14,
-    paddingBottom: 8,
-    borderTopWidth: 1.5,
-    borderTopColor: 'rgba(255,255,255,0.12)',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    paddingTop: 10,
+    paddingBottom: 6,
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: 'rgba(14, 14, 22, 0.92)',
     overflow: 'hidden',
   },
   navItem: {
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     flex: 1,
-    gap: 4,
+    gap: 3,
+    paddingVertical: 6,
+    paddingBottom: 4,
   },
   navItemCenter: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1.2,
-    gap: 0,
-    marginTop: -22,
+    position: 'relative',
   },
   navLabel: {
     color: 'rgba(255,255,255,0.5)',
@@ -167,21 +163,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 2,
     textAlign: 'center',
+    fontFamily: fontSans,
   },
   navLabelActive: {
     color: '#FFF',
   },
-  orbWrapper: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
-    alignItems: 'center',
-    // Glow effect
-    shadowColor: '#3B82F6',
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 8,
-  },
+
 });

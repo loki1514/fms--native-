@@ -399,7 +399,8 @@ const s = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-        color: '#fff',
+    fontFamily: 'Poppins-Bold',
+    color: '#fff',
     letterSpacing: 0.3,
   },
 
@@ -421,7 +422,8 @@ const s = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 10,
-        letterSpacing: 1.2,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 1.2,
     marginBottom: 16,
     textTransform: 'uppercase',
   },
@@ -454,7 +456,8 @@ const s = StyleSheet.create({
   },
   avatarPlaceholderText: {
     fontSize: 36,
-        color: '#708F96',
+    fontFamily: 'Poppins-Bold',
+    color: '#708F96',
   },
   cameraBtn: {
     position: 'absolute',
@@ -471,11 +474,13 @@ const s = StyleSheet.create({
   },
   nameText: {
     fontSize: 20,
-        textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
+    textAlign: 'center',
   },
   emailText: {
     fontSize: 13,
-        textAlign: 'center',
+    fontFamily: 'Urbanist-Regular',
+    textAlign: 'center',
     marginTop: 2,
   },
   roleBadge: {
@@ -487,7 +492,8 @@ const s = StyleSheet.create({
   },
   roleBadgeText: {
     fontSize: 11,
-        color: '#708F96',
+    fontFamily: 'Urbanist-Bold',
+    color: '#708F96',
     textTransform: 'capitalize',
   },
 
@@ -495,7 +501,8 @@ const s = StyleSheet.create({
   fieldGroup: {},
   fieldLabel: {
     fontSize: 10,
-        letterSpacing: 1,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 1,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
@@ -505,7 +512,8 @@ const s = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     fontSize: 14,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
 
   // Save button
   saveBtn: {
@@ -520,7 +528,8 @@ const s = StyleSheet.create({
   },
   saveBtnText: {
     fontSize: 14,
-        color: '#fff',
+    fontFamily: 'Poppins-Bold',
+    color: '#fff',
   },
 
   // Info rows
@@ -542,12 +551,14 @@ const s = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 11,
-        letterSpacing: 0.5,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 0.5,
     marginBottom: 2,
   },
   infoValue: {
     fontSize: 14,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
 
   // Modal
   modalOverlay: {
@@ -572,7 +583,8 @@ const s = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   modalOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -583,5 +595,6 @@ const s = StyleSheet.create({
   },
   modalOptionText: {
     fontSize: 15,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
 });

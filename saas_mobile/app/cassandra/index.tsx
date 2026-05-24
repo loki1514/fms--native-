@@ -21,6 +21,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '@/stores/appStore';
@@ -77,6 +78,7 @@ const OrbHint = () => {
 // ─── Main Screen ───────────────────────────────────────────────────────────
 export default function CassandraHomeScreen() {
   const insets = useSafeAreaInsets();
+  const { propertyId: routePropertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { membership } = useAuth();
   const { orbState, setOrbState, setIsConnected, setActiveModal, setLastTickets } = useAppStore();
   const { voiceState } = useCassandraStore();
@@ -85,6 +87,7 @@ export default function CassandraHomeScreen() {
   const [isLoadingDock, setIsLoadingDock] = useState(false);
 
   const orgId = membership?.org_id ?? '';
+  const propertyId = routePropertyId;
 
   // Health check with retry — polls every 5s until server is reachable
   useEffect(() => {
@@ -232,7 +235,8 @@ export default function CassandraHomeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.promptChips} showsVerticalScrollIndicator={false}>
+            contentContainerStyle={styles.promptChips}
+          >
             {[
               'Show critical tickets',
               'Energy spike today?',
@@ -292,6 +296,7 @@ export default function CassandraHomeScreen() {
         visible={sessionOpen}
         onClose={() => setSessionOpen(false)}
         orgId={orgId}
+        propertyId={propertyId}
         initialMode="voice"
       />
     </View>

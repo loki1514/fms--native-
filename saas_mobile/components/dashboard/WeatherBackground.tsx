@@ -3,7 +3,7 @@ import { View, StyleSheet, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
-export type WeatherCondition = 'clear-night' | 'sunny' | 'cloudy' | 'rainy' | 'clear-day' | 'cloudy-day' | 'cloudy-night' | 'cosmic';
+export type WeatherCondition = 'clear-night' | 'sunny' | 'cloudy' | 'rainy' | 'clear-day' | 'cloudy-day' | 'cloudy-night';
 
 interface WeatherBackgroundProps {
   condition: WeatherCondition;
@@ -17,7 +17,6 @@ const BACKGROUND_IMAGES: Record<string, any> = {
   'cloudy-day': require('@/assets/images/weather-cloud.png'),
   'cloudy-night': require('@/assets/images/weather-cloud.png'),
   'rainy': require('@/assets/images/weather-rain.png'),
-  'cosmic': require('@/assets/images/weather-moon.png'),
 };
 
 const THEME_GRADIENTS: Record<string, readonly [string, string, ...string[]]> = {
@@ -28,7 +27,6 @@ const THEME_GRADIENTS: Record<string, readonly [string, string, ...string[]]> = 
   'cloudy-day': ['#1e293b', '#334155', '#475569'],
   'cloudy-night': ['#090d16', '#121824', '#1b2333'],
   'rainy': ['#0f172a', '#1e293b', '#334155'],        // Deep Stormy Rain
-  'cosmic': ['#0a0a1a', '#1a1040', '#0d1b3e'],       // Deep cosmic purple-blue
 };
 
 export default function WeatherBackground({ condition }: WeatherBackgroundProps) {

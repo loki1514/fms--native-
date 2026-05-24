@@ -24,12 +24,7 @@ const SKY_PALETTES: Record<WeatherCondition, SkyPalette> = {
   'clear-night': { top: '#03030a', mid: '#060618', bottom: '#0a0a25' },
   'sunny': { top: '#f47133', mid: '#e85d1e', bottom: '#d14309' }, // Glossy vibrant orange-red
   'cloudy': { top: '#6a788c', mid: '#505d70', bottom: '#3c4858' },
-  'rainy': { top: '#2c3e50', mid: '#202e3c', bottom: '#2E335A' },
-  'cosmic': {
-    top: '#0C0E12',
-    mid: '#151A22',
-    bottom: '#040506',
-  },
+  'rainy': { top: '#2c3e50', mid: '#202e3c', bottom: '#141d26' },
 };
 
 // ---- Main Component ----

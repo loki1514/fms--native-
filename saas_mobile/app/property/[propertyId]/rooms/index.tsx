@@ -245,7 +245,7 @@ function RoomDetailSheet({
       backgroundStyle={{ backgroundColor: '#0B0F1A' }}
       handleIndicatorStyle={{ backgroundColor: 'rgba(255,255,255,0.25)', width: 40 }}
     >
-      <BottomSheetScrollView contentContainerStyle={styles.sheetContent} showsVerticalScrollIndicator={false}>
+      <BottomSheetScrollView contentContainerStyle={styles.sheetContent}>
         {/* Header */}
         <LinearGradient colors={['rgba(112,143,150,0.15)', 'rgba(0,0,0,0)']} style={styles.sheetHeaderGrad}>
           <View style={styles.sheetHeader}>
@@ -294,7 +294,7 @@ function RoomDetailSheet({
         {/* Date Picker */}
         <View style={styles.sheetSection}>
           <Text style={styles.sectionTitle}>Select Date</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateScroll}>
             {dateOptions.map((date) => {
               const isSelected = isSameDay(date, selectedDate);
               return (
@@ -564,13 +564,15 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-        color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
     textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 12,
-        color: '#94A3B8',
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
     marginTop: 1,
     textAlign: 'center',
   },
@@ -601,11 +603,13 @@ const styles = StyleSheet.create({
   },
   creditBannerText: {
     fontSize: 13,
-        color: '#E2E8F0',
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#E2E8F0',
   },
   creditBannerHighlight: {
     color: '#FF9F0A',
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   loadingState: {
     flex: 1,
     alignItems: 'center',
@@ -613,7 +617,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-        color: '#94A3B8',
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
     marginTop: 16,
   },
   listContent: {
@@ -649,7 +654,8 @@ const styles = StyleSheet.create({
   },
   cardName: {
     fontSize: 17,
-        color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
     marginBottom: 6,
   },
   cardMetaRow: {
@@ -664,7 +670,8 @@ const styles = StyleSheet.create({
   },
   cardMetaText: {
     fontSize: 12,
-        color: '#94A3B8',
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
   },
   amenityRow: {
     flexDirection: 'row',
@@ -687,7 +694,8 @@ const styles = StyleSheet.create({
   },
   amenityText: {
     fontSize: 10,
-        color: '#94A3B8',
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#94A3B8',
   },
   emptyState: {
     flex: 1,
@@ -710,13 +718,15 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-        color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-        color: '#94A3B8',
+    fontFamily: 'Urbanist-Regular',
+    color: '#94A3B8',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -750,7 +760,8 @@ const styles = StyleSheet.create({
   },
   sheetName: {
     fontSize: 22,
-        color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
     marginBottom: 8,
     letterSpacing: -0.3,
   },
@@ -765,14 +776,16 @@ const styles = StyleSheet.create({
   },
   sheetMetaText: {
     fontSize: 13,
-        color: '#94A3B8',
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
   },
   sheetSection: {
     marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 14,
-        color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
     marginBottom: 12,
   },
   amenityGrid: {
@@ -796,7 +809,8 @@ const styles = StyleSheet.create({
   },
   amenityGridText: {
     fontSize: 12,
-        color: '#CBD5E1',
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#CBD5E1',
   },
   dateScroll: {
     gap: 8,
@@ -818,12 +832,14 @@ const styles = StyleSheet.create({
   },
   dateDay: {
     fontSize: 11,
-        color: '#94A3B8',
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
     marginBottom: 4,
   },
   dateNum: {
     fontSize: 18,
-        color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
   },
   dateTextActive: {
     color: '#FFFFFF',
@@ -856,7 +872,8 @@ const styles = StyleSheet.create({
   },
   slotText: {
     fontSize: 13,
-        color: '#CBD5E1',
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#CBD5E1',
   },
   slotTextBooked: {
     color: '#64748B',
@@ -866,7 +883,8 @@ const styles = StyleSheet.create({
   },
   slotBookedLabel: {
     fontSize: 9,
-        color: '#EF4444',
+    fontFamily: 'Urbanist-Bold',
+    color: '#EF4444',
     marginLeft: 4,
     textTransform: 'uppercase',
   },
@@ -884,10 +902,12 @@ const styles = StyleSheet.create({
   },
   creditInfoText: {
     fontSize: 13,
-        color: '#E2E8F0',
+    fontFamily: 'Urbanist-Medium',
+    color: '#E2E8F0',
   },
   creditHighlight: {
-        color: '#FF9F0A',
+    fontFamily: 'Poppins-Bold',
+    color: '#FF9F0A',
   },
   bookButton: {
     backgroundColor: '#708F96',
@@ -901,6 +921,7 @@ const styles = StyleSheet.create({
   },
   bookButtonText: {
     fontSize: 15,
-        color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
+    color: '#FFFFFF',
   },
 });

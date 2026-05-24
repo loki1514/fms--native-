@@ -42,7 +42,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { STATUS_COLORS, SPACING, type StatusType } from '@/constants/designSystem';
 import MobileFooter from '@/components/shared/MobileFooter';
 import SignOutModal from '@/components/ui/SignOutModal';
-import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
@@ -230,7 +229,6 @@ export default function OrgPropertyDashboard() {
   const [showDrawer, setShowDrawer] = useState(false);
 
   const [showSignOut, setShowSignOut] = useState(false);
-  const [showChat, setShowChat] = useState(false);
 
   const orgName = membership?.org_name || 'Organization';
 
@@ -302,7 +300,7 @@ export default function OrgPropertyDashboard() {
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
         <ActivityIndicator size="large" color="#708F96" />
-        <Text style={{ color: 'rgba(255,255,255,0.55)', marginTop: 16, }}>Loading organization...</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.55)', marginTop: 16, fontFamily: fontSans }}>Loading organization...</Text>
       </View>
     );
   }
@@ -419,7 +417,6 @@ export default function OrgPropertyDashboard() {
       <MobileFooter activeTab="dashboard" />
 
       <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
 
       {/* ─── Side Drawer ────────────────────────────────────────────────────── */}
       <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
@@ -482,16 +479,16 @@ const styles = StyleSheet.create({
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.10)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' },
   avatarImage: { width: 36, height: 36, borderRadius: 18 },
-  avatarText: { color: '#FFF', fontSize: 13, fontWeight: '700', },
-  greetingText: { color: '#FFF', fontSize: 14, fontWeight: '700', },
-  headerSubtitle: { color: 'rgba(255,255,255,0.40)', fontSize: 11,  marginTop: 1 },
+  avatarText: { color: '#FFF', fontSize: 13, fontWeight: '700', fontFamily: fontSans },
+  greetingText: { color: '#FFF', fontSize: 14, fontWeight: '700', fontFamily: fontSans },
+  headerSubtitle: { color: 'rgba(255,255,255,0.40)', fontSize: 11, fontFamily: fontSans, marginTop: 1 },
   headerRight: { flexDirection: 'row', gap: 14, alignItems: 'center' },
   headerIconBtn: { position: 'relative' },
   notificationBadge: { position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
 
   // Hero
   overviewHeader: { paddingHorizontal: 20, marginTop: 8, marginBottom: 16 },
-  overviewTitle: {  fontSize: 26, fontWeight: '800', color: '#FFFFFF', lineHeight: 28, letterSpacing: -0.5 },
+  overviewTitle: { fontFamily: fontDisplay, fontSize: 26, fontWeight: '800', color: '#FFFFFF', lineHeight: 28, letterSpacing: -0.5 },
 
   // Stats
   statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 18 },
@@ -505,8 +502,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.10)',
   },
-  statPillValue: {  fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
-  statPillLabel: {  fontSize: 10, color: 'rgba(255,255,255,0.40)', marginTop: 4, fontWeight: '600' },
+  statPillValue: { fontFamily: fontDisplay, fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
+  statPillLabel: { fontFamily: fontSans, fontSize: 10, color: 'rgba(255,255,255,0.40)', marginTop: 4, fontWeight: '600' },
 
   // Search
   searchWrap: { paddingHorizontal: 20, marginBottom: 16 },
@@ -523,7 +520,8 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-        fontSize: 14,
+    fontFamily: fontSans,
+    fontSize: 14,
     color: '#FFFFFF',
     paddingVertical: 0,
   },
@@ -567,7 +565,8 @@ const styles = StyleSheet.create({
     paddingRight: 12,
   },
   cardName: {
-        fontSize: 22,
+    fontFamily: fontSans,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.5,
@@ -577,7 +576,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   cardSubtitle: {
-        fontSize: 13,
+    fontFamily: fontSans,
+    fontSize: 13,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.80)',
     marginTop: 3,
@@ -586,7 +586,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   cardMetric: {
-        fontSize: 48,
+    fontFamily: fontDisplay,
+    fontSize: 48,
     fontWeight: '200',
     color: '#FFFFFF',
     letterSpacing: -1.5,
@@ -611,14 +612,16 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   cardStatus: {
-        fontSize: 13,
+    fontFamily: fontSans,
+    fontSize: 13,
     fontWeight: '600',
     textShadowColor: 'rgba(0,0,0,0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   cardRange: {
-        fontSize: 13,
+    fontFamily: fontSans,
+    fontSize: 13,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.85)',
     textShadowColor: 'rgba(0,0,0,0.2)',
@@ -634,7 +637,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-        fontSize: 14,
+    fontFamily: fontSans,
+    fontSize: 14,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.40)',
   },
@@ -647,7 +651,7 @@ const styles = StyleSheet.create({
   drawerLogo: { width: 140, height: 35, marginLeft: -5 },
   drawerSubtitle: { color: 'rgba(255,255,255,0.3)', fontSize: 9, fontWeight: '900', letterSpacing: 2, marginTop: 4, marginLeft: 2 },
   drawerCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
-  drawerSectionLabel: {  fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5, marginBottom: 8, paddingHorizontal: 4 },
+  drawerSectionLabel: { fontFamily: fontSans, fontSize: 10, fontWeight: '800', color: 'rgba(255,255,255,0.3)', letterSpacing: 1.5, marginBottom: 8, paddingHorizontal: 4 },
   drawerItem: { flexDirection: 'row', alignItems: 'center', gap: 15, paddingVertical: 14 },
-  drawerItemLabel: {  fontSize: 15, color: '#FFF', fontWeight: '600' },
+  drawerItemLabel: { fontFamily: fontSans, fontSize: 15, color: '#FFF', fontWeight: '600' },
 });

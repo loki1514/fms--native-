@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,6 @@ import {
   ActivityIndicator,
   Platform,
   Image,
-  Alert,
-  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -27,34 +25,17 @@ interface Props {
 
 type TabKey = 'notifications' | 'pending';
 
-interface PendingAction {
-  id: string;
-  title: string;
-  body: string;
-  type: 'procurement' | 'approval';
-  status: string;
-  created_at: string;
-  requester_name?: string;
-  total_amount?: number;
-  items?: { name: string; quantity: number }[];
-  raw: any;
-}
-
 export default function NotificationModal({ visible, onClose, propertyId }: Props) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>('notifications');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
-  const [pendingLoading, setPendingLoading] = useState(false);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (visible && user) {
       fetchNotifications();
-      fetchPendingActions();
     }
   }, [visible, user]);
 
@@ -62,6 +43,7 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
     setIsLoading(true);
     const supabase = createClient();
     try {
+      // First try to join
       const userId = user?.id;
       if (!userId) return;
       const { data, error } = await supabase
@@ -73,16 +55,20 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
 
       let finalData = data as any[] | null;
 
+      // If the join fails due to schema naming, fetch flat notifications and try manual join
       if (error || !data) {
+        console.log("Join error, fetching flat notifications", error);
         const fallbackRes = await supabase
           .from('notifications')
           .select('*')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
           .limit(20);
-
+          
         if (fallbackRes.data && fallbackRes.data.length > 0) {
           finalData = fallbackRes.data;
+          
+          // Manual Join Logic
           const ticketIds = (finalData as any[])
             .map((n: any) => n.ticket_id)
             .filter(Boolean);
@@ -97,6 +83,7 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
             if (ticketList) {
               const ticketMap: any = {};
               ticketList.forEach(t => ticketMap[t.id] = t);
+
               finalData = (finalData as any[]).map((n: any) => {
                 const tid = n.ticket_id;
                 if (tid && ticketMap[tid]) {
@@ -112,90 +99,52 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
       if (finalData && finalData.length > 0) {
         setNotifications(finalData);
       } else {
-        setNotifications([]);
+        // Fallback mock data if table doesn't exist or is empty
+        setNotifications([
+          { 
+            id: '1', 
+            title: 'Water Leaking from AC', 
+            body: 'A new plumbing ticket has been assigned to you.', 
+            type: 'ticket_assigned', 
+            read: false, 
+            created_at: new Date().toISOString(),
+            reference_id: 'mock-123',
+            before_photo: 'https://images.unsplash.com/photo-1585836261555-5c1fa583f790?auto=format&fit=crop&q=80&w=300',
+            description: 'Water is dripping from the AC unit in Room 204. It started about an hour ago and is forming a puddle.'
+          },
+          { 
+            id: '2', 
+            title: 'SLA Warning: Lift Stuck', 
+            body: 'Ticket #456 is approaching SLA breach.', 
+            type: 'sla_warning', 
+            read: true, 
+            created_at: new Date(Date.now() - 3600000).toISOString(),
+            reference_id: 'mock-456',
+            description: 'Lift #2 in Tower A is stuck on the 4th floor. Immediate assistance required.'
+          },
+          { 
+            id: '3', 
+            title: 'Visitor Arrived', 
+            body: 'John Doe is waiting at the lobby.', 
+            type: 'visitor_arrived', 
+            read: true, 
+            created_at: new Date(Date.now() - 86400000).toISOString() 
+          }
+        ]);
       }
     } catch (e) {
-      setNotifications([]);
+      // Fallback
+      setNotifications([
+        { id: '1', title: 'New Ticket', body: 'A new ticket has been assigned to you.', type: 'ticket_assigned', read: false, created_at: new Date().toISOString() }
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const fetchPendingActions = useCallback(async () => {
-    if (!user?.id || !propertyId) return;
-    setPendingLoading(true);
-    const supabase = createClient();
-    try {
-      // Fetch material_requests pending approval where current user is a target approver
-      const { data: requests, error } = await supabase
-        .from('material_requests')
-        .select(`
-          *,
-          requester:requested_by(full_name),
-          items:material_request_items(name, quantity)
-        `)
-        .eq('property_id', propertyId)
-        .eq('status', 'pending')
-        .or(`target_approver_id.eq.${user.id},target_approver_ids.cs.{${user.id}}`)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.warn('[PendingActions] fetch error:', error);
-        setPendingActions([]);
-        return;
-      }
-
-      const mapped: PendingAction[] = (requests || []).map((req: any) => ({
-        id: req.id,
-        title: req.ticket?.title || `Material Request #${req.id.slice(0, 6).toUpperCase()}`,
-        body: req.notes || `Requested by ${req.requester?.full_name || 'Unknown'}`,
-        type: 'procurement',
-        status: req.status,
-        created_at: req.created_at,
-        requester_name: req.requester?.full_name,
-        total_amount: req.total_amount,
-        items: req.items || [],
-        raw: req,
-      }));
-
-      setPendingActions(mapped);
-    } catch (e) {
-      console.warn('[PendingActions] exception:', e);
-      setPendingActions([]);
-    } finally {
-      setPendingLoading(false);
-    }
-  }, [user?.id, propertyId]);
-
-  const handleProcurementAction = async (actionId: string, status: 'approved' | 'rejected') => {
-    setActionLoadingId(actionId);
-    const supabase = createClient();
-    try {
-      const { error } = await (supabase
-        .from('material_requests') as any)
-        .update({
-          status,
-          [`${status === 'approved' ? 'approved' : 'rejected'}_by`]: user?.id,
-          [`${status === 'approved' ? 'approved' : 'rejected'}_at`]: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', actionId);
-
-      if (error) {
-        Alert.alert('Error', error.message);
-      } else {
-        setPendingActions(prev => prev.filter(a => a.id !== actionId));
-      }
-    } catch (e) {
-      Alert.alert('Error', 'Failed to update request');
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
   const getIconName = (type?: string) => {
     switch (type) {
-      case 'TICKET_CREATED':
+      case 'TICKET_CREATED': 
       case 'ticket_assigned': return 'time';
       case 'TICKET_ESCALATED':
       case 'sla_warning': return 'timer';
@@ -215,23 +164,25 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
     }
   };
 
-  const formatTime = (dateString: string) => {
+  const formatNotificationTime = (dateString: string) => {
     const date = new Date(dateString);
     const today = new Date();
-    const isToday = date.getDate() === today.getDate() &&
-                    date.getMonth() === today.getMonth() &&
+    const isToday = date.getDate() === today.getDate() && 
+                    date.getMonth() === today.getMonth() && 
                     date.getFullYear() === today.getFullYear();
+    
     if (isToday) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' +
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + 
            date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const handleNotificationPress = (item: any) => {
+    // If it's related to a ticket, redirect to the ticket details
     const ticketId = item.ticket_id || item.reference_id || item.ticket?.id;
     if (ticketId || item.notification_type === 'ticket_assigned' || item.notification_type === 'TICKET_CREATED') {
-      onClose();
+      onClose(); // Close the modal
       router.push(`/(app)/property/${propertyId}/tickets/${ticketId || 'mock-123'}` as any);
     }
   };
@@ -241,10 +192,10 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
     const descText = item.ticket?.description || item.description || item.message || item.body;
     const isRead = item.is_read !== undefined ? item.is_read : item.read;
     const type = item.notification_type || item.type;
-
+    
     return (
-      <TouchableOpacity
-        style={[styles.itemCard, !isRead && styles.unreadItem]}
+      <TouchableOpacity 
+        style={[styles.itemCard, !isRead && styles.unreadItem]} 
         onPress={() => handleNotificationPress(item)}
         activeOpacity={0.8}
       >
@@ -258,70 +209,43 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
         <View style={styles.textContainer}>
           <Text style={styles.title}>{item.title}</Text>
           <Text style={styles.body} numberOfLines={2}>{descText}</Text>
-          <Text style={styles.time}>{formatTime(item.created_at)}</Text>
+          <Text style={styles.time}>{formatNotificationTime(item.created_at)}</Text>
         </View>
         {!isRead && <View style={styles.unreadDot} />}
       </TouchableOpacity>
     );
   };
 
-  const renderPendingActionItem = ({ item }: { item: PendingAction }) => {
-    const isLoading = actionLoadingId === item.id;
-    return (
-      <View style={styles.itemCard}>
-        <View style={[styles.iconContainer, { backgroundColor: '#F59E0B20' }]}>
-          <Ionicons name="cart" size={20} color="#F59E0B" />
-        </View>
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>{item.title}</Text>
-          <Text style={styles.body}>{item.body}</Text>
-          {item.items && item.items.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.itemsScroll} showsVerticalScrollIndicator={false}>
-              {item.items.map((it, idx) => (
-                <View key={idx} style={styles.itemChip}>
-                  <Text style={styles.itemChipText}>{it.name} × {it.quantity}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-          {item.total_amount !== undefined && item.total_amount > 0 && (
-            <Text style={styles.amountText}>₹{item.total_amount.toLocaleString()}</Text>
-          )}
-          <Text style={styles.time}>{formatTime(item.created_at)}</Text>
-          <View style={styles.actionButtonsRow}>
-            <TouchableOpacity
-              style={[styles.approveBtn, isLoading && { opacity: 0.5 }]}
-              onPress={() => handleProcurementAction(item.id, 'approved')}
-              disabled={isLoading}
-              activeOpacity={0.7}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.approveBtnText}>Approve</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.rejectBtn, isLoading && { opacity: 0.5 }]}
-              onPress={() => handleProcurementAction(item.id, 'rejected')}
-              disabled={isLoading}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.rejectBtnText}>Decline</Text>
-            </TouchableOpacity>
-          </View>
+  const mockPendingActions = [
+    { id: 'p1', title: 'Material Requisition #Req-101', body: 'Requires approval for 5x LED Bulbs, 2x AC Filters.', type: 'approval' },
+    { id: 'p2', title: 'Vendor Access Request', body: 'ABC Plumbing needs access tomorrow 10 AM.', type: 'approval' },
+  ];
+
+  const renderPendingActionItem = ({ item }: { item: any }) => (
+    <View style={styles.itemCard}>
+      <View style={[styles.iconContainer, { backgroundColor: '#F59E0B20' }]}>
+        <Ionicons name="document-text" size={20} color="#F59E0B" />
+      </View>
+      <View style={styles.textContainer}>
+        <Text style={styles.title}>{item.title}</Text>
+        <Text style={styles.body}>{item.body}</Text>
+        <View style={styles.actionButtonsRow}>
+          <TouchableOpacity style={styles.approveBtn}>
+            <Text style={styles.approveBtnText}>Approve</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.rejectBtn}>
+            <Text style={styles.rejectBtnText}>Decline</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    );
-  };
-
-  const pendingCount = pendingActions.length;
+    </View>
+  );
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFill} />
-
+        
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
           <Text style={styles.headerTitle}>Notifications Center</Text>
@@ -332,7 +256,7 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
 
         {/* Tab Switcher */}
         <View style={styles.tabContainer}>
-          <TouchableOpacity
+          <TouchableOpacity 
             style={[styles.tab, activeTab === 'notifications' && styles.activeTab]}
             onPress={() => setActiveTab('notifications')}
           >
@@ -340,12 +264,12 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
               Notifications {notifications.length > 0 && `(${notifications.length})`}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
+          <TouchableOpacity 
             style={[styles.tab, activeTab === 'pending' && styles.activeTab]}
             onPress={() => setActiveTab('pending')}
           >
             <Text style={[styles.tabText, activeTab === 'pending' && styles.activeTabText]}>
-              Pending Actions {pendingCount > 0 && `(${pendingCount})`}
+              Pending Actions (2)
             </Text>
           </TouchableOpacity>
         </View>
@@ -372,24 +296,20 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
               />
             )
           ) : (
-            pendingLoading ? (
-              <View style={styles.centerContent}>
-                <ActivityIndicator size="large" color="#3B82F6" />
-              </View>
-            ) : pendingActions.length === 0 ? (
-              <View style={styles.centerContent}>
-                <Ionicons name="checkmark-circle-outline" size={48} color="rgba(255,255,255,0.2)" />
-                <Text style={styles.emptyText}>All caught up!</Text>
-              </View>
-            ) : (
-              <FlatList
-                data={pendingActions}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPendingActionItem}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-              />
-            )
+            // Pending Actions Tab
+            <FlatList
+              data={mockPendingActions}
+              keyExtractor={(item) => item.id}
+              renderItem={renderPendingActionItem}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.centerContent}>
+                  <Ionicons name="checkmark-circle-outline" size={48} color="rgba(255,255,255,0.2)" />
+                  <Text style={styles.emptyText}>All caught up!</Text>
+                </View>
+              }
+            />
           )}
         </View>
       </View>
@@ -549,28 +469,5 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
-  },
-  itemsScroll: {
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  itemChip: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginRight: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  itemChipText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-  },
-  amountText: {
-    color: '#F59E0B',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 4,
   },
 });

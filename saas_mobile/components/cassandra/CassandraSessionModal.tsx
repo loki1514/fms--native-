@@ -21,8 +21,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
-  FlatList,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -33,7 +37,6 @@ import { useCassandraVoice } from '@/hooks/voice/useCassandraVoice';
 import { toast } from '@/lib/toast';
 import {
   Colors,
-  Gradients,
   Typography,
   Spacing as CassSpacing,
   Radius,
@@ -44,17 +47,17 @@ import {
   CARD_SURFACES,
 } from '@/constants/designSystem';
 import SidekickFace, { type FaceState } from '@/components/dashboard/SidekickFace';
-import Svg, { Path, Circle } from 'react-native-svg';
-import { streamChat } from '@/services/cassandra/chat';
+import Svg, { Path } from 'react-native-svg';
+import { streamChat, type StreamChatOptions } from '@/services/cassandra/chat';
 import {
   createChatSession,
   listChatSessions,
   getChatSession,
   addChatMessage,
-  updateChatSessionTitle,
   deleteChatSession,
 } from '@/lib/cassandra';
-import type { ChatSession, ChatMessage as ChatMessageType } from '@/lib/cassandra';
+import type { ChatSession } from '@/lib/cassandra';
+import { supabase } from '@/utils/supabase';
 
 // ─── Icons ─────────────────────────────────────────────────────────────────
 const SendIcon = ({ size = 20, color = '#fff' }: { size?: number; color?: string }) => (
@@ -83,13 +86,6 @@ const AttachmentIcon = ({ size = 20, color = '#9CA3AF' }: { size?: number; color
   </Svg>
 );
 
-const PersonIcon = ({ size = 20, color = '#9CA3AF' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <Circle cx="12" cy="7" r="4" />
-  </Svg>
-);
-
 // ─── Skill Chip ────────────────────────────────────────────────────────────
 const SkillChip = ({ label, onPress, variant = 'default' }: { label: string; onPress: () => void; variant?: 'default' | 'muted' }) => (
   <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={[styles.chip, variant === 'muted' && styles.chipMuted]}>
@@ -102,10 +98,63 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'cassandra';
   text: string;
+  variant?: 'default' | 'tool_call' | 'blocked';
+  toolData?: { ticketId?: string; ticketNumber?: string; description?: string; status?: string };
+  blockedReason?: string;
 }
 
-const ChatBubble = ({ message }: { message: ChatMessage }) => {
+const ChatBubble = ({
+  message,
+  onRaiseRequest,
+}: {
+  message: ChatMessage;
+  onRaiseRequest?: () => void;
+}) => {
   const isUser = message.role === 'user';
+
+  if (message.variant === 'tool_call' && message.toolData) {
+    return (
+      <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
+        <View style={styles.toolCallCard}>
+          <View style={styles.toolCallHeader}>
+            <Text style={styles.toolCallIcon}>✅</Text>
+            <Text style={styles.toolCallTitle}>Ticket Created</Text>
+          </View>
+          {message.toolData.ticketNumber && (
+            <Text style={styles.toolCallId}>#{message.toolData.ticketNumber}</Text>
+          )}
+          {message.toolData.description && (
+            <Text style={styles.toolCallDesc}>{message.toolData.description}</Text>
+          )}
+          {message.toolData.status && (
+            <View style={styles.toolCallStatusBadge}>
+              <Text style={styles.toolCallStatusText}>{message.toolData.status}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  if (message.variant === 'blocked') {
+    return (
+      <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
+        <View style={styles.blockedCard}>
+          <Text style={styles.blockedIcon}>🛡️</Text>
+          <Text style={styles.blockedTitle}>Action Not Allowed</Text>
+          <Text style={styles.blockedText}>
+            {message.blockedReason || message.text}
+          </Text>
+          {onRaiseRequest && (
+            <TouchableOpacity onPress={onRaiseRequest} activeOpacity={0.7} style={styles.blockedActionBtn}>
+              <Text style={styles.blockedActionText}>Raise a request instead?</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.bubbleRow, isUser ? styles.bubbleRowRight : styles.bubbleRowLeft]}>
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleBot]}>
@@ -201,16 +250,15 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   initialMode = 'text',
 }) => {
   console.log('[CassandraSessionModal] render. visible:', visible, 'orgId:', orgId, 'propertyId:', propertyId);
-  const { user } = useAuth();
+  const { user, membership } = useAuth();
+  const userProperties = membership?.properties ?? [];
   const insets = useSafeAreaInsets();
   const {
     voiceState,
     isConnected,
     addMessage,
-    transcript,
     messageHistory,
     setVoiceState,
-    setLastResponse,
   } = useCassandraStore();
   const [inputText, setInputText] = useState('');
   const [inputMode, setInputMode] = useState<'text' | 'voice'>(initialMode);
@@ -225,6 +273,11 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   const orbScale = useRef(new Animated.Value(1)).current;
   const abortRef = useRef<AbortController | null>(null);
   const { speak, stop: stopSpeaking } = useTextToSpeech();
+
+  // ── Attachment / Property state ───────────────────────────────────────────
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | undefined>(propertyId);
 
   const voice = useCassandraVoice(orgId, {
     onStateChange: useCassandraStore.getState().setVoiceState,
@@ -284,6 +337,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
       stopSpeaking();
       setVoiceState('idle');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   useEffect(() => {
@@ -291,6 +345,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
       setInputMode('voice');
       voice.startSession();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, initialMode]);
 
   const loadHistory = useCallback(async () => {
@@ -299,7 +354,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     try {
       const data = await listChatSessions(user.id, orgId);
       setSessions(data);
-    } catch (err) {
+    } catch {
       toast.error('Failed to load chat history');
     } finally {
       setIsLoadingHistory(false);
@@ -315,9 +370,9 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     }
   }, [currentSessionId]);
 
-  const loadSession = useCallback(async (sessionId: string) => {
+  const loadSession = useCallback(async (sid: string) => {
     try {
-      const session = await getChatSession(sessionId);
+      const session = await getChatSession(sid);
       useCassandraStore.getState().clearMessages();
       session.messages.forEach((msg) => {
         useCassandraStore.getState().addMessage({ role: msg.role as 'user' | 'cassandra', text: msg.text });
@@ -359,25 +414,148 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     }
   };
 
-  const handleSend = useCallback((message: string) => {
+  // ── Image helpers ─────────────────────────────────────────────────────────
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+      allowsEditing: false,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      setAttachedImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadImageToStorage = useCallback(async (localUri: string): Promise<string | null> => {
+    try {
+      const compressed = await ImageManipulator.manipulateAsync(
+        localUri,
+        [{ resize: { width: 1200 } }],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      const base64 = await FileSystem.readAsStringAsync(compressed.uri, {
+        encoding: 'base64',
+      });
+      const arrayBuffer = new Uint8Array(
+        Array.from(atob(base64), (c) => c.charCodeAt(0))
+      ).buffer;
+      const path = `cassandra-chat/${user?.id ?? 'anon'}/${Date.now()}.jpg`;
+      const { error } = await supabase.storage.from('ticket-media').upload(path, arrayBuffer, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+      if (error) throw error;
+      const { data: publicUrlData } = supabase.storage.from('ticket-media').getPublicUrl(path);
+      return publicUrlData.publicUrl;
+    } catch {
+      toast.error('Failed to upload image');
+      return null;
+    }
+  }, [user?.id]);
+
+  // ── Response parsers ──────────────────────────────────────────────────────
+  const parseToolCall = (text: string): { isToolCall: boolean; toolData?: ChatMessage['toolData']; cleanText?: string } => {
+    try {
+      // Look for JSON objects that contain ticket creation data
+      const jsonMatch = text.match(/\{[\s\S]*"ticket_id"[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.ticket_id || parsed.ticket_number || parsed.id) {
+          return {
+            isToolCall: true,
+            toolData: {
+              ticketId: parsed.ticket_id ?? parsed.id,
+              ticketNumber: parsed.ticket_number ?? parsed.ticket_id ?? parsed.id,
+              description: parsed.description ?? parsed.title,
+              status: parsed.status ?? 'Created',
+            },
+            cleanText: text.replace(jsonMatch[0], '').trim(),
+          };
+        }
+      }
+    } catch { /* ignore parse errors */ }
+    return { isToolCall: false };
+  };
+
+  const isBlockedResponse = (text: string): boolean => {
+    const lower = text.toLowerCase();
+    return (
+      lower.includes('blocked') ||
+      lower.includes('not allowed') ||
+      lower.includes('refusal') ||
+      lower.includes('role cannot') ||
+      lower.includes('unauthorized') ||
+      lower.includes('permission denied') ||
+      lower.includes('you do not have permission')
+    );
+  };
+
+  const handleSend = useCallback(async (message: string) => {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     setIsTyping(true);
     setView('chat');
     let fullResponse = '';
 
+    let photoUrl: string | null = null;
+    if (attachedImage) {
+      setIsUploadingImage(true);
+      photoUrl = await uploadImageToStorage(attachedImage);
+      setIsUploadingImage(false);
+      setAttachedImage(null);
+      if (!photoUrl) {
+        setIsTyping(false);
+        return;
+      }
+    }
+
+    const chatOptions: StreamChatOptions = {
+      photoUrl: photoUrl ?? undefined,
+      propertyId: selectedPropertyId,
+    };
+
     streamChat(
       message,
-      sessionId,
+      currentSessionId ?? sessionId,
       (token) => {
         fullResponse += token;
         setCurrentResponse(fullResponse);
       },
       async () => {
-        addMessage({ role: 'cassandra', text: fullResponse });
-        persistMessage('cassandra', fullResponse);
         setCurrentResponse('');
         setIsTyping(false);
+
+        // Parse special response types
+        if (isBlockedResponse(fullResponse)) {
+          addMessage({ role: 'cassandra', text: fullResponse, variant: 'blocked', blockedReason: fullResponse });
+          persistMessage('cassandra', fullResponse);
+          if (inputMode === 'voice') {
+            setVoiceState('speaking');
+            await speak(fullResponse);
+            setVoiceState('idle');
+          }
+          return;
+        }
+
+        const toolResult = parseToolCall(fullResponse);
+        if (toolResult.isToolCall && toolResult.toolData) {
+          addMessage({
+            role: 'cassandra',
+            text: toolResult.cleanText || fullResponse,
+            variant: 'tool_call',
+            toolData: toolResult.toolData,
+          });
+          persistMessage('cassandra', fullResponse);
+          if (inputMode === 'voice') {
+            setVoiceState('speaking');
+            await speak(toolResult.cleanText || 'Ticket created successfully');
+            setVoiceState('idle');
+          }
+          return;
+        }
+
+        addMessage({ role: 'cassandra', text: fullResponse });
+        persistMessage('cassandra', fullResponse);
         // Speak the response if voice mode is active
         if (inputMode === 'voice') {
           setVoiceState('speaking');
@@ -389,22 +567,22 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
         setCurrentResponse(err);
         setIsTyping(false);
       },
-      abortRef.current.signal
+      abortRef.current.signal,
+      chatOptions
     );
-  }, [sessionId, addMessage, inputMode, speak, setVoiceState]);
+  }, [sessionId, currentSessionId, addMessage, inputMode, speak, setVoiceState, persistMessage, attachedImage, selectedPropertyId, uploadImageToStorage]);
 
   // All skill chips just send a pre-filled message to /chat — no client-side routing.
 
   const statusLabels: Record<string, string> = {
     idle: 'Tap face to speak',
+    authenticated: 'Ready — tap to speak',
     recording: 'Listening… speak now',
     connecting: 'Connecting…',
     processing: 'Cassandra is thinking…',
     speaking: 'Cassandra is speaking…',
     error: 'Something went wrong. Tap to retry.',
   };
-
-  const hasMessages = messageHistory.length > 0;
 
   return (
     <Modal
@@ -522,7 +700,15 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
               keyboardShouldPersistTaps="handled"
             >
               {messageHistory.map((msg) => (
-                <ChatBubble key={msg.id} message={msg as ChatMessage} />
+                <ChatBubble
+                  key={msg.id}
+                  message={msg as ChatMessage}
+                  onRaiseRequest={() => {
+                    const text = 'I would like to raise a request';
+                    addMessage({ role: 'user', text });
+                    handleSend(text);
+                  }}
+                />
               ))}
               {isTyping && (
                 <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
@@ -536,7 +722,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
               {/* Suggestions strip at bottom of chat */}
               {!isTyping && (
                 <View style={styles.suggestionsStrip}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionsStripContent} showsVerticalScrollIndicator={false}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionsStripContent}>
                     {WHAT_I_CAN_DO.map((item) => (
                       <SkillChip key={item.label} label={item.label} onPress={() => { addMessage({ role: 'user', text: item.message }); setView('chat'); handleSend(item.message); }} />
                     ))}
@@ -611,6 +797,50 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
             </ScrollView>
           )}
 
+          {/* Property Selector */}
+          {userProperties.length > 1 && (
+            <View style={styles.propertyBar}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.propertyBarContent}>
+                <TouchableOpacity
+                  onPress={() => setSelectedPropertyId(undefined)}
+                  activeOpacity={0.7}
+                  style={[styles.propertyChip, !selectedPropertyId && styles.propertyChipActive]}
+                >
+                  <Text style={[styles.propertyChipText, !selectedPropertyId && styles.propertyChipTextActive]}>
+                    🏢 All Properties
+                  </Text>
+                </TouchableOpacity>
+                {userProperties.map((prop) => (
+                  <TouchableOpacity
+                    key={prop.id}
+                    onPress={() => setSelectedPropertyId(prop.id)}
+                    activeOpacity={0.7}
+                    style={[styles.propertyChip, selectedPropertyId === prop.id && styles.propertyChipActive]}
+                  >
+                    <Text style={[styles.propertyChipText, selectedPropertyId === prop.id && styles.propertyChipTextActive]}>
+                      {prop.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* Attached image preview */}
+          {attachedImage && (
+            <View style={styles.attachmentPreview}>
+              <Image source={{ uri: attachedImage }} style={styles.attachmentThumb} />
+              <TouchableOpacity onPress={() => setAttachedImage(null)} style={styles.attachmentRemove} activeOpacity={0.7}>
+                <Text style={styles.attachmentRemoveText}>×</Text>
+              </TouchableOpacity>
+              {isUploadingImage && (
+                <View style={styles.attachmentUploadingOverlay}>
+                  <ActivityIndicator size="small" color="#fff" />
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Input Bar */}
           <View
             style={[
@@ -618,25 +848,30 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
               { paddingBottom: Math.max(insets.bottom, SPACING.md) },
             ]}
           >
-            {/* Attachment & mention buttons hidden until wired */}
-            {/* <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}><AttachmentIcon size={20} /></TouchableOpacity> */}
-            {/* <TouchableOpacity activeOpacity={0.7} style={styles.iconBtn}><PersonIcon size={20} /></TouchableOpacity> */}
+            <TouchableOpacity onPress={pickImage} activeOpacity={0.7} style={styles.iconBtn}>
+              <AttachmentIcon size={20} color={attachedImage ? Colors.violet : '#9CA3AF'} />
+            </TouchableOpacity>
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
                 value={inputText}
                 onChangeText={setInputText}
-                placeholder="Ask Sidekick anything…"
+                placeholder={attachedImage ? 'Describe the issue with this photo…' : 'Ask Sidekick anything…'}
                 placeholderTextColor={Colors.textMuted}
-                onSubmitEditing={() => { const text = inputText.trim(); if (text) { addMessage({ role: 'user', text }); setInputText(''); setView('chat'); handleSend(text); } }}
+                onSubmitEditing={() => { const text = inputText.trim(); if (text || attachedImage) { addMessage({ role: 'user', text: text || ' ' }); setInputText(''); setView('chat'); handleSend(text || ' '); } }}
                 returnKeyType="send"
               />
               <TouchableOpacity onPress={handleOrbPress} activeOpacity={0.8} style={styles.micBtnInline}>
                 <MicIcon size={16} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => { const text = inputText.trim(); if (text) { addMessage({ role: 'user', text }); setInputText(''); setView('chat'); handleSend(text); } }} activeOpacity={0.7} style={styles.sendBtn}>
-              <SendIcon />
+            <TouchableOpacity
+              onPress={() => { const text = inputText.trim(); if (text || attachedImage) { addMessage({ role: 'user', text: text || ' ' }); setInputText(''); setView('chat'); handleSend(text || ' '); } }}
+              activeOpacity={0.7}
+              style={[styles.sendBtn, (isUploadingImage) && { opacity: 0.5 }]}
+              disabled={isUploadingImage}
+            >
+              {isUploadingImage ? <ActivityIndicator size="small" color="#fff" /> : <SendIcon />}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -942,6 +1177,162 @@ const styles = StyleSheet.create({
   },
   suggestionsStripContent: {
     gap: CassSpacing.sm,
+  },
+  /* ─── Property Selector ─── */
+  propertyBar: {
+    borderTopWidth: 1,
+    borderTopColor: CARD_SURFACES.cardBorder,
+    backgroundColor: MODAL_TOKENS.sheetBg,
+    paddingHorizontal: CassSpacing.lg,
+    paddingVertical: CassSpacing.sm,
+  },
+  propertyBarContent: {
+    gap: CassSpacing.sm,
+  },
+  propertyChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: CARD_SURFACES.cardBg,
+    borderWidth: 1,
+    borderColor: CARD_SURFACES.cardBorder,
+  },
+  propertyChipActive: {
+    backgroundColor: 'rgba(139,92,246,0.25)',
+    borderColor: 'rgba(139,92,246,0.5)',
+  },
+  propertyChipText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  propertyChipTextActive: {
+    color: Colors.violetLight,
+    fontWeight: '600',
+  },
+  /* ─── Attachment Preview ─── */
+  attachmentPreview: {
+    paddingHorizontal: CassSpacing.lg,
+    paddingTop: CassSpacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: CassSpacing.sm,
+  },
+  attachmentThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: Radius.lg,
+    backgroundColor: CARD_SURFACES.cardBg,
+  },
+  attachmentRemove: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(239,68,68,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachmentRemoveText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  attachmentUploadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /* ─── Tool Call Card ─── */
+  toolCallCard: {
+    maxWidth: '80%',
+    backgroundColor: 'rgba(16,185,129,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.3)',
+    borderRadius: Radius.xl,
+    paddingHorizontal: CassSpacing.md,
+    paddingVertical: CassSpacing.sm,
+    borderTopLeftRadius: Radius.sm,
+    gap: CassSpacing.sm,
+  },
+  toolCallHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: CassSpacing.sm,
+  },
+  toolCallIcon: {
+    fontSize: 16,
+  },
+  toolCallTitle: {
+    ...Typography.body,
+    color: '#10B981',
+    fontWeight: '700',
+  },
+  toolCallId: {
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
+    fontWeight: '600',
+  },
+  toolCallDesc: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+  },
+  toolCallStatusBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(16,185,129,0.15)',
+    borderRadius: Radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.3)',
+  },
+  toolCallStatusText: {
+    ...Typography.caption,
+    color: '#10B981',
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  /* ─── Blocked Card ─── */
+  blockedCard: {
+    maxWidth: '80%',
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.3)',
+    borderRadius: Radius.xl,
+    paddingHorizontal: CassSpacing.md,
+    paddingVertical: CassSpacing.sm,
+    borderTopLeftRadius: Radius.sm,
+    alignItems: 'flex-start',
+    gap: CassSpacing.sm,
+  },
+  blockedIcon: {
+    fontSize: 20,
+  },
+  blockedTitle: {
+    ...Typography.body,
+    color: '#F59E0B',
+    fontWeight: '700',
+  },
+  blockedText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  blockedActionBtn: {
+    marginTop: CassSpacing.sm,
+    backgroundColor: 'rgba(245,158,11,0.15)',
+    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.3)',
+  },
+  blockedActionText: {
+    ...Typography.caption,
+    color: '#F59E0B',
+    fontWeight: '700',
   },
 });
 

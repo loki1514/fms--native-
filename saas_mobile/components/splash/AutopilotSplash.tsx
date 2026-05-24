@@ -1,50 +1,25 @@
 import React, { useEffect } from 'react';
 import {
-  View,
-  StyleSheet,
-  ImageBackground,
-  Image,
-  Pressable,
   Text,
+  StyleSheet,
+  Image,
+  ImageBackground,
+  Pressable,
 } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withDelay,
-  withRepeat,
-  withSequence,
   Easing,
   runOnJS,
 } from 'react-native-reanimated';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ASSETS
-// ═══════════════════════════════════════════════════════════════════════════
-
 const BG_IMAGE = require('../../assets/images/launch-bg.png');
-const LOGO_IMAGE = require('../../assets/images/autopilot-logo-new.png');
+const LOGO_IMAGE = require('../../assets/images/logo.png');
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TYPES
-// ═══════════════════════════════════════════════════════════════════════════
-
-interface AutopilotSplashProps {
-  onComplete: () => void;
-  isReady?: boolean;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MAIN SPLASH COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════
-
-export default function AutopilotSplash({ onComplete, isReady = true }: AutopilotSplashProps) {
-  // ── Animation values ────────────────────────────────────────────────────
+export default function AutopilotSplash({ onComplete }: { onComplete: () => void }) {
   const logoOpacity = useSharedValue(0);
   const logoScale = useSharedValue(0.85);
-
-  const spinnerOpacity = useSharedValue(0);
-  const spinnerRotation = useSharedValue(0);
 
   const containerOpacity = useSharedValue(1);
   const containerScale = useSharedValue(1);
@@ -54,17 +29,11 @@ export default function AutopilotSplash({ onComplete, isReady = true }: Autopilo
     transform: [{ scale: logoScale.value }],
   }));
 
-  const spinnerStyle = useAnimatedStyle(() => ({
-    opacity: spinnerOpacity.value,
-    transform: [{ rotate: `${spinnerRotation.value}deg` }],
-  }));
-
   const containerStyle = useAnimatedStyle(() => ({
     opacity: containerOpacity.value,
     transform: [{ scale: containerScale.value }],
   }));
 
-  // ── Animation sequence ──────────────────────────────────────────────────
   useEffect(() => {
     // Phase 1: Logo fades + scales in [0 → 700ms]
     logoOpacity.value = withTiming(1, {
@@ -76,24 +45,7 @@ export default function AutopilotSplash({ onComplete, isReady = true }: Autopilo
       easing: Easing.out(Easing.back(1.2)),
     });
 
-    // Phase 2: Spinner fades in + starts rotating [400ms]
-    spinnerOpacity.value = withDelay(
-      400,
-      withTiming(1, { duration: 400 })
-    );
-    spinnerRotation.value = withRepeat(
-      withSequence(
-        withTiming(360, { duration: 1000, easing: Easing.linear })
-      ),
-      -1,
-      false
-    );
 
-    // Cleanup: cancel animations if component unmounts early
-    return () => {
-      // Animation callbacks check `finished` flag, so onComplete won't fire
-      // when these shared values are implicitly cancelled on unmount
-    };
   }, []);
 
   // Manual dismiss handler
@@ -114,10 +66,6 @@ export default function AutopilotSplash({ onComplete, isReady = true }: Autopilo
     );
   };
 
-  // ════════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════════════════════════
-
   return (
     <ImageBackground source={BG_IMAGE} style={styles.root} resizeMode="cover">
       <Animated.View style={[styles.overlay, containerStyle]}>
@@ -131,11 +79,6 @@ export default function AutopilotSplash({ onComplete, isReady = true }: Autopilo
           />
         </Animated.View>
 
-        {/* Spinner ring */}
-        <Animated.View style={[styles.spinnerWrap, spinnerStyle]}>
-          <View style={styles.spinnerRing} />
-        </Animated.View>
-
         {/* Tap to continue */}
         <Pressable onPress={handleDismiss} style={styles.tapButton}>
           <Text style={styles.tapText}>Tap to continue</Text>
@@ -144,10 +87,6 @@ export default function AutopilotSplash({ onComplete, isReady = true }: Autopilo
     </ImageBackground>
   );
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═══════════════════════════════════════════════════════════════════════════
 
 const styles = StyleSheet.create({
   root: {
@@ -166,24 +105,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logo: {
-    width: 320,
-    height: 90,
-    tintColor: '#FFFFFF',
-  },
-  spinnerWrap: {
-    marginTop: 32,
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  spinnerRing: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderTopColor: '#FFFFFF',
+    width: 480,
+    height: 180,
   },
   tapButton: {
     marginTop: 48,

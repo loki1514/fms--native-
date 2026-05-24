@@ -162,7 +162,8 @@ function AreaSvgChart({ data, color }: AreaSvgChartProps) {
                 textAlign: 'center',
                 fontSize: 9,
                 color: 'rgba(255,255,255,0.50)',
-                              }}
+                fontFamily: fontSans,
+              }}
             >
               {d.label}
             </Text>
@@ -347,14 +348,16 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   labelText: {
-        fontSize: TYPOGRAPHY.caption.fontSize,
+    fontFamily: fontSans,
+    fontSize: TYPOGRAPHY.caption.fontSize,
     fontWeight: TYPOGRAPHY.caption.fontWeight,
     color: 'rgba(255,255,255,0.60)',
     letterSpacing: TYPOGRAPHY.caption.letterSpacing,
     textTransform: 'uppercase',
   },
   titleText: {
-        fontSize: TYPOGRAPHY.title.fontSize,
+    fontFamily: fontDisplay,
+    fontSize: TYPOGRAPHY.title.fontSize,
     fontWeight: TYPOGRAPHY.title.fontWeight,
     color: '#FFFFFF',
     letterSpacing: -0.5,
@@ -386,13 +389,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metricValue: {
-        fontSize: 24,
+    fontFamily: fontDisplay,
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.5,
   },
   metricLabel: {
-        fontSize: 10,
+    fontFamily: fontSans,
+    fontSize: 10,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.50)',
     letterSpacing: 0.5,
@@ -418,7 +423,8 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   cardTitle: {
-        fontSize: 14,
+    fontFamily: fontDisplay,
+    fontSize: 14,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.90)',
   },
@@ -431,7 +437,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   trendText: {
-        fontSize: 11,
+    fontFamily: fontSans,
+    fontSize: 11,
     fontWeight: '600',
   },
 
@@ -452,11 +459,13 @@ const styles = StyleSheet.create({
   },
   breakdownLabel: {
     flex: 1,
-        fontSize: 14,
+    fontFamily: fontSans,
+    fontSize: 14,
     color: 'rgba(255,255,255,0.80)',
   },
   breakdownValue: {
-        fontSize: 14,
+    fontFamily: fontSans,
+    fontSize: 14,
     fontWeight: '600',
   },
 
@@ -477,12 +486,14 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   aiTitle: {
-        fontSize: 14,
+    fontFamily: fontDisplay,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
   },
   aiText: {
-        fontSize: 13,
+    fontFamily: fontSans,
+    fontSize: 13,
     color: 'rgba(255,255,255,0.80)',
     lineHeight: 20,
   },

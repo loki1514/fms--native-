@@ -1032,7 +1032,7 @@ export default function PPMScreen() {
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ATTACHMENTS / PHOTOS</Text>
                     {/* Combine both completion_photos (from web) and attachments.photos (from mobile) */}
                     {(selectedSchedule.attachments?.photos?.length || selectedSchedule.completion_photos?.length) ? (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} showsVerticalScrollIndicator={false}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                         {[...(selectedSchedule.completion_photos || []), ...(selectedSchedule.attachments?.photos || [])].map((url, idx) => (
                           <View key={idx} style={styles.photoThumbWrap}>
                             <Image source={{ uri: url }} style={styles.photoThumb} />
@@ -1225,7 +1225,7 @@ export default function PPMScreen() {
           </SafeBlurView>
 
           {selectedSchedule && (
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
               
               <View style={[styles.sectionCard, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
                 <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>TASK DETAILS</Text>
@@ -1270,7 +1270,7 @@ export default function PPMScreen() {
               {(selectedSchedule.attachments?.photos?.length || selectedSchedule.completion_photos?.length) ? (
                 <View style={[styles.sectionCard, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
                   <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>PHOTOS</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} showsVerticalScrollIndicator={false}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
                     {[...(selectedSchedule.completion_photos || []), ...(selectedSchedule.attachments?.photos || [])].map((url, idx) => (
                       <View key={idx} style={{ marginRight: 12, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
                         <Image source={{ uri: url }} style={{ width: 120, height: 120 }} />
@@ -1294,7 +1294,7 @@ export default function PPMScreen() {
                         onPress={() => Linking.openURL(doc.url as string)}
                       >
                         <DownloadCloud size={20} color={colors.primary} />
-                        <Text style={{ marginLeft: 10, color: colors.text, flex: 1, }}>{doc.label}</Text>
+                        <Text style={{ marginLeft: 10, color: colors.text, flex: 1, fontFamily: 'Urbanist-Medium' }}>{doc.label}</Text>
                         <ChevronRight size={16} color={colors.textTertiary} />
                       </TouchableOpacity>
                     ) : null)}
@@ -1315,7 +1315,7 @@ export default function PPMScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  loadingText: { fontSize: 14, },
+  loadingText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
 
   header: {
     paddingHorizontal: 20,
@@ -1336,133 +1336,133 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitleWrap: { flex: 1, marginLeft: 16 },
-  headerTitleMain: { fontSize: 22,  letterSpacing: -0.5, color: '#FFFFFF' },
-  headerSubtitleMain: { fontSize: 12,  marginTop: 2 },
+  headerTitleMain: { fontSize: 22, fontFamily: 'Poppins-Bold', letterSpacing: -0.5, color: '#FFFFFF' },
+  headerSubtitleMain: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 2 },
   headerAddBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 
   tabBar: { flexDirection: 'row', gap: 10 },
   tab: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24 },
-  tabText: { fontSize: 13, },
+  tabText: { fontSize: 13, fontFamily: 'Urbanist-Bold' },
   badge: { backgroundColor: '#EF6B6B', borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
-  badgeText: { color: '#FFFFFF', fontSize: 10, },
+  badgeText: { color: '#FFFFFF', fontSize: 10, fontFamily: 'Urbanist-Bold' },
 
   // Calendar
   calendarContent: { padding: 16, paddingBottom: 100 },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingHorizontal: 4 },
   monthNavBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  monthNavTitle: { fontSize: 18, },
+  monthNavTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
 
   calendarCard: { borderRadius: 16, borderWidth: 1, padding: 12 },
   calendarDayHeaderRow: { flexDirection: 'row', marginBottom: 8 },
-  calendarDayHeaderText: { flex: 1, textAlign: 'center', fontSize: 11,  textTransform: 'uppercase' },
+  calendarDayHeaderText: { flex: 1, textAlign: 'center', fontSize: 11, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calendarCell: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 8 },
   calendarDayCircle: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  calendarDayText: { fontSize: 14, },
+  calendarDayText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
   calendarDotsRow: { flexDirection: 'row', gap: 3, marginTop: 3, height: 6, alignItems: 'center' },
   calendarDot: { width: 5, height: 5, borderRadius: 2.5 },
 
   legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 16, marginBottom: 16 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 11, },
+  legendText: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
 
   dayDetailSection: { marginTop: 8 },
-  dayDetailTitle: { fontSize: 16,  marginBottom: 12 },
+  dayDetailTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', marginBottom: 12 },
   emptyDay: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1, paddingVertical: 24 },
-  emptyDayText: { fontSize: 13, },
+  emptyDayText: { fontSize: 13, fontFamily: 'Urbanist-Medium' },
 
   overdueAlert: { marginTop: 16, borderRadius: 12, padding: 12 },
   overdueAlertHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  overdueAlertTitle: { fontSize: 13, },
+  overdueAlertTitle: { fontSize: 13, fontFamily: 'Urbanist-Bold' },
   overdueItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
-  overdueItemText: { fontSize: 13,  flex: 1 },
+  overdueItemText: { fontSize: 13, fontFamily: 'Urbanist-Medium', flex: 1 },
 
   listContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 },
   overdueBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 10, marginBottom: 12 },
-  overdueBannerText: { fontSize: 12, },
+  overdueBannerText: { fontSize: 12, fontFamily: 'Urbanist-Bold' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
-  emptyTitle: { fontSize: 16, },
+  emptyTitle: { fontSize: 16, fontFamily: 'Poppins-Bold' },
   createBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
-  createBtnText: { color: '#FFFFFF', fontSize: 13, },
+  createBtnText: { color: '#FFFFFF', fontSize: 13, fontFamily: 'Poppins-Bold' },
 
   scheduleCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 10, gap: 12 },
   scheduleCardLeft: {},
   scheduleIconWrap: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   scheduleCardContent: { flex: 1 },
-  scheduleName: { fontSize: 14,  marginBottom: 2 },
-  scheduleMeta: { fontSize: 11, },
+  scheduleName: { fontSize: 14, fontFamily: 'Poppins-Bold', marginBottom: 2 },
+  scheduleMeta: { fontSize: 11, fontFamily: 'Urbanist-Regular' },
   scheduleCardRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  statusBadgeText: { fontSize: 9,  letterSpacing: 0.5 },
+  statusBadgeText: { fontSize: 9, fontFamily: 'Urbanist-Bold', letterSpacing: 0.5 },
 
   contractCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10 },
   contractHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   contractIcon: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   contractContent: { flex: 1 },
-  contractAsset: { fontSize: 15,  marginBottom: 2 },
-  contractVendor: { fontSize: 11, },
+  contractAsset: { fontSize: 15, fontFamily: 'Poppins-Bold', marginBottom: 2 },
+  contractVendor: { fontSize: 11, fontFamily: 'Urbanist-Regular' },
   contractDates: { flexDirection: 'row', alignItems: 'center' },
   dateItem: { flex: 1, alignItems: 'center' },
-  dateLabel: { fontSize: 9,  textTransform: 'uppercase', letterSpacing: 0.3 },
-  dateValue: { fontSize: 12,  marginTop: 2 },
+  dateLabel: { fontSize: 9, fontFamily: 'Urbanist-Medium', textTransform: 'uppercase', letterSpacing: 0.3 },
+  dateValue: { fontSize: 12, fontFamily: 'Poppins-Bold', marginTop: 2 },
   dateDivider: { width: 1, height: 24, backgroundColor: 'rgba(0,0,0,0.08)' },
   expiryAlert: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 10 },
-  expiryAlertText: { fontSize: 11, },
-  contractDesc: { fontSize: 11,  marginTop: 8, lineHeight: 16 },
+  expiryAlertText: { fontSize: 11, fontFamily: 'Urbanist-Bold' },
+  contractDesc: { fontSize: 11, fontFamily: 'Urbanist-Regular', marginTop: 8, lineHeight: 16 },
 
   // Modals
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingBottom: 34 },
   modalHandle: { width: 36, height: 4, backgroundColor: '#D1D5DB', borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 16 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, },
+  modalTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
   modalBody: { maxHeight: 400 },
-  inputLabel: { fontSize: 11,  textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 12 },
-  input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, },
+  inputLabel: { fontSize: 11, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 12 },
+  input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: 'Urbanist-Regular' },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
   scheduleTypeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   typeChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  typeChipText: { fontSize: 12,  textTransform: 'capitalize' },
+  typeChipText: { fontSize: 12, fontFamily: 'Urbanist-Medium', textTransform: 'capitalize' },
   submitBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
-  submitBtnText: { color: '#FFFFFF', fontSize: 15, },
+  submitBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins-Bold' },
 
   // Detail sheet
   detailSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingBottom: 34, maxHeight: '85%' },
   detailHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   detailIconWrap: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   detailHeaderContent: { flex: 1 },
-  detailTitle: { fontSize: 18, },
-  detailSubtitle: { fontSize: 12,  marginTop: 2 },
+  detailTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
+  detailSubtitle: { fontSize: 12, fontFamily: 'Urbanist-Regular', marginTop: 2 },
   detailStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   detailStatCard: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center' },
-  detailStatLabel: { fontSize: 9,  textTransform: 'uppercase', letterSpacing: 0.3 },
-  detailStatValue: { fontSize: 13,  marginTop: 4, textAlign: 'center' },
+  detailStatLabel: { fontSize: 9, fontFamily: 'Urbanist-Medium', textTransform: 'uppercase', letterSpacing: 0.3 },
+  detailStatValue: { fontSize: 13, fontFamily: 'Poppins-Bold', marginTop: 4, textAlign: 'center' },
 
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, marginBottom: 10 },
-  infoRowText: { fontSize: 13,  flex: 1 },
+  infoRowText: { fontSize: 13, fontFamily: 'Urbanist-Regular', flex: 1 },
   descBanner: { borderRadius: 10, padding: 12, marginBottom: 10 },
-  descText: { fontSize: 13,  lineHeight: 20 },
+  descText: { fontSize: 13, fontFamily: 'Urbanist-Regular', lineHeight: 20 },
 
   sectionCard: { borderRadius: 10, padding: 12, marginBottom: 12 },
-  sectionLabel: { fontSize: 9,  textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  sectionValue: { fontSize: 14,  marginBottom: 2 },
-  sectionSub: { fontSize: 12,  marginTop: 2 },
+  sectionLabel: { fontSize: 9, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  sectionValue: { fontSize: 14, fontFamily: 'Poppins-Bold', marginBottom: 2 },
+  sectionSub: { fontSize: 12, fontFamily: 'Urbanist-Regular', marginTop: 2 },
 
   statusPickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   statusChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   statusChipDot: { width: 8, height: 8, borderRadius: 4 },
-  statusChipText: { fontSize: 12, },
+  statusChipText: { fontSize: 12, fontFamily: 'Urbanist-Bold' },
 
   photoThumbWrap: { marginRight: 10, position: 'relative' },
   photoThumb: { width: 80, height: 80, borderRadius: 10 },
   photoDeleteBtn: { position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' },
   uploadBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1, paddingVertical: 12, borderStyle: 'dashed' },
-  uploadBtnText: { fontSize: 14, },
+  uploadBtnText: { fontSize: 14, fontFamily: 'Urbanist-Bold' },
 
   verificationBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 12, marginTop: 12 },
-  verificationText: { fontSize: 13,  flex: 1 },
+  verificationText: { fontSize: 13, fontFamily: 'Urbanist-Medium', flex: 1 },
 
   markCompleteBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
-  markCompleteBtnText: { color: '#FFFFFF', fontSize: 15, },
+  markCompleteBtnText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins-Bold' },
 });

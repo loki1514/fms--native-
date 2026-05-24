@@ -25,7 +25,7 @@ import { Colors, DesignTokens } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
 import { toast } from '@/lib/toast';
 import { LinearGradient } from 'expo-linear-gradient';
-
+import SafeBlurView from '@/components/ui/SafeBlurView';
 import { mobileServices } from '@/utils/api/mobileServices';
 
 
@@ -146,18 +146,26 @@ function StatCard({
   bgColor: string;
   onPress?: () => void;
 }) {
+  const { theme } = useTheme();
+  const colors = Colors[theme];
   return (
     <TouchableOpacity
       style={[styles.statCard]}
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
     >
-      <LinearGradient
-        colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)']}
-        style={[StyleSheet.absoluteFillObject, { borderRadius: 16 }]}
-      />
+      <SafeBlurView
+        intensity={40}
+        tint="dark"
+        style={[StyleSheet.absoluteFillObject, { borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }]}
+      >
+        <LinearGradient
+          colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </SafeBlurView>
       <View style={[styles.statIcon, { backgroundColor: bgColor }]}>{icon}</View>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
     </TouchableOpacity>
   );
@@ -175,6 +183,8 @@ function VisitorCard({
   visitor: VisitorLog;
   onPress: () => void;
 }) {
+  const { theme } = useTheme();
+  const colors = Colors[theme];
   const catColor = CATEGORY_COLORS[visitor.category] ?? CATEGORY_COLORS.delivery;
 
   return (
@@ -183,25 +193,32 @@ function VisitorCard({
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <LinearGradient
-        colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']}
-        style={[StyleSheet.absoluteFillObject, { borderRadius: 16 }]}
-      />
+      <SafeBlurView
+        intensity={40}
+        tint="dark"
+        style={[StyleSheet.absoluteFillObject, { borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }]}
+      >
+        <LinearGradient
+          colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </SafeBlurView>
 
       <View style={styles.visitorCardRow}>
         {/* Photo */}
-        <View style={[styles.visitorAvatar, { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }]}>
+        <SafeBlurView intensity={30} tint="dark" style={[styles.visitorAvatar, { borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }]}>
+          <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.05)']} style={StyleSheet.absoluteFillObject} />
           {visitor.photo_url ? (
             <Image source={{ uri: visitor.photo_url }} style={styles.visitorAvatarImg} />
           ) : (
-            <User size={22} color="rgba(255,255,255,0.35)" />
+            <User size={22} color={colors.textTertiary} />
           )}
-        </View>
+        </SafeBlurView>
 
         {/* Info */}
         <View style={styles.visitorInfo}>
           <View style={styles.visitorNameRow}>
-            <Text style={styles.visitorName} numberOfLines={1}>
+            <Text style={[styles.visitorName, { color: colors.text }]} numberOfLines={1}>
               {visitor.name}
             </Text>
             <View style={[styles.categoryBadge, { backgroundColor: catColor.bg }]}>
@@ -211,10 +228,10 @@ function VisitorCard({
               </Text>
             </View>
           </View>
-          <Text style={styles.visitorMeta}>
+          <Text style={[styles.visitorMeta, { color: colors.textSecondary }]}>
             {visitor.mobile || 'No mobile'} · {visitor.whom_to_meet}
           </Text>
-          <Text style={styles.visitorTime}>
+          <Text style={[styles.visitorTime, { color: colors.textTertiary }]}>
             In: {new Date(visitor.checkin_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             {visitor.checkout_time
               ? ` · Out: ${new Date(visitor.checkout_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
@@ -230,10 +247,10 @@ function VisitorCard({
               {
                 backgroundColor:
                   visitor.status === 'checked_in'
-                    ? '#10B981'
+                    ? colors.success
                     : visitor.status === 'pending'
-                    ? '#F59E0B'
-                    : 'rgba(255,255,255,0.3)',
+                    ? colors.warning
+                    : colors.textTertiary,
               },
             ]}
           />
@@ -243,16 +260,16 @@ function VisitorCard({
               {
                 color:
                   visitor.status === 'checked_in'
-                    ? '#10B981'
+                    ? colors.success
                     : visitor.status === 'pending'
-                    ? '#F59E0B'
-                    : 'rgba(255,255,255,0.4)',
+                    ? colors.warning
+                    : colors.textTertiary,
               },
             ]}
           >
             {STATUS_LABELS[visitor.status] ?? visitor.status}
           </Text>
-          <ChevronRight size={14} color="rgba(255,255,255,0.25)" style={{ marginTop: 4 }} />
+          <ChevronRight size={14} color={colors.textTertiary} style={{ marginTop: 4 }} />
         </View>
       </View>
     </TouchableOpacity>
@@ -549,7 +566,8 @@ function CheckInForm({
           }}
         />
         {hostSuggestions.length > 0 && (
-          <View style={[styles.suggestionsList, { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(20,25,40,0.95)', overflow: 'hidden' }]}>
+          <SafeBlurView intensity={45} tint="dark" style={[styles.suggestionsList, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+            <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.15)']} style={StyleSheet.absoluteFillObject} />
             {hostSuggestions.map((s) => (
               <TouchableOpacity
                 key={s.id}
@@ -571,7 +589,7 @@ function CheckInForm({
                 )}
               </TouchableOpacity>
             ))}
-          </View>
+          </SafeBlurView>
         )}
 
         {/* Purpose */}
@@ -790,7 +808,8 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
             }}
           />
           {hostSuggestions.length > 0 && (
-            <View style={[styles.suggestionsList, { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(20,25,40,0.95)', overflow: 'hidden' }]}>
+            <SafeBlurView intensity={45} tint="dark" style={[styles.suggestionsList, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+              <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.15)']} style={StyleSheet.absoluteFillObject} />
               {hostSuggestions.map((s) => (
                 <TouchableOpacity
                   key={s.id}
@@ -801,7 +820,7 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
                   <Text style={[styles.suggestionText, { color: colors.text }]}>{s.full_name || s.name}</Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </SafeBlurView>
           )}
 
           <Text style={[styles.kioskFieldLabel, { color: colors.textSecondary }]}>Purpose of Visit</Text>
@@ -1003,22 +1022,25 @@ export default function VisitorsScreen() {
       />
       
       {/* Top Navigation */}
-      <View style={[styles.topNav, {
-        backgroundColor: 'rgba(15,21,33,0.85)',
-        borderBottomColor: 'rgba(255,255,255,0.08)',
-        borderBottomWidth: 1,
-        paddingTop: insets.top + 10,
-        paddingBottom: 16,
-      }]}>
+      <SafeBlurView
+        intensity={80}
+        tint="dark"
+        style={[styles.topNav, {
+          backgroundColor: 'transparent',
+          borderBottomColor: 'rgba(255,255,255,0.12)',
+          paddingTop: insets.top + 10,
+          paddingBottom: 16
+        }]}
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#FFFFFF' }} numberOfLines={1} adjustsFontSizeToFit>
+            <Text style={{ fontSize: 18, fontFamily: 'Poppins-Bold', color: '#FFFFFF' }} numberOfLines={1} adjustsFontSizeToFit>
               {property?.name || 'Visitors'}
             </Text>
-            <Text style={{ fontSize: 11, color: '#94A3B8' }}>
+            <Text style={{ fontSize: 11, fontFamily: 'Urbanist-Medium', color: '#94A3B8' }}>
               Visitor Management System
             </Text>
           </View>
@@ -1030,11 +1052,12 @@ export default function VisitorsScreen() {
             <Ionicons name="qr-code-outline" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeBlurView>
 
 
       {/* Hero Header */}
-      <View style={[styles.heroHeader, { borderColor: 'rgba(255,255,255,0.08)', borderBottomWidth: 1, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.02)' }]}>
+      <SafeBlurView intensity={40} tint="dark" style={[styles.heroHeader, { borderColor: 'rgba(255,255,255,0.15)', borderBottomWidth: 1, overflow: 'hidden' }]}>
+        <LinearGradient colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']} style={StyleSheet.absoluteFillObject} />
         <View style={styles.heroContent}>
           <View>
             <Text style={[styles.heroTitle, { color: colors.text }]}>Visitors</Text>
@@ -1051,7 +1074,8 @@ export default function VisitorsScreen() {
             <Text style={[styles.kioskBtnTextHero, { color: '#fff' }]}>Kiosk Mode</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeBlurView>
+
 
       {/* Stats Row */}
       <View style={styles.statsRow}>
@@ -1081,7 +1105,8 @@ export default function VisitorsScreen() {
       </View>
 
       {/* Tabs */}
-      <View style={[styles.tabBar, { borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.03)', overflow: 'hidden' }]}>
+      <SafeBlurView intensity={45} tint="dark" style={[styles.tabBar, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+        <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']} style={StyleSheet.absoluteFillObject} />
         {([
           { key: 'all', label: 'All Visitors', icon: <ClipboardList size={14} /> },
           { key: 'checkin', label: 'Check In', icon: <LogIn size={14} /> },
@@ -1108,15 +1133,17 @@ export default function VisitorsScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </SafeBlurView>
+
 
       {/* Content */}
       {activeTab === 'all' ? (
         <>
           {/* Search + Filter */}
           <View style={styles.filterRow}>
-            <View style={[styles.searchWrap, { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.04)', overflow: 'hidden' }]}>
-              <Search size={16} color="rgba(255,255,255,0.4)" style={{ marginRight: 8 }} />
+            <SafeBlurView intensity={45} tint="dark" style={[styles.searchWrap, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+              <LinearGradient colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']} style={StyleSheet.absoluteFillObject} />
+              <Search size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.searchInput, { color: colors.text }]}
                 placeholder="Search by name, phone, host..."
@@ -1124,7 +1151,7 @@ export default function VisitorsScreen() {
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
-            </View>
+            </SafeBlurView>
             <TouchableOpacity
               style={[
                 styles.filterChip,
@@ -1202,7 +1229,8 @@ export default function VisitorsScreen() {
           style={styles.modalOverlay} 
           onPress={() => setIsVisitorDetailVisible(false)}
         >
-          <View style={[styles.detailModalContainer, { borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(20,25,40,0.95)', overflow: 'hidden' }]}>
+          <SafeBlurView intensity={50} tint="dark" style={[styles.detailModalContainer, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
+            <LinearGradient colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(0,0,0,0.15)']} style={StyleSheet.absoluteFillObject} />
             {selectedVisitor && (
               <VisitorDetailSheet
                 visitor={selectedVisitor}
@@ -1211,7 +1239,7 @@ export default function VisitorsScreen() {
                 loading={checkoutLoading}
               />
             )}
-          </View>
+          </SafeBlurView>
         </Pressable>
       </Modal>
       {/* Standard Bottom Navigation */}
@@ -1274,11 +1302,13 @@ const styles = StyleSheet.create({
   heroTitle: {
     color: '#FFF',
     fontSize: 28,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   heroSub: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
-        marginTop: 2,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 2,
   },
   kioskBtnHero: {
     flexDirection: 'row',
@@ -1291,7 +1321,8 @@ const styles = StyleSheet.create({
   },
   kioskBtnTextHero: {
     fontSize: 13,
-      },
+    fontFamily: 'Urbanist-Bold',
+  },
   statsRow: {
     flexDirection: 'row',
     paddingHorizontal: 12,
@@ -1305,8 +1336,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  statLabel: { fontSize: 9,  textTransform: 'uppercase', letterSpacing: 0.8 },
-  statValue: { fontSize: 22,  marginTop: 2 },
+  statLabel: { fontSize: 9, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.8 },
+  statValue: { fontSize: 22, fontFamily: 'Poppins-Bold', marginTop: 2 },
   tabBar: {
     flexDirection: 'row',
     marginHorizontal: 12,
@@ -1323,7 +1354,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 4,
   },
-  tabText: { fontSize: 12,  textTransform: 'uppercase', letterSpacing: 0.5 },
+  tabText: { fontSize: 12, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5 },
   filterRow: {
     flexDirection: 'row',
     paddingHorizontal: 12,
@@ -1340,20 +1371,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  searchInput: { flex: 1, fontSize: 14,  padding: 0 },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: 'Urbanist-Regular', padding: 0 },
   filterChip: {
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
   },
-  filterChipText: { fontSize: 12, },
+  filterChipText: { fontSize: 12, fontFamily: 'Urbanist-Bold' },
   listContent: { paddingHorizontal: 12, paddingBottom: 100 },
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 },
   emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 },
   emptyIcon: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  emptyTitle: { fontSize: 18,  marginBottom: 6 },
-  emptySub: { fontSize: 14,  textAlign: 'center', paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 18, fontFamily: 'Poppins-Bold', marginBottom: 6 },
+  emptySub: { fontSize: 14, fontFamily: 'Urbanist-Regular', textAlign: 'center', paddingHorizontal: 40 },
   visitorCard: {
     padding: 14,
     borderRadius: 14,
@@ -1364,14 +1395,14 @@ const styles = StyleSheet.create({
   visitorAvatarImg: { width: 46, height: 46 },
   visitorInfo: { flex: 1 },
   visitorNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  visitorName: { fontSize: 15,  flex: 1 },
+  visitorName: { fontSize: 15, fontFamily: 'Poppins-Bold', flex: 1 },
   categoryBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-  categoryText: { fontSize: 9,  textTransform: 'uppercase' },
-  visitorMeta: { fontSize: 12,  marginBottom: 2 },
-  visitorTime: { fontSize: 11, },
+  categoryText: { fontSize: 9, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
+  visitorMeta: { fontSize: 12, fontFamily: 'Urbanist-Regular', marginBottom: 2 },
+  visitorTime: { fontSize: 11, fontFamily: 'Urbanist-Regular' },
   visitorStatusCol: { alignItems: 'center', gap: 4 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusLabel: { fontSize: 10,  textTransform: 'uppercase' },
+  statusLabel: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase' },
   // Detail sheet
   detailHeader: { padding: 20, paddingTop: 12, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
   detailCloseBtn: { position: 'absolute', top: 12, right: 12, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
@@ -1379,51 +1410,51 @@ const styles = StyleSheet.create({
   detailAvatar: { width: 64, height: 64, borderRadius: 16, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   detailAvatarImg: { width: 64, height: 64 },
   detailNameCol: { flex: 1 },
-  detailName: { fontSize: 22,  color: '#fff' },
-  detailVisitorId: { fontSize: 12,  color: 'rgba(255,255,255,0.7)', marginTop: 4 },
+  detailName: { fontSize: 22, fontFamily: 'Poppins-Bold', color: '#fff' },
+  detailVisitorId: { fontSize: 12, fontFamily: 'monospace', color: 'rgba(255,255,255,0.7)', marginTop: 4 },
   detailInfoGrid: { padding: 16, gap: 14 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   detailRowIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.light.card, alignItems: 'center', justifyContent: 'center' },
-  detailRowLabel: { fontSize: 10,  textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
-  detailRowValue: { fontSize: 14, },
+  detailRowLabel: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 2 },
+  detailRowValue: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
   checkoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, paddingVertical: 14, borderRadius: 12, marginTop: 8 },
-  checkoutBtnText: { color: '#fff', fontSize: 16, },
+  checkoutBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins-Bold' },
   // Check-in form
-  fieldLabel: { fontSize: 12,  marginBottom: 6, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, },
+  fieldLabel: { fontSize: 12, fontFamily: 'Urbanist-Bold', marginBottom: 6, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: 'Urbanist-Regular' },
   suggestionsList: { borderWidth: 1, borderRadius: 10, marginTop: 4, overflow: 'hidden' },
   suggestionItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.06)' },
-  suggestionText: { fontSize: 14, },
-  suggestionSub: { fontSize: 11,  marginLeft: 'auto' },
+  suggestionText: { fontSize: 14, fontFamily: 'Urbanist-Medium' },
+  suggestionSub: { fontSize: 11, fontFamily: 'Urbanist-Regular', marginLeft: 'auto' },
   purposeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   purposeChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  purposeChipText: { fontSize: 13, },
+  purposeChipText: { fontSize: 13, fontFamily: 'Urbanist-Medium' },
   photoBtn: { borderWidth: 1, borderRadius: 12, paddingVertical: 24, alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', gap: 8 },
-  photoBtnText: { fontSize: 13,  marginTop: 4 },
+  photoBtnText: { fontSize: 13, fontFamily: 'Urbanist-Regular', marginTop: 4 },
   photoPreview: { width: 80, height: 80, borderRadius: 8 },
   submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15, borderRadius: 12, marginTop: 24 },
   submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { color: '#fff', fontSize: 16, },
+  submitBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins-Bold' },
   // Kiosk
   kioskContainer: { flex: 1 },
   kioskHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
-  kioskTitle: { fontSize: 20,  color: '#fff' },
+  kioskTitle: { fontSize: 20, fontFamily: 'Poppins-Bold', color: '#fff' },
   kioskCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   kioskFormContent: { padding: 24 },
-  kioskFieldLabel: { fontSize: 14,  marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
-  kioskInput: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, fontSize: 18, },
+  kioskFieldLabel: { fontSize: 14, fontFamily: 'Urbanist-Bold', marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
+  kioskInput: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, fontSize: 18, fontFamily: 'Urbanist-Regular' },
   kioskSubmitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 20, borderRadius: 16, marginTop: 28 },
-  kioskSubmitText: { color: '#fff', fontSize: 20, },
+  kioskSubmitText: { color: '#fff', fontSize: 20, fontFamily: 'Poppins-Bold' },
   kioskSuccess: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   kioskSuccessContent: { alignItems: 'center', paddingHorizontal: 32 },
   kioskCheckCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
-  kioskWelcomeText: { fontSize: 28,  color: 'rgba(255,255,255,0.8)', marginBottom: 8 },
-  kioskSuccessName: { fontSize: 36,  color: '#fff', marginBottom: 16, textAlign: 'center' },
-  kioskSuccessSub: { fontSize: 16,  color: 'rgba(255,255,255,0.8)', textAlign: 'center', lineHeight: 24, marginBottom: 40 },
+  kioskWelcomeText: { fontSize: 28, fontFamily: 'Poppins-Bold', color: 'rgba(255,255,255,0.8)', marginBottom: 8 },
+  kioskSuccessName: { fontSize: 36, fontFamily: 'Poppins-Bold', color: '#fff', marginBottom: 16, textAlign: 'center' },
+  kioskSuccessSub: { fontSize: 16, fontFamily: 'Urbanist-Regular', color: 'rgba(255,255,255,0.8)', textAlign: 'center', lineHeight: 24, marginBottom: 40 },
   kioskNewVisitorBtn: { paddingHorizontal: 40, paddingVertical: 16, borderRadius: 30, borderWidth: 2, borderColor: '#fff', marginBottom: 16 },
-  kioskNewVisitorText: { color: '#fff', fontSize: 16, },
+  kioskNewVisitorText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins-Bold' },
   kioskExitBtn: { paddingHorizontal: 24, paddingVertical: 12 },
-  kioskExitText: { color: 'rgba(255,255,255,0.6)', fontSize: 14, },
+  kioskExitText: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontFamily: 'Urbanist-Regular' },
   // Bottom Nav
   bottomNav: {
     position: 'absolute',
@@ -1447,7 +1478,8 @@ const styles = StyleSheet.create({
   },
   navText: {
     fontSize: 9,
-        letterSpacing: 0.5,
+    fontFamily: 'Urbanist-Bold',
+    letterSpacing: 0.5,
   },
   navItemCenter: {
     marginTop: -30,
@@ -1492,7 +1524,8 @@ const styles = StyleSheet.create({
   },
   loggersTitle: {
     fontSize: 18,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   loggerOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1511,8 +1544,10 @@ const styles = StyleSheet.create({
   },
   loggerName: {
     fontSize: 15,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   loggerSub: {
     fontSize: 12,
-      },
+    fontFamily: 'Urbanist-Medium',
+  },
 });

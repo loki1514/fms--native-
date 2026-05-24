@@ -437,7 +437,7 @@ function NotificationModal({
 // ------------------------------------------------------------------
 // Main NotificationBell Component
 // ------------------------------------------------------------------
-export default function NotificationBell({ style, iconColor, iconSize }: { style?: any; iconColor?: string; iconSize?: number }) {
+export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -617,8 +617,8 @@ export default function NotificationBell({ style, iconColor, iconSize }: { style
 
   return (
     <>
-      <TouchableOpacity style={[styles.bellButton, style]} onPress={() => setIsOpen(true)}>
-        <Ionicons name="notifications-outline" size={iconSize ?? 22} color={iconColor ?? (isDark ? 'rgba(230,235,238,0.6)' : '#64748B')} />
+      <TouchableOpacity style={styles.bellButton} onPress={() => setIsOpen(true)}>
+        <Ionicons name="notifications-outline" size={22} color={isDark ? 'rgba(230,235,238,0.6)' : '#64748B'} />
         {unreadCount > 0 && (
           <Animated.View
             style={[styles.badge, { transform: [{ translateY: slideAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) }] }]}
@@ -724,7 +724,8 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(112,143,150,0.1)',
   },
   modalTitle: {
-        fontSize: 17,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
@@ -734,7 +735,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   markAllText: {
-        fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
     fontWeight: '600',
     color: '#708F96',
   },
@@ -758,7 +760,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#708F96',
   },
   tabText: {
-        fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
     fontWeight: '600',
     color: '#708F96',
   },
@@ -780,7 +783,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   sectionHeader: {
-        fontSize: 10,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 10,
     letterSpacing: 1.2,
     paddingHorizontal: 20,
     paddingTop: 14,
@@ -792,12 +796,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-        fontSize: 14,
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 14,
     fontWeight: '500',
     color: '#94A3B8',
   },
   emptyAction: {
-        fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
     fontWeight: '600',
     color: '#708F96',
   },
@@ -824,18 +830,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   notifTitle: {
-        fontSize: 14,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 14,
     fontWeight: '600',
     color: '#475569',
     marginBottom: 2,
   },
   notifMessage: {
-        fontSize: 13,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 13,
     color: '#94A3B8',
     lineHeight: 18,
   },
   notifTime: {
-        fontSize: 11,
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 11,
     fontWeight: '500',
     color: '#CBD5E1',
     marginTop: 4,
@@ -869,7 +878,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239,68,68,0.18)',
   },
   rejectText: {
-        fontSize: 12,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 12,
     fontWeight: '600',
     color: '#EF4444',
   },
@@ -878,7 +888,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(16,185,129,0.18)',
   },
   approveText: {
-        fontSize: 12,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 12,
     fontWeight: '600',
     color: '#10B981',
   },
@@ -894,12 +905,14 @@ const styles = StyleSheet.create({
     maxHeight: '70%',
   },
   approvalTitle: {
-        fontSize: 17,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 17,
     fontWeight: '700',
     marginBottom: 4,
   },
   approvalSubtitle: {
-        fontSize: 13,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 13,
     marginBottom: 16,
   },
   approvalItem: {
@@ -910,11 +923,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   approvalItemTitle: {
-        fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
     fontWeight: '600',
   },
   approvalItemMeta: {
-        fontSize: 12,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 12,
     marginTop: 2,
   },
   approvalItemActions: {
@@ -938,7 +953,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   approvalCloseText: {
-        fontSize: 15,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 15,
     fontWeight: '700',
     color: '#708F96',
   },

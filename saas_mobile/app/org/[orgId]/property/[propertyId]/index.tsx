@@ -61,7 +61,7 @@ export default function PropertyDetailPage() {
   }
 
   if (propRole === 'mst' || propRole === 'maintenance_staff' || propRole === 'staff') {
-    return <Redirect href={`/property/${propertyId}/lovable-mst`} />;
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
 
   if (propRole === 'tenant' || propRole === 'super_tenant') {

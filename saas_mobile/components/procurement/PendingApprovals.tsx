@@ -109,7 +109,8 @@ export default function PendingApprovals() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        contentContainerStyle={styles.scrollContent}
+      >
         {requests.map((req) => (
           <GlassCard key={req.id} style={styles.card}>
             {/* Card header */}
@@ -266,7 +267,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerTitle: {
-        fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
@@ -280,7 +282,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   badgeText: {
-        fontSize: 10,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 10,
     fontWeight: '900',
     color: '#FFFFFF',
   },
@@ -311,11 +314,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   ticketNumber: {
-        fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
     fontWeight: '600',
   },
   requesterName: {
-        fontSize: 11,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 11,
     marginTop: 1,
   },
   itemsBox: {
@@ -325,7 +330,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   itemsLabel: {
-        fontSize: 8,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 8,
     letterSpacing: 1,
     marginBottom: 6,
   },
@@ -336,14 +342,17 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   itemName: {
-        fontSize: 12,
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 12,
     flex: 1,
   },
   itemQty: {
-        fontSize: 11,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 11,
   },
   moreText: {
-        fontSize: 11,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 11,
     marginTop: 4,
     fontStyle: 'italic',
   },
@@ -357,10 +366,12 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(112,143,150,0.1)',
   },
   totalLabel: {
-        fontSize: 12,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 12,
   },
   totalValue: {
-        fontSize: 14,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
     fontWeight: '700',
   },
   actionsRow: {
@@ -382,7 +393,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239,68,68,0.2)',
   },
   rejectText: {
-        fontSize: 12,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 12,
     fontWeight: '600',
     color: '#EF4444',
   },
@@ -391,7 +403,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(16,185,129,0.2)',
   },
   approveText: {
-        fontSize: 12,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 12,
     fontWeight: '600',
     color: '#10B981',
   },

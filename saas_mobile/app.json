@@ -79,7 +79,8 @@
           ],
           "enableBackgroundRemoteNotifications": true
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "updates": {
       "enabled": false

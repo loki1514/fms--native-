@@ -377,7 +377,8 @@ export default function TicketsScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.tabScroll}
-              style={styles.tabBarContainer} showsVerticalScrollIndicator={false}>
+              style={styles.tabBarContainer}
+            >
               {FILTER_TABS.map(tab => (
                 <TouchableOpacity
                   key={tab.key}
@@ -490,7 +491,7 @@ export default function TicketsScreen() {
           <FlatList
             data={displayedTickets}
             renderItem={renderTicket}
-            keyExtractor={(item) => item.id}
+            keyExtractor={item => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
             refreshControl={

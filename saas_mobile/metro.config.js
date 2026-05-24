@@ -3,8 +3,11 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-// M1 8GB — cap workers hard
-config.maxWorkers = 2;
+// Optional: cap Metro workers on memory-constrained machines.
+// Set METRO_MAX_WORKERS=2 locally if you have <16GB RAM; leave unset for CI / other devs.
+if (process.env.METRO_MAX_WORKERS) {
+  config.maxWorkers = parseInt(process.env.METRO_MAX_WORKERS, 10);
+}
 
 // Web support
 config.resolver.sourceExts.push('mjs');
@@ -20,7 +23,10 @@ config.resolver.blockList = [
   /node_modules\/.*\/ios\/Pods\/.*/,
 ];
 
-// Fix @gorhom/portal broken internal imports (context vs contexts)
+// Fix @gorhom/portal broken internal imports (context vs contexts).
+// STILL REQUIRED as of @gorhom/portal@1.0.14 (latest) — upstream has not fixed the path.
+// Verified 2026-05-21 after upgrading @gorhom/bottom-sheet@5.2.14.
+// TODO: Re-check after any @gorhom/portal upgrade > 1.0.14.
 const portalPackage = path.resolve(__dirname, 'node_modules/@gorhom/portal/src');
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   // Redirect @gorhom/portal's broken ../context/portal imports to ../contexts/portal

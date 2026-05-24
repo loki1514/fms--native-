@@ -50,8 +50,7 @@ import { useWeather, type WeatherCondition } from '@/hooks/useWeather';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import { createClient } from '@/utils/supabase/client';
-import { TenantGlassHeader } from '@/components/tenant/TenantGlassHeader';
-import { TenantStatsCard } from '@/components/tenant/TenantStatsCard';
+
 import { TenantTicketCard } from '@/components/tenant/TenantTicketCard';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/context';
@@ -59,6 +58,16 @@ import FloatingMenu from '@/components/ui/FloatingMenu';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
+// Simple stat card replacement for deleted TenantStatsCard
+function SimpleStatCard({ value, label, color }: { value: number; label: string; color: string }) {
+  return (
+    <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', alignItems: 'center' }}>
+      <Text style={{ fontSize: 28, fontWeight: '800', color, marginBottom: 4 }}>{value}</Text>
+      <Text style={{ fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
+    </View>
+  );
+}
 
 // Types
 export type TabKey = 'dashboard' | 'requests' | 'daily-board' | 'flow-map' | 'visitors' | 'diesel' | 'electricity' | 'checklist' | 'settings' | 'profile';
@@ -857,40 +866,26 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
     >
-      {/* Glassmorphism Header */}
-      <TenantGlassHeader
-        propertyName={property?.name || 'Property'}
-        userName={user?.user_metadata?.full_name || 'MST Staff'}
-      />
+      {/* Header */}
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
+        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontWeight: '700', letterSpacing: 1 }}>
+          {property?.name || 'Property'}
+        </Text>
+        <Text style={{ fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginTop: 4 }}>
+          Hey, {user?.user_metadata?.full_name || 'MST Staff'}
+        </Text>
+      </View>
 
       {/* Stats Row */}
       <View style={styles.mstStatsRow}>
         <View style={styles.mstStatItem}>
-          <TenantStatsCard
-            value={stats.total}
-            label="Total Tickets"
-            color="#708F96"
-            icon="ticket"
-            trend="neutral"
-          />
+          <SimpleStatCard value={stats.total} label="Total Tickets" color="#708F96" />
         </View>
         <View style={styles.mstStatItem}>
-          <TenantStatsCard
-            value={stats.active}
-            label="Active"
-            color="#475569"
-            icon="alert"
-            trend="up"
-          />
+          <SimpleStatCard value={stats.active} label="Active" color="#F59E0B" />
         </View>
         <View style={styles.mstStatItem}>
-          <TenantStatsCard
-            value={stats.completed}
-            label="Completed"
-            color="#10B981"
-            icon="check"
-            trend="up"
-          />
+          <SimpleStatCard value={stats.completed} label="Completed" color="#10B981" />
         </View>
       </View>
 
@@ -900,22 +895,10 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
       </View>
       <View style={styles.mstStatsRow}>
         <View style={styles.mstStatItem}>
-          <TenantStatsCard
-            value={stats.myActive}
-            label="My Active"
-            color="#F97316"
-            icon="clock"
-            trend="neutral"
-          />
+          <SimpleStatCard value={stats.myActive} label="My Active" color="#F97316" />
         </View>
         <View style={styles.mstStatItem}>
-          <TenantStatsCard
-            value={stats.myCompleted}
-            label="My Completed"
-            color="#4CAF50"
-            icon="trending"
-            trend="up"
-          />
+          <SimpleStatCard value={stats.myCompleted} label="My Completed" color="#10B981" />
         </View>
       </View>
 
@@ -1519,7 +1502,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-      },
+    fontFamily: 'Poppins-SemiBold',
+  },
   pageSubtitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.55)',
@@ -1607,13 +1591,15 @@ const styles = StyleSheet.create({
   kpiValue: {
     fontSize: 36,
     fontWeight: '800',
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   kpiLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.55)',
     letterSpacing: 1,
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
   sparklineContainer: {
     marginTop: 8,
   },
@@ -1630,7 +1616,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
-      },
+    fontFamily: 'Poppins-SemiBold',
+  },
   sectionSubtitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.55)',
@@ -1751,7 +1738,8 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 24,
     marginRight: 8,
-      },
+    fontFamily: 'Poppins-SemiBold',
+  },
   ticketActions: {
     flexDirection: 'row',
     gap: 6,
@@ -1820,7 +1808,8 @@ const styles = StyleSheet.create({
   assigneeName: {
     fontSize: 14,
     fontWeight: '600',
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
   assigneeEmail: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.40)',
@@ -1895,14 +1884,16 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.55)',
     letterSpacing: 2,
     marginBottom: 12,
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
   countdownValue: {
     fontSize: 48,
     fontWeight: '800',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
     marginBottom: 16,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   countdownBar: {
     width: '80%',
     height: 6,
@@ -1978,7 +1969,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-      },
+    fontFamily: 'Poppins-SemiBold',
+  },
   leaderboardProperty: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.40)',
@@ -2093,7 +2085,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
   profileInfo: {
     gap: 16,
   },
@@ -2108,12 +2101,14 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.40)',
     letterSpacing: 1,
     marginBottom: 4,
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
   profileValue: {
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
 
   // MST Glassmorphism Dashboard styles
   mstStatsRow: {
@@ -2139,11 +2134,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(255,255,255,0.50)',
     letterSpacing: 1.5,
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
   mstSectionCount: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.35)',
-      },
+    fontFamily: 'Urbanist-Regular',
+  },
   mstTicketsList: {
     paddingHorizontal: 16,
     gap: 12,
@@ -2160,5 +2157,6 @@ const styles = StyleSheet.create({
   mstEmptyText: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.30)',
-      },
+    fontFamily: 'Urbanist-Regular',
+  },
 });

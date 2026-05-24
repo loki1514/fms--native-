@@ -444,7 +444,7 @@ export default function StockScreen() {
         </View>
 
         {showCategoryFilter && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
             <TouchableOpacity
               style={[styles.categoryChip, selectedCategory === '' && styles.categoryChipActive]}
               onPress={() => { setSelectedCategory(''); setShowCategoryFilter(false); }}
@@ -765,13 +765,13 @@ function TintedGlassCard({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  loadingText: { fontSize: 14,  color: TOKENS.text.secondary },
+  loadingText: { fontSize: 14, fontFamily: 'Urbanist-Medium', color: TOKENS.text.secondary },
 
   // Header
   headerWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   headerTop: { flexDirection: 'row', alignItems: 'center' },
-  headerTitle: { fontSize: 20,  color: TOKENS.text.primary, letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: 12,  color: TOKENS.text.secondary, marginTop: 2 },
+  headerTitle: { fontSize: 20, fontFamily: 'Poppins-Bold', color: TOKENS.text.primary, letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: TOKENS.text.secondary, marginTop: 2 },
   headerIconBtn: {
     width: 40,
     height: 40,
@@ -803,13 +803,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tintedLabel: {
-        fontSize: 11,
+    fontFamily: 'Urbanist-Bold',
+    fontSize: 11,
     color: TOKENS.text.secondary,
     letterSpacing: 0.8,
     textTransform: 'capitalize',
   },
   tintedValue: {
-        fontSize: 28,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 28,
     color: TOKENS.text.primary,
     letterSpacing: -0.5,
   },
@@ -832,7 +834,8 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-        color: TOKENS.text.primary,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.primary,
   },
   filterBtn: {
     width: 46,
@@ -859,19 +862,21 @@ const styles = StyleSheet.create({
   },
   categoryChipText: {
     fontSize: 12,
-        color: TOKENS.text.secondary,
+    fontFamily: 'Urbanist-Medium',
+    color: TOKENS.text.secondary,
   },
   categoryChipTextActive: {
     color: '#FFFFFF',
-      },
+    fontFamily: 'Urbanist-Bold',
+  },
   activeFilter: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  activeFilterText: { fontSize: 12,  color: TOKENS.text.secondary },
+  activeFilterText: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: TOKENS.text.secondary },
 
   // List
   listContent: { paddingHorizontal: 20, paddingBottom: 120 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12 },
-  emptyTitle: { fontSize: 16,  color: TOKENS.text.secondary },
-  emptySubtitle: { fontSize: 13,  color: TOKENS.text.tertiary, textAlign: 'center' },
+  emptyTitle: { fontSize: 16, fontFamily: 'Poppins-Bold', color: TOKENS.text.secondary },
+  emptySubtitle: { fontSize: 13, fontFamily: 'Urbanist-Regular', color: TOKENS.text.tertiary, textAlign: 'center' },
 
   itemCard: {
     borderRadius: TOKENS.radius.card,
@@ -896,20 +901,24 @@ const styles = StyleSheet.create({
   itemContent: { flex: 1 },
   itemName: {
     fontSize: 15,
-        color: TOKENS.text.primary,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
     marginBottom: 3,
   },
   itemMeta: {
     fontSize: 11,
-        color: TOKENS.text.tertiary,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.tertiary,
   },
   itemRight: { alignItems: 'flex-end', marginRight: 4 },
   qtyValue: {
     fontSize: 22,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   itemUnit: {
     fontSize: 10,
-        color: TOKENS.text.tertiary,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.tertiary,
     marginTop: 1,
   },
 
@@ -943,12 +952,14 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-        color: TOKENS.text.primary,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
   },
   modalBody: { maxHeight: 400 },
   inputLabel: {
     fontSize: 11,
-        textTransform: 'capitalize',
+    fontFamily: 'Urbanist-Bold',
+    textTransform: 'capitalize',
     letterSpacing: 0.5,
     marginBottom: 6,
     marginTop: 12,
@@ -962,7 +973,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
-        color: TOKENS.text.primary,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.primary,
   },
   textArea: { minHeight: 80, textAlignVertical: 'top' },
   rowInputs: { flexDirection: 'row', gap: 12 },
@@ -977,7 +989,8 @@ const styles = StyleSheet.create({
   submitBtnText: {
     color: '#FFFFFF',
     fontSize: 15,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
 
   // Detail Sheet
   detailSheet: {
@@ -995,13 +1008,15 @@ const styles = StyleSheet.create({
   },
   detailItemName: {
     fontSize: 20,
-        color: TOKENS.text.primary,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
     flex: 1,
     marginRight: 16,
   },
   detailMeta: {
     fontSize: 13,
-        color: TOKENS.text.tertiary,
+    fontFamily: 'Urbanist-Regular',
+    color: TOKENS.text.tertiary,
     marginTop: 4,
   },
   detailStatsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
@@ -1016,11 +1031,13 @@ const styles = StyleSheet.create({
   },
   detailStatValue: {
     fontSize: 16,
-        color: TOKENS.text.primary,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
   },
   detailStatLabel: {
     fontSize: 9,
-        textTransform: 'capitalize',
+    fontFamily: 'Urbanist-Medium',
+    textTransform: 'capitalize',
     letterSpacing: 0.3,
     color: TOKENS.text.tertiary,
     marginTop: 3,
@@ -1035,10 +1052,12 @@ const styles = StyleSheet.create({
   },
   valueBannerLabel: {
     fontSize: 12,
-      },
+    fontFamily: 'Urbanist-Medium',
+  },
   valueBannerValue: {
     fontSize: 18,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   actionBtns: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   actionBtn: {
     flex: 1,
@@ -1051,7 +1070,8 @@ const styles = StyleSheet.create({
   },
   actionBtnText: {
     fontSize: 14,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   qrBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1064,7 +1084,8 @@ const styles = StyleSheet.create({
   },
   qrBtnText: {
     fontSize: 13,
-      },
+    fontFamily: 'Urbanist-Medium',
+  },
 
   // Movement
   moveItemBanner: {
@@ -1075,11 +1096,13 @@ const styles = StyleSheet.create({
   },
   moveItemName: {
     fontSize: 16,
-        color: TOKENS.text.primary,
+    fontFamily: 'Poppins-Bold',
+    color: TOKENS.text.primary,
   },
   moveItemQty: {
     fontSize: 12,
-        marginTop: 2,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 2,
   },
   movementToggle: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   toggleBtn: {
@@ -1094,10 +1117,12 @@ const styles = StyleSheet.create({
   },
   toggleBtnText: {
     fontSize: 14,
-      },
+    fontFamily: 'Poppins-Bold',
+  },
   helperText: {
     fontSize: 11,
-        marginTop: 4,
+    fontFamily: 'Urbanist-Regular',
+    marginTop: 4,
     marginBottom: 8,
   },
 
@@ -1125,15 +1150,18 @@ const styles = StyleSheet.create({
   },
   qrItemCode: {
     fontSize: 11,
-        marginTop: 10,
+    fontFamily: 'Urbanist-Medium',
+    marginTop: 10,
     letterSpacing: 1,
   },
   qrName: {
     fontSize: 18,
-        marginTop: 4,
+    fontFamily: 'Poppins-Bold',
+    marginTop: 4,
   },
   qrCategory: {
     fontSize: 13,
-        marginTop: 4,
+    fontFamily: 'Urbanist-Regular',
+    marginTop: 4,
   },
 });

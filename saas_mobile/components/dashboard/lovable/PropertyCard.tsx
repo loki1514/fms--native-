@@ -211,7 +211,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardName: {
-        fontSize: 22,
+    fontFamily: fontSans,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: -0.5,
@@ -223,12 +224,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardCode: {
-        fontSize: 13,
+    fontFamily: fontSans,
+    fontSize: 13,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.45)',
   },
   cardChecklistLabel: {
-        fontSize: 12,
+    fontFamily: fontSans,
+    fontSize: 12,
     fontWeight: '500',
     color: 'rgba(255,255,255,0.35)',
   },
@@ -239,13 +242,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
   },
   cardMetric: {
-        fontSize: 32,
+    fontFamily: fontSans,
+    fontSize: 32,
     fontWeight: '300',
     color: '#FFFFFF',
     letterSpacing: -1,
   },
   cardMetricLabel: {
-        fontSize: 8,
+    fontFamily: fontSans,
+    fontSize: 8,
     fontWeight: '800',
     color: 'rgba(255,255,255,0.3)',
     marginTop: -4,
@@ -263,7 +268,8 @@ const styles = StyleSheet.create({
     gap: 8 
   },
   cardStatus: {
-        fontSize: 11,
+    fontFamily: fontSans,
+    fontSize: 11,
     fontWeight: '800',
     color: 'rgba(255,255,255,0.6)',
     letterSpacing: 0.5,
@@ -280,7 +286,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   energyText: {
-        fontSize: 12,
+    fontFamily: fontSans,
+    fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',
   },

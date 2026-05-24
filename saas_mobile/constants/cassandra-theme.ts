@@ -87,7 +87,7 @@ export const Typography = {
   body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },
   bodySmall: { fontSize: 14, fontWeight: '400' as const, lineHeight: 20 },
   caption: { fontSize: 12, fontWeight: '400' as const },
-  mono: { fontSize: 13, fontWeight: '400' as const, },
+  mono: { fontSize: 13, fontWeight: '400' as const, fontFamily: 'monospace' },
 };
 
 export const Shadows = {

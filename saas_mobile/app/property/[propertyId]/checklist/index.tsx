@@ -1569,7 +1569,7 @@ export default function ChecklistScreen() {
         {/* Items */}
         <FlatList
           data={sectionKeys}
-          keyExtractor={(s) => s}
+          keyExtractor={s => s}
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={
@@ -1828,7 +1828,7 @@ export default function ChecklistScreen() {
         </View>
         <FlatList
           data={template?.items || []}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 }}
           renderItem={({ item }) => {
             const compItem = historyCompletion.items?.find(ci => ci.checklist_item_id === item.id);
@@ -2354,7 +2354,7 @@ export default function ChecklistScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   topNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16 },
-  topNavTitle: { fontSize: 18,  color: '#FFFFFF', letterSpacing: -0.5 },
+  topNavTitle: { fontSize: 18, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.5 },
   navIconBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
 
   headerCard: {
@@ -2367,34 +2367,34 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerIconWrap: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 20,  color: '#FFFFFF', letterSpacing: -0.3 },
+  headerTitle: { fontSize: 20, fontFamily: 'Poppins-Bold', color: '#FFFFFF', letterSpacing: -0.3 },
   addBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
 
   viewToggle: { flexDirection: 'row', gap: 10 },
   toggleTab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)' },
   toggleTabActive: { backgroundColor: 'rgba(59,130,246,0.2)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.5)' },
-  toggleTabText: { fontSize: 12,  color: '#FFFFFF' },
+  toggleTabText: { fontSize: 12, fontFamily: 'Urbanist-Bold', color: '#FFFFFF' },
 
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16, justifyContent: 'space-between' },
   statCard: { width: '48%', padding: 16, borderRadius: 12, borderWidth: 1 },
-  statLabel: { fontSize: 10,  letterSpacing: 1, marginBottom: 6 },
-  statValue: { fontSize: 32, },
+  statLabel: { fontSize: 10, fontFamily: 'Urbanist-Bold', letterSpacing: 1, marginBottom: 6 },
+  statValue: { fontSize: 32, fontFamily: 'Poppins-Bold' },
 
   filterRow: { flexDirection: 'row', gap: 8, marginBottom: 16, paddingHorizontal: 4 },
   filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'transparent' },
   filterChipActive: { backgroundColor: 'rgba(59, 130, 246, 0.2)', borderColor: '#3B82F6' },
-  filterChipText: { fontSize: 12,  color: 'rgba(255,255,255,0.6)' },
+  filterChipText: { fontSize: 12, fontFamily: 'Urbanist-Medium', color: 'rgba(255,255,255,0.6)' },
 
   historyCard: { borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.02)', padding: 14, marginBottom: 10 },
   historyCardRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   iconCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
   historyCardContent: { flex: 1 },
-  historyTitle: { fontSize: 14,  color: '#4F93E4', marginBottom: 2 },
-  historyMeta: { fontSize: 11,  color: 'rgba(255,255,255,0.5)' },
+  historyTitle: { fontSize: 14, fontFamily: 'Poppins-Bold', color: '#4F93E4', marginBottom: 2 },
+  historyMeta: { fontSize: 11, fontFamily: 'Urbanist-Regular', color: 'rgba(255,255,255,0.5)' },
   
   historyCardRight: { alignItems: 'flex-end', gap: 8 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  statusBadgeText: { fontSize: 9,  letterSpacing: 0.5 },
+  statusBadgeText: { fontSize: 9, fontFamily: 'Urbanist-Bold', letterSpacing: 0.5 },
   startBtn: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -2409,7 +2409,8 @@ const styles = StyleSheet.create({
   startBtnText: { 
     color: '#FFFFFF', 
     fontSize: 12, 
-        lineHeight: 16,
+    fontFamily: 'Poppins-Bold',
+    lineHeight: 16,
     includeFontPadding: false,
   },
 });
@@ -2419,50 +2420,50 @@ const runnerStyles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   headerTitle: { flex: 1 },
-  headerTitleText: { fontSize: 18,  color: '#FFFFFF' },
-  headerSubtitle: { fontSize: 11,  color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  headerTitleText: { fontSize: 18, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  headerSubtitle: { fontSize: 11, fontFamily: 'Urbanist-Regular', color: 'rgba(255,255,255,0.7)', marginTop: 2 },
   adminBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   metaBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 10,  textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(255,255,255,0.7)' },
+  metaText: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(255,255,255,0.7)' },
   progressSection: { marginTop: 12 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  progressLabel: { fontSize: 10,  textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(255,255,255,0.7)' },
-  progressCount: { fontSize: 13,  color: '#FFFFFF' },
+  progressLabel: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(255,255,255,0.7)' },
+  progressCount: { fontSize: 13, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
   progressTrack: { height: 5, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 3 },
   progressFill: { height: '100%', backgroundColor: '#FFFFFF', borderRadius: 3 },
 
   bannerAmber: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FEF3C7', borderRadius: 12 },
-  bannerAmberText: { fontSize: 11,  color: '#B45309' },
+  bannerAmberText: { fontSize: 11, fontFamily: 'Urbanist-Bold', color: '#B45309' },
   bannerRed: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FEE2E2', borderRadius: 12 },
-  bannerRedText: { fontSize: 11,  color: '#B91C1C' },
+  bannerRedText: { fontSize: 11, fontFamily: 'Urbanist-Bold', color: '#B91C1C' },
   bannerGreen: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
-  bannerGreenText: { fontSize: 11, },
+  bannerGreenText: { fontSize: 11, fontFamily: 'Urbanist-Bold' },
 
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   sectionAccent: { width: 3, height: 12, borderRadius: 2, backgroundColor: '#708F96' },
-  sectionTitle: { fontSize: 10,  textTransform: 'uppercase', letterSpacing: 1.5, color: '#64748B' },
+  sectionTitle: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 1.5, color: '#64748B' },
 
   itemCard: { borderRadius: 12, borderWidth: 1, marginBottom: 8, overflow: 'hidden' },
   itemRow: { flexDirection: 'row', alignItems: 'flex-start', padding: 12, gap: 12 },
   checkCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
   stepNumber: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
   itemContent: { flex: 1 },
-  itemTitle: { fontSize: 14,  lineHeight: 20 },
+  itemTitle: { fontSize: 14, fontFamily: 'Poppins-Bold', lineHeight: 20 },
   slotBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, marginTop: 4 },
-  slotBadgeText: { fontSize: 9,  textTransform: 'uppercase', letterSpacing: 0.5 },
+  slotBadgeText: { fontSize: 9, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 0.5 },
   valueRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1 },
   valueInput: { flex: 1, borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13 },
   yesNoRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8, borderTopWidth: 1 },
   yesNoBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
-  yesNoBtnText: { fontSize: 12,  letterSpacing: 1 },
+  yesNoBtnText: { fontSize: 12, fontFamily: 'Poppins-Bold', letterSpacing: 1 },
   commentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1 },
-  commentInput: { flex: 1, fontSize: 12,  minHeight: 28 },
+  commentInput: { flex: 1, fontSize: 12, fontFamily: 'Urbanist-Regular', minHeight: 28 },
   photoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1 },
   completeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 14, marginTop: 8 },
-  completeBtnText: { color: '#FFFFFF', fontSize: 14, },
+  completeBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Poppins-Bold' },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusBadgeText: { fontSize: 10, },
+  statusBadgeText: { fontSize: 10, fontFamily: 'Urbanist-Bold' },
 });
 
 const modalStyles = StyleSheet.create({
@@ -2470,32 +2471,32 @@ const modalStyles = StyleSheet.create({
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 20, paddingBottom: 34, maxHeight: '92%' },
   handle: { width: 36, height: 4, backgroundColor: '#D1D5DB', borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 16 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, },
+  modalTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
   modalBody: { maxHeight: 480 },
-  label: { fontSize: 10,  textTransform: 'uppercase', letterSpacing: 1, color: '#64748B', marginBottom: 6, marginTop: 10 },
-  subLabel: { fontSize: 10,  marginBottom: 4 },
-  input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, },
+  label: { fontSize: 10, fontFamily: 'Urbanist-Bold', textTransform: 'uppercase', letterSpacing: 1, color: '#64748B', marginBottom: 6, marginTop: 10 },
+  subLabel: { fontSize: 10, fontFamily: 'Urbanist-Regular', marginBottom: 4 },
+  input: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, fontFamily: 'Urbanist-Regular' },
   textArea: { minHeight: 72, textAlignVertical: 'top' },
   freqGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   freqChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1 },
-  freqChipText: { fontSize: 11, },
+  freqChipText: { fontSize: 11, fontFamily: 'Urbanist-Medium' },
   timeRow: { flexDirection: 'row', gap: 12 },
   assigneeSection: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   assigneeChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16, borderWidth: 1 },
-  assigneeChipText: { fontSize: 12, },
+  assigneeChipText: { fontSize: 12, fontFamily: 'Urbanist-Medium' },
   itemsSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16 },
-  addItemBtnText: { color: '#FFFFFF', fontSize: 11, },
+  addItemBtnText: { color: '#FFFFFF', fontSize: 11, fontFamily: 'Urbanist-Bold' },
   itemRow: { flexDirection: 'row', alignItems: 'flex-start', borderRadius: 10, borderWidth: 1, padding: 10, marginBottom: 8, gap: 8 },
   itemInputs: { flex: 1, gap: 6 },
   typeRow: { flexDirection: 'row', gap: 4 },
   typeChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
-  typeChipText: { fontSize: 10, },
+  typeChipText: { fontSize: 10, fontFamily: 'Urbanist-Medium' },
   itemOptionsRow: { flexDirection: 'row', gap: 6 },
   optionToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
-  optionToggleText: { fontSize: 10, },
+  optionToggleText: { fontSize: 10, fontFamily: 'Urbanist-Medium' },
   addFirstItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', paddingVertical: 24, marginTop: 8 },
-  addFirstItemText: { fontSize: 13, },
+  addFirstItemText: { fontSize: 13, fontFamily: 'Urbanist-Medium' },
   submitBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
-  submitBtnText: { color: '#FFFFFF', fontSize: 14, },
+  submitBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Poppins-Bold' },
 });

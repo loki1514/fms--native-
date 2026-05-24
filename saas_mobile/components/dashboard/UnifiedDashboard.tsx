@@ -22,7 +22,6 @@ import {
   Shield,
   ClipboardList,
   ArrowRight,
-  ShoppingCart,
   type LucideIcon,
 } from 'lucide-react-native';
 import { GlassCard } from '@/constants/designSystem';
@@ -59,7 +58,7 @@ const MODULE_TILES: ModuleTile[] = [
   { domain: 'assets', label: 'Diesel', route: 'diesel', icon: Fuel, color: '#FF3B30' },
   { domain: 'assets', label: 'Electricity', route: 'electricity', icon: Zap, color: '#FFD60A' },
   { domain: 'stock', label: 'Stock', route: 'stock', icon: Package, color: '#64D2FF' },
-  { domain: 'procurement', label: 'Procurement', route: 'procurement', icon: ShoppingCart, color: '#007AFF' },
+  { domain: 'procurement', label: 'Procurement', route: 'stock', icon: Package, color: '#64D2FF' },
   { domain: 'sop', label: 'Checklists', route: 'checklist', icon: ClipboardList, color: '#34C759' },
   { domain: 'reports', label: 'Reports', route: 'reports', icon: FileText, color: '#A2845E' },
   { domain: 'security', label: 'Security', route: 'security', icon: Shield, color: '#FF453A' },
@@ -230,12 +229,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   greeting: {
-        fontSize: 15,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 15,
     letterSpacing: 0.2,
     marginBottom: 4,
   },
   propertyName: {
-        fontSize: 28,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 28,
     fontWeight: '700',
     letterSpacing: -0.5,
     marginBottom: 10,
@@ -250,7 +251,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(112,143,150,0.18)',
   },
   roleText: {
-        fontSize: 9,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1.2,
     color: '#708F96',
@@ -269,15 +271,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   overviewTitle: {
-        fontSize: 16,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 16,
     fontWeight: '600',
     marginBottom: 2,
   },
   overviewSubtitle: {
-        fontSize: 13,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 13,
   },
   sectionLabel: {
-        fontSize: 10,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 10,
     letterSpacing: 1.5,
     marginBottom: 14,
     marginLeft: 4,
@@ -304,7 +309,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tileLabel: {
-        fontSize: 13,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 13,
     fontWeight: '600',
     lineHeight: 18,
   },
@@ -313,7 +319,8 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   emptyText: {
-        fontSize: 14,
+    fontFamily: 'Urbanist-Regular',
+    fontSize: 14,
     textAlign: 'center',
   },
 });

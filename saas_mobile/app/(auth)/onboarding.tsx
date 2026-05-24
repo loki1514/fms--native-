@@ -847,7 +847,8 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 15,
-      },
+    fontFamily: 'Urbanist-Regular',
+  },
 
   // Progress
   progressContainer: { marginBottom: 28 },
@@ -861,7 +862,8 @@ const styles = StyleSheet.create({
   progressDotActive: { backgroundColor: '#708F96' },
   progressLabel: {
     fontSize: 12,
-        color: '#708F96',
+    fontFamily: 'Urbanist-Medium',
+    color: '#708F96',
     textAlign: 'center',
   },
 
@@ -885,18 +887,21 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     textAlign: 'center',
-        marginBottom: 6,
+    fontFamily: 'Urbanist-Bold',
+    marginBottom: 6,
   },
   welcomeSubtitle: {
     fontSize: 17,
     textAlign: 'center',
-        marginBottom: 8,
+    fontFamily: 'Urbanist-Medium',
+    marginBottom: 8,
   },
   welcomeBody: {
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-      },
+    fontFamily: 'Urbanist-Regular',
+  },
 
   // Step header
   stepIconWrap: {
@@ -910,11 +915,13 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 22,
     fontWeight: '800',
-        marginBottom: 4,
+    fontFamily: 'Urbanist-Bold',
+    marginBottom: 4,
   },
   stepSubtitle: {
     fontSize: 14,
-        marginBottom: 20,
+    fontFamily: 'Urbanist-Medium',
+    marginBottom: 20,
   },
 
   // Phone
@@ -929,7 +936,8 @@ const styles = StyleSheet.create({
   phonePrefix: {
     fontSize: 16,
     fontWeight: '600',
-        marginRight: 4,
+    fontFamily: 'Urbanist-SemiBold',
+    marginRight: 4,
   },
   phoneDivider: {
     width: 1,
@@ -940,11 +948,13 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: '600',
-        letterSpacing: 1,
+    fontFamily: 'Urbanist-SemiBold',
+    letterSpacing: 1,
   },
   phoneNote: {
     fontSize: 12,
-        marginTop: 10,
+    fontFamily: 'Urbanist-Regular',
+    marginTop: 10,
     textAlign: 'center',
   },
 
@@ -959,8 +969,8 @@ const styles = StyleSheet.create({
   },
   propertyEmoji: { fontSize: 24, marginRight: 12 },
   propertyInfo: { flex: 1 },
-  propertyName: { fontSize: 16, fontWeight: '700', },
-  propertyCode: { fontSize: 12,  marginTop: 2 },
+  propertyName: { fontSize: 16, fontWeight: '700', fontFamily: 'Urbanist-Bold' },
+  propertyCode: { fontSize: 12, fontFamily: 'Urbanist-Regular', marginTop: 2 },
 
   // Role
   roleList: { gap: 10 },
@@ -981,8 +991,8 @@ const styles = StyleSheet.create({
   },
   roleEmoji: { fontSize: 24 },
   roleInfo: { flex: 1 },
-  roleLabel: { fontSize: 15, fontWeight: '700', },
-  roleDesc: { fontSize: 12,  marginTop: 2 },
+  roleLabel: { fontSize: 15, fontWeight: '700', fontFamily: 'Urbanist-Bold' },
+  roleDesc: { fontSize: 12, fontFamily: 'Urbanist-Regular', marginTop: 2 },
 
   // Voice
   voiceCard: { alignItems: 'center', paddingVertical: 8 },
@@ -1005,7 +1015,8 @@ const styles = StyleSheet.create({
   voiceInstruction: {
     fontSize: 14,
     textAlign: 'center',
-        marginBottom: 20,
+    fontFamily: 'Urbanist-Regular',
+    marginBottom: 20,
     lineHeight: 20,
   },
   voiceEnrollButton: {
@@ -1021,11 +1032,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
-      },
+    fontFamily: 'Urbanist-Bold',
+  },
   voiceSkipButton: { padding: 8 },
   voiceSkipText: {
     fontSize: 13,
-        textDecorationLine: 'underline',
+    fontFamily: 'Urbanist-Regular',
+    textDecorationLine: 'underline',
   },
 
   // Skills
@@ -1038,7 +1051,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
   },
-  skillLabel: { fontSize: 15, fontWeight: '600', },
+  skillLabel: { fontSize: 15, fontWeight: '600', fontFamily: 'Urbanist-SemiBold' },
   skillCheck: {
     width: 24,
     height: 24,
@@ -1049,7 +1062,7 @@ const styles = StyleSheet.create({
   },
 
   // Error
-  errorText: { fontSize: 13,  marginTop: 8, textAlign: 'center' },
+  errorText: { fontSize: 13, fontFamily: 'Urbanist-Regular', marginTop: 8, textAlign: 'center' },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1062,7 +1075,8 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '600',
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
 
   // Navigation
   navRow: {
@@ -1083,7 +1097,8 @@ const styles = StyleSheet.create({
   backText: {
     fontSize: 15,
     fontWeight: '600',
-      },
+    fontFamily: 'Urbanist-SemiBold',
+  },
   nextButton: {
     flex: 1,
     flexDirection: 'row',
@@ -1098,7 +1113,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
-      },
+    fontFamily: 'Urbanist-Bold',
+  },
 
   // Fireworks
   fireworksOverlay: {
@@ -1115,12 +1131,14 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '900',
     color: '#fff',
-        marginBottom: 8,
+    fontFamily: 'Urbanist-Bold',
+    marginBottom: 8,
   },
   fireworksSubtitle: {
     fontSize: 17,
     color: 'rgba(255,255,255,0.7)',
-        marginBottom: 32,
+    fontFamily: 'Urbanist-Medium',
+    marginBottom: 32,
   },
   fireworksButton: {
     backgroundColor: '#708F96',
@@ -1132,5 +1150,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
-      },
+    fontFamily: 'Urbanist-Bold',
+  },
 });

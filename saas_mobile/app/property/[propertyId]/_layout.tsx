@@ -57,9 +57,9 @@ const FULL_DASHBOARD_ROLES: string[] = [];
 
 // ---- Full-screen routes for full-dashboard roles (no sidebar) ----
 const FULL_SCREEN_ROUTES = [
-  'mst', 'maintenance_staff', 'staff', 'soft_service_staff', 'soft_service_supervisor', 'soft_service_manager', 
-  'property_admin', 'lovable-admin', 'lovable-super-admin', 'lovable-mst', 'settings', 'profile', 'tickets', 'dashboard', 'index', 'stock',
-  'soft-service-manager', 'procurement',
+  'staff', 'soft_service_manager',
+  'property_admin', 'lovable-admin', 'lovable-super-admin', 'settings', 'profile', 'tickets', 'dashboard', 'index', 'stock',
+  'tenant', 'rooms', 'visitors', 'requests',
 ];
 
 // ---- Property Context ----
@@ -95,7 +95,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Diesel Manager',    route: 'diesel',       icon: Fuel,            domain: 'assets' },
   { label: 'Electricity',       route: 'electricity',  icon: Zap,             domain: 'assets' },
   { label: 'Stock / Inventory', route: 'stock',        icon: Package,         domain: 'stock' },
-  { label: 'Checklists', route: 'checklist',    icon: ClipboardList,   domain: 'sop' },
+  { label: 'SOPs & Checklists', route: 'checklist',    icon: ClipboardList,   domain: 'sop' },
   { label: 'PPM',               route: 'ppm',          icon: Wrench,          domain: 'reports' },
   { label: 'Reports',           route: 'reports',      icon: FileText,        domain: 'reports' },
   { label: 'Settings',          route: 'settings',     icon: Settings },
@@ -626,7 +626,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   sectionLabel: {
-        fontSize: 9,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 9,
     letterSpacing: 1.5,
     marginBottom: 6,
     marginTop: 20,
@@ -658,7 +659,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navItemLabel: {
-        fontSize: 14,
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 14,
     letterSpacing: 0.1,
   },
   sidebarBottom: {
@@ -677,7 +679,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   logoutText: {
-        fontSize: 14,
+    fontFamily: 'Urbanist-Medium',
+    fontSize: 14,
     color: '#EF4444',
   },
   // Access denied styles

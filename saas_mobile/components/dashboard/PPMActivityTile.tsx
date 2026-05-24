@@ -176,7 +176,7 @@ export const PPMActivityTile: React.FC<PPMActivityTileProps> = ({
           </View>
 
           {/* Status legend */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendRow} showsVerticalScrollIndicator={false}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.legendRow}>
             {Object.entries(STATUS_LABELS).map(([key, label]) => (
               <View key={key} style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: STATUS_COLORS[key] }]} />

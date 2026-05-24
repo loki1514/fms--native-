@@ -56,7 +56,7 @@ const WS_URL = BASE_URL.replace(/^http/, 'ws');
 // expo-av and expo-file-system are NOT supported on web.
 // Using lazy requires so the module is never loaded on web.
 
-function getAudio() {
+function getAudioModule() {
   if (Platform.OS === 'web') return null;
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   return require('expo-av') as typeof import('expo-av');
@@ -64,26 +64,32 @@ function getAudio() {
 
 function getFileSystem() {
   if (Platform.OS === 'web') return null;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  return require('expo-file-system') as typeof import('expo-file-system');
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('expo-file-system/legacy') as typeof import('expo-file-system');
+  } catch {
+    // Fallback for older versions
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('expo-file-system') as typeof import('expo-file-system');
+  }
 }
 
 /** 16kHz mono PCM16 — Cassandra contract (lazy, native only) */
 function getRecordingOptions() {
-  const Audio = getAudio();
-  if (!Audio) return {};
+  const av = getAudioModule();
+  if (!av) return {};
   return {
     android: {
       extension: '.pcm',
-      outputFormat: (Audio as any).AndroidOutputFormat?.DEFAULT ?? 0,
-      audioEncoder: (Audio as any).AndroidAudioEncoder?.DEFAULT ?? 0,
+      outputFormat: (av as any).AndroidOutputFormat?.DEFAULT ?? 0,
+      audioEncoder: (av as any).AndroidAudioEncoder?.DEFAULT ?? 0,
       sampleRate: 16000,
       numberOfChannels: 1,
       bitRate: 128000,
     },
     ios: {
       extension: '.pcm',
-      audioQuality: (Audio as any).IOSAudioQuality?.MAX ?? 1,
+      audioQuality: (av as any).IOSAudioQuality?.MAX ?? 1,
       sampleRate: 16000,
       numberOfChannels: 1,
       bitRate: 128000,
@@ -243,12 +249,13 @@ export function useCassandraVoice(
         uri = `data:audio/mp3;base64,${mp3Base64}`;
       }
 
-      const Audio = getAudio();
-      if (!Audio) return;
-      const { sound } = await (Audio as any).Sound.createAsync(
+      const av = getAudioModule();
+      if (!av) return;
+      const { Audio } = av;
+      const { sound } = await Audio.Sound.createAsync(
         { uri },
         { shouldPlay: true },
-        (status: any) => {
+        (status) => {
           if (status.isLoaded && status.didJustFinish) {
             onAudioPlaybackEnd?.();
             setVoiceState('idle');
@@ -342,21 +349,22 @@ export function useCassandraVoice(
   // ─── Start Recording ────────────────────────────────────────────────────────
 
   const startRecording = useCallback(async () => {
-    const Audio = getAudio();
-    if (!Audio) {
+    const av = getAudioModule();
+    if (!av) {
       onError?.('Voice recording is not supported on web.');
       return;
     }
+    const { Audio } = av;
 
     try {
-      const { status } = await (Audio as any).requestPermissionsAsync();
+      const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
         onError?.('Microphone permission denied.');
         setVoiceState('error');
         return;
       }
 
-      await (Audio as any).setAudioModeAsync({
+      await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
@@ -364,9 +372,9 @@ export function useCassandraVoice(
         playThroughEarpieceAndroid: false,
       });
 
-      const recording = new (Audio as any).Recording();
+      const recording = new Audio.Recording();
       await recording.prepareToRecordAsync(getRecordingOptions());
-      recording.setOnRecordingStatusUpdate((status: any) => {
+      recording.setOnRecordingStatusUpdate((status) => {
         if (status.isRecording && isRecordingRef.current) {
           // Send chunk every ~500ms
         }
@@ -384,10 +392,10 @@ export function useCassandraVoice(
           if (status.isRecording && status.durationMillis) {
             const uri = recordingRef.current.getURI();
             if (uri && wsRef.current?.readyState === WebSocket.OPEN) {
-              const FileSystem = getFileSystem();
-              if (FileSystem) {
-                const base64 = await FileSystem.readAsStringAsync(uri, {
-                  encoding: (FileSystem as any).EncodingType.Base64,
+              const fs = getFileSystem();
+              if (fs) {
+                const base64 = await fs.readAsStringAsync(uri, {
+                  encoding: 'base64',
                 });
                 const frame: AudioChunkFrame = {
                   type: 'audio_chunk',

@@ -1,10 +1,13 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
+import SidekickFace from '@/components/dashboard/SidekickFace';
+
+const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 
 export type TabKey = 'overview' | 'requests' | 'loggers' | 'profile' | 'stock' | 'checklist';
 
@@ -148,6 +151,7 @@ export function AppBottomNav({
       <NavItem tab="overview" icon="grid-outline" label="OVERVIEW" />
       <NavItem tab="requests" icon="ticket-outline" label="REQUESTS" />
 
+      {/* Center Cassandra Orb */}
       <TouchableOpacity
         style={styles.navItemCenter}
         onPress={() => {
@@ -159,9 +163,15 @@ export function AppBottomNav({
         }}
         activeOpacity={0.8}
       >
-        <View style={[styles.centerFab, { backgroundColor: colors.primary, shadowColor: colors.primary, borderColor: colors.surface }]}>
-          <Ionicons name="add" size={32} color={colors.surface} />
+        <View style={styles.askPill}>
+          <Text style={styles.askPillText}>ASK CASSANDRA</Text>
         </View>
+        <View style={styles.orbContainer}>
+          <View style={styles.orbGlow}>
+            <SidekickFace size={32} state="idle" compact />
+          </View>
+        </View>
+        <Text style={styles.navText}>CASSANDRA</Text>
       </TouchableOpacity>
 
       <FourthNav />
@@ -174,9 +184,14 @@ const styles = StyleSheet.create({
   bottomNav: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingVertical: 10,
+    paddingHorizontal: 12,
     borderTopWidth: 1,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: 'rgba(14, 14, 22, 0.92)',
+    borderTopColor: 'rgba(255,255,255,0.08)',
     elevation: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -185,7 +200,10 @@ const styles = StyleSheet.create({
   },
   navItem: {
     alignItems: 'center',
+    justifyContent: 'flex-end',
     flex: 1,
+    paddingVertical: 6,
+    paddingBottom: 4,
   },
   navIconWrapper: {
     paddingHorizontal: 12,
@@ -197,24 +215,53 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
+    fontFamily: fontSans,
   },
   navItemCenter: {
     alignItems: 'center',
-    flex: 1,
-    height: 60,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
+    flex: 1.2,
+    gap: 2,
+    paddingBottom: 4,
+    position: 'relative',
   },
-  centerFab: {
+  askPill: {
+    position: 'absolute',
+    top: -14,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  askPillText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 8,
+    fontWeight: '800',
+    fontFamily: fontSans,
+    letterSpacing: 0.5,
+  },
+  orbContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -24,
+  },
+  orbGlow: {
     width: 56,
     height: 56,
     borderRadius: 28,
+    backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -30,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 8,
-    borderWidth: 4,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.2)',
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 10,
   },
 });
