@@ -38,10 +38,15 @@ export const PPMProgressCard: React.FC<PPMProgressCardProps> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!propertyId) return;
+    if (!propertyId) {
+      if (__DEV__) console.log('[PPMProgressCard] no propertyId');
+      return;
+    }
+    if (__DEV__) console.log('[PPMProgressCard] fetching schedules for', propertyId);
     let mounted = true;
     ppmService.fetchSchedules(propertyId).then((res) => {
       if (!mounted) return;
+      if (__DEV__) console.log('[PPMProgressCard] fetch result:', res.success, res.data?.length ?? 0, 'items');
       if (res.success && res.data) setSchedules(res.data);
       setLoading(false);
     });

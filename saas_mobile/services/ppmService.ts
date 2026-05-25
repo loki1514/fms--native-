@@ -159,12 +159,15 @@ export const ppmService = {
   // ── Fetch Schedules ───────────────────────────────────────────────────────
   async fetchSchedules(propertyId: string): Promise<ApiResponse<PPMSchedule[]>> {
     try {
+      if (__DEV__) console.log('[PPM] fetchSchedules start, propertyId:', propertyId);
       const res = await serverApi.get<any>(`/api/ppm?propertyId=${propertyId}`);
+      if (__DEV__) console.log('[PPM] fetchSchedules raw response:', JSON.stringify({ data: res.data, error: res.error }));
       if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch PPM');
       const schedules = (res.data?.schedules ?? []).map(normalizeSchedule).filter((s: PPMSchedule) => s.planned_date);
+      if (__DEV__) console.log('[PPM] fetchSchedules parsed:', schedules.length, 'schedules');
       return { success: true, data: schedules, status: 200 };
     } catch (err: any) {
-      console.error('ppmService.fetchSchedules:', err);
+      console.error('[PPM] fetchSchedules error:', err);
       return { success: false, data: [], error: err.message, status: 500 };
     }
   },
@@ -185,11 +188,13 @@ export const ppmService = {
   // ── Fetch Stats ───────────────────────────────────────────────────────────
   async fetchStats(propertyId: string): Promise<ApiResponse<PPMStats>> {
     try {
+      if (__DEV__) console.log('[PPM] fetchStats start, propertyId:', propertyId);
       const res = await serverApi.get<any>(`/api/ppm/stats?propertyId=${propertyId}`);
+      if (__DEV__) console.log('[PPM] fetchStats raw response:', JSON.stringify({ data: res.data, error: res.error }));
       if (res.error) throw new Error(res.error.message || 'Unknown error');
       return { success: true, data: res.data?.stats as PPMStats, status: 200 };
     } catch (err: any) {
-      console.error('ppmService.fetchStats:', err);
+      console.error('[PPM] fetchStats error:', err);
       return { success: false, data: { total: 0, done: 0, pending: 0, postponed: 0, skipped: 0, overdue: 0 }, error: err.message, status: 500 };
     }
   },

@@ -855,10 +855,10 @@ export default function ChecklistScreen() {
     if (!templates.length) return [];
     if (isAdmin) return templates;
     return templates.filter(
-      (t) =>
+      (t) => 
         !t.assigned_to ||
         t.assigned_to.length === 0 ||
-        t.assigned_to.includes(user?.id || ""),
+        (Array.isArray(t.assigned_to) ? t.assigned_to.includes(user?.id ?? "") : false),
     );
   }, [templates, isAdmin, user]);
 
@@ -2231,7 +2231,10 @@ export default function ChecklistScreen() {
                             keyboardType={
                               itemType === "number" ? "numeric" : "default"
                             }
-                            value={state.value || ""}
+                            onPress={() => {
+                              setActiveProperty(p);
+                              router.push(`/property/${p.id}`);
+                            }}
                             onChangeText={(v) => handleItemValue(checkItem, v)}
                             editable={!runnerIsReadOnly}
                           />
