@@ -435,6 +435,7 @@ export default function LovableSoftServiceManagerDashboard({ propertyId }: { pro
       {/* PPM progress */}
       <PPMProgressCard
         propertyId={propertyId}
+        organizationId={orgId}
         done={ppmDone}
         total={ppmTotal}
         pending={ppmPending}
@@ -445,7 +446,7 @@ export default function LovableSoftServiceManagerDashboard({ propertyId }: { pro
       />
 
       {/* PPM activity */}
-      <PPMActivityTile propertyId={propertyId} delay={320} />
+      <PPMActivityTile propertyId={propertyId} organizationId={orgId} delay={320} />
 
       {/* Quick actions */}
       <Animated.View entering={FadeInDown.delay(300).duration(400)}>

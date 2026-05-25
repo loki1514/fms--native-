@@ -730,6 +730,7 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
 
       <PPMProgressCard
         propertyId={propertyId}
+        organizationId={orgId}
         done={ppmDone}
         total={ppmTotal}
         pending={ppmPending}
@@ -739,7 +740,7 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
         onPress={() => router.push(`/property/${propertyId}/ppm`)}
       />
 
-      <PPMActivityTile propertyId={propertyId} delay={380} />
+      <PPMActivityTile propertyId={propertyId} organizationId={orgId} delay={380} />
 
       {/* Property Requests */}
       <View style={styles.sectionHeader}>
