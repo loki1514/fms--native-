@@ -103,6 +103,8 @@ interface ChatMessage {
   variant?: 'default' | 'tool_call' | 'blocked';
   toolData?: { ticketId?: string; ticketNumber?: string; description?: string; status?: string };
   blockedReason?: string;
+  thinking?: string; // full CoT reasoning — collapsible card
+  isStreaming?: boolean; // true while tokens are still arriving
 }
 
 const ChatBubble = ({
@@ -113,6 +115,7 @@ const ChatBubble = ({
   onRaiseRequest?: () => void;
 }) => {
   const isUser = message.role === 'user';
+  const [thinkingOpen, setThinkingOpen] = useState(false);
 
   if (message.variant === 'tool_call' && message.toolData) {
     return (
@@ -157,12 +160,58 @@ const ChatBubble = ({
     );
   }
 
+  const isStreaming = message.isStreaming ?? false;
+
   return (
     <View style={[styles.bubbleRow, isUser ? styles.bubbleRowRight : styles.bubbleRowLeft]}>
-      <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleBot]}>
-        <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextBot]}>
-          {message.text}
-        </Text>
+      <View style={{ maxWidth: '80%' }}>
+        {/* ── Collapsible Thinking Card (completed messages) ── */}
+        {!isUser && message.thinking && !isStreaming && (
+          <View style={styles.thinkingCard}>
+            <TouchableOpacity
+              onPress={() => setThinkingOpen(!thinkingOpen)}
+              activeOpacity={0.7}
+              style={styles.thinkingHeader}
+            >
+              <Text style={styles.thinkingHeaderEmoji}>💡</Text>
+              <Text style={styles.thinkingHeaderTitle}>Thinking</Text>
+              <Text style={styles.thinkingHeaderChevron}>{thinkingOpen ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            {thinkingOpen && (
+              <View style={styles.thinkingBody}>
+                <Text style={styles.thinkingBodyText}>{message.thinking}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Streaming bubble ── */}
+        {isStreaming ? (
+          <View style={[styles.bubble, styles.bubbleBot, styles.bubbleStreaming]}>
+            {message.text ? (
+              <Text style={[styles.bubbleText, styles.bubbleTextBot]}>
+                {message.text}
+                {/* Subtle cursor / pulse indicator at end of streaming text */}
+                <Text style={styles.streamingCursor}>▍</Text>
+              </Text>
+            ) : message.thinking ? (
+              <View style={styles.thinkingInline}>
+                <Text style={styles.thinkingInlineEmoji}>⚡</Text>
+                <Text style={styles.thinkingInlineText}>{message.thinking}</Text>
+              </View>
+            ) : (
+              <Text style={[styles.bubbleText, styles.bubbleTextBot, styles.bubbleTextMuted]}>
+                Cassandra is typing…
+              </Text>
+            )}
+          </View>
+        ) : (
+          <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleBot]}>
+            <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextBot]}>
+              {message.text}
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -277,17 +326,18 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     voiceState,
     isConnected,
     addMessage,
+    updateLastMessage,
     messageHistory,
     setVoiceState,
     selectedPropertyId,
     setSelectedPropertyId,
-    thinkingStatus,
-    setThinkingStatus,
   } = useCassandraStore();
   const [inputText, setInputText] = useState('');
   const [inputMode, setInputMode] = useState<'text' | 'voice'>(initialMode);
-  const [isTyping, setIsTyping] = useState(false);
-  const [currentResponse, setCurrentResponse] = useState('');
+  // Streaming state is now tracked per-message via isStreaming flag in
+  // messageHistory. The temporary isTyping/currentResponse states are
+  // replaced by an in-place-updated assistant bubble.
+  const [isStreaming, setIsStreaming] = useState(false);
   const [view, setView] = useState<'home' | 'chat' | 'history'>('home');
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -296,6 +346,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   const scrollRef = useRef<ScrollView>(null);
   const orbScale = useRef(new Animated.Value(1)).current;
   const abortRef = useRef<AbortController | null>(null);
+  const pendingThinkingRef = useRef<string | null>(null);
   const { speak, stop: stopSpeaking } = useTextToSpeech();
 
   // ── Attachment state ──────────────────────────────────────────────────────
@@ -540,8 +591,8 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   const handleSend = useCallback(async (message: string) => {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
-    setIsTyping(true);
     setView('chat');
+    setIsStreaming(true);
     let fullResponse = '';
 
     let photoUrl: string | null = null;
@@ -551,10 +602,20 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
       setIsUploadingImage(false);
       setAttachedImage(null);
       if (!photoUrl) {
-        setIsTyping(false);
+        setIsStreaming(false);
         return;
       }
     }
+
+    // Pre-insert an empty assistant bubble that we'll update in-place as
+    // the stream arrives. This gives us Kimi-style streaming UX where the
+    // thinking status and tokens appear inside the same bubble.
+    addMessage({
+      role: 'cassandra',
+      text: '',
+      thinking: undefined,
+      isStreaming: true,
+    });
 
     const chatOptions: StreamChatOptions = {
       photoUrl: photoUrl ?? undefined,
@@ -563,46 +624,64 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
       organizationId: orgId,
       signal: abortRef.current.signal,
       onThinking: (status) => {
-        setThinkingStatus(status);
+        pendingThinkingRef.current = status;
+        updateLastMessage((last) =>
+          last.role === 'cassandra' && last.isStreaming
+            ? { ...last, thinking: status }
+            : last
+        );
       },
     };
 
     try {
-      let gotFirstToken = false;
       for await (const token of streamChat(message, chatOptions)) {
-        if (!gotFirstToken) {
-          gotFirstToken = true;
-          setThinkingStatus(null); // Clear thinking bubble once real tokens arrive
-        }
         fullResponse += (fullResponse ? ' ' : '') + token;
-        setCurrentResponse(fullResponse);
+        updateLastMessage((last) =>
+          last.role === 'cassandra' && last.isStreaming
+            ? { ...last, text: fullResponse }
+            : last
+        );
       }
     } catch {
       // AbortError or unexpected failure — already handled via yielded messages
-    } finally {
-      setThinkingStatus(null); // Ensure thinking is cleared on error/abort
     }
 
-    setCurrentResponse('');
-    setIsTyping(false);
+    setIsStreaming(false);
 
     // Generator yields error strings (prefixed with "⚠️") when the stream fails.
     // Surface them inline so the user sees what happened instead of a blank bubble.
     if (fullResponse.startsWith('⚠️')) {
-      setCurrentResponse(fullResponse);
-      addMessage({
-        role: 'cassandra',
-        text: fullResponse,
-        variant: 'blocked',
-        blockedReason: fullResponse,
-      });
-      setIsTyping(false);
+      updateLastMessage((last) =>
+        last.role === 'cassandra'
+          ? {
+              ...last,
+              text: fullResponse,
+              variant: 'blocked',
+              blockedReason: fullResponse,
+              thinking: pendingThinkingRef.current ?? last.thinking,
+              isStreaming: false,
+            }
+          : last
+      );
+      pendingThinkingRef.current = null;
       return;
     }
 
     // Parse special response types
     if (isBlockedResponse(fullResponse)) {
-      addMessage({ role: 'cassandra', text: fullResponse, variant: 'blocked', blockedReason: fullResponse });
+      updateLastMessage((last) =>
+        last.role === 'cassandra'
+          ? {
+              ...last,
+              text: fullResponse,
+              variant: 'blocked',
+              blockedReason: fullResponse,
+              thinking: pendingThinkingRef.current ?? last.thinking,
+              isStreaming: false,
+            }
+          : last
+      );
+      pendingThinkingRef.current = null;
       persistMessage('cassandra', fullResponse);
       if (inputMode === 'voice') {
         setVoiceState('speaking');
@@ -614,12 +693,19 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
 
     const toolResult = parseToolCall(fullResponse);
     if (toolResult.isToolCall && toolResult.toolData) {
-      addMessage({
-        role: 'cassandra',
-        text: toolResult.cleanText || fullResponse,
-        variant: 'tool_call',
-        toolData: toolResult.toolData,
-      });
+      updateLastMessage((last) =>
+        last.role === 'cassandra'
+          ? {
+              ...last,
+              text: toolResult.cleanText || fullResponse,
+              variant: 'tool_call',
+              toolData: toolResult.toolData,
+              thinking: pendingThinkingRef.current ?? last.thinking,
+              isStreaming: false,
+            }
+          : last
+      );
+      pendingThinkingRef.current = null;
       persistMessage('cassandra', fullResponse);
       if (inputMode === 'voice') {
         setVoiceState('speaking');
@@ -629,7 +715,18 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
       return;
     }
 
-    addMessage({ role: 'cassandra', text: fullResponse });
+    // Normal response — finalize the streaming bubble
+    updateLastMessage((last) =>
+      last.role === 'cassandra'
+        ? {
+            ...last,
+            text: fullResponse,
+            thinking: pendingThinkingRef.current ?? last.thinking,
+            isStreaming: false,
+          }
+        : last
+    );
+    pendingThinkingRef.current = null;
     persistMessage('cassandra', fullResponse);
     // Speak the response if voice mode is active
     if (inputMode === 'voice') {
@@ -637,7 +734,7 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
       await speak(fullResponse);
       setVoiceState('idle');
     }
-  }, [sessionId, currentSessionId, addMessage, inputMode, speak, setVoiceState, persistMessage, attachedImage, selectedPropertyId, uploadImageToStorage]);
+  }, [sessionId, currentSessionId, addMessage, updateLastMessage, inputMode, speak, setVoiceState, persistMessage, attachedImage, selectedPropertyId, uploadImageToStorage]);
 
   // All skill chips just send a pre-filled message to /chat — no client-side routing.
 
@@ -795,25 +892,8 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
                   }}
                 />
               ))}
-              {thinkingStatus && (
-                <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
-                  <View style={styles.thinkingBubble}>
-                    <ActivityIndicator size="small" color={Colors.violetLight} />
-                    <Text style={styles.thinkingText}>{thinkingStatus}</Text>
-                  </View>
-                </View>
-              )}
-              {isTyping && (
-                <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
-                  <View style={[styles.bubble, styles.bubbleBot]}>
-                    <Text style={[styles.bubbleText, styles.bubbleTextBot]}>
-                      {currentResponse || 'Cassandra is typing…'}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              {/* Suggestions strip at bottom of chat */}
-              {!isTyping && (
+              {/* Suggestions strip at bottom of chat — hide while streaming */}
+              {!isStreaming && (
                 <View style={styles.suggestionsStrip}>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestionsStripContent}>
                     {WHAT_I_CAN_DO.map((item) => (
@@ -1379,24 +1459,72 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontWeight: '700',
   },
-  /* ─── Thinking Bubble ─── */
-  thinkingBubble: {
-    maxWidth: '80%',
+  /* ─── Streaming bubble extras ─── */
+  bubbleStreaming: {
+    minHeight: 40,
+    justifyContent: 'center',
+  },
+  streamingCursor: {
+    color: Colors.violetLight,
+    opacity: 0.6,
+  },
+  bubbleTextMuted: {
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+  },
+  thinkingInline: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: CassSpacing.sm,
-    backgroundColor: 'rgba(139,92,246,0.10)',
+  },
+  thinkingInlineEmoji: {
+    fontSize: 14,
+  },
+  thinkingInlineText: {
+    ...Typography.body,
+    color: Colors.violetLight,
+    fontStyle: 'italic',
+  },
+  /* ─── Thinking Card (collapsible, Kimi-style) ─── */
+  thinkingCard: {
+    backgroundColor: 'rgba(139,92,246,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(139,92,246,0.25)',
-    borderRadius: Radius.xl,
+    borderColor: 'rgba(139,92,246,0.20)',
+    borderRadius: Radius.lg,
+    marginBottom: CassSpacing.sm,
+    overflow: 'hidden',
+  },
+  thinkingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: CassSpacing.sm,
     paddingHorizontal: CassSpacing.md,
     paddingVertical: CassSpacing.sm,
-    borderTopLeftRadius: Radius.sm,
   },
-  thinkingText: {
+  thinkingHeaderEmoji: {
+    fontSize: 14,
+  },
+  thinkingHeaderTitle: {
     ...Typography.caption,
     color: Colors.violetLight,
-    fontWeight: '500',
+    fontWeight: '600',
+    flex: 1,
+  },
+  thinkingHeaderChevron: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    fontSize: 10,
+  },
+  thinkingBody: {
+    paddingHorizontal: CassSpacing.md,
+    paddingBottom: CassSpacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(139,92,246,0.12)',
+  },
+  thinkingBodyText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
 });
 
