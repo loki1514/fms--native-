@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo, use } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,13 +22,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors, DesignTokens } from '@/constants/Colors';
-import { supabase } from '@/utils/supabase/client';
 import { toast } from '@/lib/toast';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
-import { mobileServices } from '@/utils/api/mobileServices';
-
-
+import { vmsService, DateFilter, VisitorLog } from '@/services/vmsService';
+import { serverApi } from '@/lib/serverApi';
 
 import { formatDateTime } from '@/lib/utils';
 import {
@@ -49,6 +47,8 @@ import {
   UserCheck,
   Monitor,
   ClipboardList,
+  Calendar,
+  ChevronDown,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -56,28 +56,6 @@ import * as ImagePicker from 'expo-image-picker';
 // Types
 // ---------------------------------------------------------------------------
 
-interface VisitorLog {
-  id: string;
-  visitor_id: string;
-  category: string;
-  name: string;
-  mobile: string;
-  // TODO: email does not exist on visitor_logs
-  email?: string;
-  // TODO: address does not exist on visitor_logs
-  address?: string;
-  coming_from: string;
-  whom_to_meet: string;
-  // TODO: purpose does not exist on visitor_logs
-  purpose: string;
-  photo_url: string;
-  checkin_time: string;
-  checkout_time: string | null;
-  // TODO: expected_checkout does not exist on visitor_logs
-  expected_checkout: string | null;
-  status: string;
-  property_id: string;
-}
 
 interface StaffMember {
   id: string;
@@ -88,15 +66,23 @@ interface StaffMember {
 }
 
 type TabKey = 'all' | 'checkin' | 'kiosk';
+type StatusFilter = 'all' | 'checked_in' | 'checked_out';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',
   checked_in: 'On Premise',
   checked_out: 'Checked Out',
+};
+
+const DATE_FILTER_LABELS: Record<DateFilter, string> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  week: 'This Week',
+  month: 'This Month',
+  custom: 'Custom',
 };
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -125,6 +111,169 @@ function getTodayRange(): { start: string; end: string } {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
   return { start: start.toISOString(), end: end.toISOString() };
+}
+
+// ---------------------------------------------------------------------------
+// Date Filter Dropdown
+// ---------------------------------------------------------------------------
+
+function DateFilterDropdown({
+  value,
+  onChange,
+  colors,
+}: {
+  value: DateFilter;
+  onChange: (v: DateFilter) => void;
+  colors: typeof Colors.light;
+}) {
+  const [open, setOpen] = useState(false);
+  const options: DateFilter[] = ['today', 'yesterday', 'week', 'month'];
+
+  return (
+    <View style={{ position: 'relative', zIndex: 10 }}>
+      <TouchableOpacity
+        style={[
+          styles.dateFilterBtn,
+          {
+            backgroundColor: 'rgba(255,255,255,0.08)',
+            borderColor: 'rgba(255,255,255,0.15)',
+          },
+        ]}
+        onPress={() => setOpen(!open)}
+        activeOpacity={0.7}
+      >
+        <Calendar size={14} color={colors.textSecondary} />
+        <Text style={[styles.dateFilterText, { color: '#fff' }]}>
+          {DATE_FILTER_LABELS[value]}
+        </Text>
+        <ChevronDown size={14} color={colors.textSecondary} />
+      </TouchableOpacity>
+
+      {open && (
+        <>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setOpen(false)} />
+          <SafeBlurView
+            intensity={60}
+            tint="dark"
+            style={[
+              styles.dateFilterMenu,
+              { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(30,30,35,0.95)', overflow: 'hidden' },
+            ]}
+          >
+            <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
+            {options.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                style={[
+                  styles.dateFilterOption,
+                  value === opt && { backgroundColor: colors.primary + '22' },
+                ]}
+                onPress={() => {
+                  onChange(opt);
+                  setOpen(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dateFilterOptionText,
+                    { color: value === opt ? colors.primary : colors.text },
+                  ]}
+                >
+                  {DATE_FILTER_LABELS[opt]}
+                </Text>
+                {value === opt && (
+                  <Ionicons name="checkmark" size={16} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </SafeBlurView>
+        </>
+      )}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Status Filter Dropdown
+// ---------------------------------------------------------------------------
+
+function StatusFilterDropdown({
+  value,
+  onChange,
+  colors,
+}: {
+  value: StatusFilter;
+  onChange: (v: StatusFilter) => void;
+  colors: typeof Colors.light;
+}) {
+  const [open, setOpen] = useState(false);
+  const options: { key: StatusFilter; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'checked_in', label: 'In-Premise' },
+    { key: 'checked_out', label: 'Checked Out' },
+  ];
+
+  const currentLabel = options.find((o) => o.key === value)?.label || 'All';
+
+  return (
+    <View style={{ position: 'relative', zIndex: 10 }}>
+      <TouchableOpacity
+        style={[
+          styles.statusFilterBtn,
+          {
+            backgroundColor: value !== 'all' ? colors.primary : 'rgba(255,255,255,0.08)',
+            borderColor: value !== 'all' ? colors.primary : 'rgba(255,255,255,0.15)',
+          },
+        ]}
+        onPress={() => setOpen(!open)}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.statusFilterText, { color: '#fff' }]}>{currentLabel}</Text>
+        <ChevronDown size={14} color="#fff" />
+      </TouchableOpacity>
+
+      {open && (
+        <>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setOpen(false)} />
+          <SafeBlurView
+            intensity={60}
+            tint="dark"
+            style={[
+              styles.statusFilterMenu,
+              { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(30,30,35,0.95)', overflow: 'hidden' },
+            ]}
+          >
+            <LinearGradient colors={['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
+            {options.map((opt) => (
+              <TouchableOpacity
+                key={opt.key}
+                style={[
+                  styles.statusFilterOption,
+                  value === opt.key && { backgroundColor: colors.primary + '22' },
+                ]}
+                onPress={() => {
+                  onChange(opt.key);
+                  setOpen(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.statusFilterOptionText,
+                    { color: value === opt.key ? colors.primary : colors.text },
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+                {value === opt.key && (
+                  <Ionicons name="checkmark" size={16} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </SafeBlurView>
+        </>
+      )}
+    </View>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +319,6 @@ function StatCard({
     </TouchableOpacity>
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // Visitor Card Component
@@ -248,8 +396,6 @@ function VisitorCard({
                 backgroundColor:
                   visitor.status === 'checked_in'
                     ? colors.success
-                    : visitor.status === 'pending'
-                    ? colors.warning
                     : colors.textTertiary,
               },
             ]}
@@ -261,8 +407,6 @@ function VisitorCard({
                 color:
                   visitor.status === 'checked_in'
                     ? colors.success
-                    : visitor.status === 'pending'
-                    ? colors.warning
                     : colors.textTertiary,
               },
             ]}
@@ -324,7 +468,6 @@ function VisitorDetailSheet({
       <View style={styles.detailInfoGrid}>
         <DetailRow label="Category" value={visitor.category} icon={<Building2 size={14} />} />
         <DetailRow label="Mobile" value={visitor.mobile || '-'} icon={<Phone size={14} />} />
-        <DetailRow label="Email" value={visitor.email || '-'} icon={<Mail size={14} />} />
         <DetailRow label="Coming From" value={visitor.coming_from || '-'} icon={<MapPin size={14} />} />
         <DetailRow label="Host" value={visitor.whom_to_meet} icon={<UserCheck size={14} />} />
         <DetailRow label="Purpose" value={visitor.purpose || '-'} icon={<ClipboardList size={14} />} />
@@ -342,7 +485,7 @@ function VisitorDetailSheet({
           label="Duration"
           value={
             visitor.checkout_time || visitor.status === 'checked_in'
-              ? getDuration(visitor.checkin_time, visitor.checkout_time)
+              ? getDuration(visitor.checkin_time, visitor.checkout_time || null)
               : '-'
           }
           icon={<Clock size={14} />}
@@ -409,7 +552,6 @@ function CheckInForm({
 
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
-  const [email, setEmail] = useState('');
   const [hostName, setHostName] = useState('');
   const [hostUid, setHostUid] = useState<string | null>(null);
   const [hostSuggestions, setHostSuggestions] = useState<StaffMember[]>([]);
@@ -417,7 +559,6 @@ function CheckInForm({
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [takingPhoto, setTakingPhoto] = useState(false);
-
 
   const purposes = [
     { label: 'Meeting', value: 'meeting' },
@@ -428,24 +569,29 @@ function CheckInForm({
     { label: 'Other', value: 'other' },
   ];
 
-  // Fetch host suggestions
+  // Fetch host suggestions via API
   useEffect(() => {
     const fetchHosts = async () => {
       if (hostName.length < 2) {
         setHostSuggestions([]);
         return;
       }
-      const { data } = await supabase
-        .from('users')
-        .select('id, full_name, email')
-        // TODO: designation does not exist on the users table
-        .ilike('full_name', `%${hostName}%`)
-        .limit(5);
-      setHostSuggestions (data as StaffMember[] ?? []);
+      const res = await vmsService.searchHosts(propertyId, hostName);
+      if (res.success && res.data) {
+        setHostSuggestions(
+          res.data.map((h) => ({
+            id: h.id,
+            name: h.name,
+            full_name: h.name,
+            email: h.email || '',
+            designation: h.role || '',
+          }))
+        );
+      }
     };
     const debounce = setTimeout(fetchHosts, 300);
     return () => clearTimeout(debounce);
-  }, [hostName]);
+  }, [hostName, propertyId]);
 
   const handleTakePhoto = async () => {
     setTakingPhoto(true);
@@ -478,7 +624,15 @@ function CheckInForm({
     }
     setLoading(true);
     try {
-      const res = await mobileServices.vmsCheckIn({
+      let photoUrl: string | undefined;
+      if (photoUri) {
+        const uploadRes = await vmsService.uploadPhoto(photoUri, `temp-${Date.now()}.jpg`);
+        if (uploadRes.success && uploadRes.data) {
+          photoUrl = uploadRes.data;
+        }
+      }
+
+      const res = await vmsService.checkIn({
         propertyId,
         name: name.trim(),
         mobile: mobile.trim() || undefined,
@@ -486,20 +640,20 @@ function CheckInForm({
         whom_to_meet: hostName.trim(),
         whom_to_meet_uid: hostUid || undefined,
         purpose: purpose,
-        photo_url: photoUri || undefined,
+        photo_url: photoUrl,
       });
 
-      if (res.success) {
-        toast.success(res.message);
-        // Reset form
+      if (res.success && res.data) {
+        toast.success(`Welcome ${name.trim()}! Visit logged.`);
         setName('');
         setMobile('');
-        setEmail('');
         setHostName('');
         setHostUid(null);
         setPurpose('meeting');
         setPhotoUri(null);
         onSuccess();
+      } else {
+        toast.error(String(res.error || 'Check-in failed'));
       }
     } catch (err: any) {
       toast.error(err.message || 'Check-in failed');
@@ -507,7 +661,6 @@ function CheckInForm({
       setLoading(false);
     }
   };
-
 
   return (
     <KeyboardAvoidingView
@@ -539,18 +692,6 @@ function CheckInForm({
           value={mobile}
           onChangeText={setMobile}
           keyboardType="phone-pad"
-        />
-
-        {/* Email */}
-        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Email (optional)</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.15)', color: colors.text }]}
-          placeholder="Email address"
-          placeholderTextColor={colors.textTertiary}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
         />
 
         {/* Host */}
@@ -676,33 +817,36 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
   const [hostUid, setHostUid] = useState<string | null>(null);
   const [hostSuggestions, setHostSuggestions] = useState<StaffMember[]>([]);
   const [purpose, setPurpose] = useState('meeting');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [confirmedName, setConfirmedName] = useState('');
 
-
   useEffect(() => {
     const fetchHosts = async () => {
       if (hostName.length < 2) { setHostSuggestions([]); return; }
-      const { data } = await supabase
-        .from('users')
-        .select('id, full_name, email')
-        // TODO: designation does not exist on the users table
-        .ilike('full_name', `%${hostName}%`)
-        .limit(5);
-      setHostSuggestions(data as StaffMember[] ?? []);
+      const res = await vmsService.searchHosts(propertyId, hostName);
+      if (res.success && res.data) {
+        setHostSuggestions(
+          res.data.map((h) => ({
+            id: h.id,
+            name: h.name,
+            full_name: h.name,
+            email: h.email || '',
+            designation: h.role || '',
+          }))
+        );
+      }
     };
     const debounce = setTimeout(fetchHosts, 300);
     return () => clearTimeout(debounce);
-  }, [hostName]);
+  }, [hostName, propertyId]);
 
   const handleCheckIn = async () => {
     if (!name.trim()) { Alert.alert('Required', 'Please enter your name'); return; }
     if (!hostName.trim()) { Alert.alert('Required', 'Please enter the host name'); return; }
     setLoading(true);
     try {
-      const res = await mobileServices.vmsCheckIn({
+      const res = await vmsService.checkIn({
         propertyId,
         name: name.trim(),
         mobile: mobile.trim() || undefined,
@@ -712,9 +856,11 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
         purpose,
       });
 
-      if (res.success) {
+      if (res.success && res.data) {
         setConfirmedName(name.trim());
         setStep('success');
+      } else {
+        Alert.alert('Error', String(res.error || 'Check-in failed'));
       }
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Check-in failed');
@@ -723,10 +869,9 @@ function KioskMode({ propertyId, onExit }: { propertyId: string; onExit: () => v
     }
   };
 
-
   const resetForm = () => {
     setName(''); setMobile(''); setHostName(''); setHostUid(null); setPurpose('meeting');
-    setPhotoUri(null); setStep('form'); setHostSuggestions([]);
+    setHostSuggestions([]); setStep('form');
   };
 
   if (step === 'success') {
@@ -883,15 +1028,12 @@ export default function VisitorsScreen() {
 
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [visitors, setVisitors] = useState<VisitorLog[]>([]);
-  const [stats, setStats] = useState({ total: 0, checked_in: 0, pending: 0 });
+  const [stats, setStats] = useState({ total: 0, checked_in: 0, checked_out: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'checked_in' | 'checked_out' | 'pending'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('today');
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Nav states
-
-  const [showLoggersMenu, setShowLoggersMenu] = useState(false);
 
   const [selectedVisitor, setSelectedVisitor] = useState<VisitorLog | null>(null);
   const [checkoutLoading, setCheckoutLoading] = useState<boolean>(false);
@@ -900,63 +1042,40 @@ export default function VisitorsScreen() {
   // Kiosk mode
   const [kioskMode, setKioskMode] = useState(false);
 
-  // Fetch visitors
+  // Fetch visitors via API layer
   const fetchVisitors = useCallback(async () => {
     if (!propertyId) return;
     setIsLoading(true);
     try {
-      const { start, end } = getTodayRange();
-      let query = supabase
-        .from('visitor_logs')
-        .select('*')
-        .eq('property_id', propertyId)
-        .gte('checkin_time', start)
-        .lte('checkin_time', end)
-        .order('checkin_time', { ascending: false });
+      const [visitorsRes, statsRes] = await Promise.all([
+        vmsService.fetchVisitors(propertyId, {
+          dateFilter,
+          status: statusFilter,
+          search: searchQuery,
+        }),
+        vmsService.fetchStats(propertyId),
+      ]);
 
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const logs = (data as VisitorLog[]) ?? [];
-
-      // Client-side filtering
-      let filtered = logs;
-      if (statusFilter !== 'all') {
-        filtered = filtered.filter((v) => v.status === statusFilter);
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        filtered = filtered.filter(
-          (v) =>
-            v.name.toLowerCase().includes(q) ||
-            v.mobile?.includes(q) ||
-            v.whom_to_meet.toLowerCase().includes(q) ||
-            v.visitor_id?.toLowerCase().includes(q)
-        );
+      if (visitorsRes.success && visitorsRes.data) {
+        setVisitors(visitorsRes.data.visitors);
       }
 
-      setVisitors(filtered);
-
-      const statsData = await mobileServices.vmsFetchTodayStats(propertyId);
-      setStats({
-        total: statsData.total,
-        checked_in: statsData.checked_in,
-        pending: logs.filter((v) => v.status === 'pending').length,
-      });
+      if (statsRes.success && statsRes.data) {
+        setStats(statsRes.data);
+      }
     } catch (err) {
       console.error('Error fetching visitors:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [propertyId, statusFilter, searchQuery]);
-
+  }, [propertyId, statusFilter, searchQuery, dateFilter]);
 
   useEffect(() => {
     fetchVisitors();
-    
+
     // Fetch property info for header
     if (propertyId) {
-      supabase.from('properties').select('*').eq('id', propertyId).single().then(({ data }) => setProperty(data));
+      serverApi.query({ table: 'properties', action: 'select', select: 'name', filters: [{ op: 'eq', column: 'id', value: propertyId }], single: true }).then(({ data }: any) => setProperty(data));
     }
 
     // Auto-refresh every 30s
@@ -974,12 +1093,14 @@ export default function VisitorsScreen() {
     if (!selectedVisitor) return;
     setCheckoutLoading(true);
     try {
-      const res = await mobileServices.vmsCheckOut(selectedVisitor.visitor_id, propertyId);
+      const res = await vmsService.checkOut(selectedVisitor.visitor_id, propertyId);
       if (res.success) {
         toast.success(`${selectedVisitor.name} checked out`);
         setIsVisitorDetailVisible(false);
         setSelectedVisitor(null);
         fetchVisitors();
+      } else {
+        toast.error(String(res.error || 'Checkout failed'));
       }
     } catch (err: any) {
       toast.error(err.message || 'Checkout failed');
@@ -988,13 +1109,10 @@ export default function VisitorsScreen() {
     }
   };
 
-
   const handleVisitorPress = (visitor: VisitorLog) => {
     setSelectedVisitor(visitor);
     setIsVisitorDetailVisible(true);
   };
-
-
 
   // Kiosk mode renders full screen
   if (kioskMode) {
@@ -1011,8 +1129,6 @@ export default function VisitorsScreen() {
 
   const filteredAll = visitors;
 
-
-
   return (
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) + 90 }]}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -1021,7 +1137,7 @@ export default function VisitorsScreen() {
         style={StyleSheet.absoluteFillObject} 
       />
       
-      {/* Top Navigation */}
+      {/* Top Navigation — Scanner REMOVED */}
       <SafeBlurView
         intensity={80}
         tint="dark"
@@ -1044,13 +1160,8 @@ export default function VisitorsScreen() {
               Visitor Management System
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => router.push(`/property/${propertyId}/stock/scan` as any)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="qr-code-outline" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          {/* Scanner button removed */}
+          <View style={{ width: 40 }} />
         </View>
       </SafeBlurView>
 
@@ -1077,7 +1188,7 @@ export default function VisitorsScreen() {
       </SafeBlurView>
 
 
-      {/* Stats Row */}
+      {/* Stats Row — Pending replaced with Checked Out */}
       <View style={styles.statsRow}>
         <StatCard
           label="Today's Visitors"
@@ -1095,12 +1206,12 @@ export default function VisitorsScreen() {
           onPress={() => { setStatusFilter('checked_in'); setActiveTab('all'); }}
         />
         <StatCard
-          label="Pending"
-          value={stats.pending}
-          icon={<Clock size={20} color={colors.warning} />}
-          color={colors.warning}
-          bgColor={colors.warningBg}
-          onPress={() => { setStatusFilter('pending'); setActiveTab('all'); }}
+          label="Checked Out"
+          value={stats.checked_out}
+          icon={<LogOut size={20} color={colors.textSecondary} />}
+          color={colors.textSecondary}
+          bgColor={'rgba(255,255,255,0.08)'}
+          onPress={() => { setStatusFilter('checked_out'); setActiveTab('all'); }}
         />
       </View>
 
@@ -1139,7 +1250,7 @@ export default function VisitorsScreen() {
       {/* Content */}
       {activeTab === 'all' ? (
         <>
-          {/* Search + Filter */}
+          {/* Search + Filters Row */}
           <View style={styles.filterRow}>
             <SafeBlurView intensity={45} tint="dark" style={[styles.searchWrap, { borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' }]}>
               <LinearGradient colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.08)']} style={StyleSheet.absoluteFillObject} />
@@ -1152,38 +1263,13 @@ export default function VisitorsScreen() {
                 onChangeText={setSearchQuery}
               />
             </SafeBlurView>
-            <TouchableOpacity
-              style={[
-                styles.filterChip,
-                {
-                  backgroundColor: statusFilter !== 'all' ? colors.primary : 'rgba(255,255,255,0.08)',
-                  borderColor: statusFilter !== 'all' ? colors.primary : 'rgba(255,255,255,0.15)',
-                },
-              ]}
-
-              onPress={() =>
-                setStatusFilter(
-                  statusFilter === 'all'
-                    ? 'checked_in'
-                    : statusFilter === 'checked_in'
-                    ? 'checked_out'
-                    : statusFilter === 'checked_out'
-                    ? 'pending'
-                    : 'all'
-                )
-              }
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  { color: '#fff' },
-                ]}
-              >
-                {statusFilter === 'all' ? 'All' : STATUS_LABELS[statusFilter]}
-              </Text>
-            </TouchableOpacity>
+            <StatusFilterDropdown value={statusFilter} onChange={setStatusFilter} colors={colors} />
           </View>
 
+          {/* Date Filter */}
+          <View style={{ paddingHorizontal: 12, marginBottom: 12 }}>
+            <DateFilterDropdown value={dateFilter} onChange={setDateFilter} colors={colors} />
+          </View>
 
           {/* Visitor List */}
           {isLoading ? (
@@ -1197,14 +1283,14 @@ export default function VisitorsScreen() {
               </View>
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No visitors found</Text>
               <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
-                {searchQuery ? 'Try a different search term' : 'No visitors checked in today'}
+                {searchQuery ? 'Try a different search term' : `No visitors for ${DATE_FILTER_LABELS[dateFilter].toLowerCase()}`}
               </Text>
             </View>
           ) : (
             <FlatList
               data={filteredAll}
               renderItem={renderVisitorItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.visitor_id}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
               ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
@@ -1242,10 +1328,6 @@ export default function VisitorsScreen() {
           </SafeBlurView>
         </Pressable>
       </Modal>
-      {/* Standard Bottom Navigation */}
-
-
-
     </View>
   );
 }
@@ -1372,13 +1454,65 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: 'Urbanist-Regular', padding: 0 },
-  filterChip: {
+  statusFilterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
+    minWidth: 100,
+    justifyContent: 'center',
   },
-  filterChipText: { fontSize: 12, fontFamily: 'Urbanist-Bold' },
+  statusFilterText: { fontSize: 12, fontFamily: 'Urbanist-Bold' },
+  statusFilterMenu: {
+    position: 'absolute',
+    top: 44,
+    right: 0,
+    width: 140,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    zIndex: 20,
+  },
+  statusFilterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  statusFilterOptionText: { fontSize: 13, fontFamily: 'Urbanist-Medium' },
+  dateFilterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+  },
+  dateFilterText: { fontSize: 12, fontFamily: 'Urbanist-Bold' },
+  dateFilterMenu: {
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    width: 150,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    zIndex: 20,
+  },
+  dateFilterOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dateFilterOptionText: { fontSize: 13, fontFamily: 'Urbanist-Medium' },
   listContent: { paddingHorizontal: 12, paddingBottom: 100 },
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 },
   emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 100 },
@@ -1455,48 +1589,6 @@ const styles = StyleSheet.create({
   kioskNewVisitorText: { color: '#fff', fontSize: 16, fontFamily: 'Poppins-Bold' },
   kioskExitBtn: { paddingHorizontal: 24, paddingVertical: 12 },
   kioskExitText: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontFamily: 'Urbanist-Regular' },
-  // Bottom Nav
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 64,
-  },
-  navIconWrapper: {
-    marginBottom: 4,
-  },
-  navText: {
-    fontSize: 9,
-    fontFamily: 'Urbanist-Bold',
-    letterSpacing: 0.5,
-  },
-  navItemCenter: {
-    marginTop: -30,
-    alignItems: 'center',
-  },
-  centerFab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
   // Modal / Loggers Menu
   modalOverlay: {
     flex: 1,

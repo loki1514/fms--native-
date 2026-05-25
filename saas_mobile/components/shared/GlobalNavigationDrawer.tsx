@@ -46,7 +46,7 @@ export default function GlobalNavigationDrawer({ visible, onClose, propertyId }:
               <View style={styles.drawerLogoContainer}>
                 <Image 
                   source={require('@/assets/images/autopilot-logo-new.png')} 
-                  style={styles.drawerLogo} 
+                  style={[styles.drawerLogo, { tintColor: '#FFFFFF' }]} 
                   resizeMode="contain" 
                 />
               </View>
@@ -87,7 +87,6 @@ export default function GlobalNavigationDrawer({ visible, onClose, propertyId }:
               <Text style={[styles.drawerSectionLabel, { marginTop: 20 }]}>MANAGEMENT</Text>
               {[
                 { label: 'Procurement', route: 'procurement', icon: 'cart-outline' },
-                { label: 'Soft Services', route: 'soft-service-manager', icon: 'leaf-outline' },
                 { label: 'Escalation', route: 'escalation', icon: 'git-branch-outline' },
                 { label: 'Vendor Revenue', route: 'vendor', icon: 'restaurant-outline' },
                 { label: 'Reports', route: 'reports', icon: 'document-text-outline' },

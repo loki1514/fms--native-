@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,9 +23,37 @@ import { useWeather } from '@/hooks/useWeather';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import TenantBottomNav from '@/components/tenant/TenantBottomNav';
 import SafeBlurView from '@/components/ui/SafeBlurView';
-import { meetingRoomService } from '@/services/meetingRoomService';
+import {
+  getMeetingRooms,
+  getMeetingRoomBookings,
+  createMeetingRoomBooking,
+  cancelMeetingRoomBookingApi,
+} from '@/services/meetingRoomService';
 import { SPACING } from '@/constants/designSystem';
-import type { MeetingRoom, RoomBooking } from '@/types';
+import type { MeetingRoom, MeetingRoomBooking } from '@/services/meetingRoomService';
+import { MapPin, Users, Armchair } from 'lucide-react-native';
+
+function getAmenityIcon(amenity: string): string {
+  const map: Record<string, string> = {
+    projector: '📽️',
+    whiteboard: '📝',
+    tv: '📺',
+    video_conference: '🎥',
+    wifi: '📶',
+    coffee: '☕',
+    parking: '🅿️',
+    air_conditioning: '❄️',
+    wheelchair_access: '♿',
+    phone: '📞',
+  };
+  return map[amenity.toLowerCase()] || '✨';
+}
+
+function formatAmenityLabel(amenity: string): string {
+  return amenity
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (l) => l.toUpperCase());
+}
 
 const FONT_DISPLAY = Platform.select({
   web: 'Poppins, -apple-system, BlinkMacSystemFont, sans-serif',
@@ -50,7 +79,7 @@ export default function TenantRoomsPage() {
 
   const [activeTab, setActiveTab] = useState<TabType>('rooms');
   const [rooms, setRooms] = useState<MeetingRoom[]>([]);
-  const [bookings, setBookings] = useState<RoomBooking[]>([]);
+  const [bookings, setBookings] = useState<MeetingRoomBooking[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<MeetingRoom | null>(null);
@@ -67,11 +96,11 @@ export default function TenantRoomsPage() {
     setIsLoading(true);
     try {
       const [roomsRes, bookingsRes] = await Promise.all([
-        meetingRoomService.getMeetingRooms({ propertyId }),
-        meetingRoomService.getBookings(undefined, { userId: user?.id }),
+        getMeetingRooms(propertyId as string),
+        getMeetingRoomBookings(propertyId as string),
       ]);
-      if (roomsRes.data) setRooms(roomsRes.data);
-      if (bookingsRes.data) setBookings(bookingsRes.data);
+      if (roomsRes.rooms) setRooms(roomsRes.rooms);
+      if (bookingsRes.bookings) setBookings(bookingsRes.bookings);
     } catch (err) {
       console.error('[TenantRooms] Fetch error:', err);
     } finally {
@@ -92,22 +121,21 @@ export default function TenantRoomsPage() {
       const startTime = new Date(`${bookingDate}T${bookingStartTime}`).toISOString();
       const endTime = new Date(`${bookingDate}T${bookingEndTime}`).toISOString();
 
-      const res = await meetingRoomService.createBooking({
-        roomId: selectedRoom.id,
-        title: bookingTitle,
-        startTime,
-        endTime,
-        attendees: bookingAttendees.split(',').map((s) => s.trim()).filter(Boolean),
-        organizerId: user?.id,
+      const res = await createMeetingRoomBooking({
+        meetingRoomId: selectedRoom.id,
+        propertyId: propertyId as string,
+        date: bookingDate,
+        startTime: bookingStartTime,
+        endTime: bookingEndTime,
       });
 
-      if (res.data) {
+      if (res.success) {
         Alert.alert('Success', 'Room booked successfully!');
         setShowBookingModal(false);
         resetBookingForm();
         fetchData();
       } else {
-        Alert.alert('Error', 'Could not book room. Please try again.');
+        Alert.alert('Error', res.error || 'Could not book room. Please try again.');
       }
     } catch (err) {
       Alert.alert('Error', 'Something went wrong.');
@@ -120,7 +148,7 @@ export default function TenantRoomsPage() {
       {
         text: 'Yes',
         onPress: async () => {
-          await meetingRoomService.cancelBooking(bookingId);
+          await cancelMeetingRoomBookingApi(bookingId);
           fetchData();
         },
       },
@@ -145,48 +173,91 @@ export default function TenantRoomsPage() {
     setShowBookingModal(true);
   };
 
-  const renderRoomCard = ({ item }: { item: MeetingRoom }) => (
-    <SafeBlurView intensity={40} style={styles.roomCard} tint="dark">
-      <LinearGradient
-        colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.15)']}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <View style={styles.roomContent}>
-        <View style={styles.roomHeader}>
-          <View style={[styles.roomIconWrap, { backgroundColor: 'rgba(245,158,11,0.15)' }]}>
-            <Ionicons name="calendar-outline" size={22} color="#F59E0B" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.roomName}>{item.name || 'Unnamed Room'}</Text>
-            <Text style={styles.roomLocation}>{item.location || 'No location'}</Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: item.status === 'available' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)' }]}>
-            <Text style={[styles.statusText, { color: item.status === 'available' ? '#10B981' : '#EF4444' }]}>
-              {item.status === 'available' ? 'Available' : item.status || 'Unknown'}
+  const renderRoomCard = ({ item }: { item: MeetingRoom }) => {
+    const amenities = item.amenities?.slice(0, 3) || [];
+    const extraCount = (item.amenities?.length || 0) - 3;
+    const isAvailable = item.status === 'available';
+
+    return (
+      <TouchableOpacity 
+        style={styles.cardWrapper} 
+        onPress={() => isAvailable ? openBookingModal(item) : Alert.alert('Unavailable', 'This room is not currently available.')} 
+        activeOpacity={0.75}
+      >
+        <SafeBlurView intensity={60} style={styles.roomCard} tint="dark">
+          <LinearGradient
+            colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.04)', 'rgba(0,0,0,0.05)']}
+            style={StyleSheet.absoluteFillObject}
+          />
+          {/* Photo */}
+          {item.photo_url ? (
+            <Image source={{ uri: item.photo_url }} style={styles.cardImage} />
+          ) : (
+            <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+              <Armchair size={32} color="rgba(255,255,255,0.3)" />
+            </View>
+          )}
+
+          {/* Status Badge Over Image */}
+          <View style={[styles.statusBadgeOverlay, { backgroundColor: isAvailable ? 'rgba(16,185,129,0.9)' : 'rgba(239,68,68,0.9)' }]}>
+            <Text style={styles.statusTextOverlay}>
+              {isAvailable ? 'Available' : item.status || 'Unknown'}
             </Text>
           </View>
-        </View>
-        <View style={styles.roomMeta}>
-          <Text style={styles.roomMetaText}>Capacity: {item.capacity ?? 'N/A'}</Text>
-          {Array.isArray(item.amenities) && item.amenities.length > 0 && (
-            <Text style={styles.roomMetaText}>{item.amenities.slice(0, 3).join(' · ')}</Text>
-          )}
-        </View>
-        <TouchableOpacity
-          style={[styles.bookBtn, item.status !== 'available' && styles.bookBtnDisabled]}
-          onPress={() => openBookingModal(item)}
-          disabled={item.status !== 'available'}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.bookBtnText}>
-            {item.status === 'available' ? 'Book Now' : 'Unavailable'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeBlurView>
-  );
 
-  const renderBookingCard = ({ item }: { item: RoomBooking }) => (
+          {/* Content */}
+          <View style={styles.roomContent}>
+            <Text style={styles.roomName} numberOfLines={1}>
+              {item.name || 'Unnamed Room'}
+            </Text>
+            
+            <View style={styles.cardMetaRow}>
+              <View style={styles.cardMetaItem}>
+                <MapPin size={12} color="#708F96" />
+                <Text style={styles.cardMetaText} numberOfLines={1}>
+                  {item.location || 'Main Building'}
+                </Text>
+              </View>
+              <View style={styles.cardMetaItem}>
+                <Users size={12} color="#708F96" />
+                <Text style={styles.cardMetaText}>{item.capacity} people</Text>
+              </View>
+            </View>
+
+            {/* Amenities */}
+            {amenities.length > 0 && (
+              <View style={styles.amenityRow}>
+                {amenities.map((a) => (
+                  <View key={a} style={styles.amenityChip}>
+                    <Text style={styles.amenityEmoji}>{getAmenityIcon(a)}</Text>
+                    <Text style={styles.amenityText}>{formatAmenityLabel(a)}</Text>
+                  </View>
+                ))}
+                {extraCount > 0 && (
+                  <View style={styles.amenityChip}>
+                    <Text style={styles.amenityText}>+{extraCount} more</Text>
+                  </View>
+                )}
+              </View>
+            )}
+            
+            <TouchableOpacity
+              style={[styles.bookBtn, !isAvailable && styles.bookBtnDisabled]}
+              onPress={() => openBookingModal(item)}
+              disabled={!isAvailable}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.bookBtnText}>
+                {isAvailable ? 'Book Now' : 'Unavailable'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </SafeBlurView>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderBookingCard = ({ item }: { item: MeetingRoomBooking }) => (
     <SafeBlurView intensity={40} style={styles.roomCard} tint="dark">
       <LinearGradient
         colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.15)']}
@@ -198,9 +269,9 @@ export default function TenantRoomsPage() {
             <Ionicons name="calendar" size={22} color="#3B82F6" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.roomName}>{item.title || 'Untitled Booking'}</Text>
+            <Text style={styles.roomName}>{item.meeting_room?.name || 'Untitled Booking'}</Text>
             <Text style={styles.roomLocation}>
-              {item.startTime ? new Date(item.startTime).toLocaleDateString() : 'No date'} · {item.startTime ? new Date(item.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+              {item.booking_date || 'No date'} · {item.start_time || ''} - {item.end_time || ''}
             </Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
@@ -409,65 +480,98 @@ const styles = StyleSheet.create({
     fontFamily: FONT_BODY,
     color: '#FFFFFF',
   },
+  cardWrapper: {
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
+  },
   roomCard: {
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    marginBottom: 12,
   },
-  roomContent: {
-    padding: 16,
+  cardImage: {
+    width: '100%',
+    height: 160,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  roomHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 10,
-  },
-  roomIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  cardImagePlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  roomName: {
-    fontFamily: FONT_DISPLAY,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  roomLocation: {
-    fontFamily: FONT_BODY,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 2,
-  },
-  statusBadge: {
+  statusBadgeOverlay: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  statusText: {
+  statusTextOverlay: {
     fontFamily: FONT_BODY,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
-  roomMeta: {
+  roomContent: {
+    padding: 16,
+  },
+  roomName: {
+    fontFamily: FONT_DISPLAY,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 6,
+  },
+  cardMetaRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 14,
     marginBottom: 12,
   },
-  roomMetaText: {
-    fontFamily: FONT_BODY,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.45)',
+  cardMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  cardMetaText: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
+  },
+  amenityRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 16,
+  },
+  amenityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  amenityEmoji: {
+    fontSize: 11,
+  },
+  amenityText: {
+    fontSize: 11,
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#94A3B8',
   },
   bookBtn: {
-    backgroundColor: 'rgba(245,158,11,0.2)',
+    backgroundColor: 'rgba(245,158,11,0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.4)',
+    borderColor: 'rgba(245,158,11,0.3)',
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',

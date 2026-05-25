@@ -31,76 +31,22 @@ export const authService = {
   // Login with email/password
   async login(credentials: LoginCredentials): Promise<ApiResponse<{ user: User; session: any }>> {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: credentials.email,
-        password: credentials.password,
-      });
-
-      if (error) throw error;
-
-      // Fetch user profile
-      const { data: profile, error: profileError } = (await supabase
-        .from('users')
-        .select('*')
-        .eq('id', data.user?.id)
-        .single() as any) as { data: Record<string, unknown> | null; error: unknown };
-
-      if (profileError) throw profileError;
-
-      return {
-        data: {
-          user: profile as unknown as User,
-          session: data.session,
-        },
-        error: null,
-        status: 200,
-      };
+      const res = await apiClient.post<{ user: User; session: any }>('auth/login', credentials);
+      if (res.error) throw new Error(res.error as string);
+      return { data: res.data ?? null, error: null, status: 200 };
     } catch (error) {
-      return {
-        data: null,
-        error: error as Error,
-        status: 401,
-      };
+      return { data: null, error: error as Error, status: 401 };
     }
   },
 
   // Sign up new user
   async signup(data: SignupData): Promise<ApiResponse<{ user: User }>> {
     try {
-      const { data: authData, error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          data: {
-            full_name: data.fullName,
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      // Create user profile
-      const { data: profile, error: profileError }: any = await (supabase as any)
-        .from('users')
-        .insert({
-          id: authData.user?.id,
-          email: data.email,
-          full_name: data.fullName,
-          // TODO: organization_id, property_id, and role do not exist on the users table — use membership tables instead
-          // organization_id: data.organizationId,
-          // property_id: data.propertyId,
-          // role: 'tenant',
-        })
-        .select()
-        .single();
-
-      if (profileError) throw profileError;
-
-      return {
-        data: { user: profile as unknown as User },
-        error: null,
-        status: 201,
-      };
+      const res = await apiClient.post<{ user: User; session: any }>('auth/signup', data);
+      if (res.error) {
+        return { data: null, error: new Error(res.error as string), status: 400 };
+      }
+      return { data: { user: res.data?.user as User }, error: null, status: 201 };
     } catch (error) {
       return {
         data: null,
@@ -113,14 +59,11 @@ export const authService = {
   // Logout
   async logout(): Promise<ApiResponse<void>> {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
-      return {
-        data: undefined,
-        error: null,
-        status: 200,
-      };
+      const res = await apiClient.post<void>('auth/logout', {});
+      if (res.error) {
+        return { data: null, error: new Error(res.error as string), status: 500 };
+      }
+      return { data: undefined, error: null, status: 200 };
     } catch (error) {
       return {
         data: null,
@@ -133,17 +76,11 @@ export const authService = {
   // Forgot password
   async forgotPassword(data: ResetPasswordData): Promise<ApiResponse<void>> {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
-        redirectTo: 'autopilot://reset-password',
-      });
-
-      if (error) throw error;
-
-      return {
-        data: undefined,
-        error: null,
-        status: 200,
-      };
+      const res = await apiClient.post<void>('auth/reset-password', { email: data.email });
+      if (res.error) {
+        return { data: null, error: new Error(res.error as string), status: 400 };
+      }
+      return { data: undefined, error: null, status: 200 };
     } catch (error) {
       return {
         data: null,
@@ -156,17 +93,11 @@ export const authService = {
   // Update password
   async updatePassword(data: UpdatePasswordData): Promise<ApiResponse<void>> {
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: data.password,
-      });
-
-      if (error) throw error;
-
-      return {
-        data: undefined,
-        error: null,
-        status: 200,
-      };
+      const res = await apiClient.post<void>('auth/update-user', { password: data.password });
+      if (res.error) {
+        return { data: null, error: new Error(res.error as string), status: 400 };
+      }
+      return { data: undefined, error: null, status: 200 };
     } catch (error) {
       return {
         data: null,
@@ -179,35 +110,11 @@ export const authService = {
   // Get current session
   async getSession(): Promise<ApiResponse<{ user: User | null; session: any }>> {
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-
-      if (error) throw error;
-
-      if (!session) {
-        return {
-          data: { user: null, session: null },
-          error: null,
-          status: 200,
-        };
+      const res = await apiClient.get<{ user: User; session: any }>('auth/session');
+      if (res.error) {
+        return { data: null, error: new Error(res.error as string), status: 401 };
       }
-
-      // Fetch user profile
-      const { data: profile, error: profileError } = (await supabase
-        .from('users')
-        .select('*')
-        .eq('id', session.user.id)
-        .single() as any) as { data: Record<string, unknown> | null; error: unknown };
-
-      if (profileError) throw profileError;
-
-      return {
-        data: {
-          user: profile as unknown as User,
-          session,
-        },
-        error: null,
-        status: 200,
-      };
+      return { data: res.data ?? null, error: null, status: 200 };
     } catch (error) {
       return {
         data: null,

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '@/utils/supabase/client';
+import { ppmService } from '@/services/ppmService';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import ScannerView from '@/components/shared/ScannerView';
@@ -84,18 +84,19 @@ export default function PPMScanScreen() {
     try {
       const searchTerm = code.trim();
 
-      // Search by asset_id or asset_name (case-insensitive)
-      const { data, error } = await supabase
-        .from('ppm_schedules')
-        .select('id, asset_name, asset_id, schedule_type, next_due, last_completed, status, description')
-        .eq('property_id', propertyId)
-        .or(`asset_id.eq.${searchTerm},asset_name.ilike.%${searchTerm}%`)
-        .order('next_due', { ascending: true });
+      const res = await ppmService.lookupAsset(propertyId, searchTerm);
+      if (!res.success) throw new Error(String(res.error || 'Lookup failed'));
 
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        setSchedules(data as PPMSchedule[]);
+      if (res.data && res.data.length > 0) {
+        setSchedules(res.data.map((s: any) => ({
+          id: s.id,
+          asset_name: s.system_name,
+          schedule_type: s.frequency,
+          next_due: s.planned_date,
+          last_completed: s.done_date,
+          status: s.status,
+          description: s.description,
+        })) as PPMSchedule[]);
         setState('found');
       } else {
         setState('notfound');

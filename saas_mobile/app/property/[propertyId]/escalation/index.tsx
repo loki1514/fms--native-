@@ -21,6 +21,7 @@ import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import {
@@ -127,44 +128,19 @@ export default function EscalationScreen() {
     { label: 'Vendor', value: 'vendor' },
   ];
 
-  const fetchHierarchies = useCallback(async () => {
-    if (!propertyId) return;
-    try {
-      const { data, error } = await supabase
-        .from('escalation_hierarchies')
-        .select(`*, levels:escalation_levels(*)`)
-        .eq('property_id', propertyId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setHierarchies((data || []) as EscalationHierarchy[]);
-    } catch (err) {
-      console.error('Error fetching hierarchies:', err);
-    }
-  }, [propertyId]);
-
-  const fetchUsers = useCallback(async () => {
-    if (!propertyId) return;
-    try {
-      const { data, error } = await supabase
-        .from('property_memberships')
-        .select(`user_id, users:user_id(full_name, email, role)`)
-        .eq('property_id', propertyId)
-        .eq('is_active', true);
-      if (error) throw error;
-      const userList: UserOption[] = (data || [])
-        .map((m: any) => ({ id: m.user_id, full_name: m.users?.full_name || 'Unknown', email: m.users?.email || '', role: m.users?.role || '' }))
-        .filter((u: UserOption) => u.id);
-      setUsers(userList);
-    } catch (err) {
-      console.error('Error fetching users:', err);
-    }
-  }, [propertyId]);
-
   const fetchAll = useCallback(async (refresh = false) => {
     if (refresh) setIsRefreshing(true); else setIsLoading(true);
-    try { await Promise.all([fetchHierarchies(), fetchUsers()]); }
+    try { 
+      if (!propertyId) return;
+      const res = await serverApi.get<any>(`/api/escalation?propertyId=${propertyId}&includeUsers=true`);
+      if (res.error) throw new Error(res.error.message || 'Failed to fetch data');
+      setHierarchies((res.data?.hierarchies || []) as EscalationHierarchy[]);
+      setUsers((res.data?.users || []) as UserOption[]);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+    }
     finally { setIsLoading(false); setIsRefreshing(false); }
-  }, [fetchHierarchies, fetchUsers]);
+  }, [propertyId]);
 
   useEffect(() => { if (propertyId) fetchAll(); }, [propertyId, fetchAll]);
 
@@ -183,19 +159,22 @@ export default function EscalationScreen() {
     if (formLevels.length === 0 || !formLevels.some((l) => l.role || l.user_id)) { Alert.alert('Error', 'Add at least one escalation level'); return; }
     setIsSaving(true);
     try {
-      const { data: hData, error: hError } = await (supabase.from('escalation_hierarchies') as any)
-        .insert({ property_id: propertyId, name: formName.trim(), description: formDescription.trim() || null })
-        .select().single();
-      if (hError) throw hError;
-      const levelsToInsert = formLevels.filter((l) => l.role || l.user_id).map((l, idx) => ({
-        hierarchy_id: (hData as any).id, level: idx + 1,
-        role: l.role || null, user_id: l.user_id || null, user_name: l.user_name || null, response_time_minutes: l.response_time_minutes,
-      }));
-      if (levelsToInsert.length > 0) {
-        const { error: lError } = await (supabase.from('escalation_levels') as any).insert(levelsToInsert);
-        if (lError) throw lError;
-      }
-      setShowCreateModal(false); resetForm(); await fetchHierarchies();
+      const payload = {
+        propertyId,
+        name: formName.trim(),
+        description: formDescription.trim() || null,
+        levels: formLevels.filter((l) => l.role || l.user_id).map((l, idx) => ({
+          level: idx + 1,
+          role: l.role || null,
+          user_id: l.user_id || null,
+          user_name: l.user_name || null,
+          response_time_minutes: l.response_time_minutes,
+        })),
+      };
+      const res = await serverApi.post<any>('/api/escalation', payload);
+      if (res.error) throw new Error(res.error.message || 'Failed to create hierarchy');
+      
+      setShowCreateModal(false); resetForm(); await fetchAll();
       Alert.alert('✅ Created', 'Escalation hierarchy created successfully');
     } catch (err: any) { Alert.alert('Error', err.message || 'Failed to create hierarchy'); }
     finally { setIsSaving(false); }
@@ -205,20 +184,23 @@ export default function EscalationScreen() {
     if (!selectedHierarchy || !formName.trim()) { Alert.alert('Error', 'Hierarchy name is required'); return; }
     setIsSaving(true);
     try {
-      const { error: hError } = await (supabase.from('escalation_hierarchies') as any)
-        .update({ name: formName.trim(), description: formDescription.trim() || null })
-        .eq('id', selectedHierarchy.id);
-      if (hError) throw hError;
-      await (supabase.from('escalation_levels') as any).delete().eq('hierarchy_id', selectedHierarchy.id);
-      const levelsToInsert = formLevels.filter((l) => l.role || l.user_id).map((l, idx) => ({
-        hierarchy_id: selectedHierarchy.id, level: idx + 1,
-        role: l.role || null, user_id: l.user_id || null, user_name: l.user_name || null, response_time_minutes: l.response_time_minutes,
-      }));
-      if (levelsToInsert.length > 0) {
-        const { error: lError } = await (supabase.from('escalation_levels') as any).insert(levelsToInsert);
-        if (lError) throw lError;
-      }
-      setShowEditModal(false); resetForm(); setSelectedHierarchy(null); await fetchHierarchies();
+      const payload = {
+        propertyId,
+        name: formName.trim(),
+        description: formDescription.trim() || null,
+        levels: formLevels.filter((l) => l.role || l.user_id).map((l, idx) => ({
+          level: idx + 1,
+          role: l.role || null,
+          user_id: l.user_id || null,
+          user_name: l.user_name || null,
+          response_time_minutes: l.response_time_minutes,
+        })),
+      };
+      
+      const res = await serverApi.patch<any>(`/api/escalation/${selectedHierarchy.id}`, payload);
+      if (res.error) throw new Error(res.error.message || 'Failed to update hierarchy');
+      
+      setShowEditModal(false); resetForm(); setSelectedHierarchy(null); await fetchAll();
       Alert.alert('✅ Updated', 'Escalation hierarchy updated');
     } catch (err: any) { Alert.alert('Error', err.message || 'Failed to update hierarchy'); }
     finally { setIsSaving(false); }
@@ -231,9 +213,8 @@ export default function EscalationScreen() {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           try {
-            await supabase.from('escalation_levels').delete().eq('hierarchy_id', hierarchy.id);
-            const { error } = await supabase.from('escalation_hierarchies').delete().eq('id', hierarchy.id);
-            if (error) throw error;
+            const delRes = await serverApi.delete(`/api/escalation/${hierarchy.id}?propertyId=${propertyId}`);
+            if (delRes.error) throw new Error(delRes.error.message || 'Failed to delete hierarchy');
             setHierarchies((prev) => prev.filter((h) => h.id !== hierarchy.id));
           } catch (err: any) { Alert.alert('Error', err.message || 'Failed to delete'); }
         },

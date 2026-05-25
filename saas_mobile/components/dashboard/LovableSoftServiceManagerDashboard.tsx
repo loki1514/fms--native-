@@ -20,13 +20,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { createClient } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '@/hooks/useAuth';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import SignOutModal from '@/components/ui/SignOutModal';
 import NotificationModal from '@/components/notifications/NotificationModal';
 import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
 import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
+import PPMProgressCard from '@/components/dashboard/PPMProgressCard';
 import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
+import { ppmService } from '@/services/ppmService';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import { useWeather } from '@/hooks/useWeather';
 
@@ -212,6 +215,13 @@ export default function LovableSoftServiceManagerDashboard({ propertyId }: { pro
   const [sopTotal, setSopTotal]   = useState(0);
   const [sopDone, setSopDone]     = useState(0);
 
+  // PPM stats
+  const [ppmTotal, setPpmTotal]   = useState(0);
+  const [ppmDone, setPpmDone]     = useState(0);
+  const [ppmPending, setPpmPending] = useState(0);
+  const [ppmOverdue, setPpmOverdue] = useState(0);
+  const [ppmPostponed, setPpmPostponed] = useState(0);
+
   // Modals
   const [showSignOut, setShowSignOut]           = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -240,51 +250,70 @@ export default function LovableSoftServiceManagerDashboard({ propertyId }: { pro
     if (!propertyId) return;
     try {
       // Property name
-      const { data: prop } = await supabase.from('properties').select('name').eq('id', propertyId).maybeSingle();
+      const { data: prop } = await serverApi.query({ table: 'properties', action: 'select', select: 'name', filters: [{ op: 'eq', column: 'id', value: propertyId }], maybeSingle: true });
       if (prop) setPropertyName((prop as any).name ?? '');
 
       // Tickets (view + approve + assign)
-      const { data: tData } = await supabase
-        .from('tickets')
-        .select('id, ticket_number, title, status, priority, created_at, assigned_to, assignee:users!assigned_to(full_name)')
-        .eq('property_id', propertyId)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      const { data: tData } = await serverApi.query({
+        table: 'tickets',
+        action: 'select',
+        select: 'id, ticket_number, title, status, priority, created_at, assigned_to, assignee:users!assigned_to(full_name)',
+        filters: [{ op: 'eq', column: 'property_id', value: propertyId }],
+        orders: [{ column: 'created_at', ascending: false }],
+        limit: 50,
+      });
       if (tData) setTickets(tData as Ticket[]);
 
       // Stock items
-      const { data: sData } = await supabase
-        .from('stock_items')
-        .select('id, name, quantity, min_threshold, category, unit')
-        .eq('property_id', propertyId)
-        .order('quantity');
+      const { data: sData } = await serverApi.query({
+        table: 'stock_items',
+        action: 'select',
+        select: 'id, name, quantity, min_threshold, category, unit',
+        filters: [{ op: 'eq', column: 'property_id', value: propertyId }],
+        orders: [{ column: 'quantity', ascending: true }],
+      });
       if (sData) setStockItems(sData as StockItem[]);
 
       // SOP completions
-      const { data: sopTemplates } = await supabase
-        .from('sop_templates')
-        .select('id')
-        .eq('property_id', propertyId)
-        .eq('is_active', true);
-      if (sopTemplates) setSopTotal(sopTemplates.length);
+      const { data: sopTemplates } = await serverApi.query({
+        table: 'sop_templates',
+        action: 'select',
+        select: 'id',
+        filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'is_active', value: true }],
+      });
+      if (sopTemplates) setSopTotal((sopTemplates as any[]).length);
 
       const todayStr = new Date().toISOString().split('T')[0];
-      const { data: sopCompletions } = await supabase
-        .from('sop_completions')
-        .select('status')
-        .eq('property_id', propertyId)
-        .eq('completion_date', todayStr);
+      const { data: sopCompletions } = await serverApi.query({
+        table: 'sop_completions',
+        action: 'select',
+        select: 'status',
+        filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'completion_date', value: todayStr }],
+      });
       if (sopCompletions) {
-        setSopDone(sopCompletions.filter((s: any) => s.status === 'completed').length);
+        setSopDone((sopCompletions as any[]).filter((s: any) => s.status === 'completed').length);
       }
 
+      // PPM stats
+      try {
+        const ppmRes = await ppmService.fetchStats(propertyId);
+        if (ppmRes.success && ppmRes.data) {
+          setPpmTotal(ppmRes.data.total ?? 0);
+          setPpmDone(ppmRes.data.done ?? 0);
+          setPpmPending(ppmRes.data.pending ?? 0);
+          setPpmOverdue(ppmRes.data.overdue ?? 0);
+          setPpmPostponed(ppmRes.data.postponed ?? 0);
+        }
+      } catch (_e) { /* ignore */ }
+
       // Shift status
-      const { data: shiftData } = await supabase
-        .from('resolver_stats')
-        .select('is_checked_in')
-        .eq('property_id', propertyId)
-        .eq('user_id', user?.id as string)
-        .maybeSingle();
+      const { data: shiftData } = await serverApi.query({
+        table: 'resolver_stats',
+        action: 'select',
+        select: 'is_checked_in',
+        filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'user_id', value: user?.id }],
+        maybeSingle: true,
+      });
       if (shiftData) setIsCheckedIn(!!(shiftData as any).is_checked_in);
     } catch (err) {
       console.warn('[SSMDashboard] fetchData error:', err);
@@ -308,8 +337,12 @@ export default function LovableSoftServiceManagerDashboard({ propertyId }: { pro
     setIsTogglingShift(true);
     const newStatus = !isCheckedIn;
     try {
-      await (supabase.from('resolver_stats') as any)
-        .upsert({ property_id: propertyId, user_id: user.id, is_checked_in: newStatus });
+      await serverApi.query({
+        table: 'resolver_stats',
+        action: 'upsert',
+        values: { property_id: propertyId, user_id: user.id, is_checked_in: newStatus },
+        mutationOptions: { onConflict: 'user_id,property_id' },
+      });
       setIsCheckedIn(newStatus);
     } catch (err: any) {
       Alert.alert('Error', err.message ?? 'Failed to update shift');
@@ -399,8 +432,20 @@ export default function LovableSoftServiceManagerDashboard({ propertyId }: { pro
       {/* SOP / Checklist progress */}
       <ChecklistProgressCard completed={sopDone} total={sopTotal} delay={200} onPress={() => setActiveTab('checklist')} />
 
+      {/* PPM progress */}
+      <PPMProgressCard
+        propertyId={propertyId}
+        done={ppmDone}
+        total={ppmTotal}
+        pending={ppmPending}
+        overdue={ppmOverdue}
+        postponed={ppmPostponed}
+        delay={240}
+        onPress={() => router.push(`/property/${propertyId}/ppm`)}
+      />
+
       {/* PPM activity */}
-      <PPMActivityTile propertyId={propertyId} delay={260} />
+      <PPMActivityTile propertyId={propertyId} delay={320} />
 
       {/* Quick actions */}
       <Animated.View entering={FadeInDown.delay(300).duration(400)}>

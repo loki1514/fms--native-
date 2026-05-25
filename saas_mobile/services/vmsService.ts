@@ -1,271 +1,223 @@
-import { supabase } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { ApiResponse } from './api/client';
 import type { Visitor, VisitorStatus } from '@/types';
 
-function mapDbToVisitor(row: Record<string, unknown>): Visitor {
-  // TODO: expected_date and expected_time do not exist on visitor_logs
-  // const expectedDate = (row.expected_date as string) || '';
-  // const expectedTime = (row.expected_time as string) || '';
-  // const expectedDateTime = expectedDate && expectedTime
-  //   ? `${expectedDate}T${expectedTime}`
-  //   : expectedDate || '';
+// ---------------------------------------------------------------------------
+// Date Filter Helpers
+// ---------------------------------------------------------------------------
 
-  return {
-    id: row.id as string,
-    visitorId: row.visitor_id as string,
-    name: row.name as string, // mapped from visitor_name -> name
-    // TODO: email does not exist on visitor_logs
-    email: '',
-    phone: row.mobile as string,
-    company: (row.coming_from as string) || '', // mapped from company -> coming_from
-    // TODO: purpose does not exist on visitor_logs
-    purpose: '',
-    hostName: row.whom_to_meet as string,
-    // TODO: host_id does not exist on visitor_logs
-    hostId: '',
-    checkInTime: (row.checkin_time as string) || '',
-    checkOutTime: (row.checkout_time as string) || '',
-    expectedTime: '',
-    status: row.status as VisitorStatus,
-    photo: (row.photo_url as string) || '',
-    // TODO: id_proof_url does not exist on visitor_logs
-    idProof: '',
-    // TODO: pass_code does not exist on visitor_logs
-    passCode: '',
-    // TODO: vehicle_number does not exist on visitor_logs
-    vehicleNumber: '',
-    // TODO: belongings does not exist on visitor_logs
-    belongings: '',
-    propertyId: (row.property_id as string) || '',
-    // TODO: pre_registered does not exist on visitor_logs
-    preRegistered: false,
-    createdAt: (row.created_at as string) || '',
-    updatedAt: (row.updated_at as string) || '',
-  };
+export type DateFilter = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+
+export interface VisitorLog {
+  visitor_id: string;
+  name: string;
+  mobile?: string;
+  category: string;
+  whom_to_meet: string;
+  coming_from?: string;
+  purpose?: string;
+  photo_url?: string;
+  checkin_time: string;
+  checkout_time?: string;
+  status: string;
 }
 
+export interface HostResult {
+  id: string;
+  name: string;
+  full_name?: string;
+  email?: string;
+  role?: string;
+}
+
+function getDateBounds(filter: DateFilter, customDate?: string): { start: string; end: string } | null {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+
+  let start: Date;
+  let end: Date;
+
+  switch (filter) {
+    case 'today':
+      start = new Date(year, month, day, 0, 0, 0);
+      end = new Date(year, month, day, 23, 59, 59, 999);
+      break;
+    case 'yesterday':
+      start = new Date(year, month, day - 1, 0, 0, 0);
+      end = new Date(year, month, day - 1, 23, 59, 59, 999);
+      break;
+    case 'week':
+      start = new Date(year, month, day - 7, 0, 0, 0);
+      end = new Date(year, month, day, 23, 59, 59, 999);
+      break;
+    case 'month':
+      start = new Date(year, month, day - 30, 0, 0, 0);
+      end = new Date(year, month, day, 23, 59, 59, 999);
+      break;
+    case 'custom':
+      if (!customDate) return null;
+      const [cy, cm, cd] = customDate.split('-').map(Number);
+      start = new Date(cy, cm - 1, cd, 0, 0, 0);
+      end = new Date(cy, cm - 1, cd, 23, 59, 59, 999);
+      break;
+    default:
+      return null;
+  }
+
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+// ---------------------------------------------------------------------------
+// VMS Service — routes through saas_mobile_server
+// ---------------------------------------------------------------------------
+
 export const vmsService = {
-  async getVisitors(filters?: {
-    propertyId?: string;
-    search?: string;
-    status?: VisitorStatus;
-    date?: string;
-  }): Promise<ApiResponse<Visitor[]>> {
-    try {
-      let query = (supabase
-        .from('visitor_logs')
-        .select('*')
-        .order('created_at', { ascending: false }) as any);
-
-      if (filters?.propertyId) {
-        query = query.eq('property_id', filters.propertyId);
-      }
-      if (filters?.status) {
-        query = query.eq('status', filters.status);
-      }
-      // TODO: expected_date does not exist on visitor_logs
-      // if (filters?.date) {
-      //   query = query.eq('expected_date', filters.date);
-      // }
-      if (filters?.search) {
-        const term = `%${filters.search}%`;
-        query = query.or(
-          `name.ilike.${term},mobile.ilike.${term},coming_from.ilike.${term},whom_to_meet.ilike.${term}`,
-        );
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      return { success: true, data: (data || []).map(mapDbToVisitor) };
-    } catch (err) {
-      console.error('vmsService.getVisitors:', err);
-      return { success: false, data: [], error: null };
+  // ── Fetch Visitors ────────────────────────────────────────────────────────
+  async fetchVisitors(
+    propertyId: string,
+    options?: {
+      dateFilter?: DateFilter;
+      customDate?: string;
+      status?: VisitorStatus | 'all';
+      search?: string;
     }
-  },
-
-  async getVisitor(id: string): Promise<ApiResponse<Visitor>> {
+  ): Promise<ApiResponse<{ visitors: VisitorLog[]; stats: any; property: any }>> {
     try {
-      const { data, error } = (await (supabase
-        .from('visitor_logs')
-        .select('*')
-        .eq('id', id)
-        .single() as any)) as { data: Record<string, unknown> | null; error: unknown };
+      const params = new URLSearchParams();
+      params.append('propertyId', propertyId);
+      if (options?.status && options.status !== 'all') params.append('status', options.status);
+      if (options?.search) params.append('search', options.search);
 
-      if (error) throw error;
+      const res = await serverApi.get<any>(`/api/visitors?${params.toString()}`);
+      if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch visitors');
 
-      return { success: true, data: mapDbToVisitor(data as Record<string, unknown>) };
-    } catch (err) {
-      console.error('vmsService.getVisitor:', err);
-      return { success: false, data: null as unknown as Visitor, error: null };
-    }
-  },
+      // Apply date filtering client-side since server doesn't support date ranges
+      let visitors = res.data?.visitors ?? [];
+      if (options?.dateFilter && options.dateFilter !== 'custom') {
+        const bounds = getDateBounds(options.dateFilter);
+        if (bounds) {
+          visitors = visitors.filter((v: any) => {
+            const t = v.checkin_time || v.created_at;
+            return t && t >= bounds.start && t <= bounds.end;
+          });
+        }
+      } else if (options?.dateFilter === 'custom' && options.customDate) {
+        const bounds = getDateBounds('custom', options.customDate);
+        if (bounds) {
+          visitors = visitors.filter((v: any) => {
+            const t = v.checkin_time || v.created_at;
+            return t && t >= bounds.start && t <= bounds.end;
+          });
+        }
+      }
 
-  async createVisitor(data: Partial<Visitor>): Promise<ApiResponse<Visitor>> {
-    try {
-      const payload: Record<string, unknown> = {
-        visitor_id: data.visitorId || null,
-        name: data.name, // mapped from visitor_name -> name
-        mobile: data.phone || null,
-        coming_from: data.company || null, // mapped from company -> coming_from
-        whom_to_meet: data.hostName || null,
-        checkin_time: data.checkInTime || null,
-        checkout_time: data.checkOutTime || null,
-        status: data.status || 'expected',
-        photo_url: data.photo || null,
-        property_id: data.propertyId || null,
-        // TODO: the following columns do not exist on visitor_logs
-        // email: data.email || null,
-        // purpose: data.purpose || null,
-        // host_id: data.hostId || null,
-        // expected_date: data.expectedTime ? data.expectedTime.split('T')[0] : null,
-        // expected_time: data.expectedTime ? data.expectedTime.split('T')[1] || null : null,
-        // id_proof_url: data.idProof || null,
-        // pass_code: data.passCode || null,
-        // vehicle_number: data.vehicleNumber || null,
-        // belongings: data.belongings || null,
-        // pre_registered: data.preRegistered ?? true,
+      const stats = {
+        total: visitors.length,
+        checked_in: visitors.filter((v: any) => v.status === 'checked_in').length,
+        checked_out: visitors.filter((v: any) => v.status === 'checked_out').length,
+        pending: visitors.filter((v: any) => v.status === 'pending').length,
       };
 
-      const { data: row, error }: any = await (supabase as any)
-        .from('visitor_logs')
-        .insert(payload)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return { success: true, data: row ? mapDbToVisitor(row as Record<string, unknown>) : null };
-    } catch (err) {
-      console.error('vmsService.createVisitor:', err);
-      return { success: false, data: null as unknown as Visitor, error: null };
+      return { success: true, data: { visitors, stats, property: res.data?.property }, status: 200 };
+    } catch (err: any) {
+      return { success: false, data: null as any, error: err.message, status: 500 };
     }
   },
 
-  async updateVisitor(id: string, data: Partial<Visitor>): Promise<ApiResponse<Visitor>> {
-    try {
-      const payload: Record<string, unknown> = {};
-
-      if (data.name !== undefined) payload.name = data.name;
-      if (data.phone !== undefined) payload.mobile = data.phone;
-      if (data.company !== undefined) payload.coming_from = data.company;
-      if (data.hostName !== undefined) payload.whom_to_meet = data.hostName;
-      if (data.checkInTime !== undefined) payload.checkin_time = data.checkInTime;
-      if (data.checkOutTime !== undefined) payload.checkout_time = data.checkOutTime;
-      if (data.status !== undefined) payload.status = data.status;
-      if (data.photo !== undefined) payload.photo_url = data.photo;
-      if (data.propertyId !== undefined) payload.property_id = data.propertyId;
-      // TODO: the following columns do not exist on visitor_logs
-      // if (data.email !== undefined) payload.email = data.email;
-      // if (data.purpose !== undefined) payload.purpose = data.purpose;
-      // if (data.hostId !== undefined) payload.host_id = data.hostId;
-      // if (data.expectedTime !== undefined) { ... }
-      // if (data.idProof !== undefined) payload.id_proof_url = data.idProof;
-      // if (data.passCode !== undefined) payload.pass_code = data.passCode;
-      // if (data.vehicleNumber !== undefined) payload.vehicle_number = data.vehicleNumber;
-      // if (data.belongings !== undefined) payload.belongings = data.belongings;
-      // if (data.preRegistered !== undefined) payload.pre_registered = data.preRegistered;
-
-      const { data: row, error }: any = await (supabase as any)
-        .from('visitor_logs')
-        .update(payload)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return { success: true, data: row ? mapDbToVisitor(row as Record<string, unknown>) : null };
-    } catch (err) {
-      console.error('vmsService.updateVisitor:', err);
-      return { success: false, data: null as unknown as Visitor, error: null };
-    }
+  // ── Fetch Visitor Stats ───────────────────────────────────────────────────
+  async fetchStats(propertyId: string): Promise<ApiResponse<any>> {
+    return this.fetchVisitors(propertyId);
   },
 
-  async checkIn(id: string, photoUrl?: string): Promise<ApiResponse<Visitor>> {
-    try {
-      const payload: Record<string, unknown> = {
-        checkin_time: new Date().toISOString(),
-        status: 'checked_in',
-      };
-      if (photoUrl) payload.photo_url = photoUrl;
-
-      const { data, error }: any = await (supabase as any)
-        .from('visitor_logs')
-        .update(payload)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return { success: true, data: data ? mapDbToVisitor(data as Record<string, unknown>) : null };
-    } catch (err) {
-      console.error('vmsService.checkIn:', err);
-      return { success: false, data: null as unknown as Visitor, error: null };
-    }
-  },
-
-  async checkOut(id: string): Promise<ApiResponse<Visitor>> {
-    try {
-      const { data, error }: any = await (supabase as any)
-        .from('visitor_logs')
-        .update({
-          checkout_time: new Date().toISOString(),
-          status: 'checked_out',
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      return { success: true, data: data ? mapDbToVisitor(data as Record<string, unknown>) : null };
-    } catch (err) {
-      console.error('vmsService.checkOut:', err);
-      return { success: false, data: null as unknown as Visitor, error: null };
-    }
-  },
-
-  async forceCheckout(id: string): Promise<ApiResponse<Visitor>> {
-    return this.checkOut(id);
-  },
-
-  async kioskRegister(data: {
-    visitorName: string;
-    mobile: string;
-    purpose: string;
-    whomToMeet: string;
+  // ── Check In ──────────────────────────────────────────────────────────────
+  async checkIn(payload: {
     propertyId: string;
-  }): Promise<ApiResponse<Visitor>> {
+    name: string;
+    mobile?: string;
+    category: string;
+    whom_to_meet: string;
+    whom_to_meet_uid?: string;
+    coming_from?: string;
+    purpose?: string;
+    photo_url?: string;
+  }): Promise<ApiResponse<{ visitor: Visitor; visitorId: string }>> {
     try {
-      const now = new Date().toISOString();
+      const res = await serverApi.post<any>('/api/visitors', {
+        propertyId: payload.propertyId,
+        name: payload.name,
+        mobile: payload.mobile,
+        category: payload.category,
+        whom_to_meet: payload.whom_to_meet,
+        whom_to_meet_uid: payload.whom_to_meet_uid,
+        coming_from: payload.coming_from,
+        purpose: payload.purpose,
+        photo_url: payload.photo_url,
+      });
+      if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Check-in failed');
+      return { success: true, data: { visitor: res.data?.visitor, visitorId: res.data?.visitorId }, status: 201 };
+    } catch (err: any) {
+      return { success: false, data: null as any, error: err.message, status: 500 };
+    }
+  },
 
-      const payload: Record<string, unknown> = {
-        name: data.visitorName, // mapped from visitor_name -> name
-        mobile: data.mobile,
-        whom_to_meet: data.whomToMeet,
-        property_id: data.propertyId,
-        status: 'checked_in',
-        checkin_time: now,
-        // TODO: purpose and pre_registered do not exist on visitor_logs
-        // purpose: data.purpose,
-        // pre_registered: false,
-      };
+  // ── Check Out ─────────────────────────────────────────────────────────────
+  async checkOut(visitorId: string, propertyId: string): Promise<ApiResponse<boolean>> {
+    try {
+      const res = await serverApi.post<any>(`/api/visitors/${visitorId}/checkout`, { propertyId });
+      if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Check-out failed');
+      return { success: true, data: true, status: 200 };
+    } catch (err: any) {
+      return { success: false, data: false, error: err.message, status: 500 };
+    }
+  },
 
-      const { data: row, error }: any = await (supabase as any)
-        .from('visitor_logs')
-        .insert(payload)
-        .select()
-        .single();
+  // ── Search Hosts ──────────────────────────────────────────────────────────
+  async searchHosts(propertyId: string, query: string): Promise<ApiResponse<HostResult[]>> {
+    try {
+      const res = await serverApi.query<HostResult[]>({
+        table: 'property_memberships',
+        action: 'select',
+        select: 'user_id, users:user_id(full_name, email, role)',
+        filters: [
+          { op: 'eq', column: 'property_id', value: propertyId },
+          { op: 'eq', column: 'is_active', value: true },
+        ],
+      });
+      if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch hosts');
 
-      if (error) throw error;
+      const hosts = (res.data || [])
+        .filter((m: any) => {
+          const fullName = m.users?.full_name || '';
+          const email = m.users?.email || '';
+          const q = query.toLowerCase();
+          return fullName.toLowerCase().includes(q) || email.toLowerCase().includes(q);
+        })
+        .map((m: any) => ({
+          id: m.user_id,
+          name: m.users?.full_name || '',
+          full_name: m.users?.full_name || '',
+          email: m.users?.email || '',
+          role: m.users?.role || '',
+        }));
 
-      return { success: true, data: row ? mapDbToVisitor(row as Record<string, unknown>) : null };
-    } catch (err) {
-      console.error('vmsService.kioskRegister:', err);
-      return { success: false, data: null as unknown as Visitor, error: null };
+      return { success: true, data: hosts, status: 200 };
+    } catch (err: any) {
+      return { success: false, data: [], error: err.message, status: 500 };
+    }
+  },
+
+  // ── Upload Photo ──────────────────────────────────────────────────────────
+  async uploadPhoto(uri: string, path: string): Promise<ApiResponse<string>> {
+    try {
+      // React Native file upload — pass the URI object that FormData can handle
+      const fileObj = { uri, name: path, type: 'image/jpeg' };
+      const res = await serverApi.upload('visitor-photos', path, fileObj as any, 'image/jpeg');
+      if (res.error) throw new Error(res.error?.message ?? 'Upload failed');
+      return { success: true, data: res.data?.path ?? '', status: 201 };
+    } catch (err: any) {
+      return { success: false, data: '', error: err.message, status: 500 };
     }
   },
 };

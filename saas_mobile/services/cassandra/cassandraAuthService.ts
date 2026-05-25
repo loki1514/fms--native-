@@ -26,7 +26,7 @@ const TOKEN_KEY = 'cassandra_token';
 const EXPIRES_KEY = 'cassandra_expires_at';
 const REFRESH_BUFFER_SECONDS = 300; // 5 minutes
 
-const DEFAULT_URL = 'https://fms-dev-saas-one.vercel.app';
+const DEFAULT_URL = 'https://www.back2basiics.com';
 const API_URL = (process.env.EXPO_PUBLIC_VOICE_API_URL ?? process.env.EXPO_PUBLIC_CASSANDRA_API_URL ?? DEFAULT_URL).replace(/\/$/, '');
 const WS_URL = API_URL.replace(/^http/, 'ws');
 

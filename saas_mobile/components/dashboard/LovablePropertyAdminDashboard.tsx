@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { createClient } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '@/hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
@@ -31,6 +32,8 @@ import NotificationModal from '@/components/notifications/NotificationModal';
 import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
 import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
 import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
+import PPMProgressCard from '@/components/dashboard/PPMProgressCard';
+import { ppmService } from '@/services/ppmService';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
 import {
@@ -57,14 +60,23 @@ interface Props {
   propertyId: string;
 }
 
+import { useDashboardStore } from '@/stores/dashboardStore';
+
 export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const { user, signOut, membership } = useAuth();
   const insets = useSafeAreaInsets();
   const { weather } = useWeather();
   const router = useRouter();
 
+  // Zustand state for dashboard to prevent reloading on every mount
+  const {
+    tickets, sopCount, sopTotal, energyKwh, energyTrend, propertyName,
+    vmsStats, vendorStats, dieselStats, healthScore, attentionItems, ticketFunnel,
+    hasLoadedInitialData, setDashboardData
+  } = useDashboardStore();
+
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!hasLoadedInitialData);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
@@ -75,25 +87,15 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [showDrawer, setShowDrawer] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Data state
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [sopCount, setSopCount] = useState(0);
-  const [sopTotal, setSopTotal] = useState(0);
-  const [energyKwh, setEnergyKwh] = useState(0);
-  const [energyTrend, setEnergyTrend] = useState(12);
-  const [propertyName, setPropertyName] = useState('Property');
-
-  // New stats state
-  const [vmsStats, setVmsStats] = useState({ total: 0, in: 0, out: 0 });
-  const [vendorStats, setVendorStats] = useState({ revenue: 0, commission: 0 });
-  const [dieselStats, setDieselStats] = useState({ level: 0, consumption: 0 });
-
-  // Leadership cockpit state
-  const [healthScore, setHealthScore] = useState<any>(null);
-  const [attentionItems, setAttentionItems] = useState<any[]>([]);
-  const [ticketFunnel, setTicketFunnel] = useState<any[]>([]);
   const [ticketTimeFilter, setTicketTimeFilter] = useState<'today' | 'month' | 'all'>('all');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // PPM stats (local)
+  const [ppmTotal, setPpmTotal]   = useState(0);
+  const [ppmDone, setPpmDone]     = useState(0);
+  const [ppmPending, setPpmPending] = useState(0);
+  const [ppmOverdue, setPpmOverdue] = useState(0);
+  const [ppmPostponed, setPpmPostponed] = useState(0);
 
   // ─── Needs Attention: merge RPC items with property-scoped ticket logic ───────
   // Matches saas_one web dashboard rules:
@@ -230,120 +232,103 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
 
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
-    const supabase = createClient();
-
     try {
-      // Property details
-      const { data: propData } = await supabase
-        .from('properties')
-        .select('name')
-        .eq('id', propertyId)
-        .single();
-      if (propData) setPropertyName((propData as any).name);
-
-      // Tickets — fetch all active tickets for this property (not resolved/closed)
-      // so that urgent/high/critical/tenant/stale logic in needsAttentionTickets is accurate.
-      // Also include resolved internal tickets for historical stats.
-      const { data: ticketData } = await supabase
-        .from('tickets')
-        .select('id, title, status, priority, created_at, internal, photo_before_url')
-        .eq('property_id', propertyId)
-        .order('created_at', { ascending: false });
-      if (ticketData) setTickets(ticketData);
-
-      // SOP templates (total active checklists)
-      const { data: sopTemplatesData } = await supabase
-        .from('sop_templates')
-        .select('id')
-        .eq('property_id', propertyId)
-        .eq('is_active', true);
-
       const todayStr = new Date().toISOString().split('T')[0];
+      const [
+        { data: propData },
+        { data: ticketData },
+        { data: sopTemplatesData },
+        { data: sopCompletionsToday },
+        { data: elecData },
+        { data: healthData },
+        { data: attentionData },
+        { data: funnelData },
+        { data: vmsData },
+        { data: revData },
+        { data: dieselData },
+      ] = await Promise.all([
+        serverApi.query({ table: 'properties', action: 'select', select: 'name', filters: [{ op: 'eq', column: 'id', value: propertyId }], single: true }),
+        serverApi.query({ table: 'tickets', action: 'select', select: 'id, title, status, priority, created_at, internal, photo_before_url', filters: [{ op: 'eq', column: 'property_id', value: propertyId }], orders: [{ column: 'created_at', ascending: false }] }),
+        serverApi.query({ table: 'sop_templates', action: 'select', select: 'id', filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'is_active', value: true }] }),
+        serverApi.query({ table: 'sop_completions', action: 'select', select: 'status', filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'completion_date', value: todayStr }] }),
+        serverApi.query({ table: 'electricity_readings', action: 'select', select: 'final_units', filters: [{ op: 'eq', column: 'property_id', value: propertyId }], orders: [{ column: 'created_at', ascending: false }], limit: 1, maybeSingle: true }),
+        serverApi.rpc('get_property_health_score', { p_property_id: propertyId }),
+        serverApi.rpc('get_attention_items', { p_property_id: propertyId, p_limit: 10 }),
+        serverApi.rpc('get_ticket_funnel', { p_property_id: propertyId, p_days: 30 }),
+        serverApi.query({ table: 'visitor_logs', action: 'select', select: 'status', filters: [{ op: 'eq', column: 'property_id', value: propertyId }] }),
+        serverApi.query({ table: 'vendor_daily_revenue', action: 'select', select: 'revenue_amount, vendor_id', filters: [{ op: 'eq', column: 'property_id', value: propertyId }] }),
+        serverApi.query({ table: 'diesel_readings', action: 'select', select: 'current_fuel_level', filters: [{ op: 'eq', column: 'property_id', value: propertyId }], orders: [{ column: 'created_at', ascending: false }], limit: 1, maybeSingle: true }),
+      ]);
 
-      // SOP completions for today
-      const { data: sopCompletionsToday } = await supabase
-        .from('sop_completions')
-        .select('status')
-        .eq('property_id', propertyId)
-        .eq('completion_date', todayStr);
+      let newPropName = propertyName;
+      let newTickets = tickets;
+      let newSopTotal = sopTotal;
+      let newSopCount = sopCount;
+      let newEnergyKwh = energyKwh;
+      let newHealthScore = healthScore;
+      let newAttentionItems = attentionItems;
+      let newTicketFunnel = ticketFunnel;
+      let newVmsStats = vmsStats;
+      let newVendorStats = vendorStats;
+      let newDieselStats = dieselStats;
 
-      if (sopTemplatesData) {
-        setSopTotal(sopTemplatesData.length);
+      // PPM stats
+      try {
+        const ppmRes = await ppmService.fetchStats(propertyId);
+        if (ppmRes.success && ppmRes.data) {
+          setPpmTotal(ppmRes.data.total ?? 0);
+          setPpmDone(ppmRes.data.done ?? 0);
+          setPpmPending(ppmRes.data.pending ?? 0);
+          setPpmOverdue(ppmRes.data.overdue ?? 0);
+          setPpmPostponed(ppmRes.data.postponed ?? 0);
+        }
+      } catch (ppmErr: any) {
+        if (__DEV__) {
+          console.error('[Dashboard] PPM stats error:', ppmErr?.message ?? ppmErr);
+        }
       }
-      if (sopCompletionsToday) {
-        setSopCount(sopCompletionsToday.filter((s: any) => s.status === 'completed').length);
-      }
 
-      // Electricity
-      const { data: elecData } = await supabase
-        .from('electricity_readings')
-        .select('final_units')
-        .eq('property_id', propertyId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (elecData) setEnergyKwh(Math.round((elecData as any).final_units || 0));
-
-      // Health score
-      const { data: healthData } = await supabase.rpc('get_property_health_score' as any, {
-        p_property_id: propertyId,
-      } as any);
-      if (healthData) setHealthScore(healthData);
-
-      // Attention items
-      const { data: attentionData } = await supabase.rpc('get_attention_items' as any, {
-        p_property_id: propertyId,
-        p_limit: 10,
-      } as any);
-      if (attentionData) setAttentionItems(attentionData);
-
-      // Ticket funnel
-      const { data: funnelData } = await supabase.rpc('get_ticket_funnel' as any, {
-        p_property_id: propertyId,
-        p_days: 30,
-      } as any);
-      if (funnelData) setTicketFunnel(funnelData);
-
-      // --- NEW: VMS Summary ---
-      const { data: vmsData } = await supabase
-        .from('visitor_logs')
-        .select('status', { count: 'exact' })
-        .eq('property_id', propertyId);
-      
+      if (propData) newPropName = (propData as any).name;
+      if (ticketData) newTickets = (ticketData as any[]);
+      if (sopTemplatesData) newSopTotal = (sopTemplatesData as any[]).length;
+      if (sopCompletionsToday) newSopCount = (sopCompletionsToday as any[]).filter((s: any) => s.status === 'completed').length;
+      if (elecData) newEnergyKwh = Math.round((elecData as any).final_units || 0);
+      if (healthData) newHealthScore = healthData as any;
+      if (attentionData) newAttentionItems = attentionData as any;
+      if (funnelData) newTicketFunnel = funnelData as any;
       if (vmsData) {
-        const total = vmsData.length;
-        const checkedIn = vmsData.filter((v: any) => v.status === 'checked_in').length;
-        const checkedOut = vmsData.filter((v: any) => v.status === 'checked_out').length;
-        setVmsStats({ total, in: checkedIn, out: checkedOut });
+        const total = (vmsData as any[]).length;
+        const checkedIn = (vmsData as any[]).filter((v: any) => v.status === 'checked_in').length;
+        const checkedOut = (vmsData as any[]).filter((v: any) => v.status === 'checked_out').length;
+        newVmsStats = { total, in: checkedIn, out: checkedOut };
       }
-
-      // --- NEW: Vendor Revenue ---
-      const { data: revData } = await supabase
-        .from('vendor_daily_revenue')
-        .select('revenue_amount, vendor_id')
-        .eq('property_id', propertyId);
-      
       if (revData) {
         const totalRev = (revData as any[]).reduce((acc: number, row: any) => acc + (row.revenue_amount || 0), 0);
-        // Simplified commission calculation (10% avg if vendors table not joined)
-        setVendorStats({ revenue: totalRev, commission: totalRev * 0.1 });
+        newVendorStats = { revenue: totalRev, commission: totalRev * 0.1 };
       }
-
-      // --- NEW: Diesel Level ---
-      const { data: dieselData } = await supabase
-        .from('diesel_readings')
-        .select('current_fuel_level')
-        .eq('property_id', propertyId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
       if (dieselData) {
-        setDieselStats({ level: (dieselData as any).current_fuel_level || 0, consumption: 0 });
+        newDieselStats = { level: (dieselData as any).current_fuel_level || 0, consumption: 0 };
       }
 
-    } catch (_) {
-      {/* silent */}
+      setDashboardData({
+        propertyName: newPropName,
+        tickets: newTickets,
+        sopTotal: newSopTotal,
+        sopCount: newSopCount,
+        energyKwh: newEnergyKwh,
+        healthScore: newHealthScore,
+        attentionItems: newAttentionItems,
+        ticketFunnel: newTicketFunnel,
+        vmsStats: newVmsStats,
+        vendorStats: newVendorStats,
+        dieselStats: newDieselStats,
+        hasLoadedInitialData: true,
+      });
+
+    } catch (err: any) {
+      if (__DEV__) {
+        console.error('[Dashboard] fetchData error:', err?.message ?? err);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -590,7 +575,18 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
 
       <ChecklistProgressCard completed={sopCount} total={sopTotal} delay={200} onPress={() => setShowTileDetail(tileDetails.checklist)} />
 
-      <PPMActivityTile propertyId={propertyId} delay={240} />
+      <PPMProgressCard
+        propertyId={propertyId}
+        done={ppmDone}
+        total={ppmTotal}
+        pending={ppmPending}
+        overdue={ppmOverdue}
+        postponed={ppmPostponed}
+        delay={240}
+        onPress={() => router.push(`/property/${propertyId}/ppm`)}
+      />
+
+      <PPMActivityTile propertyId={propertyId} delay={320} />
 
       <GlassTile label="Energy Usage" icon="flash" delay={280} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
         <View style={styles.tileTopRow}><View><Text style={styles.tileMetricMid}>{energyKwh} <Text style={styles.tileSuffix}>kWh</Text></Text><Text style={styles.tileSubtext}>Grid + DG consumption today</Text></View><View style={styles.trendChip}><Ionicons name={energyTrend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#1FC26E" /><Text style={styles.trendChipText}>+{energyTrend}%</Text></View></View>
@@ -777,7 +773,6 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
               </View>
               {[
                 { label: 'Procurement', route: 'procurement', icon: 'cart-outline' },
-                { label: 'Soft Services', route: 'soft-service-manager', icon: 'leaf-outline' },
                 { label: 'Escalation', route: 'escalation', icon: 'git-branch-outline' },
                 { label: 'Vendor Revenue', route: 'vendor', icon: 'restaurant-outline' },
                 { label: 'Reports', route: 'reports', icon: 'document-text-outline' },

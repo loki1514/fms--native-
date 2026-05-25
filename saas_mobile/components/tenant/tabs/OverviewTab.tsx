@@ -160,7 +160,7 @@ export function OverviewTab({
   weather,
 }: OverviewTabProps) {
   const { user } = useAuth();
-  const userName = user?.full_name ?? user?.user_metadata?.full_name ?? 'Tenant';
+  const userName = user?.full_name ?? user?.user_metadata?.full_name ?? 'Client';
 
   // Weather-aware glassmorphism colors
   const glass = weather?.auroraColors ?? {

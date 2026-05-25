@@ -58,33 +58,46 @@ export async function retrieveContext(
 }
 
 async function fetchRecentTickets(propertyId: string, limit: number): Promise<TicketEntry[]> {
-  const { data, error } = await (supabase.from('tickets') as any)
-    .select('id, ticket_number, title, status, priority, created_at')
-    .eq('property_id', propertyId)
-    .eq('is_internal', false)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
+  const { data, error } = await serverApi.query({
+    table: 'tickets',
+    action: 'select',
+    select: 'id, ticket_number, title, status, priority, created_at',
+    filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'is_internal', value: false }],
+    orders: [{ column: 'created_at', ascending: false }],
+    limit,
+  });
   if (error) return [];
   return (data ?? []) as TicketEntry[];
 }
 
 async function fetchPropertyInfo(propertyId: string): Promise<PropertyEntry | null> {
-  const { data, error } = await (supabase.from('properties') as any)
-    .select('name, address')
-    .eq('id', propertyId)
-    .single();
+  const { data, error } = await serverApi.query({
+    table: 'properties',
+    action: 'select',
+    select: 'name, address',
+    filters: [{ op: 'eq', column: 'id', value: propertyId }],
+    single: true,
+  });
 
   if (error) return null;
 
   const d = data as { name: string; address?: string };
 
   const [{ count: open }, { count: total }] = await Promise.all([
-    (supabase.from('tickets') as any).select('*', { count: 'exact', head: true })
-      .eq('property_id', propertyId).eq('is_internal', false)
-      .not('status', 'in', '(resolved,closed)'),
-    (supabase.from('tickets') as any).select('*', { count: 'exact', head: true })
-      .eq('property_id', propertyId).eq('is_internal', false),
+    serverApi.query({
+      table: 'tickets',
+      action: 'select',
+      select: '*',
+      selectOptions: { count: 'exact', head: true },
+      filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'is_internal', value: false }, { op: 'not', column: 'status', operator: 'in', value: '(resolved,closed)' }],
+    }),
+    serverApi.query({
+      table: 'tickets',
+      action: 'select',
+      select: '*',
+      selectOptions: { count: 'exact', head: true },
+      filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'is_internal', value: false }],
+    }),
   ]);
 
   return {
@@ -96,12 +109,14 @@ async function fetchPropertyInfo(propertyId: string): Promise<PropertyEntry | nu
 }
 
 async function fetchRecentBookings(propertyId: string, userId: string, limit: number): Promise<BookingEntry[]> {
-  const { data, error } = await (supabase.from('meeting_room_bookings') as any)
-    .select('id, booking_date, start_time, end_time, status, meeting_room:meeting_rooms(name)')
-    .eq('property_id', propertyId)
-    .eq('user_id', userId)
-    .order('booking_date', { ascending: false })
-    .limit(limit);
+  const { data, error } = await serverApi.query({
+    table: 'meeting_room_bookings',
+    action: 'select',
+    select: 'id, booking_date, start_time, end_time, status, meeting_room:meeting_rooms(name)',
+    filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'user_id', value: userId }],
+    orders: [{ column: 'booking_date', ascending: false }],
+    limit,
+  });
 
   if (error || !data) return [];
 

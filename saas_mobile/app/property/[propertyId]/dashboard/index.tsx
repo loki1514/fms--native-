@@ -17,9 +17,11 @@ import LovableStaffDashboard from '@/components/dashboard/LovableStaffDashboard'
 
 const MST_ROLES = ['master_admin', 'mst', 'super_admin'];
 const ORG_ADMIN_ROLES = ['org_super_admin', 'org_admin', 'owner'];
-const PROPERTY_ADMIN_ROLES = ['property_admin', 'admin'];
+const PROPERTY_ADMIN_ROLES = ['property_admin', 'admin', 'manager', 'property_manager', 'facility_manager', 'spoc', 'administrator'];
 const SECURITY_ROLES = ['security', 'security_guard', 'guard'];
 const SOFT_SERVICE_ROLES = ['soft_service_manager', 'soft_services', 'housekeeping_manager'];
+const STAFF_ROLES = ['staff', 'maintenance_staff', 'technician', 'helper', 'cleaner'];
+const TENANT_ROLES = ['tenant', 'super_tenant'];
 
 export default function DashboardScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
@@ -43,6 +45,8 @@ export default function DashboardScreen() {
     if (PROPERTY_ADMIN_ROLES.includes(propRole)) return 'property_admin';
     if (SECURITY_ROLES.includes(propRole)) return 'security';
     if (SOFT_SERVICE_ROLES.includes(propRole)) return 'soft_service';
+    if (TENANT_ROLES.includes(propRole)) return 'tenant';
+    if (STAFF_ROLES.includes(propRole)) return 'staff';
 
     if (propRole === 'procurement' || orgRole === 'procurement') return 'procurement';
 
@@ -64,6 +68,10 @@ export default function DashboardScreen() {
   // ─── Role-based render ────────────────────────────────────────────────────
   if (effectiveRole === 'procurement') {
     return <Redirect href={`/property/${pid}/procurement`} />;
+  }
+
+  if (effectiveRole === 'tenant') {
+    return <Redirect href={`/property/${pid}/tenant`} />;
   }
 
   if (effectiveRole === 'mst') {

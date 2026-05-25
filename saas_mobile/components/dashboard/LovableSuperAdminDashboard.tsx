@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { serverApi } from '@/lib/serverApi';
 import {
   View,
   Text,
@@ -115,7 +116,7 @@ export default function LovableSuperAdminDashboard() {
           .select('organization_id, role')
           .eq('user_id', user.id)
           .eq('is_active', true)
-          .in('role', ['org_super_admin', 'org_admin', 'owner', 'super_tenant'])
+          .in('role', ['org_super_admin', 'org_admin', 'owner', 'super_tenant'] as any)
           .limit(1)
           .maybeSingle();
         resolvedOrgId = (orgMembership as { organization_id: string } | null)?.organization_id ?? '';
@@ -167,13 +168,11 @@ export default function LovableSuperAdminDashboard() {
         { data: electricData, error: electricError },
         { data: historicalElectricData, error: histError }
       ] = await Promise.all([
-        supabase.from('tickets').select('property_id, status, created_at, priority').in('property_id', propIds),
-        supabase.from('sop_completions').select('property_id, status').in('property_id', propIds),
-        supabase.from('diesel_readings').select('property_id, computed_consumed_litres').in('property_id', propIds),
-        supabase.from('electricity_readings').select('property_id, final_units').in('property_id', propIds),
-        supabase.from('electricity_readings').select('property_id, final_units, created_at')
-          .in('property_id', propIds)
-          .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+        serverApi.query({ table: 'tickets', action: 'select', select: 'property_id, status, created_at, priority', filters: [{ op: 'in', column: 'property_id', values: propIds }] }),
+        serverApi.query({ table: 'sop_completions', action: 'select', select: 'property_id, status', filters: [{ op: 'in', column: 'property_id', values: propIds }] }),
+        serverApi.query({ table: 'diesel_readings', action: 'select', select: 'property_id, computed_consumed_litres', filters: [{ op: 'in', column: 'property_id', values: propIds }] }),
+        serverApi.query({ table: 'electricity_readings', action: 'select', select: 'property_id, final_units', filters: [{ op: 'in', column: 'property_id', values: propIds }] }),
+        serverApi.query({ table: 'electricity_readings', action: 'select', select: 'property_id, final_units, created_at', filters: [{ op: 'in', column: 'property_id', values: propIds }, { op: 'gte', column: 'created_at', value: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() }] })
       ]);
 
       if (ticketError) {/* tickets fetch failed */}
@@ -201,7 +200,7 @@ export default function LovableSuperAdminDashboard() {
       });
 
       // TICKET AGGREGATION
-      ticketData?.forEach((t: any) => {
+      (ticketData as any[])?.forEach((t: any) => {
         const c = ticketMap.get(t.property_id);
         if (!c) return;
         c.total++;
@@ -216,7 +215,7 @@ export default function LovableSuperAdminDashboard() {
       });
 
       // SOP AGGREGATION
-      sopData?.forEach((s: any) => {
+      (sopData as any[])?.forEach((s: any) => {
         const c = sopMap.get(s.property_id);
         if (!c) return;
         c.total++;
@@ -224,11 +223,11 @@ export default function LovableSuperAdminDashboard() {
       });
 
       // ENERGY AGGREGATION
-      dieselData?.forEach((d: any) => {
+      (dieselData as any[])?.forEach((d: any) => {
         const c = energyMap.get(d.property_id);
         if (c) c.diesel += (d.computed_consumed_litres || 0);
       });
-      electricData?.forEach((e: any) => {
+      (electricData as any[])?.forEach((e: any) => {
         const c = energyMap.get(e.property_id);
         if (c) c.electricity += (e.final_units || 0);
       });
@@ -236,7 +235,7 @@ export default function LovableSuperAdminDashboard() {
       // REAL ENERGY TREND: calculate % change vs 30-day average
       const energyTrendMap = new Map<string, number>();
       propIds.forEach((id: string) => {
-        const propReadings = (historicalElectricData ?? [])
+        const propReadings = ((historicalElectricData as any[]) ?? [])
           .filter((r: any) => r.property_id === id)
           .map((r: any) => r.final_units || 0);
         const avg = propReadings.length > 0

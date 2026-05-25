@@ -13,6 +13,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { serverApi } from '@/lib/serverApi';
 import { createClient } from '@/utils/supabase/client';
 import { useTheme } from '@/context';
 import TicketCard from '@/components/shared/TicketCard';
@@ -88,17 +89,12 @@ export default function LiveFlowMap() {
     if (!propertyId) return;
 
     // Fetch Property Name
-    const { data: propData } = await supabase.from('properties').select('name').eq('id', propertyId).single();
-    if (propData) setPropertyName((propData as { name: string }).name);
+    const propRes = await serverApi.query({ table: 'properties', action: 'select', select: 'name', filters: [{ op: 'eq', column: 'id', value: propertyId }], single: true });
+    if (propRes.data) setPropertyName((propRes.data as { name: string }).name);
 
     // Fetch Validation Feature Status
-    const { data: featData } = await supabase
-      .from('property_features')
-      .select('is_enabled')
-      .eq('property_id', propertyId)
-      .eq('feature_key', 'ticket_validation')
-      .maybeSingle();
-    setValidationEnabled((featData as { is_enabled: boolean } | null)?.is_enabled === true);
+    const featRes = await serverApi.query({ table: 'property_features', action: 'select', select: 'is_enabled', filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'feature_key', value: 'ticket_validation' }], maybeSingle: true });
+    setValidationEnabled((featRes.data as { is_enabled: boolean } | null)?.is_enabled === true);
 
     const { data, error } = await (supabase
       .from('tickets')

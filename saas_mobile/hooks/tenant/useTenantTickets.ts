@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { listTickets } from '@/utils/api/mobileApi';
 
 export interface Ticket {
   id: string;
@@ -29,36 +30,24 @@ export function useTenantTickets(propertyId: string | undefined, userId: string 
       return;
     }
 
-    console.log('[useTenantTickets] Fetching for propertyId:', propertyId, 'userId:', userId);
+    console.log('[useTenantTickets] Fetching via API for propertyId:', propertyId);
     setLoading(true);
     setError(null);
 
-    const { data, error: err } = await supabase
-      .from('tickets')
-      .select(`
-        id,
-        ticket_number,
-        title,
-        description,
-        status,
-        priority,
-        created_at,
-        raised_by,
-        assigned_to,
-        assignee:users!assigned_to(full_name, user_photo_url)
-      `)
-      .eq('property_id', propertyId)
-      .eq('is_internal', false)
-      .order('created_at', { ascending: false });
-
-    if (err) {
-      setError(err.message);
-    } else {
-      setTickets((data as Ticket[]) ?? []);
+    try {
+      const res = await listTickets({ propertyId });
+      
+      // Filter out internal tickets as this is the tenant view
+      const tenantTickets = (res.tickets || []).filter((t: any) => t.is_internal === false);
+      
+      setTickets(tenantTickets as Ticket[]);
+    } catch (err: any) {
+      console.error('[useTenantTickets] Failed to fetch tickets:', err);
+      setError(err.message || 'Failed to fetch tickets');
     }
 
     setLoading(false);
-  }, [propertyId, supabase]);
+  }, [propertyId]);
 
   useEffect(() => {
     fetchTickets();
@@ -68,8 +57,9 @@ export function useTenantTickets(propertyId: string | undefined, userId: string 
   useEffect(() => {
     if (!propertyId) return;
 
+    const channelName = `tenant_tickets_${propertyId}_${Date.now()}`;
     const channel = supabase
-      .channel(`tenant_tickets_${propertyId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {

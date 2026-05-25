@@ -8,7 +8,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/utils/supabase/client';
+import { ppmService } from '@/services/ppmService';
 import { Colors, Typography, Radius } from '@/constants/cassandra-theme';
 import { SPACING } from '@/constants/designSystem';
 
@@ -66,12 +66,18 @@ export const PPMActivityTile: React.FC<PPMActivityTileProps> = ({
   const fetchSchedules = async () => {
     setLoading(true);
     try {
-      const { data, error } = await (supabase
-        .from('ppm_schedules') as any)
-        .select('*')
-        .eq('property_id', propertyId);
-      if (!error && data) {
-        setSchedules(data);
+      const res = await ppmService.fetchSchedules(propertyId);
+      if (res.success && res.data) {
+        setSchedules(res.data.map((s: any) => ({
+          id: s.id,
+          asset_name: s.system_name,
+          schedule_type: s.frequency,
+          next_due: s.planned_date,
+          last_completed: s.done_date,
+          status: s.status,
+          property_id: s.property_id,
+          description: s.description,
+        })) as PPMSchedule[]);
       }
     } finally {
       setLoading(false);

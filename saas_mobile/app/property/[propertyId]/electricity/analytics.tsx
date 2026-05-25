@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import {
@@ -314,21 +315,22 @@ export default function ElectricityAnalyticsScreen() {
       const prevMonthEnd = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().split('T')[0];
       const trendStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+      const baseFilters = [{ op: 'eq' as const, column: 'property_id', value: propertyId }];
+
       const [todayR, monthR, prevMonthR, trendR] = await Promise.all([
-        supabase.from('electricity_readings').select('*').eq('property_id', propertyId).eq('reading_date', todayStr),
-        supabase.from('electricity_readings').select('*').eq('property_id', propertyId).gte('reading_date', monthStart),
-        supabase.from('electricity_readings').select('*').eq('property_id', propertyId).gte('reading_date', prevMonthStart).lte('reading_date', prevMonthEnd),
-        supabase.from('electricity_readings').select('*').eq('property_id', propertyId).gte('reading_date', trendStart),
+        serverApi.query<ElectricityReading[]>({ table: 'electricity_readings', action: 'select', filters: [...baseFilters, { op: 'eq', column: 'reading_date', value: todayStr }] }),
+        serverApi.query<ElectricityReading[]>({ table: 'electricity_readings', action: 'select', filters: [...baseFilters, { op: 'gte', column: 'reading_date', value: monthStart }] }),
+        serverApi.query<ElectricityReading[]>({ table: 'electricity_readings', action: 'select', filters: [...baseFilters, { op: 'gte', column: 'reading_date', value: prevMonthStart }, { op: 'lte', column: 'reading_date', value: prevMonthEnd }] }),
+        serverApi.query<ElectricityReading[]>({ table: 'electricity_readings', action: 'select', filters: [...baseFilters, { op: 'gte', column: 'reading_date', value: trendStart }] }),
       ]);
 
       let customR: any = { data: [] };
       if (isCustomRange && dateFrom && dateTo) {
-        customR = await supabase
-          .from('electricity_readings')
-          .select('*')
-          .eq('property_id', propertyId)
-          .gte('reading_date', dateFrom)
-          .lte('reading_date', dateTo);
+        customR = await serverApi.query<ElectricityReading[]>({
+          table: 'electricity_readings',
+          action: 'select',
+          filters: [...baseFilters, { op: 'gte', column: 'reading_date', value: dateFrom }, { op: 'lte', column: 'reading_date', value: dateTo }],
+        });
       }
 
       setRawReadings({

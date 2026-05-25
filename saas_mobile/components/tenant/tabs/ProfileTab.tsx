@@ -67,7 +67,7 @@ export function ProfileTab({ onSignOut }: ProfileTabProps) {
         <Text style={styles.userEmail}>{email}</Text>
         <View style={styles.roleBadge}>
           <View style={styles.roleDot} />
-          <Text style={styles.roleText}>Tenant</Text>
+          <Text style={styles.roleText}>Client</Text>
         </View>
       </Animated.View>
 

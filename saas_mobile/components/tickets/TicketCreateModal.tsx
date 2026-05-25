@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createClient } from '@/utils/supabase/client';
-import { createTicket } from '@/utils/api/mobileApi';
+import { createTicket, uploadTicketPhoto, fetchUsersList } from '@/utils/api/mobileApi';
 import MediaCaptureModal, { MediaFile } from '../shared/MediaCaptureModal';
 import { useTheme } from '@/context';
 import { enhancePrompt } from '@/utils/ai/promptEnhancer';
@@ -96,18 +96,25 @@ export function TicketCreateModal({
   useEffect(() => {
     const pid = isAdminMode ? selectedPropId : propertyId;
     if (!pid || !isOpen) return;
+    
+    // Tenants shouldn't see or use @mentions, so don't fetch users for them
+    if (role === 'tenant') {
+      setPropertyUsers([]);
+      return;
+    }
+
     const fetchUsers = async () => {
-      const { data } = await (supabase
-        .from('property_memberships')
-        .select('user:users(id, full_name), role')
-        .eq('property_id', pid)
-        .eq('is_active', true) as any);
-      if (data) {
-        setPropertyUsers(
-          data
-            .map((m: any) => ({ id: m.user?.id, full_name: m.user?.full_name, role: m.role }))
-            .filter((u: any) => u.id && u.full_name)
-        );
+      try {
+        const res = await fetchUsersList(undefined, pid);
+        if (res && res.users) {
+          setPropertyUsers(
+            res.users
+              .map(u => ({ id: u.id, full_name: u.fullName || '', role: u.propertyRole }))
+              .filter(u => u.id && u.full_name)
+          );
+        }
+      } catch (e) {
+        console.error('Failed to fetch users:', e);
       }
     };
     fetchUsers();
@@ -164,7 +171,8 @@ export function TicketCreateModal({
       setSuggestions([]);
     }
     const lastAt = text.lastIndexOf('@');
-    if (lastAt !== -1) {
+    // Disable mentions for tenants
+    if (lastAt !== -1 && role !== 'tenant') {
       const query = text.slice(lastAt + 1);
       if (!query.includes(' ') && !query.includes('\n')) {
         setMentionQuery(query);
@@ -220,15 +228,8 @@ export function TicketCreateModal({
           const newTicketId = result.ticket.id;
           let uriToUpload = media.uri;
           if (media.type === 'image') uriToUpload = await compressImage(media.uri);
-          const arrayBuffer = await readFileAsArrayBuffer(uriToUpload);
-          const ext = media.type === 'image' ? 'jpg' : 'mp4';
-          const path = getStoragePath(finalPropId, newTicketId, 'before', ext);
-          await supabase.storage.from('ticket-media').upload(path, arrayBuffer, {
-            contentType: media.type === 'image' ? 'image/jpeg' : 'video/mp4',
-            upsert: true,
-          });
-          const { data: publicUrlData } = supabase.storage.from('ticket-media').getPublicUrl(path);
-          await (supabase as any).from('tickets').update({ photo_before_url: publicUrlData.publicUrl }).eq('id', newTicketId);
+          
+          await uploadTicketPhoto(newTicketId, uriToUpload, 'before');
         } catch (uploadError) {
           console.error('Failed to upload media:', uploadError);
         }

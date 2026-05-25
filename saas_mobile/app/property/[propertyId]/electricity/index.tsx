@@ -2319,145 +2319,132 @@ const totalUnits = filteredReadings.reduce(
         animationType="slide"
         onRequestClose={() => setShowHistoryModal(false)}
       >
-        <View
-          style={[
-            styles.historyModalContainer,
-            { backgroundColor: colors.background },
-          ]}
-        >
-          <View
-            style={[
-              styles.historyModalHeader,
-              {
-                backgroundColor: colors.surface,
-                borderBottomColor: colors.border,
-              },
-            ]}
-          >
-            <Text style={[styles.historyModalTitle, { color: colors.text }]}>
-              Reading History
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowHistoryModal(false)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <X size={22} color={colors.textSecondary} />
+        <View style={[styles.historyModalContainer, { backgroundColor: colors.background }]}>
+          <SafeBlurView intensity={80} tint="dark" style={styles.historyModalHeader}>
+            <View>
+              <Text style={[styles.historyModalTitle, { color: colors.text }]}>Reading History</Text>
+              <Text style={[styles.historyModalSub, { color: colors.textSecondary }]}>
+                {historyReadings.length} record{historyReadings.length !== 1 ? 's' : ''} grouped by meter
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowHistoryModal(false)} style={styles.historyCloseBtn}>
+              <X size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-          </View>
+          </SafeBlurView>
+
           {isLoadingHistory ? (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ padding: 16 }}
-            >
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
               {historyReadings.length === 0 ? (
-                <View style={{ alignItems: "center", paddingTop: 60, gap: 8 }}>
-                  <Clock size={48} color={colors.textTertiary} />
-                  <Text
-                    style={[styles.emptyText, { color: colors.textSecondary }]}
-                  >
-                    No readings found
+                <View style={{ alignItems: 'center', paddingTop: 80, gap: 14 }}>
+                  <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.04)', justifyContent: 'center', alignItems: 'center' }}>
+                    <Zap size={36} color={colors.textTertiary} />
+                  </View>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No readings yet</Text>
+                  <Text style={{ fontSize: 13, fontFamily: 'Urbanist-Medium', color: colors.textTertiary, textAlign: 'center' }}>
+                    Log your first reading using the + button
                   </Text>
                 </View>
               ) : (
-                historyReadings.map((r) => {
-                  const units = r.final_units ?? r.computed_units ?? 0;
-                  const meter = meters.find((m) => m.id === r.meter_id);
-                  return (
-                    <View
-                      key={r.id}
-                      style={[
-                        styles.historyRow,
-                        {
-                          borderColor: colors.border,
-                          backgroundColor: colors.card,
-                        },
-                      ]}
-                    >
-                      <View style={styles.historyRowLeft}>
-                        <Text
-                          style={[
-                            styles.historyRowName,
-                            { color: colors.text },
-                          ]}
-                        >
-                          {meter?.name ?? "Unknown Meter"}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.historyRowDate,
-                            { color: colors.textTertiary },
-                          ]}
-                        >
-                          {r.reading_date
-                            ? new Date(
-                                r.reading_date + "T00:00:00",
-                              ).toLocaleDateString("en-US", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })
-                            : "—"}
-                          {" · "}
-                          {new Date(r.created_at).toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}
-                        </Text>
-                        {r.notes && (
-                          <Text
-                            style={[
-                              styles.historyRowNotes,
-                              { color: colors.textSecondary },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {r.notes}
-                          </Text>
-                        )}
+                Object.entries(
+                  historyReadings.reduce((groups: any, r) => {
+                    const meter = meters.find((m) => m.id === r.meter_id);
+                    const meterName = meter?.name ?? 'Unknown Meter';
+                    if (!groups[meterName]) groups[meterName] = { meter, readings: [] };
+                    groups[meterName].readings.push(r);
+                    return groups;
+                  }, {})
+                ).map(([meterName, group]: [string, any]) => (
+                  <View key={meterName} style={{ marginBottom: 24 }}>
+                    {/* Meter header */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primary + '18', justifyContent: 'center', alignItems: 'center' }}>
+                        <Ionicons name="flash" size={18} color={colors.primary} />
                       </View>
-                      <View style={styles.historyRowRight}>
-                        <Text
-                          style={[
-                            styles.historyRowUnits,
-                            { color: colors.primary },
-                          ]}
-                        >
-                          {units.toFixed(1)} kVAh
-                        </Text>
-                        <Text
-                          style={[
-                            styles.historyRowClosing,
-                            { color: colors.textTertiary },
-                          ]}
-                        >
-                          → {r.closing_reading.toFixed(0)}
+                      <View>
+                        <Text style={{ fontSize: 15, fontFamily: 'Poppins-Bold', color: colors.text }}>{meterName}</Text>
+                        <Text style={{ fontSize: 11, fontFamily: 'Urbanist-Medium', color: colors.textSecondary }}>
+                          {group.readings.length} reading{group.readings.length !== 1 ? 's' : ''}
                         </Text>
                       </View>
-                      <TouchableOpacity
-                        style={{ padding: 6 }}
-                        onPress={() => handleDeleteReading(r.id)}
-                        disabled={deletingId === r.id}
-                      >
-                        {deletingId === r.id ? (
-                          <ActivityIndicator size={14} color="#EF4444" />
-                        ) : (
-                          <Trash2 size={16} color="#EF4444" />
-                        )}
-                      </TouchableOpacity>
                     </View>
-                  );
-                })
+
+                    {/* Readings for this meter */}
+                    {group.readings.map((r: any, idx: number, arr: any[]) => {
+                      const units = r.final_units ?? r.computed_units ?? 0;
+                      const isLast = idx === arr.length - 1;
+                      return (
+                        <View key={r.id} style={{ flexDirection: 'row' }}>
+                          <View style={{ width: 28, alignItems: 'center' }}>
+                            <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
+                            {!isLast && <View style={[styles.timelineLine, { backgroundColor: 'rgba(255,255,255,0.08)' }]} />}
+                          </View>
+                          <SafeBlurView intensity={30} tint="dark" style={[styles.historyCard, { borderColor: 'rgba(255,255,255,0.08)' }]}>
+                            <LinearGradient colors={['rgba(255,255,255,0.04)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: colors.text }}>
+                                  {r.reading_date
+                                    ? new Date(r.reading_date + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+                                    : '—'}
+                                </Text>
+                                <Text style={{ fontSize: 11, fontFamily: 'Urbanist-Medium', color: colors.textTertiary, marginTop: 2 }}>
+                                  {new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                  {r.notes ? ` · ${r.notes}` : ''}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                style={{ padding: 6, marginTop: -4 }}
+                                onPress={() => handleDeleteReading(r.id)}
+                                disabled={deletingId === r.id}
+                              >
+                                {deletingId === r.id ? (
+                                  <ActivityIndicator size={14} color="#EF4444" />
+                                ) : (
+                                  <Trash2 size={16} color="#EF444480" />
+                                )}
+                              </TouchableOpacity>
+                            </View>
+                            <View style={{ flexDirection: 'row', marginTop: 12, gap: 16 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
+                                  <TrendingUp size={14} color={colors.textSecondary} />
+                                </View>
+                                <View>
+                                  <Text style={{ fontSize: 10, fontFamily: 'Urbanist-Bold', color: colors.textSecondary, textTransform: 'uppercase' }}>Units</Text>
+                                  <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: colors.text }}>{units.toFixed(1)}</Text>
+                                </View>
+                              </View>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Ionicons name="arrow-forward" size={14} color={colors.textSecondary} />
+                                </View>
+                                <View>
+                                  <Text style={{ fontSize: 10, fontFamily: 'Urbanist-Bold', color: colors.textSecondary, textTransform: 'uppercase' }}>Closing</Text>
+                                  <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: colors.text }}>{r.closing_reading.toFixed(0)}</Text>
+                                </View>
+                              </View>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Ionicons name="cash-outline" size={14} color={colors.textSecondary} />
+                                </View>
+                                <View>
+                                  <Text style={{ fontSize: 10, fontFamily: 'Urbanist-Bold', color: colors.textSecondary, textTransform: 'uppercase' }}>Cost</Text>
+                                  <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: colors.text }}>
+                                    ₹{(r.computed_cost ?? 0).toFixed(0)}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                          </SafeBlurView>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))
               )}
             </ScrollView>
           )}
@@ -3348,5 +3335,41 @@ const styles = StyleSheet.create({
   customDateDayText: {
     fontSize: 14,
     fontFamily: "Urbanist-Bold",
+  },
+
+  // History modal styles
+  historyModalSub: {
+    fontSize: 13,
+    fontFamily: "Urbanist-Medium",
+    marginTop: 2,
+  },
+  historyCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 14,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  historyCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    marginLeft: 10,
+    marginBottom: 10,
+    overflow: "hidden",
   },
 });

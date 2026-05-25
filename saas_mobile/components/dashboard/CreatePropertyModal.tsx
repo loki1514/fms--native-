@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { serverApi } from '@/lib/serverApi';
 import {
   View,
   Text,
@@ -39,14 +40,19 @@ export default function CreatePropertyModal({ organizationId, isOpen, onClose, o
     setIsSubmitting(true);
 
     try {
-      const { data, error: insertError } = await (supabase.from('properties').insert({
-        organization_id: organizationId,
-        name: name.trim(),
-        address: address || null,
-        city: city || null,
-        total_seats: capacity ? parseInt(capacity) : null,
-        is_active: isActive,
-      } as any)).select().single();
+      const { data, error: insertError } = await serverApi.query({
+        table: 'properties',
+        action: 'insert',
+        values: {
+          organization_id: organizationId,
+          name: name.trim(),
+          address: address || null,
+          city: city || null,
+          total_seats: capacity ? parseInt(capacity) : null,
+          is_active: isActive,
+        },
+        single: true,
+      });
 
       if (insertError) throw insertError;
       onSuccess(data);

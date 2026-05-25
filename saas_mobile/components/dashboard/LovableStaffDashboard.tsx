@@ -37,6 +37,7 @@ import {
 } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { createClient } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/mst/useGamification';
 
@@ -56,6 +57,8 @@ import {
 } from '@/lib/gamification';
 import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
 import ChecklistProgressCard from '@/components/dashboard/ChecklistProgressCard';
+import PPMProgressCard from '@/components/dashboard/PPMProgressCard';
+import { ppmService } from '@/services/ppmService';
 
 import SignOutModal from '@/components/ui/SignOutModal';
 import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
@@ -431,6 +434,13 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
   const [userSkills, setUserSkills] = useState<string[]>([]);
   const [specialization, setSpecialization] = useState<string | null>(null);
 
+  // PPM stats (local)
+  const [ppmTotal, setPpmTotal]   = useState(0);
+  const [ppmDone, setPpmDone]     = useState(0);
+  const [ppmPending, setPpmPending] = useState(0);
+  const [ppmOverdue, setPpmOverdue] = useState(0);
+  const [ppmPostponed, setPpmPostponed] = useState(0);
+
   const isTechnical = userSkills.includes('technical');
   const isSoftServices = userSkills.includes('soft_services') || userSkills.includes('housekeeping');
 
@@ -518,6 +528,19 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
           }
         }
       }
+
+      // PPM stats
+      try {
+        const ppmRes = await ppmService.fetchStats(propertyId);
+        if (ppmRes.success && ppmRes.data) {
+          setPpmTotal(ppmRes.data.total ?? 0);
+          setPpmDone(ppmRes.data.done ?? 0);
+          setPpmPending(ppmRes.data.pending ?? 0);
+          setPpmOverdue(ppmRes.data.overdue ?? 0);
+          setPpmPostponed(ppmRes.data.postponed ?? 0);
+        }
+      } catch (_e) { /* ignore */ }
+
     } catch (err) {
       console.warn('[LovableStaffDashboard] fetch error:', err);
     } finally {
@@ -568,8 +591,12 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
       //   setActiveShiftId(null);
       // }
 
-      await (supabase.from('resolver_stats') as any)
-        .upsert({ property_id: propertyId, user_id: user.id, is_checked_in: newStatus });
+      await serverApi.query({
+        table: 'resolver_stats',
+        action: 'upsert',
+        values: { property_id: propertyId, user_id: user.id, is_checked_in: newStatus },
+        mutationOptions: { onConflict: 'user_id,property_id' },
+      });
 
       setIsCheckedIn(newStatus);
       
@@ -701,7 +728,18 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
 
       <ChecklistProgressCard completed={stats.completed} total={stats.total} delay={280} />
 
-      <PPMActivityTile propertyId={propertyId} delay={340} />
+      <PPMProgressCard
+        propertyId={propertyId}
+        done={ppmDone}
+        total={ppmTotal}
+        pending={ppmPending}
+        overdue={ppmOverdue}
+        postponed={ppmPostponed}
+        delay={320}
+        onPress={() => router.push(`/property/${propertyId}/ppm`)}
+      />
+
+      <PPMActivityTile propertyId={propertyId} delay={380} />
 
       {/* Property Requests */}
       <View style={styles.sectionHeader}>

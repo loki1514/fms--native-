@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: CARD_SURFACES.cardBorder,
     padding: CARD_SURFACES.cardPadding,
-    paddingBottom: SPACING.md,
+    paddingBottom: SPACING.lg,
     overflow: 'hidden',
   },
   header: {
@@ -185,12 +185,12 @@ const styles = StyleSheet.create({
   arcWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    height: 150,
+    height: 165,
     marginTop: SPACING.sm,
   },
   center: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 6,
     alignItems: 'center',
   },
   centerNumber: {
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: SPACING.md,
+    marginTop: SPACING.lg,
   },
   footerBtn: {
     paddingHorizontal: 14,

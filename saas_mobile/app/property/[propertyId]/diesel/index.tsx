@@ -1647,127 +1647,136 @@ export default function DieselScreen() {
         animationType="slide"
         onRequestClose={() => setShowHistoryModal(false)}
       >
-        <View
-          style={[
-            styles.historyModalContainer,
-            { backgroundColor: colors.background },
-          ]}
-        >
-          <View
-            style={[
-              styles.historyModalHeader,
-              {
-                backgroundColor: colors.surface,
-                borderBottomColor: colors.border,
-              },
-            ]}
-          >
-            <Text style={[styles.historyModalTitle, { color: colors.text }]}>
-              Reading History
-            </Text>
+        <View style={[styles.historyModalContainer, { backgroundColor: colors.background }]}>
+          <SafeBlurView intensity={80} tint="dark" style={styles.historyModalHeader}>
+            <View>
+              <Text style={[styles.historyModalTitle, { color: colors.text }]}>Reading History</Text>
+              <Text style={[styles.historyModalSub, { color: colors.textSecondary }]}>
+                {historyReadings.length} record{historyReadings.length !== 1 ? 's' : ''} across all DG sets
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={() => setShowHistoryModal(false)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.historyCloseBtn}
             >
-              <X size={22} color={colors.textSecondary} />
+              <X size={20} color={colors.textSecondary} />
             </TouchableOpacity>
-          </View>
+          </SafeBlurView>
+
           {isLoadingHistory ? (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ padding: 16 }}
-            >
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }} showsVerticalScrollIndicator={false}>
               {historyReadings.length === 0 ? (
-                <View style={{ alignItems: "center", paddingTop: 60, gap: 8 }}>
-                  <Fuel size={48} color={colors.textTertiary} />
-                  <Text
-                    style={[styles.emptyText, { color: colors.textSecondary }]}
-                  >
-                    No readings found
+                <View style={{ alignItems: 'center', paddingTop: 80, gap: 14 }}>
+                  <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.04)', justifyContent: 'center', alignItems: 'center' }}>
+                    <Fuel size={36} color={colors.textTertiary} />
+                  </View>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No readings yet</Text>
+                  <Text style={{ fontSize: 13, fontFamily: 'Urbanist-Medium', color: colors.textTertiary, textAlign: 'center' }}>
+                    Log your first reading using the + button
                   </Text>
                 </View>
               ) : (
-                historyReadings.map((r) => {
-                  const gen = generators.find((g) => g.id === r.generator_id);
-                  return (
-                    <View
-                      key={r.id}
-                      style={[
-                        styles.historyRow,
-                        {
-                          borderColor: colors.border,
-                          backgroundColor: colors.card,
-                        },
-                      ]}
-                    >
-                      <View style={styles.historyRowLeft}>
-                        <Text
-                          style={[
-                            styles.historyRowName,
-                            { color: colors.text },
-                          ]}
-                        >
-                          {gen?.name ?? "Unknown"}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.historyRowDate,
-                            { color: colors.textTertiary },
-                          ]}
-                        >
-                          {r.reading_date
-                            ? new Date(
-                                r.reading_date + "T00:00:00",
-                              ).toLocaleDateString("en-US", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })
-                            : "—"}
-                          {" · "}
-                          {new Date(r.created_at).toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.historyRowNotes,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {(r.closing_hours - r.opening_hours).toFixed(1)}h run
-                          · {r.closing_diesel_level.toFixed(0)}L
-                          {r.diesel_added_litres > 0
-                            ? ` · +${r.diesel_added_litres}L added`
-                            : ""}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={{ padding: 6 }}
-                        onPress={() => handleDeleteReading(r.id)}
-                        disabled={deletingId === r.id}
-                      >
-                        {deletingId === r.id ? (
-                          <ActivityIndicator size={14} color="#EF4444" />
-                        ) : (
-                          <Trash2 size={16} color="#EF4444" />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })
+                Object.entries(
+                  historyReadings.reduce((groups: any, r) => {
+                    const month = r.reading_date
+                      ? new Date(r.reading_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                      : 'Unknown';
+                    if (!groups[month]) groups[month] = [];
+                    groups[month].push(r);
+                    return groups;
+                  }, {})
+                ).map(([month, readings]: [string, any]) => (
+                  <View key={month} style={{ marginBottom: 20 }}>
+                    <Text style={[styles.historyMonthLabel, { color: colors.textSecondary }]}>{month}</Text>
+                    {(readings as any[]).map((r, idx, arr) => {
+                      const gen = generators.find((g) => g.id === r.generator_id);
+                      const isLast = idx === arr.length - 1;
+                      return (
+                        <View key={r.id} style={{ flexDirection: 'row' }}>
+                          {/* Timeline rail */}
+                          <View style={{ width: 32, alignItems: 'center' }}>
+                            <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
+                            {!isLast && <View style={[styles.timelineLine, { backgroundColor: 'rgba(255,255,255,0.08)' }]} />}
+                          </View>
+                          {/* Card */}
+                          <SafeBlurView intensity={30} tint="dark" style={[styles.historyCard, { borderColor: 'rgba(255,255,255,0.08)' }]}>
+                            <LinearGradient colors={['rgba(255,255,255,0.04)', 'rgba(0,0,0,0.1)']} style={StyleSheet.absoluteFillObject} />
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <View style={{ flex: 1 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                  <Text style={[styles.historyCardName, { color: colors.text }]}>{gen?.name ?? 'Unknown'}</Text>
+                                  {r.diesel_added_litres > 0 && (
+                                    <View style={{ backgroundColor: '#22C55E18', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: '#22C55E40' }}>
+                                      <Text style={{ fontSize: 10, fontFamily: 'Urbanist-Bold', color: '#22C55E' }}>+{r.diesel_added_litres}L</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={[styles.historyCardDate, { color: colors.textTertiary }]}>
+                                  {r.reading_date
+                                    ? new Date(r.reading_date + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                                    : '—'}
+                                  {' · '}
+                                  {new Date(r.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                style={{ padding: 6, marginTop: -4 }}
+                                onPress={() => handleDeleteReading(r.id)}
+                                disabled={deletingId === r.id}
+                              >
+                                {deletingId === r.id ? (
+                                  <ActivityIndicator size={14} color="#EF4444" />
+                                ) : (
+                                  <Trash2 size={16} color="#EF444480" />
+                                )}
+                              </TouchableOpacity>
+                            </View>
+                            {/* Stats row */}
+                            <View style={{ flexDirection: 'row', marginTop: 12, gap: 16 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Clock size={14} color={colors.textSecondary} />
+                                </View>
+                                <View>
+                                  <Text style={{ fontSize: 10, fontFamily: 'Urbanist-Bold', color: colors.textSecondary, textTransform: 'uppercase' }}>Run</Text>
+                                  <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: colors.text }}>
+                                    {(r.closing_hours - r.opening_hours).toFixed(1)}h
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Fuel size={14} color={colors.textSecondary} />
+                                </View>
+                                <View>
+                                  <Text style={{ fontSize: 10, fontFamily: 'Urbanist-Bold', color: colors.textSecondary, textTransform: 'uppercase' }}>Level</Text>
+                                  <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: colors.text }}>
+                                    {r.closing_diesel_level.toFixed(0)}L
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' }}>
+                                  <Zap size={14} color={colors.textSecondary} />
+                                </View>
+                                <View>
+                                  <Text style={{ fontSize: 10, fontFamily: 'Urbanist-Bold', color: colors.textSecondary, textTransform: 'uppercase' }}>kWh</Text>
+                                  <Text style={{ fontSize: 13, fontFamily: 'Poppins-Bold', color: colors.text }}>
+                                    {r.closing_kwh.toFixed(0)}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                          </SafeBlurView>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))
               )}
             </ScrollView>
           )}
@@ -2244,31 +2253,30 @@ const styles = StyleSheet.create({
   // History modal
   historyModalContainer: { flex: 1 },
   historyModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     padding: 20,
     paddingTop: Math.max(60, 20),
     borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
-  historyModalTitle: { fontSize: 20, fontFamily: "Poppins-Bold" },
-  historyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 12,
+  historyModalTitle: { fontSize: 20, fontFamily: 'Poppins-Bold' },
+  historyModalSub: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 4 },
+  historyCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' },
+  historyMonthLabel: { fontSize: 13, fontFamily: 'Poppins-Bold', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12, marginLeft: 40 },
+  timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 22 },
+  timelineLine: { width: 2, flex: 1, marginTop: 4 },
+  historyCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
-    marginBottom: 8,
-    gap: 8,
+    padding: 14,
+    marginBottom: 12,
   },
-  historyRowLeft: { flex: 1 },
-  historyRowName: { fontSize: 14, fontFamily: "Poppins-Bold", marginBottom: 2 },
-  historyRowDate: { fontSize: 11, fontFamily: "Urbanist-Medium" },
-  historyRowNotes: {
-    fontSize: 11,
-    fontFamily: "Urbanist-Regular",
-    marginTop: 2,
-  },
+  historyCardName: { fontSize: 15, fontFamily: 'Poppins-Bold' },
+  historyCardDate: { fontSize: 11, fontFamily: 'Urbanist-Medium', marginTop: 2 },
   viewHistoryBtn: {
     alignItems: "center",
     paddingVertical: 12,

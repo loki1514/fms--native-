@@ -48,7 +48,7 @@ interface AudioChunkFrame {
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-const DEFAULT_URL = 'https://fms-dev-saas-one.vercel.app';
+const DEFAULT_URL = 'https://www.back2basiics.com';
 const BASE_URL = (process.env.EXPO_PUBLIC_VOICE_API_URL ?? process.env.EXPO_PUBLIC_CASSANDRA_API_URL ?? DEFAULT_URL).replace(/\/$/, '');
 const WS_URL = BASE_URL.replace(/^http/, 'ws');
 

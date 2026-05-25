@@ -22,15 +22,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context";
 import { useAuth } from "@/hooks/useAuth";
 import { Colors } from "@/constants/Colors";
-import {
-  getPpmDataApi,
-  createPpmScheduleApi,
-  uploadPpmMediaApi,
-  deletePpmMediaApi,
-} from "@/utils/api/mobileApi";
+import { ppmService } from "@/services/ppmService";
+import type { PPMSchedule, AMCContract } from "@/services/ppmService";
 import SafeBlurView from "@/components/ui/SafeBlurView";
 import { LinearGradient } from "expo-linear-gradient";
-import { mobileServices } from "@/utils/api/mobileServices";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { readFileAsArrayBuffer, compressImage } from "@/utils/mediaUtils";
@@ -59,61 +54,7 @@ import {
 
 // ─── Types (saas_one schema) ─────────────────────────────────────────────────
 
-interface MaintenanceVendor {
-  id: string;
-  company_name: string;
-  contact_person?: string;
-  phone?: string;
-}
-
-interface PPMSchedule {
-  id: string;
-  organization_id?: string | null;
-  property_id?: string | null;
-  si_no?: string;
-  system_name: string;
-  detail_name?: string;
-  scope_of_work?: string;
-  frequency: "yearly" | "quarterly" | "monthly" | "weekly";
-  location?: string;
-  maker?: string;
-  checker?: string;
-  vendor_name?: string;
-  vendor_phone?: string;
-  vendor_contact_person?: string;
-  vendor_id?: string;
-  planned_date: string;
-  done_date?: string;
-  remark?: string;
-  status: "pending" | "done" | "postponed" | "skipped";
-  completion_photos?: string[] | null;
-  completion_doc_url?: string | null;
-  invoice_url?: string | null;
-  verification_status?: "pending" | "submitted" | "verified" | "rejected";
-  verified_by?: string | null;
-  verified_at?: string | null;
-  rejection_reason?: string | null;
-  attachments?: {
-    photos?: string[];
-    certificate?: string;
-    invoice?: string;
-  } | null;
-  created_at?: string;
-  updated_at?: string;
-  maintenance_vendors?: MaintenanceVendor | null;
-}
-
-interface AMCContract {
-  id: string;
-  vendor_name: string;
-  asset_name: string;
-  start_date: string;
-  end_date: string;
-  status: "active" | "expiring_soon" | "expired";
-  contract_value?: number;
-  property_id: string;
-  description?: string;
-}
+// Types imported from @/services/ppmService
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -685,29 +626,27 @@ export default function PPMScreen() {
   const fetchSchedules = useCallback(async () => {
     if (!propertyId) return;
     try {
-      const response = await getPpmDataApi(propertyId as string);
-      if (response.error) throw new Error(response.error);
+      const [schedulesRes, contractsRes] = await Promise.all([
+        ppmService.fetchSchedules(propertyId as string),
+        ppmService.fetchContracts(propertyId as string),
+      ]);
 
-      const byId = new Map<string, PPMSchedule>();
-      [...(response.schedules || [])]
-        .map(normalizeSchedule)
-        .filter((s) => s.planned_date)
-        .forEach((s) => byId.set(s.id, s));
+      if (schedulesRes.success && schedulesRes.data) {
+        const byId = new Map<string, PPMSchedule>();
+        schedulesRes.data
+          .filter((s) => s.planned_date)
+          .forEach((s) => byId.set(s.id, s));
 
-      setSchedules(
-        Array.from(byId.values()).sort((a, b) =>
-          a.planned_date.localeCompare(b.planned_date),
-        ),
-      );
+        setSchedules(
+          Array.from(byId.values()).sort((a, b) =>
+            a.planned_date.localeCompare(b.planned_date),
+          ),
+        );
+      }
 
-      const enriched = (response.contracts || []).map((c: any) => {
-        const days = daysUntil(c.end_date);
-        let status: AMCContract["status"] = "active";
-        if (days < 0) status = "expired";
-        else if (days <= 30) status = "expiring_soon";
-        return { ...c, status } as AMCContract;
-      });
-      setContracts(enriched);
+      if (contractsRes.success && contractsRes.data) {
+        setContracts(contractsRes.data);
+      }
     } catch (err) {
       console.error("Error fetching PPM data:", err);
     }
@@ -777,7 +716,7 @@ export default function PPMScreen() {
     if (!selectedSchedule || !user) return;
     setIsSaving(true);
     try {
-      const res = await mobileServices.updatePpmStatus(
+      const res = await ppmService.updateSchedule(
         {
           id: selectedSchedule.id,
           status: editStatus,
@@ -790,6 +729,8 @@ export default function PPMScreen() {
         setShowDetail(false);
         await fetchSchedules();
         Alert.alert("Updated", "PPM task updated successfully");
+      } else {
+        Alert.alert("Error", String(res.error || "Failed to update"));
       }
     } catch (err: any) {
       Alert.alert("Error", err.message || "Failed to update");
@@ -805,7 +746,7 @@ export default function PPMScreen() {
     }
     setIsSaving(true);
     try {
-      const res = await createPpmScheduleApi({
+      const res = await ppmService.createSchedule({
         property_id: propertyId,
         organization_id: membership?.org_id ?? null,
         system_name: formSystemName.trim(),
@@ -818,7 +759,7 @@ export default function PPMScreen() {
         vendor_phone: formVendorPhone.trim() || null,
         status: "pending",
       });
-      if (res.error) throw new Error(res.error);
+      if (!res.success) throw new Error(String(res.error || 'Failed to create'));
       setShowAdd(false);
       resetAddForm();
       await fetchSchedules();
@@ -869,14 +810,17 @@ export default function PPMScreen() {
           name: `photo_${Date.now()}.${ext}`,
         } as any);
 
-        const res = await uploadPpmMediaApi(formData);
-        if (res.error) {
+        const res = await ppmService.uploadAttachment(
+          propertyId as string,
+          selectedSchedule.id,
+          compressedUri,
+          'photo',
+        );
+        if (!res.success || !res.data) {
           console.error("Upload error:", res.error);
           continue;
         }
-        if (res.url) {
-          newUrls.push(res.url);
-        }
+        newUrls.push(res.data);
       }
 
       if (newUrls.length > 0) {
@@ -904,12 +848,12 @@ export default function PPMScreen() {
     if (!photoUrl) return;
 
     try {
-      const res = await deletePpmMediaApi({
-        scheduleId: selectedSchedule.id,
-        propertyId,
-        url: photoUrl,
-      });
-      if (res.error) throw new Error(res.error);
+      const res = await ppmService.deleteAttachment(
+        selectedSchedule.id,
+        photoUrl,
+        'photo',
+      );
+      if (!res.success) throw new Error(String(res.error || 'Failed to delete'));
 
       const updated = [...photos];
       updated.splice(index, 1);

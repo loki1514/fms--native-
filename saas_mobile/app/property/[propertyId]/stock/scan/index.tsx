@@ -11,6 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '@/hooks/useAuth';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
@@ -98,18 +99,22 @@ export default function StockScanScreen() {
     setIsSubmitting(true);
     try {
       const qtyAfter = action === 'add' ? item.quantity + quantity : item.quantity - quantity;
-      const { error } = await (supabase.from('stock_movements') as any).insert({
-        property_id: propertyId,
-        item_id: item.id,
-        action,
-        quantity_change: action === 'add' ? quantity : -quantity,
-        quantity_before: item.quantity,
-        quantity_after: qtyAfter,
-        notes: notes.trim() || `Stock ${action === 'add' ? 'In' : 'Out'} via scanner`,
-        user_id: user?.id || null,
+      const moveRes = await serverApi.query({
+        table: 'stock_movements',
+        action: 'insert',
+        values: {
+          property_id: propertyId,
+          item_id: item.id,
+          action,
+          quantity_change: action === 'add' ? quantity : -quantity,
+          quantity_before: item.quantity,
+          quantity_after: qtyAfter,
+          notes: notes.trim() || `Stock ${action === 'add' ? 'In' : 'Out'} via scanner`,
+          user_id: user?.id || null,
+        },
       });
 
-      if (error) throw error;
+      if (moveRes.error) throw new Error(moveRes.error.message);
 
       setNewQty(qtyAfter);
       setState('success');

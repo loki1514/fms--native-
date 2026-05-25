@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { SPACING, CARD_SURFACES } from '@/constants/designSystem';
 
 interface AnalyticsUser {
@@ -86,14 +87,12 @@ export default function AnalyticsTab() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const supabase = useMemo(() => createClient(), []);
-
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data: metricsData, error } = await supabase.rpc('get_usage_metrics');
-        if (error) throw error;
-        setData(metricsData);
+        const res = await serverApi.rpc('get_usage_metrics');
+        if (res.error) throw new Error(res.error.message);
+        setData(res.data as AnalyticsData);
       } catch (err) {
         console.error('Error fetching analytics:', err);
       } finally {
@@ -101,7 +100,7 @@ export default function AnalyticsTab() {
       }
     };
     fetchData();
-  }, [supabase]);
+  }, []);
 
   const formatDuration = (mins: number) => {
     if (mins < 60) return `${mins}m`;

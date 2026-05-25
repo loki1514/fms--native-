@@ -21,6 +21,7 @@ import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import TenantBottomNav from '@/components/tenant/TenantBottomNav';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { createClient } from '@/utils/supabase/client';
+import { vmsService } from '@/services/vmsService';
 import { SPACING } from '@/constants/designSystem';
 
 const FONT_DISPLAY = Platform.select({
@@ -58,21 +59,17 @@ export default function TenantVisitorsPage() {
 
     setIsSubmitting(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.from('visitors').insert({
-        property_id: propertyId,
+      const { error } = await vmsService.checkIn({
+        propertyId: propertyId!,
         name: visitorName,
-        phone: visitorPhone || null,
-        visit_date: visitDate,
-        visit_time: visitTime,
-        purpose: purpose || null,
-        host_name: user?.user_metadata?.full_name || null,
-        host_id: user?.id,
-        status: 'expected',
-        created_by: user?.id,
+        mobile: visitorPhone || undefined,
+        category: 'expected',
+        whom_to_meet: user?.user_metadata?.full_name || 'Host',
+        whom_to_meet_uid: user?.id,
+        coming_from: purpose || undefined,
       });
 
-      if (error) throw error;
+      if (error) throw new Error(typeof error === 'string' ? error : error?.message ?? 'Failed to create visitor');
 
       Alert.alert('Success', 'Visitor pre-registered successfully!');
       setVisitorName('');

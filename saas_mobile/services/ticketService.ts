@@ -1,7 +1,8 @@
 // ============================================
-// Ticket Service - Ticket CRUD Operations
+// Ticket Service — routes through saas_mobile_server
 // ============================================
 
+import { serverApi } from '@/lib/serverApi';
 import { apiClient, ApiResponse } from './api/client';
 import { supabase } from '@/utils/supabase/client';
 import { Ticket, TicketStatus, TicketPriority, TicketComment } from '@/types';
@@ -38,7 +39,7 @@ export interface TicketFilters {
 }
 
 export const ticketService = {
-  // Get all tickets with filters
+  // Get all tickets with filters (uses dedicated /api/tickets)
   async getTickets(
     filters?: TicketFilters,
     options?: {
@@ -48,72 +49,25 @@ export const ticketService = {
       offset?: number;
     }
   ): Promise<ApiResponse<Ticket[]>> {
-    let query = (supabase
-      .from('tickets')
-      .select('*, raised_by_user:raised_by(full_name), assigned_to_user:assigned_to(full_name)') as any);
-
-    // Apply filters
-    if (filters?.status) {
-      if (Array.isArray(filters.status)) {
-        query = query.in('status', filters.status);
-      } else {
-        query = query.eq('status', filters.status);
+    try {
+      const params = new URLSearchParams();
+      if (filters?.propertyId) params.append('propertyId', filters.propertyId);
+      if (filters?.organizationId) params.append('organizationId', filters.organizationId);
+      if (filters?.assignedTo) params.append('assignedTo', filters.assignedTo);
+      if (filters?.createdBy) params.append('raisedBy', filters.createdBy);
+      if (filters?.status) {
+        const statusValue = Array.isArray(filters.status) ? filters.status.join(',') : filters.status;
+        params.append('status', statusValue);
       }
+      if (options?.limit) params.append('limit', String(options.limit));
+      if (options?.offset) params.append('offset', String(options.offset));
+
+      const res = await serverApi.get<any>(`/api/tickets?${params.toString()}`);
+      if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch tickets');
+      return { data: res.data?.tickets ?? [], error: null, status: 200 };
+    } catch (error) {
+      return { data: null, error: error as Error, status: 500 };
     }
-
-    if (filters?.priority) {
-      if (Array.isArray(filters.priority)) {
-        query = query.in('priority', filters.priority);
-      } else {
-        query = query.eq('priority', filters.priority);
-      }
-    }
-
-    if (filters?.assignedTo) {
-      query = query.eq('assigned_to', filters.assignedTo);
-    }
-
-    if (filters?.createdBy) {
-      query = query.eq('raised_by', filters.createdBy);
-    }
-
-    if (filters?.propertyId) {
-      query = query.eq('property_id', filters.propertyId);
-    }
-
-    if (filters?.organizationId) {
-      query = query.eq('organization_id', filters.organizationId);
-    }
-
-    if (filters?.category) {
-      query = query.eq('category_id', filters.category);
-    }
-
-    // Apply ordering
-    if (options?.orderBy) {
-      query = query.order(options.orderBy, {
-        ascending: options.ascending ?? false,
-      });
-    } else {
-      query = query.order('created_at', { ascending: false });
-    }
-
-    // Apply pagination
-    if (options?.limit) {
-      query = query.limit(options.limit);
-    }
-
-    if (options?.offset) {
-      query = query.range(options.offset, options.offset + (options.limit || 10) - 1);
-    }
-
-    const { data, error } = await query;
-
-    return {
-      data: data as Ticket[] | null,
-      error,
-      status: error ? 400 : 200,
-    };
   },
 
   // Get single ticket
@@ -125,25 +79,29 @@ export const ticketService = {
     });
   },
 
-  // Create ticket
+  // Create ticket (uses dedicated /api/tickets with AI classification)
   async createTicket(data: CreateTicketData): Promise<ApiResponse<Ticket>> {
-    return apiClient.post<Ticket>('tickets', {
-      title: data.title,
-      description: data.description,
-      category_id: data.category,
-      subcategory: data.subcategory,
-      priority: data.priority,
-      status: data.assignedTo ? 'assigned' : 'open',
-      property_id: data.propertyId,
-      organization_id: data.organizationId,
-      assigned_to: data.assignedTo,
-    });
+    try {
+      const res = await serverApi.post<any>('/api/tickets', {
+        title: data.title,
+        description: data.description,
+        category_id: data.category,
+        subcategory: data.subcategory,
+        priority: data.priority,
+        property_id: data.propertyId,
+        organization_id: data.organizationId,
+        assigned_to: data.assignedTo,
+      });
+      if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Failed to create ticket');
+      return { data: res.data?.ticket ?? null, error: null, status: 201 };
+    } catch (error) {
+      return { data: null, error: error as Error, status: 500 };
+    }
   },
 
   // Update ticket
   async updateTicket(id: string, data: UpdateTicketData): Promise<ApiResponse<Ticket>> {
     const updateData: Record<string, any> = {};
-
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.status !== undefined) updateData.status = data.status;
@@ -151,12 +109,8 @@ export const ticketService = {
     if (data.assignedTo !== undefined) updateData.assigned_to = data.assignedTo;
     if (data.category !== undefined) updateData.category_id = data.category;
     if (data.subcategory !== undefined) updateData.subcategory = data.subcategory;
-
     updateData.updated_at = new Date().toISOString();
-
-    if (data.status === 'resolved') {
-      updateData.resolved_at = new Date().toISOString();
-    }
+    if (data.status === 'resolved') updateData.resolved_at = new Date().toISOString();
 
     return apiClient.put<Ticket>('tickets', id, updateData);
   },
@@ -179,50 +133,40 @@ export const ticketService = {
   // Bulk assign tickets
   async bulkAssign(ticketIds: string[], assignedTo: string): Promise<ApiResponse<void>> {
     try {
-      const { error }: any = await (supabase as any)
-        .from('tickets')
-        .update({ assigned_to: assignedTo, updated_at: new Date().toISOString() })
-        .in('id', ticketIds);
-
-      return {
-        data: null,
-        error: error as Error | string | null,
-        status: error ? 400 : 200,
-      };
+      const res = await serverApi.query({
+        table: 'tickets',
+        action: 'update',
+        values: { assigned_to: assignedTo, updated_at: new Date().toISOString() },
+        filters: [{ op: 'in', column: 'id', values: ticketIds }],
+      });
+      if (res.error) throw new Error(res.error?.message ?? 'Bulk assign failed');
+      return { data: null, error: null, status: 200 };
     } catch (error) {
-      return {
-        data: null,
-        error: error as Error,
-        status: 500,
-      };
+      return { data: null, error: error as Error, status: 500 };
     }
   },
 
   // Get ticket comments
   async getComments(ticketId: string): Promise<ApiResponse<TicketComment[]>> {
-    const { data, error } = (await (supabase
-      .from('ticket_comments')
-      .select('*, user:users(full_name, user_photo_url)')
-      .eq('ticket_id', ticketId)
-      .order('created_at', { ascending: true }) as any)) as { data: unknown; error: unknown };
-
-    return {
-      data: data as TicketComment[] | null,
-      error: (error as Error | string | null),
-      status: error ? 400 : 200,
-    };
+    try {
+      const res = await serverApi.query<TicketComment[]>({
+        table: 'ticket_comments',
+        action: 'select',
+        select: '*, user:users(full_name, user_photo_url)',
+        filters: [{ op: 'eq', column: 'ticket_id', value: ticketId }],
+        orders: [{ column: 'created_at', ascending: true }],
+      });
+      if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch comments');
+      return { data: res.data ?? [], error: null, status: 200 };
+    } catch (error) {
+      return { data: null, error: error as Error, status: 500 };
+    }
   },
 
   // Add comment
-  async addComment(
-    ticketId: string,
-    content: string,
-    isInternal: boolean = false
-  ): Promise<ApiResponse<TicketComment>> {
-    // Use getSession() first (cached) for reliability on mobile/Expo Go.
+  async addComment(ticketId: string, content: string, isInternal: boolean = false): Promise<ApiResponse<TicketComment>> {
     const { data: { session } } = await supabase.auth.getSession();
     const userId = session?.user?.id ?? (await supabase.auth.getUser()).data.user?.id;
-
     return apiClient.post<TicketComment>('ticket_comments', {
       ticket_id: ticketId,
       user_id: userId,
@@ -232,81 +176,37 @@ export const ticketService = {
   },
 
   // Get tickets by status (for Kanban)
-  async getTicketsByStatus(
-    status: TicketStatus,
-    propertyId?: string
-  ): Promise<ApiResponse<Ticket[]>> {
-    const filters: Record<string, any> = { status };
-    if (propertyId) filters.property_id = propertyId;
-
-    return this.getTickets(filters);
+  async getTicketsByStatus(status: TicketStatus, propertyId?: string): Promise<ApiResponse<Ticket[]>> {
+    return this.getTickets({ status, propertyId });
   },
 
   // Get ticket statistics
-  async getTicketStats(
-    organizationId?: string,
-    propertyId?: string
-  ): Promise<ApiResponse<{
-    total: number;
-    open: number;
-    inProgress: number;
-    resolved: number;
-    onHold: number;
-    avgResolutionTime: number;
-  }>> {
+  async getTicketStats(organizationId?: string, propertyId?: string): Promise<ApiResponse<any>> {
     try {
-      const { data, error } = await (supabase.rpc('get_ticket_stats', {
+      const res = await serverApi.rpc('get_ticket_stats', {
         org_id: organizationId ?? null,
         prop_id: propertyId ?? null,
-      } as any)) as { data: unknown; error: unknown };
-
-      return {
-        data: null,
-        error: error as Error | string | null,
-        status: error ? 400 : 200,
-      };
+      });
+      if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch stats');
+      return { data: res.data, error: null, status: 200 };
     } catch (error) {
-      return {
-        data: null,
-        error: error as Error,
-        status: 500,
-      };
+      return { data: null, error: error as Error, status: 500 };
     }
   },
 
-  // Subscribe to ticket changes
-  subscribeToTicketChanges(
-    ticketId: string,
-    callback: (payload: any) => void
-  ) {
+  // Subscribe to ticket changes (realtime — kept on direct Supabase)
+  subscribeToTicketChanges(ticketId: string, callback: (payload: any) => void) {
     return supabase
       .channel(`ticket-${ticketId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tickets',
-          filter: `id=eq.${ticketId}`,
-        },
-        callback
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets', filter: `id=eq.${ticketId}` }, callback)
       .subscribe();
   },
 
-  // Subscribe to all tickets
+  // Subscribe to all tickets (realtime — kept on direct Supabase)
   subscribeToAllTickets(callback: (payload: any) => void) {
     return supabase
       .channel('tickets')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tickets',
-        },
-        callback
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, callback)
       .subscribe();
   },
 };

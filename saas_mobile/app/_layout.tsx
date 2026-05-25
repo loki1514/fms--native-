@@ -73,11 +73,6 @@ function RootLayoutInner() {
   const [appReady, setAppReady] = useState(false);
   const appReadyRef = useRef(false);
 
-  // Always reset splash to visible on mount (handles Fast Refresh / reload)
-  useEffect(() => {
-    setShowSplash(true);
-  }, []);
-
   console.log('[RootLayout] Rendering...');
 
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -85,7 +80,6 @@ function RootLayoutInner() {
 
   // Load custom fonts (Consistently on both Web and Native with try-catch safety)
   useEffect(() => {
-    SplashScreen.hideAsync().catch(() => {});
     async function loadFonts() {
       try {
         await Font.loadAsync({
@@ -114,15 +108,18 @@ function RootLayoutInner() {
     if (fontsLoaded || fontError) {
       setAppReady(true);
       appReadyRef.current = true;
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontError]);
 
-  // Dismiss splash when animation completes — uses ref to avoid stale closure
   const handleSplashComplete = useCallback(() => {
     setShowSplash(false);
   }, []);
 
-  // Show custom splash immediately on first mount
+  if (!appReady) {
+    return null;
+  }
+
   if (showSplash) {
     return (
       <AutopilotSplash

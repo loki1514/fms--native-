@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { createClient } from '@/utils/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { serverApi } from '@/lib/serverApi';
 import { Colors, DesignTokens } from '@/constants/Colors';
 import { useOnboardingStore } from '@/store/onboardingStore';
 
@@ -189,7 +190,7 @@ export default function OnboardingScreen() {
 
       // Check if already voice enrolled
       const { data: emb } = await supabase
-        .from('user_voice_embeddings')
+        .from('user_voice_embeddings' as any)
         .select('id')
         .eq('user_id', user.id)
         .maybeSingle();
@@ -390,16 +391,20 @@ export default function OnboardingScreen() {
 
       // Vendor record
       if (selectedRole === 'vendor') {
-        const { data: dbUser } = await supabase.from('users').select('full_name').eq('id', authUser.id).maybeSingle() as { data: DbUser | null };
+        const dbUserRes = await serverApi.query<{ full_name: string }>({ table: 'users', action: 'select', select: 'full_name', filters: [{ op: 'eq', column: 'id', value: authUser.id }], maybeSingle: true });
         try {
-          await (supabase.from('vendors').insert({
-            user_id: authUser.id,
-            property_id: finalPropId,
-            shop_name: `${userName}'s Shop`,
-            vendor_name: dbUser?.full_name || userName,
-            commission_rate: 10,
-            status: 'active',
-          } as any) as any);
+          await serverApi.query({
+            table: 'vendors',
+            action: 'insert',
+            values: {
+              user_id: authUser.id,
+              property_id: finalPropId,
+              shop_name: `${userName}'s Shop`,
+              vendor_name: dbUserRes.data?.full_name || userName,
+              commission_rate: 10,
+              status: 'active',
+            },
+          });
         } catch { /* Ignore dupes */ }
       }
 
@@ -407,7 +412,7 @@ export default function OnboardingScreen() {
       if (selectedSkills.length > 0) {
         const skillsToInsert = selectedSkills.map(code => ({ user_id: authUser.id, skill_code: code }));
         try {
-          await (supabase.from('mst_skills').insert(skillsToInsert as any) as any);
+          await serverApi.query({ table: 'mst_skills', action: 'insert', values: skillsToInsert });
         } catch { /* Ignore */ }
 
         // Resolver stats
@@ -418,9 +423,9 @@ export default function OnboardingScreen() {
           : (selectedRole === 'staff' ? selectedSkills.filter(s => VALID_STAFF_SKILLS.includes(s)) : []);
 
         if (skillsForResolver.length > 0) {
-          const { data: skillGroups } = await supabase.from('skill_groups').select('id, code').eq('is_active', true).in('code', skillsForResolver) as { data: SkillGroupRow[] | null };
-          if (skillGroups?.length) {
-            const stats = skillGroups.map(sg => ({
+          const sgRes = await serverApi.query<{ id: string; code: string }[]>({ table: 'skill_groups', action: 'select', select: 'id, code', filters: [{ op: 'eq', column: 'is_active', value: true }, { op: 'in', column: 'code', values: skillsForResolver }] });
+          if (sgRes.data?.length) {
+            const stats = sgRes.data.map(sg => ({
               user_id: authUser.id,
               property_id: finalPropId,
               skill_group_id: sg.id,
@@ -430,7 +435,7 @@ export default function OnboardingScreen() {
               is_available: true,
             }));
             try {
-              await (supabase.from('resolver_stats').insert(stats as any) as any);
+              await serverApi.query({ table: 'resolver_stats', action: 'insert', values: stats });
             } catch { /* Ignore */ }
           }
         }
@@ -444,13 +449,17 @@ export default function OnboardingScreen() {
       profileUpsert.full_name = authUser.user_metadata?.full_name ?? userName;
       // TODO: onboarding_completed does not exist on the users table
 
-      // @ts-expect-error Supabase client has no schema types — type suppression required
-      const { error: userErr } = await supabase.from('users').upsert({
-        id: authUser.id,
-        email: authUser.email ?? '',
-        ...profileUpsert,
-      }, { onConflict: 'id' });
-      if (userErr) throw userErr;
+      const userRes = await serverApi.query({
+        table: 'users',
+        action: 'upsert',
+        values: {
+          id: authUser.id,
+          email: authUser.email ?? '',
+          ...profileUpsert,
+        },
+        mutationOptions: { onConflict: 'id' },
+      });
+      if (userRes.error) throw new Error(userRes.error.message);
 
       await supabase.auth.updateUser({ data: { onboarding_completed: true } });
 

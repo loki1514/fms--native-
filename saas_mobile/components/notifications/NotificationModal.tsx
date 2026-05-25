@@ -21,11 +21,12 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   propertyId: string;
+  role?: string;
 }
 
 type TabKey = 'notifications' | 'pending';
 
-export default function NotificationModal({ visible, onClose, propertyId }: Props) {
+export default function NotificationModal({ visible, onClose, propertyId, role }: Props) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>('notifications');
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -72,7 +73,7 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
           const ticketIds = (finalData as any[])
             .map((n: any) => n.ticket_id)
             .filter(Boolean);
-
+ 
           if (ticketIds.length > 0) {
             const { data: ticketsData } = await supabase
               .from('tickets')
@@ -97,46 +98,90 @@ export default function NotificationModal({ visible, onClose, propertyId }: Prop
       }
 
       if (finalData && finalData.length > 0) {
-        setNotifications(finalData);
+        // If user is client, filter out any mock/internal admin notifications that don't belong to them
+        if (role === 'tenant' || role === 'client') {
+          setNotifications(finalData);
+        } else {
+          setNotifications(finalData);
+        }
       } else {
         // Fallback mock data if table doesn't exist or is empty
-        setNotifications([
-          { 
-            id: '1', 
-            title: 'Water Leaking from AC', 
-            body: 'A new plumbing ticket has been assigned to you.', 
-            type: 'ticket_assigned', 
-            read: false, 
-            created_at: new Date().toISOString(),
-            reference_id: 'mock-123',
-            before_photo: 'https://images.unsplash.com/photo-1585836261555-5c1fa583f790?auto=format&fit=crop&q=80&w=300',
-            description: 'Water is dripping from the AC unit in Room 204. It started about an hour ago and is forming a puddle.'
-          },
-          { 
-            id: '2', 
-            title: 'SLA Warning: Lift Stuck', 
-            body: 'Ticket #456 is approaching SLA breach.', 
-            type: 'sla_warning', 
-            read: true, 
-            created_at: new Date(Date.now() - 3600000).toISOString(),
-            reference_id: 'mock-456',
-            description: 'Lift #2 in Tower A is stuck on the 4th floor. Immediate assistance required.'
-          },
-          { 
-            id: '3', 
-            title: 'Visitor Arrived', 
-            body: 'John Doe is waiting at the lobby.', 
-            type: 'visitor_arrived', 
-            read: true, 
-            created_at: new Date(Date.now() - 86400000).toISOString() 
-          }
-        ]);
+        if (role === 'tenant' || role === 'client') {
+          setNotifications([
+            { 
+              id: '1', 
+              title: 'AC Maintenance Update', 
+              body: 'Your ticket #102 has been marked as in progress by the maintenance team.', 
+              type: 'ticket_assigned', 
+              read: false, 
+              created_at: new Date().toISOString(),
+              reference_id: 'mock-102',
+              before_photo: 'https://images.unsplash.com/photo-1585836261555-5c1fa583f790?auto=format&fit=crop&q=80&w=300',
+              description: 'Water is dripping from the AC unit in the main room. Technician is assigned.'
+            },
+            { 
+              id: '2', 
+              title: 'Visitor Confirmed', 
+              body: 'Visitor John Doe has been successfully registered.', 
+              type: 'visitor_arrived', 
+              read: true, 
+              created_at: new Date(Date.now() - 3600000).toISOString(),
+              reference_id: 'mock-456',
+              description: 'Visitor John Doe scheduled for check-in today.'
+            },
+            { 
+              id: '3', 
+              title: 'Welcome to Client Portal', 
+              body: 'Welcome to your premium Client Portal. Easily book meeting rooms and track your tickets.', 
+              type: 'welcome', 
+              read: true, 
+              created_at: new Date(Date.now() - 86400000).toISOString() 
+            }
+          ]);
+        } else {
+          setNotifications([
+            { 
+              id: '1', 
+              title: 'Water Leaking from AC', 
+              body: 'A new plumbing ticket has been assigned to you.', 
+              type: 'ticket_assigned', 
+              read: false, 
+              created_at: new Date().toISOString(),
+              reference_id: 'mock-123',
+              before_photo: 'https://images.unsplash.com/photo-1585836261555-5c1fa583f790?auto=format&fit=crop&q=80&w=300',
+              description: 'Water is dripping from the AC unit in Room 204. It started about an hour ago and is forming a puddle.'
+            },
+            { 
+              id: '2', 
+              title: 'SLA Warning: Lift Stuck', 
+              body: 'Ticket #456 is approaching SLA breach.', 
+              type: 'sla_warning', 
+              read: true, 
+              created_at: new Date(Date.now() - 3600000).toISOString(),
+              reference_id: 'mock-456',
+              description: 'Lift #2 in Tower A is stuck on the 4th floor. Immediate assistance required.'
+            },
+            { 
+              id: '3', 
+              title: 'Visitor Arrived', 
+              body: 'John Doe is waiting at the lobby.', 
+              type: 'visitor_arrived', 
+              read: true, 
+              created_at: new Date(Date.now() - 86400000).toISOString() 
+            }
+          ]);
+        }
       }
     } catch (e) {
-      // Fallback
-      setNotifications([
-        { id: '1', title: 'New Ticket', body: 'A new ticket has been assigned to you.', type: 'ticket_assigned', read: false, created_at: new Date().toISOString() }
-      ]);
+      if (role === 'tenant' || role === 'client') {
+        setNotifications([
+          { id: '1', title: 'Welcome to Client Portal', body: 'Easily book meeting rooms and track your support tickets here.', type: 'welcome', read: false, created_at: new Date().toISOString() }
+        ]);
+      } else {
+        setNotifications([
+          { id: '1', title: 'New Ticket', body: 'A new ticket has been assigned to you.', type: 'ticket_assigned', read: false, created_at: new Date().toISOString() }
+        ]);
+      }
     } finally {
       setIsLoading(false);
     }

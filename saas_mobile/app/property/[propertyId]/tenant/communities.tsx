@@ -64,7 +64,7 @@ export default function TenantCommunitiesPage() {
               </View>
               <Text style={styles.title}>Coming Soon</Text>
               <Text style={styles.subtitle}>
-                Communities will let you connect with fellow tenants, join interest groups, and stay updated with building announcements.
+                Communities will let you connect with fellow clients, join interest groups, and stay updated with building announcements.
               </Text>
               <View style={styles.badgeRow}>
                 <View style={styles.badge}>

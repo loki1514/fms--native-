@@ -29,7 +29,7 @@ export const AutopilotLogo: React.FC<AutopilotLogoProps> = ({
     <View style={[styles.container, style]}>
       <Image
         source={require('../../assets/autopilot-logo-new.png')}
-        style={{ width: height * 5, height: height, resizeMode: 'contain' }}
+        style={{ width: height * 5, height: height, resizeMode: 'contain', tintColor: color }}
       />
     </View>
   );

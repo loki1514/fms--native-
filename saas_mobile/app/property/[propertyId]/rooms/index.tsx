@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import SafeBlurView from '@/components/ui/SafeBlurView';
+import Toast from '@/components/ui/Toast';
 import {
   getMeetingRooms,
   getMeetingRoomBookings,
@@ -196,7 +197,7 @@ function RoomDetailSheet({
   credit: MeetingRoomCredit | null;
   isAdmin: boolean;
   bottomSheetRef: React.RefObject<BottomSheetModal | null>;
-  onBook: () => void;
+  onBook: (success: boolean, msg?: string) => void;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -219,26 +220,26 @@ function RoomDetailSheet({
     return dates;
   }, []);
 
-  async function handleBook() {
-    if (!room || !selectedSlot) return;
+  async function handleBook(overrideSlot?: typeof TIME_SLOTS[0]) {
+    const targetSlot = (overrideSlot && overrideSlot.start) ? overrideSlot : selectedSlot;
+    if (!room || !targetSlot) return;
     setBookingLoading(true);
     try {
       const response = await createMeetingRoomBooking({
         meetingRoomId: room.id,
         propertyId: room.property_id,
         date: format(selectedDate, 'yyyy-MM-dd'),
-        startTime: selectedSlot.start,
-        endTime: selectedSlot.end,
+        startTime: targetSlot.start,
+        endTime: targetSlot.end,
       });
       if (response.error) {
         throw new Error(response.error);
       }
-      Alert.alert('Success', `Room booked for ${selectedSlot.label}`);
       setSelectedSlot(null);
-      onBook();
       bottomSheetRef.current?.dismiss();
+      onBook(true, `Room booked for ${targetSlot.label}`);
     } catch (err: any) {
-      Alert.alert('Booking Failed', err.message || 'Could not book this room.');
+      onBook(false, err.message || 'Could not book this room.');
     } finally {
       setBookingLoading(false);
     }
@@ -343,7 +344,18 @@ function RoomDetailSheet({
                     booked && styles.slotChipBooked,
                     isSelected && styles.slotChipSelected,
                   ]}
-                  onPress={() => !booked && setSelectedSlot(slot)}
+                  onPress={() => {
+                    if (booked) return;
+                    setSelectedSlot(slot);
+                    Alert.alert(
+                      'Confirm Booking',
+                      `Do you want to book ${room.name} for ${slot.label}?`,
+                      [
+                        { text: 'Cancel', style: 'cancel', onPress: () => setSelectedSlot(null) },
+                        { text: 'Book', onPress: () => handleBook(slot) }
+                      ]
+                    );
+                  }}
                   activeOpacity={booked ? 1 : 0.7}
                   disabled={booked}
                 >
@@ -391,7 +403,7 @@ function RoomDetailSheet({
         {!isAdmin && (
           <TouchableOpacity
             style={[styles.bookButton, (!selectedSlot || bookingLoading) && styles.bookButtonDisabled]}
-            onPress={handleBook}
+            onPress={() => handleBook(selectedSlot!)}
             disabled={!selectedSlot || bookingLoading}
             activeOpacity={0.8}
           >
@@ -424,6 +436,7 @@ export default function RoomsScreen() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<MeetingRoom | null>(null);
   const [activeTab, setActiveTab] = useState<'rooms' | 'bookings'>('rooms');
+  const [toastConfig, setToastConfig] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const roomSheetRef = useRef<BottomSheetModal>(null);
 
@@ -514,23 +527,23 @@ export default function RoomsScreen() {
         </View>
       </SafeBlurView>
 
-      {/* Tabs for Admin */}
-      {isAdmin && (
-        <View style={styles.tabBar}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'rooms' && styles.tabActive]}
-            onPress={() => setActiveTab('rooms')}
-          >
-            <Text style={[styles.tabText, activeTab === 'rooms' && styles.tabTextActive]}>Rooms</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'bookings' && styles.tabActive]}
-            onPress={() => setActiveTab('bookings')}
-          >
-            <Text style={[styles.tabText, activeTab === 'bookings' && styles.tabTextActive]}>All Bookings</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Tabs */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'rooms' && styles.tabActive]}
+          onPress={() => setActiveTab('rooms')}
+        >
+          <Text style={[styles.tabText, activeTab === 'rooms' && styles.tabTextActive]}>Rooms</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'bookings' && styles.tabActive]}
+          onPress={() => setActiveTab('bookings')}
+        >
+          <Text style={[styles.tabText, activeTab === 'bookings' && styles.tabTextActive]}>
+            {isAdmin ? 'All Bookings' : 'My Bookings'}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Credit Banner (non-admin) */}
       {!isAdmin && credit && (
@@ -631,7 +644,12 @@ export default function RoomsScreen() {
         credit={credit}
         isAdmin={isAdmin}
         bottomSheetRef={roomSheetRef}
-        onBook={fetchData}
+        onBook={(success, msg) => {
+          fetchData();
+          if (msg) {
+            setToastConfig({ message: msg, type: success ? 'success' : 'error' });
+          }
+        }}
         onEdit={() => {
           roomSheetRef.current?.dismiss();
           if (selectedRoom) {
@@ -664,6 +682,15 @@ export default function RoomsScreen() {
           );
         }}
       />
+
+      {toastConfig && (
+        <Toast
+          visible={true}
+          message={toastConfig.message}
+          type={toastConfig.type}
+          onClose={() => setToastConfig(null)}
+        />
+      )}
     </View>
   );
 }

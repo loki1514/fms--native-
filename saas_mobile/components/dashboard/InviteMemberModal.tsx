@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { serverApi } from '@/lib/serverApi';
 import {
   View,
   Text,
@@ -70,7 +71,7 @@ export default function InviteMemberModal({ isOpen, onClose, orgId, orgName, pro
 
     try {
       // Direct Supabase admin creation via RPC or edge function
-      const { data, error: createError } = await (supabase.rpc('create_user_with_membership', {
+      const { data, error: createError } = await serverApi.rpc('create_user_with_membership', {
         p_email: email,
         p_password: password,
         p_full_name: fullName,
@@ -78,7 +79,7 @@ export default function InviteMemberModal({ isOpen, onClose, orgId, orgName, pro
         p_role: role,
         p_property_id: selectedPropertyId || null,
         p_skills: selectedSkills,
-      } as any));
+      });
 
       if (createError) throw createError;
 

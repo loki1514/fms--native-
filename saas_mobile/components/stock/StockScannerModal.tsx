@@ -19,6 +19,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 
 interface StockItem {
   id: string;
@@ -100,21 +101,24 @@ export default function StockScannerModal({
   // Fetch item by barcode
   const fetchItemByBarcode = useCallback(async (barcode: string): Promise<StockItem | null> => {
     try {
-      const { data, error: fetchErr } = await supabase
-        .from('stock_items')
-        .select('id, name, item_code, category, quantity, unit, barcode, min_threshold, organization_id')
-        .eq('property_id', propertyId)
-        .or(`barcode.eq.${barcode},item_code.eq.${barcode}`)
-        .limit(1)
-        .maybeSingle();
-
-      if (fetchErr) throw fetchErr;
+      const { data, error: fetchErr } = await serverApi.query({
+        table: 'stock_items',
+        action: 'select',
+        select: 'id, name, item_code, category, quantity, unit, barcode, min_threshold, organization_id',
+        filters: [
+          { op: 'eq', column: 'property_id', value: propertyId },
+          { op: 'or', expression: `barcode.eq.${barcode},item_code.eq.${barcode}` },
+        ],
+        limit: 1,
+        maybeSingle: true,
+      });
+      if (fetchErr) throw new Error(fetchErr.message);
       return data as StockItem | null;
     } catch (err: any) {
       console.error('Fetch error:', err);
       return null;
     }
-  }, [propertyId, supabase]);
+  }, [propertyId]);
 
   // Add item to queue
   const addToQueue = useCallback((item: StockItem, mode: string) => {
@@ -268,11 +272,13 @@ export default function StockScannerModal({
       // Fill missing org IDs from properties table
       const missingOrgIds = queue.filter(q => !orgIdMap[q.id]);
       if (missingOrgIds.length > 0) {
-        const { data: propData } = await supabase
-          .from('properties')
-          .select('id, organization_id')
-          .eq('id', propertyId)
-          .maybeSingle();
+        const { data: propData } = await serverApi.query({
+          table: 'properties',
+          action: 'select',
+          select: 'id, organization_id',
+          filters: [{ op: 'eq', column: 'id', value: propertyId }],
+          maybeSingle: true,
+        });
         const fallbackOrgId = (propData as { organization_id: string } | null)?.organization_id || null;
         missingOrgIds.forEach(q => { orgIdMap[q.id] = fallbackOrgId; });
       }
@@ -296,18 +302,11 @@ export default function StockScannerModal({
             user_id: userId || null,
           };
 
-          const { error: insertErr } = await (supabase.from('stock_movements') as any)
-            .insert(insertPayload);
+          const insertRes = await serverApi.query({ table: 'stock_movements', action: 'insert', values: insertPayload });
+          if (insertRes.error) throw new Error(insertRes.error.message);
 
-          if (insertErr) throw insertErr;
-
-          // Update the actual stock quantity on stock_items
-          const { error: updateErr } = await (supabase as any)
-            .from('stock_items')
-            .update({ quantity: quantityAfter })
-            .eq('id', item.id);
-
-          if (updateErr) throw updateErr;
+          const updateRes = await serverApi.query({ table: 'stock_items', action: 'update', values: { quantity: quantityAfter }, filters: [{ op: 'eq', column: 'id', value: item.id }] });
+          if (updateRes.error) throw new Error(updateRes.error.message);
 
           // Update queued item's quantity so the UI stays in sync
           updateQueueItem(item.id, { quantity: quantityAfter });

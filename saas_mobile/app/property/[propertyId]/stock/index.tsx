@@ -20,6 +20,7 @@ import { useTheme } from "@/context";
 import { useAuth } from "@/hooks/useAuth";
 import { Colors } from "@/constants/Colors";
 import { supabase } from "@/utils/supabase/client";
+import { stockService } from "@/services/stockService";
 import { LinearGradient } from "expo-linear-gradient";
 import { FlashList } from "@shopify/flash-list";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -275,19 +276,15 @@ export default function StockScreen() {
     }
     setIsSaving(true);
     try {
-      const { data, error } = await (supabase.from("stock_items") as any)
-        .insert({
-          property_id: propertyId,
-          name: formName.trim(),
-          item_code: formCode.trim() || null,
-          category: formCategory.trim() || null,
-          quantity: parseInt(formQuantity) || 0,
-          min_threshold: parseInt(formMinThreshold) || 10,
-          unit: formUnit.trim() || null,
-          unit_price: parseFloat(formPrice) || 0,
-        })
-        .select()
-        .single();
+      const { data, error } = await stockService.createStockItem({
+        propertyId,
+        name: formName.trim(),
+        sku: formCode.trim() || undefined,
+        category: formCategory.trim() || undefined,
+        quantity: parseInt(formQuantity) || 0,
+        minQuantity: parseInt(formMinThreshold) || 10,
+        unit: formUnit.trim() || undefined,
+      });
       if (error) throw error;
       setShowAddModal(false);
       resetForm();
@@ -316,18 +313,11 @@ export default function StockScreen() {
     }
     setIsSubmittingMovement(true);
     try {
-      const { error } = await (supabase.from("stock_movements") as any).insert({
-        property_id: propertyId,
-        item_id: selectedItem.id,
-        action: movementType,
-        quantity_change: movementType === "add" ? qty : -qty,
-        quantity_before: selectedItem.quantity,
-        quantity_after:
-          movementType === "add"
-            ? selectedItem.quantity + qty
-            : selectedItem.quantity - qty,
-        notes: moveNotes.trim() || null,
-        user_id: user?.id || null,
+      const { error } = await stockService.addStockMovement({
+        itemId: selectedItem.id,
+        type: movementType === "add" ? "intake" : "outflow",
+        quantity: qty,
+        notes: moveNotes.trim() || undefined,
       });
       if (error) throw error;
       setItems((prev) =>

@@ -80,7 +80,7 @@ export async function getCurrentUserId(): Promise<string | null> {
 // ---------------------------------------------------------------------
 // Web API base URL
 // ---------------------------------------------------------------------
-export const WEB_API_BASE = process.env.EXPO_PUBLIC_WEB_API_URL ?? 'https://fms-dev-saas-one.vercel.app';
+export const WEB_API_BASE = process.env.EXPO_PUBLIC_WEB_API_URL ?? 'https://www.back2basiics.com';
 
 // ---------------------------------------------------------------------
 // Typed API Response shapes

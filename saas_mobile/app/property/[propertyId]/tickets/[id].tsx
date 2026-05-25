@@ -24,6 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import { createClient } from '@/utils/supabase/client';
 import { createClientFromToken } from '@/utils/supabase/mobile-auth';
+import { serverApi } from '@/lib/serverApi';
 import { useTheme, useAuth } from '@/context';
 import { useUnreadStore } from '@/stores/unreadStore';
 import StatusBadge from '@/components/tickets/StatusBadge';
@@ -395,9 +396,9 @@ export default function TicketDetailScreen() {
     let orgId = ticket?.organization_id;
     if (!orgId && propertyId) {
        console.log('[fetchProcurementUsers] Fetching orgId for property:', propertyId);
-       const { data: property, error: propErr } = await (supabase.from('properties').select('organization_id').eq('id', propertyId).single() as unknown) as { data: { organization_id: string } | null; error: any };
-       if (propErr) console.error('[fetchProcurementUsers] Property fetch error:', propErr);
-       orgId = property?.organization_id;
+       const propRes = await serverApi.query<{ organization_id: string }>({ table: 'properties', action: 'select', select: 'organization_id', filters: [{ op: 'eq', column: 'id', value: propertyId }], single: true });
+       if (propRes.error) console.error('[fetchProcurementUsers] Property fetch error:', propRes.error);
+       orgId = propRes.data?.organization_id;
     }
 
     console.log('[fetchProcurementUsers] Final orgId:', orgId, 'propertyId:', propertyId);
@@ -597,37 +598,38 @@ export default function TicketDetailScreen() {
       }
 
       console.log('[handleUpdateStatus] Updating ticket:', id, 'with:', updates);
-      const { error } = await (supabase.from('tickets') as any)
-        .update(updates)
-        .eq('id', id)
-        .eq('property_id', propertyId);
+      const updateRes = await serverApi.query({
+        table: 'tickets',
+        action: 'update',
+        values: updates,
+        filters: [{ op: 'eq', column: 'id', value: id }, { op: 'eq', column: 'property_id', value: propertyId }],
+      });
 
-      if (error) {
-        console.error('[handleUpdateStatus] Supabase error:', error);
+      if (updateRes.error) {
+        console.error('[handleUpdateStatus] Server error:', updateRes.error);
         setTicket(originalTicket);
-        Alert.alert('Update Failed', `Could not update status: ${error.message ?? 'Unknown error'}`);
+        Alert.alert('Update Failed', `Could not update status: ${updateRes.error.message ?? 'Unknown error'}`);
         return;
       }
 
       // Verify the update actually persisted in the DB
-      const { data: verifyData, error: verifyError } = await (supabase
-        .from('tickets')
-        .select('id, status, resolved_at')
-        .eq('id', id)
-        .eq('property_id', propertyId)
-        .single() as any);
+      const verifyRes = await serverApi.query<{ id: string; status: string; resolved_at: string | null }>({
+        table: 'tickets',
+        action: 'select',
+        select: 'id, status, resolved_at',
+        filters: [{ op: 'eq', column: 'id', value: id }, { op: 'eq', column: 'property_id', value: propertyId }],
+        single: true,
+      });
 
-      if (verifyError || !verifyData) {
-        console.error('[handleUpdateStatus] Verification read failed:', verifyError);
-        // Try full refresh
+      if (verifyRes.error || !verifyRes.data) {
+        console.error('[handleUpdateStatus] Verification read failed:', verifyRes.error);
         await fetchTicket();
         Alert.alert('Update Failed', 'Could not verify the update. Please refresh the page.');
         return;
       }
 
-      // If DB still has old status, revert
-      if (verifyData.status !== newStatus) {
-        console.error('[handleUpdateStatus] DB status mismatch:', verifyData.status, '!=', newStatus);
+      if (verifyRes.data.status !== newStatus) {
+        console.error('[handleUpdateStatus] DB status mismatch:', verifyRes.data.status, '!=', newStatus);
         setTicket(originalTicket);
         await fetchTicket();
         Alert.alert('Update Failed', 'Status was not saved. Please try again.');
@@ -647,11 +649,15 @@ export default function TicketDetailScreen() {
 
       if (activityAction && actingUserId) {
         try {
-          await (supabase.from('ticket_activity_log') as any).insert({
-            ticket_id: id,
-            performed_by: actingUserId,
-            action: activityAction,
-            details: JSON.stringify({ old_value: ticket.status, new_value: newStatus }),
+          await serverApi.query({
+            table: 'ticket_activity_log',
+            action: 'insert',
+            values: {
+              ticket_id: id,
+              performed_by: actingUserId,
+              action: activityAction,
+              details: JSON.stringify({ old_value: ticket.status, new_value: newStatus }),
+            },
           });
         } catch (logErr) {
           console.warn('[handleUpdateStatus] Activity log insert failed (non-critical):', logErr);
@@ -702,13 +708,15 @@ export default function TicketDetailScreen() {
 
       console.log('[handleReassign] Applying updates:', updates);
 
-      const { error } = await (supabase.from('tickets') as any)
-        .update(updates)
-        .eq('id', id)
-        .eq('property_id', propertyId);
+      const reassignRes = await serverApi.query({
+        table: 'tickets',
+        action: 'update',
+        values: updates,
+        filters: [{ op: 'eq', column: 'id', value: id }, { op: 'eq', column: 'property_id', value: propertyId }],
+      });
 
-      if (error) {
-        throw new Error(error.message);
+      if (reassignRes.error) {
+        throw new Error(reassignRes.error.message);
       }
 
       if (actingUserId) {
@@ -726,11 +734,15 @@ export default function TicketDetailScreen() {
         if (!mstId) action = 'unassigned';
 
         try {
-          await (supabase.from('ticket_activity_log') as any).insert({
-            ticket_id: id,
-            performed_by: actingUserId,
-            action: action,
-            details: JSON.stringify({ old_value: oldAssigneeId, new_value: mstId }),
+          await serverApi.query({
+            table: 'ticket_activity_log',
+            action: 'insert',
+            values: {
+              ticket_id: id,
+              performed_by: actingUserId,
+              action: action,
+              details: JSON.stringify({ old_value: oldAssigneeId, new_value: mstId }),
+            },
           });
         } catch (logErr) {
           console.warn('[handleReassign] Activity log insert failed:', logErr);
@@ -885,12 +897,14 @@ export default function TicketDetailScreen() {
 
       console.log('[handleMediaUpload] DB updates:', updates);
 
-      const { error: dbError } = await (supabase.from('tickets') as any)
-        .update(updates)
-        .eq('id', id)
-        .eq('property_id', propertyId);
+      const mediaRes = await serverApi.query({
+        table: 'tickets',
+        action: 'update',
+        values: updates,
+        filters: [{ op: 'eq', column: 'id', value: id }, { op: 'eq', column: 'property_id', value: propertyId }],
+      });
 
-      if (dbError) throw dbError;
+      if (mediaRes.error) throw new Error(mediaRes.error.message);
 
       await fetchTicket();
       Alert.alert('Success', `${isImage ? 'Photo' : 'Video'} uploaded successfully.`);

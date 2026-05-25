@@ -21,12 +21,15 @@ import { useTenantTickets } from '@/hooks/tenant/useTenantTickets';
 import { useSuperTenantProperties } from '@/hooks/tenant/useSuperTenantProperties';
 import SignOutModal from '@/components/ui/SignOutModal';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
+import NotificationModal from '@/components/notifications/NotificationModal';
 import TenantBottomNav from '@/components/tenant/TenantBottomNav';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { TicketCreateModal } from '../tickets/TicketCreateModal';
 import { AutopilotLogo } from '@/components/ui/AutopilotLogo';
 import { createClient } from '@/utils/supabase/client';
+import { getMeetingRoomCredits } from '@/services/meetingRoomService';
+import { GlassModuleCard } from './GlassModuleCard';
 
 const FONT_DISPLAY = Platform.select({
   web: 'Poppins, -apple-system, BlinkMacSystemFont, sans-serif',
@@ -64,21 +67,33 @@ export default function TenantDashboard({ propertyId, isSuperTenant }: TenantDas
   const [showSignOut, setShowSignOut] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState(propertyId);
   const [propertyName, setPropertyName] = useState('Property');
+  const [remainingHours, setRemainingHours] = useState<number | null>(null);
 
   const { tickets, loading: ticketsLoading, refetch: refetchTickets } = useTenantTickets(selectedPropertyId, user?.id);
   const { properties: superTenantProperties } = useSuperTenantProperties(isSuperTenant ? user?.id : undefined);
 
   useEffect(() => {
     if (!selectedPropertyId) return;
-    const supabase = createClient();
-    supabase.from('properties').select('name, code').eq('id', selectedPropertyId).single().then(({ data }) => {
-      if (data) {
-        setPropertyName(data.name || 'Property');
+
+    // Use membership instead of direct Supabase call for property name
+    if (membership?.properties) {
+      const prop = membership.properties.find(p => p.id === selectedPropertyId);
+      if (prop) setPropertyName(prop.name || 'Property');
+    }
+
+    getMeetingRoomCredits(selectedPropertyId).then((res) => {
+      if (res.credit && res.credit.remaining_hours !== undefined) {
+        setRemainingHours(res.credit.remaining_hours);
+      } else {
+        setRemainingHours(null);
       }
+    }).catch((err) => {
+      console.log('Failed to fetch meeting room credits', err);
     });
-  }, [selectedPropertyId]);
+  }, [selectedPropertyId, membership]);
 
   const ticketStats = useMemo(() => {
     const open = tickets.filter((t: any) => !['resolved', 'closed'].includes(t.status)).length;
@@ -90,7 +105,7 @@ export default function TenantDashboard({ propertyId, isSuperTenant }: TenantDas
     await refetchTickets();
   }, [refetchTickets]);
 
-  const fullName = user?.user_metadata?.full_name || 'Tenant';
+  const fullName = user?.user_metadata?.full_name || 'Client';
   const firstName = fullName.split(' ')[0];
   const initials = getInitials(fullName);
 
@@ -102,7 +117,7 @@ export default function TenantDashboard({ propertyId, isSuperTenant }: TenantDas
   const drawerItems = [
     { label: 'Dashboard', route: 'tenant', icon: 'grid-outline' as const },
     { label: 'My Tickets', route: 'tenant/requests', icon: 'ticket-outline' as const },
-    { label: 'Meeting Rooms', route: 'tenant/rooms', icon: 'calendar-outline' as const },
+    { label: 'Meeting Rooms', route: 'rooms', icon: 'calendar-outline' as const },
     { label: 'Visitors', route: 'tenant/visitors', icon: 'people-outline' as const },
     { label: 'Communities', route: 'tenant/communities', icon: 'chatbubbles-outline' as const },
     { label: 'Cassandra AI', route: 'cassandra', icon: 'sparkles-outline' as const },
@@ -149,7 +164,11 @@ export default function TenantDashboard({ propertyId, isSuperTenant }: TenantDas
             <TouchableOpacity style={styles.iconPill} onPress={() => setShowTicketModal(true)} activeOpacity={0.8}>
               <Ionicons name="add" size={22} color="#FFFFFF" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconPill} activeOpacity={0.8}>
+            <TouchableOpacity 
+              style={styles.iconPill} 
+              activeOpacity={0.8}
+              onPress={() => setShowNotifications(true)}
+            >
               <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
               {ticketStats.open > 0 && <View style={styles.notificationDot} />}
             </TouchableOpacity>
@@ -202,8 +221,9 @@ export default function TenantDashboard({ propertyId, isSuperTenant }: TenantDas
             title="Meeting Rooms"
             description="Reserve meeting spaces & conference rooms with ease."
             statusLine="ROOM BOOKING"
+            rightStatusText={remainingHours !== null ? `${remainingHours} HRS LEFT` : undefined}
             delay={280}
-            onPress={() => router.push(`/property/${propertyId}/tenant/rooms` as any)}
+            onPress={() => router.push(`/property/${propertyId}/rooms` as any)}
           />
         </View>
       </ScrollView>
@@ -223,14 +243,20 @@ export default function TenantDashboard({ propertyId, isSuperTenant }: TenantDas
         onSuccess={handleTicketCreated}
       />
 
+      <NotificationModal 
+        visible={showNotifications} 
+        onClose={() => setShowNotifications(false)} 
+        propertyId={selectedPropertyId} 
+        role="tenant"
+      />
+
       {/* Drawer */}
       <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
         <View style={{ flex: 1, flexDirection: 'row' }}>
-          <SafeBlurView intensity={80} tint="dark" style={[styles.drawerPanel, { paddingTop: insets.top + 16 }]}>
+          <View style={[styles.drawerPanel, { paddingTop: insets.top + 16, backgroundColor: '#0a0a0a' }]}>
             <View style={styles.drawerHeader}>
               <View style={styles.drawerLogoContainer}>
-                <AutopilotLogo size="md" variant="dark" />
-                <Text style={styles.drawerSubtitle}>TENANT PORTAL</Text>
+                <AutopilotLogo size={54} variant="light" />
               </View>
               <TouchableOpacity onPress={() => setShowDrawer(false)} style={styles.drawerCloseBtn}>
                 <Ionicons name="close" size={24} color="#FFFFFF" />
@@ -268,7 +294,7 @@ export default function TenantDashboard({ propertyId, isSuperTenant }: TenantDas
                 <Text style={styles.signOutText}>Sign Out</Text>
               </TouchableOpacity>
             </View>
-          </SafeBlurView>
+          </View>
           <TouchableOpacity style={styles.drawerBackdrop} onPress={() => setShowDrawer(false)} />
         </View>
       </Modal>
@@ -276,55 +302,6 @@ export default function TenantDashboard({ propertyId, isSuperTenant }: TenantDas
   );
 }
 
-// ------------------------------------------------------------------
-// GlassModuleCard — Dark glass card for tenant modules
-// ------------------------------------------------------------------
-function GlassModuleCard({
-  icon,
-  title,
-  description,
-  badge,
-  statusLine,
-  delay = 0,
-  onPress,
-}: {
-  icon: string;
-  title: string;
-  description: string;
-  badge?: number;
-  statusLine: string;
-  delay?: number;
-  onPress?: () => void;
-}) {
-  return (
-    <Animated.View entering={FadeInUp.delay(delay).duration(500)} style={{ width: '100%' }}>
-      <TouchableOpacity activeOpacity={0.9} onPress={onPress} disabled={!onPress} style={styles.cardTouchable}>
-        <SafeBlurView intensity={40} tint="dark" style={styles.card}>
-          <LinearGradient
-            colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.1)']}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={styles.cardContent}>
-            <View style={styles.cardTopRow}>
-              <View style={styles.iconCircle}>
-                <Ionicons name={icon as any} size={28} color="#A5A5B5" />
-              </View>
-              {typeof badge === 'number' && badge > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{badge}</Text>
-                </View>
-              )}
-            </View>
-
-            <Text style={styles.cardTitle}>{title}</Text>
-            <Text style={styles.cardDescription}>{description}</Text>
-            <Text style={styles.cardStatus}>{statusLine}</Text>
-          </View>
-        </SafeBlurView>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
 
 const styles = StyleSheet.create({
   container: {
@@ -490,6 +467,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 4,
   },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+  },
   cardStatus: {
     fontFamily: FONT_BODY,
     fontSize: 11,
@@ -497,7 +480,14 @@ const styles = StyleSheet.create({
     color: '#B8956A',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    marginTop: 12,
+  },
+  cardStatusRight: {
+    fontFamily: FONT_BODY,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4ade80',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   drawerPanel: {
     width: 280,

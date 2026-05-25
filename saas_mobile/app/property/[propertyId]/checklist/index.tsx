@@ -33,16 +33,7 @@ import { Colors } from "@/constants/Colors";
 import SafeBlurView from "@/components/ui/SafeBlurView";
 
 import { LoggersMenu } from "@/components/shared/LoggersMenu";
-import {
-  getChecklistDataApi,
-  startChecklistCompletionApi,
-  updateChecklistCompletionApi,
-  createChecklistTemplateApi,
-  updateChecklistTemplateApi,
-  uploadChecklistMediaApi,
-  deleteChecklistMediaApi,
-  getChecklistTemplateCompletionsApi,
-} from "@/utils/api/mobileApi";
+import { checklistService } from "@/services/checklistService";
 
 import {
   CheckSquare,
@@ -1082,13 +1073,13 @@ export default function ChecklistScreen() {
 
   // ── Fetch ───────────────────────────────────────────────────────────────────
   const fetchPropertyMembers = useCallback(async () => {
-    // Members are now fetched via getChecklistDataApi in fetchTemplates
+    // Members are now fetched via checklistService.fetchChecklistData in fetchTemplates
   }, [propertyId]);
 
   const fetchTemplates = useCallback(async () => {
     if (!propertyId) return;
     try {
-      const res = await getChecklistDataApi(propertyId);
+      const res = await checklistService.fetchChecklistData(propertyId);
       if (res.error) throw new Error(res.error);
 
       const typed = (res.templates || []) as SOPTemplate[];
@@ -1159,7 +1150,7 @@ export default function ChecklistScreen() {
     setExpandedTemplateId(template.id);
     if (expandedCompletions[template.id]) return;
     try {
-      const res = await getChecklistTemplateCompletionsApi(propertyId as string, template.id, 20);
+      const res = await checklistService.fetchTemplateCompletions(propertyId as string, template.id, 20);
       setExpandedCompletions((prev) => ({
         ...prev,
         [template.id]: (res.completions || []) as SOPCompletion[],
@@ -1232,7 +1223,7 @@ export default function ChecklistScreen() {
           now,
         );
 
-      const res = await startChecklistCompletionApi({
+      const res = await checklistService.startCompletion({
         template_id: template.id,
         property_id: propertyId,
         organization_id: template.organization_id || orgId,
@@ -1306,7 +1297,7 @@ export default function ChecklistScreen() {
             ? { checked_at: new Date().toISOString(), checked_by: user?.id }
             : {}),
         };
-        await updateChecklistCompletionApi(activeCompletion.id, {
+        await checklistService.updateCompletion(activeCompletion.id, {
           item: { completionItemId: compItem.id, ...updates },
         });
       }
@@ -1329,7 +1320,7 @@ export default function ChecklistScreen() {
       [item.id]: { ...prev[item.id], comment },
     }));
     try {
-      await updateChecklistCompletionApi(activeCompletion.id, {
+      await checklistService.updateCompletion(activeCompletion.id, {
         item: { completionItemId: compItem.id, comment },
       });
     } catch {}
@@ -1346,7 +1337,7 @@ export default function ChecklistScreen() {
       [item.id]: { ...prev[item.id], value },
     }));
     try {
-      await updateChecklistCompletionApi(activeCompletion.id, {
+      await checklistService.updateCompletion(activeCompletion.id, {
         item: { completionItemId: compItem.id, value },
       });
     } catch {}
@@ -1435,9 +1426,7 @@ export default function ChecklistScreen() {
       formData.append("itemId", item.id);
       formData.append("type", type);
 
-      const res = await uploadChecklistMediaApi(formData);
-      if (res.error) throw new Error(res.error);
-
+      const res = await checklistService.uploadMedia(formData);
       const publicUrl = res.url;
       const checkedAt = new Date().toISOString();
 
@@ -1458,7 +1447,7 @@ export default function ChecklistScreen() {
         if (type === "photo") updateData.photo_url = publicUrl;
         else updateData.video_url = publicUrl;
 
-        await updateChecklistCompletionApi(activeCompletion.id, {
+        await checklistService.updateCompletion(activeCompletion.id, {
           item: { completionItemId: compItem.id, ...updateData },
         });
       }
@@ -1493,7 +1482,7 @@ export default function ChecklistScreen() {
             else updateData.video_url = null;
 
             if (activeCompletion) {
-              await updateChecklistCompletionApi(activeCompletion.id, {
+              await checklistService.updateCompletion(activeCompletion.id, {
                 item: { completionItemId: compItem.id, ...updateData },
               });
             }
@@ -1501,7 +1490,7 @@ export default function ChecklistScreen() {
             // Delete from storage via server API
             const mediaUrl = type === "photo" ? compItem.photo_url : compItem.video_url;
             if (mediaUrl) {
-              await deleteChecklistMediaApi(type, mediaUrl, activeCompletion?.id);
+              await checklistService.deleteMedia(type, mediaUrl, activeCompletion?.id);
             }
 
             setItemStates((prev) => ({
@@ -1551,7 +1540,7 @@ export default function ChecklistScreen() {
           activeTemplate.end_time,
         )
       );
-      await updateChecklistCompletionApi(activeCompletion!.id, {
+      await checklistService.updateCompletion(activeCompletion!.id, {
         status: "completed",
         completed_at: now.toISOString(),
         is_late: isLate,
@@ -1645,7 +1634,7 @@ export default function ChecklistScreen() {
 
       if (editingTemplate) {
         // Update existing template via API
-        const res = await updateChecklistTemplateApi(editingTemplate.id, {
+        const res = await checklistService.updateTemplate(editingTemplate.id, {
           propertyId,
           title: tplTitle.trim(),
           description: tplDesc.trim() || null,
@@ -1659,7 +1648,7 @@ export default function ChecklistScreen() {
         if (res.error) throw new Error(res.error);
       } else {
         // Create new template via API
-        const res = await createChecklistTemplateApi({
+        const res = await checklistService.createTemplate({
           propertyId,
           organization_id: orgId,
           title: tplTitle.trim(),
@@ -1701,7 +1690,7 @@ export default function ChecklistScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await updateChecklistTemplateApi(template.id, {
+              await checklistService.updateTemplate(template.id, {
                 is_active: false,
               });
               await fetchTemplates();
@@ -1722,7 +1711,7 @@ export default function ChecklistScreen() {
           text: "Start",
           onPress: async () => {
             try {
-              await updateChecklistTemplateApi(template.id, {
+              await checklistService.updateTemplate(template.id, {
                 is_running: true,
               });
               await fetchTemplates();
@@ -1742,7 +1731,7 @@ export default function ChecklistScreen() {
             text: "Pause",
             onPress: async () => {
               try {
-                await updateChecklistTemplateApi(template.id, {
+                await checklistService.updateTemplate(template.id, {
                   is_running: false,
                 });
                 await fetchTemplates();

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '@/utils/supabase/client';
+import { checklistService } from '@/services/checklistService';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import ScannerView from '@/components/shared/ScannerView';
@@ -68,18 +68,14 @@ export default function ChecklistScanScreen() {
         // Not a URL, use raw code as templateId
       }
 
-      const { data, error } = await supabase
-        .from('sop_templates')
-        .select('id, title, description, frequency, start_time, end_time, property_id, organization_id, is_active')
-        .eq('property_id', propertyId)
-        .eq('id', templateId)
-        .eq('is_active', true)
-        .maybeSingle();
+      const res = await checklistService.fetchChecklistData(propertyId);
+      if (!res.success) throw new Error(String(res.error || 'Lookup failed'));
 
-      if (error) throw error;
+      const templates = res.data?.templates || [];
+      const found = templates.find((t: any) => t.id === templateId && t.is_active);
 
-      if (data) {
-        setTemplate(data as SOPTemplate);
+      if (found) {
+        setTemplate(found as SOPTemplate);
         setState('found');
       } else {
         setState('notfound');

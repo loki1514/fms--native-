@@ -337,9 +337,12 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
     if (!editingTicket || !editTitle.trim()) return;
     setIsUpdating(true);
     try {
-      const { error } = await (supabase.from('tickets') as any)
-        .update({ title: editTitle, description: editDescription })
-        .eq('id', editingTicket.id);
+      const { error } = await serverApi.query({
+        table: 'tickets',
+        action: 'update',
+        values: { title: editTitle, description: editDescription },
+        filters: [{ op: 'eq', column: 'id', value: editingTicket.id }],
+      });
       if (error) throw error;
       setEditingTicket(null);
       fetchTickets();

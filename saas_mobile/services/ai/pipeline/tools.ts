@@ -236,11 +236,20 @@ export async function getPropertyInfoTool(propertyId: string): Promise<ToolResul
     if (error) throw new Error(error.message);
 
     const [{ count: openCount }, { count: totalCount }] = await Promise.all([
-      supabase.from('tickets').select('*', { count: 'exact', head: true })
-        .eq('property_id', propertyId).eq('is_internal', false)
-        .not('status', 'in', '(resolved,closed)'),
-      supabase.from('tickets').select('*', { count: 'exact', head: true })
-        .eq('property_id', propertyId).eq('is_internal', false),
+      serverApi.query({
+        table: 'tickets',
+        action: 'select',
+        select: '*',
+        selectOptions: { count: 'exact', head: true },
+        filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'is_internal', value: false }, { op: 'not', column: 'status', operator: 'in', value: '(resolved,closed)' }],
+      }),
+      serverApi.query({
+        table: 'tickets',
+        action: 'select',
+        select: '*',
+        selectOptions: { count: 'exact', head: true },
+        filters: [{ op: 'eq', column: 'property_id', value: propertyId }, { op: 'eq', column: 'is_internal', value: false }],
+      }),
     ]);
 
     return {

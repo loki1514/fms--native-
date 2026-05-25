@@ -168,8 +168,8 @@ function Sidebar({
   const textSecondary = isDark ? 'rgba(230,235,238,0.5)' : 'rgba(26,35,50,0.5)';
   const primary = '#708F96';
 
-  const currentW = isMobile ? 288 : (collapsed ? 72 : 288);
-  const sidebarLeft = isMobile ? (collapsed ? -288 : 0) : 0;
+  const currentW = isMobile ? (collapsed ? 0 : SIDEBAR_WIDTH) : (collapsed ? 72 : SIDEBAR_WIDTH);
+  const sidebarLeft = isMobile ? (collapsed ? -SIDEBAR_WIDTH : 0) : 0;
 
   const filteredItems = getFilteredNavItems(role);
   const operationsItems = filteredItems.filter((i) => NAV_SECTIONS[0].routes.includes(i.route));
@@ -527,7 +527,7 @@ export default function PropertyLayout() {
       <PropertyContext.Provider value={propertyInfo}>
         <View style={{ flex: 1, backgroundColor: colors.background }}>
           <Slot />
-          <GlobalBottomNav />
+          {role !== 'tenant' && role !== 'super_tenant' && <GlobalBottomNav />}
         </View>
       </PropertyContext.Provider>
     );
@@ -572,7 +572,7 @@ export default function PropertyLayout() {
           organizationId={membership?.org_id ?? ''}
           role={membershipRole === 'org_super_admin' ? 'super_admin' : (membershipRole === 'property_admin' ? 'admin' : 'tenant')}
         />
-        <GlobalBottomNav />
+        {role !== 'tenant' && role !== 'super_tenant' && <GlobalBottomNav />}
       </View>
     </PropertyContext.Provider>
   );

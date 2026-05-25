@@ -40,6 +40,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createClient } from '../../utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
 import TicketCard from '../shared/TicketCard';
@@ -396,9 +397,12 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
     if (!editingTicket || !editTitle.trim()) return;
     setIsUpdating(true);
     try {
-      const { error } = await (supabase.from('tickets') as any)
-        .update({ title: editTitle, description: editDescription })
-        .eq('id', editingTicket.id);
+      const { error } = await serverApi.query({
+        table: 'tickets',
+        action: 'update',
+        values: { title: editTitle, description: editDescription },
+        filters: [{ op: 'eq', column: 'id', value: editingTicket.id }],
+      });
 
       if (error) throw error;
       setEditingTicket(null);

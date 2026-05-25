@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { serverApi } from '@/lib/serverApi';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { History, ArrowRight, CheckCircle2, Clock, AlertTriangle } from 'lucide-react-native';
@@ -30,13 +31,18 @@ export default function SOPCompletionHistory({ propertyId: propId, templateId }:
 
   const [completions, setCompletions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-
   useEffect(() => {
     if (!pid) return;
-    let query = supabase.from('sop_completions').select('id, status, completed_at, template:sop_templates(title)').eq('property_id', pid).order('completed_at', { ascending: false }).limit(20);
-    if (templateId) query = query.eq('template_id', templateId);
-    query.then(({ data, error }: any) => {
+    const filters: any[] = [{ op: 'eq', column: 'property_id', value: pid }];
+    if (templateId) filters.push({ op: 'eq', column: 'template_id', value: templateId });
+    serverApi.query({
+      table: 'sop_completions',
+      action: 'select',
+      select: 'id, status, completed_at, template:sop_templates(title)',
+      filters,
+      orders: [{ column: 'completed_at', ascending: false }],
+      limit: 20,
+    }).then(({ data, error }: any) => {
       if (!error) setCompletions(data || []);
       setLoading(false);
     });

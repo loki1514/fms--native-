@@ -13,10 +13,13 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import SafeBlurView from '@/components/ui/SafeBlurView';
 
 interface Generator {
   id: string;
@@ -48,6 +51,7 @@ export default function GeneratorConfigModal({
   const { theme } = useTheme();
   const { user: authUser } = useAuth();
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   const isNew = !existingGenerator;
 
   const [name, setName] = useState('');
@@ -62,7 +66,6 @@ export default function GeneratorConfigModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Populate form when editing
   useEffect(() => {
     if (visible) {
       if (existingGenerator) {
@@ -90,17 +93,6 @@ export default function GeneratorConfigModal({
     }
   }, [visible, existingGenerator]);
 
-  const numInput = (val: string, setter: (v: string) => void, placeholder = '0') => (
-    <TextInput
-      style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-      value={val}
-      onChangeText={setter}
-      placeholder={placeholder}
-      placeholderTextColor={colors.textTertiary}
-      keyboardType="decimal-pad"
-    />
-  );
-
   const handleSubmit = async () => {
     if (!name.trim()) {
       setError('Generator name is required');
@@ -126,7 +118,6 @@ export default function GeneratorConfigModal({
     setError(null);
     try {
       if (isNew) {
-        // 1. Create generator
         const { data: gen, error: genErr } = await supabase
           .from('generators')
           .insert({
@@ -146,7 +137,6 @@ export default function GeneratorConfigModal({
 
         if (genErr) throw genErr;
 
-        // 2. Record initial setup reading
         const kwh = parseFloat(initialKwh) || 0;
         const hrs = parseFloat(initialRunHours) || 0;
         if (kwh > 0 || hrs > 0 || initDiesel > 0) {
@@ -170,7 +160,6 @@ export default function GeneratorConfigModal({
           if (readingErr) console.error('[Generators] Error recording initial reading:', readingErr.message);
         }
       } else {
-        // Update existing generator
         const { error: updateErr } = await (supabase as any)
           .from('generators')
           .update({
@@ -193,148 +182,200 @@ export default function GeneratorConfigModal({
     }
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  const SectionTitle = ({ icon, title }: { icon: string; title: string }) => (
+    <View style={styles.sectionHeader}>
+      <View style={[styles.sectionIcon, { backgroundColor: colors.primary + '18' }]}>
+        <Ionicons name={icon as any} size={16} color={colors.primary} />
+      </View>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+    </View>
+  );
+
+  const Label = ({ text, required }: { text: string; required?: boolean }) => (
+    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>
+      {text}{required && <Text style={{ color: colors.error }}> *</Text>}
+    </Text>
+  );
+
+  const Input = ({ value, onChange, placeholder, keyboard = 'default' }: any) => (
+    <TextInput
+      style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
+      value={value}
+      onChangeText={onChange}
+      placeholder={placeholder}
+      placeholderTextColor={colors.textTertiary}
+      keyboardType={keyboard}
+    />
+  );
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={[styles.container, { backgroundColor: colors.background }]}>
           {/* Header */}
-          <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={[styles.headerIcon, { backgroundColor: colors.primaryLight }]}>
-                <Ionicons name="construct" size={20} color={colors.primary} />
+          <SafeBlurView intensity={80} tint="dark" style={[styles.header, { paddingTop: insets.top + 12 }]}>
+            <View style={styles.headerLeft}>
+              <View style={[styles.headerIconWrap, { backgroundColor: colors.primary + '20' }]}>
+                <Ionicons name={isNew ? 'add-circle' : 'create'} size={22} color={colors.primary} />
               </View>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>
-                {isNew ? 'Add Generator' : 'Edit Generator'}
-              </Text>
+              <View>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>
+                  {isNew ? 'Add Generator' : 'Edit Generator'}
+                </Text>
+                <Text style={[styles.headerSub, { color: colors.textSecondary }]}>
+                  {isNew ? 'Register a new DG set' : 'Update generator details'}
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="close" size={22} color={colors.textSecondary} />
+            <TouchableOpacity onPress={onClose} style={styles.headerClose}>
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
-          </View>
+          </SafeBlurView>
 
-          <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             {error && (
-              <View style={[styles.errorBox, { backgroundColor: colors.errorBg, borderColor: colors.errorBorder }]}>
-                <Ionicons name="alert-circle" size={16} color={colors.error} />
+              <View style={[styles.errorBox, { backgroundColor: colors.error + '12', borderColor: colors.error + '30' }]}>
+                <Ionicons name="alert-circle" size={18} color={colors.error} />
                 <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
               </View>
             )}
 
-            {/* Identity Section */}
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Generator Identity</Text>
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Name *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. DG-1"
-              placeholderTextColor={colors.textTertiary}
-            />
-            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Make</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
-              value={make}
-              onChangeText={setMake}
-              placeholder="e.g. Cummins"
-              placeholderTextColor={colors.textTertiary}
-            />
+            {/* Identity Card */}
+            <SafeBlurView intensity={40} tint="dark" style={styles.card}>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)', 'rgba(0,0,0,0.1)']}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <SectionTitle icon="hardware-chip-outline" title="Identity" />
+              <Label text="Generator Name" required />
+              <Input value={name} onChange={setName} placeholder="e.g. DG-1 Main Power" />
+              <Label text="Make / Manufacturer" />
+              <Input value={make} onChange={setMake} placeholder="e.g. Cummins, Kirloskar" />
+            </SafeBlurView>
 
-            {/* Capacity Section */}
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Capacity & Storage</Text>
-            <View style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Capacity (KVA) *</Text>
-                {numInput(capacityKva, setCapacityKva, '500')}
+            {/* Capacity Card */}
+            <SafeBlurView intensity={40} tint="dark" style={styles.card}>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)', 'rgba(0,0,0,0.1)']}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <SectionTitle icon="speedometer-outline" title="Capacity & Tank" />
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Label text="Capacity (kVA)" required />
+                  <Input value={capacityKva} onChange={setCapacityKva} placeholder="500" keyboard="decimal-pad" />
+                </View>
+                <View style={{ width: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Label text="Tank (Litres)" required />
+                  <Input value={tankCapacity} onChange={setTankCapacity} placeholder="1000" keyboard="decimal-pad" />
+                </View>
               </View>
-              <View style={{ width: 12 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Tank Capacity (L) *</Text>
-                {numInput(tankCapacity, setTankCapacity, '1000')}
+            </SafeBlurView>
+
+            {/* Status Card */}
+            <SafeBlurView intensity={40} tint="dark" style={styles.card}>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)', 'rgba(0,0,0,0.1)']}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <SectionTitle icon="power-outline" title="Status" />
+              <View style={styles.row}>
+                <TouchableOpacity
+                  style={[
+                    styles.statusBtn,
+                    status === 'active'
+                      ? { backgroundColor: '#22C55E18', borderColor: '#22C55E' }
+                      : { backgroundColor: colors.surface, borderColor: colors.border }
+                  ]}
+                  onPress={() => setStatus('active')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="checkmark-circle" size={18} color={status === 'active' ? '#22C55E' : colors.textTertiary} />
+                  <Text style={[styles.statusText, { color: status === 'active' ? '#22C55E' : colors.textSecondary }]}>
+                    Active
+                  </Text>
+                </TouchableOpacity>
+                <View style={{ width: 12 }} />
+                <TouchableOpacity
+                  style={[
+                    styles.statusBtn,
+                    status === 'inactive'
+                      ? { backgroundColor: '#EF444418', borderColor: '#EF4444' }
+                      : { backgroundColor: colors.surface, borderColor: colors.border }
+                  ]}
+                  onPress={() => setStatus('inactive')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="pause-circle" size={18} color={status === 'inactive' ? '#EF4444' : colors.textTertiary} />
+                  <Text style={[styles.statusText, { color: status === 'inactive' ? '#EF4444' : colors.textSecondary }]}>
+                    Inactive
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </View>
+            </SafeBlurView>
 
-            {/* Status */}
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Status</Text>
-            <View style={styles.row}>
-              <TouchableOpacity
-                style={[styles.statusBtn, status === 'active' ? { backgroundColor: colors.success + '18', borderColor: colors.success } : { backgroundColor: colors.surface, borderColor: colors.border }]}
-                onPress={() => setStatus('active')}
-              >
-                <Ionicons name="checkmark-circle" size={16} color={status === 'active' ? colors.success : colors.textTertiary} />
-                <Text style={[styles.statusBtnText, { color: status === 'active' ? colors.success : colors.textSecondary }]}>Active</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.statusBtn, status === 'inactive' ? { backgroundColor: colors.error + '18', borderColor: colors.error } : { backgroundColor: colors.surface, borderColor: colors.border }]}
-                onPress={() => setStatus('inactive')}
-              >
-                <Ionicons name="pause-circle" size={16} color={status === 'inactive' ? colors.error : colors.textTertiary} />
-                <Text style={[styles.statusBtnText, { color: status === 'inactive' ? colors.error : colors.textSecondary }]}>Inactive</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Initial Setup (New Only) */}
+            {/* Initial Setup Card (new only) */}
             {isNew && (
-              <View style={[styles.initialSection, { borderColor: colors.primary + '40', backgroundColor: colors.primaryLight }]}>
-                <View style={styles.initialHeader}>
-                  <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-                  <Text style={[styles.initialTitle, { color: colors.primary }]}>Initial Setup</Text>
-                </View>
-                <Text style={[styles.initialSub, { color: colors.textSecondary }]}>
-                  Starting truth for first log entry
+              <SafeBlurView intensity={40} tint="dark" style={[styles.card, { borderColor: colors.primary + '40' }]}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.01)', 'rgba(0,0,0,0.1)']}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <SectionTitle icon="flag-outline" title="Initial Setup" />
+                <Text style={[styles.setupHint, { color: colors.textSecondary }]}>
+                  Starting values for the first log entry
                 </Text>
-
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Initial kWh *</Text>
-                    {numInput(initialKwh, setInitialKwh, '0')}
+                    <Label text="Initial kWh" />
+                    <Input value={initialKwh} onChange={setInitialKwh} placeholder="0" keyboard="decimal-pad" />
                   </View>
                   <View style={{ width: 12 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Initial Run Hours *</Text>
-                    {numInput(initialRunHours, setInitialRunHours, '0')}
+                    <Label text="Run Hours" />
+                    <Input value={initialRunHours} onChange={setInitialRunHours} placeholder="0" keyboard="decimal-pad" />
                   </View>
                 </View>
-
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Initial Diesel Level (L) *</Text>
-                    {numInput(initialDiesel, setInitialDiesel, '0')}
+                    <Label text="Diesel Level (L)" />
+                    <Input value={initialDiesel} onChange={setInitialDiesel} placeholder="0" keyboard="decimal-pad" />
                   </View>
                   <View style={{ width: 12 }} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Effective From *</Text>
-                    <TouchableOpacity style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, justifyContent: 'center' }]}>
+                    <Label text="Effective From" />
+                    <View style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, justifyContent: 'center' }]}>
                       <Text style={{ color: colors.text, fontFamily: 'Urbanist-Medium', fontSize: 15 }}>
-                        {new Date(effectiveFrom + 'T00:00:00').toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {new Date(effectiveFrom + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </Text>
-                    </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
+              </SafeBlurView>
             )}
 
-            {/* Submit */}
+            {/* Actions */}
             <TouchableOpacity
               style={[styles.submitBtn, { backgroundColor: colors.primary }, isSubmitting && { opacity: 0.6 }]}
               onPress={handleSubmit}
               disabled={isSubmitting}
+              activeOpacity={0.8}
             >
               {isSubmitting ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <Text style={styles.submitBtnText}>
-                  {isNew ? 'Add Generator' : 'Update Generator'}
+                  {isNew ? 'Add Generator' : 'Save Changes'}
                 </Text>
               )}
             </TouchableOpacity>
 
-            {/* Cancel */}
-            <TouchableOpacity style={[styles.cancelBtn, { borderColor: colors.border }]} onPress={onClose}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.7}>
               <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>Cancel</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -350,118 +391,85 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
-  headerIcon: {
-    width: 40,
-    height: 40,
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: { fontSize: 18, fontFamily: 'Poppins-Bold' },
+  headerSub: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginTop: 2 },
+  headerClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' },
+  scrollContent: { padding: 16, gap: 12 },
+  card: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 18,
+  },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  sectionIcon: {
+    width: 32,
+    height: 32,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: 'Poppins-Bold',
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontFamily: 'Urbanist-Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    marginTop: 12,
-  },
+  sectionTitle: { fontSize: 15, fontFamily: 'Poppins-Bold' },
+  fieldLabel: { fontSize: 12, fontFamily: 'Urbanist-Bold', marginBottom: 8, marginTop: 12 },
   input: {
-    padding: 14,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
     borderWidth: 1,
     fontSize: 15,
     fontFamily: 'Urbanist-Medium',
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
+  row: { flexDirection: 'row', marginTop: 4 },
   statusBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
-  },
-  statusBtnText: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-  },
-  initialSection: {
-    marginTop: 24,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1.5,
-  },
-  initialHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
   },
-  initialTitle: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  initialSub: {
-    fontSize: 11,
-    fontFamily: 'Urbanist-Regular',
-    marginBottom: 12,
-  },
+  statusText: { fontSize: 14, fontFamily: 'Poppins-Bold' },
+  setupHint: { fontSize: 12, fontFamily: 'Urbanist-Medium', marginBottom: 10, marginTop: -6 },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  errorText: {
-    fontSize: 13,
-    fontFamily: 'Urbanist-SemiBold',
-    flex: 1,
-  },
-  submitBtn: {
-    padding: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 28,
-  },
-  submitBtnText: {
-    fontSize: 16,
-    fontFamily: 'Poppins-Bold',
-    color: '#FFFFFF',
-  },
-  cancelBtn: {
+    gap: 10,
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
+  errorText: { fontSize: 13, fontFamily: 'Urbanist-SemiBold', flex: 1 },
+  submitBtn: {
+    paddingVertical: 16,
+    borderRadius: 16,
     alignItems: 'center',
-    borderWidth: 1.5,
-    marginTop: 10,
+    marginTop: 8,
   },
-  cancelBtnText: {
-    fontSize: 14,
-    fontFamily: 'Poppins-Bold',
+  submitBtnText: { fontSize: 16, fontFamily: 'Poppins-Bold', color: '#FFFFFF' },
+  cancelBtn: {
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
+  cancelBtnText: { fontSize: 14, fontFamily: 'Poppins-Bold' },
 });

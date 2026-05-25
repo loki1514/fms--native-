@@ -33,6 +33,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/utils/supabase/client';
+import { authService } from '@/services/authService';
 import { Colors } from '@/constants/Colors';
 import { AutopilotLogo } from '@/components/ui/AutopilotLogo';
 import Animated, {
@@ -319,9 +320,26 @@ export default function LoginScreen() {
   };
 
   // ─── Handle Google OAuth ────────────────────────────────────────────────────
-  const handleGoogleAuth = () => {
-    setApiError('Google Sign-In is not yet configured on mobile. Please sign in with your email and password.');
+  // ─── Handle Google OAuth ────────────────────────────────────────────────────
+  const handleGoogleAuth = async () => {
+    setApiError('');
+    try {
+      const res = await authService.signInWithGoogle();
+      if (res.error) throw new Error(res.error as any);
+      // After successful OAuth, fetch the current user
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error('Google sign-in failed');
+      await resolveAndRedirect(authUser.id);
+    } catch (err: any) {
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('network')) {
+        setApiError('Network error. Please check your internet connection and try again.');
+      } else {
+        setApiError(err.message || 'Google sign-in failed.');
+      }
+    }
   };
+
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (

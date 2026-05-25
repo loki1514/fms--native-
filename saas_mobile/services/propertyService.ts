@@ -1,4 +1,4 @@
-import { supabase } from '@/utils/supabase';
+import { serverApi } from '@/lib/serverApi';
 import { ApiResponse } from './api/client';
 import type { Property, Organization } from '@/types';
 
@@ -37,54 +37,44 @@ function err<T>(error: string): ApiResponse<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Service
+// Property Service — routes through saas_mobile_server (generic proxy)
 // ---------------------------------------------------------------------------
 
 export const propertyService = {
   // List properties the current user has access to
-  async getProperties(
-    filters?: { search?: string; organizationId?: string; status?: string }
-  ): Promise<ApiResponse<Property[]>> {
+  async getProperties(filters?: { search?: string; organizationId?: string; status?: string }): Promise<ApiResponse<Property[]>> {
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session?.session?.user?.id;
-      if (!userId) return err('Not authenticated');
+      // Get user's property memberships via server
+      const memRes = await serverApi.query<{ property_id: string }[]>({
+        table: 'property_memberships',
+        action: 'select',
+        select: 'property_id',
+        filters: [{ op: 'is', column: 'is_active', value: true }],
+      });
+      if (memRes.error) throw new Error(memRes.error.message);
 
-      // Get property IDs the user has active membership in
-      const { data: memberships, error: memError }: any = await (supabase as any)
-        .from('property_memberships')
-        .select('property_id')
-        .eq('user_id', userId)
-        .eq('is_active', true);
-
-      if (memError) return err(memError?.message ?? 'Failed to fetch properties');
-
-      const propertyIds = (memberships ?? []).map((m: Record<string, unknown>) => m.property_id as string);
+      const propertyIds = (memRes.data ?? []).map((m) => m.property_id);
       if (propertyIds.length === 0) return ok([]);
 
-      let query = (supabase as any)
-        .from('properties')
-        .select(
-          `id, organization_id, name, type, address, city, state, zip,
-          phone, email, status, total_units, occupied_units, amenities,
-          code, created_at, updated_at`
-        )
-        .in('id', propertyIds);
+      const queryFilters: any[] = [{ op: 'in', column: 'id', values: propertyIds }];
+      if (filters?.organizationId) queryFilters.push({ op: 'eq', column: 'organization_id', value: filters.organizationId });
+      if (filters?.status) queryFilters.push({ op: 'eq', column: 'status', value: filters.status });
 
-      if (filters?.organizationId) {
-        query = query.eq('organization_id', filters.organizationId);
-      }
-      if (filters?.status) {
-        query = query.eq('status', filters.status);
-      }
+      const res = await serverApi.query<any[]>({
+        table: 'properties',
+        action: 'select',
+        select: 'id, organization_id, name, type, address, city, state, zip, phone, email, status, total_units, occupied_units, amenities, code, created_at, updated_at',
+        filters: queryFilters,
+        orders: [{ column: 'name', ascending: true }],
+      });
+      if (res.error) throw new Error(res.error.message);
+
+      let rows = res.data ?? [];
       if (filters?.search) {
-        query = query.ilike('name', `%${filters.search}%`);
+        const term = filters.search.toLowerCase();
+        rows = rows.filter((r) => (r.name as string).toLowerCase().includes(term));
       }
-
-      const { data, error } = await query.order('name', { ascending: true });
-
-      if (error) return err(error?.message ?? 'Failed to fetch properties');
-      return ok((data ?? []).map(mapProperty));
+      return ok(rows.map(mapProperty));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : 'Failed to fetch properties');
     }
@@ -93,20 +83,15 @@ export const propertyService = {
   // Get a single property by ID
   async getProperty(id: string): Promise<ApiResponse<Property>> {
     try {
-      const { data, error } = await (supabase as any)
-        .from('properties')
-        .select(
-          `
-          id, organization_id, name, type, address, city, state, zip,
-          phone, email, status, total_units, occupied_units, amenities,
-          code, created_at, updated_at
-          `
-        )
-        .eq('id', id)
-        .single();
-
-      if (error) return err(error?.message ?? 'Failed to fetch property');
-      return ok(mapProperty(data!));
+      const res = await serverApi.query<any>({
+        table: 'properties',
+        action: 'select',
+        select: 'id, organization_id, name, type, address, city, state, zip, phone, email, status, total_units, occupied_units, amenities, code, created_at, updated_at',
+        filters: [{ op: 'eq', column: 'id', value: id }],
+        single: true,
+      });
+      if (res.error) throw new Error(res.error.message);
+      return ok(mapProperty(res.data as Record<string, unknown>));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : 'Failed to fetch property');
     }
@@ -116,7 +101,6 @@ export const propertyService = {
   async createProperty(data: Partial<Property>): Promise<ApiResponse<Property>> {
     try {
       const payload: Record<string, unknown> = {};
-
       if (data.organizationId !== undefined) payload.organization_id = data.organizationId;
       if (data.name !== undefined) payload.name = data.name;
       if (data.type !== undefined) payload.type = data.type;
@@ -132,27 +116,23 @@ export const propertyService = {
       if (data.amenities !== undefined) payload.amenities = data.amenities;
       if (data.code !== undefined) payload.code = data.code;
 
-      const { data: row, error } = await (supabase as any)
-        .from('properties')
-        .insert(payload)
-        .select()
-        .single();
-
-      if (error) return err(error?.message ?? 'Failed to create property');
-      return ok(mapProperty(row as Record<string, unknown>));
+      const res = await serverApi.query<any>({
+        table: 'properties',
+        action: 'insert',
+        values: payload,
+        single: true,
+      });
+      if (res.error) throw new Error(res.error.message);
+      return ok(mapProperty(res.data as Record<string, unknown>));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : 'Failed to create property');
     }
   },
 
   // Update an existing property
-  async updateProperty(
-    id: string,
-    data: Partial<Property>
-  ): Promise<ApiResponse<Property>> {
+  async updateProperty(id: string, data: Partial<Property>): Promise<ApiResponse<Property>> {
     try {
       const payload: Record<string, unknown> = {};
-
       if (data.organizationId !== undefined) payload.organization_id = data.organizationId;
       if (data.name !== undefined) payload.name = data.name;
       if (data.type !== undefined) payload.type = data.type;
@@ -168,15 +148,15 @@ export const propertyService = {
       if (data.amenities !== undefined) payload.amenities = data.amenities;
       if (data.code !== undefined) payload.code = data.code;
 
-      const { data: row, error } = await (supabase as any)
-        .from('properties')
-        .update(payload)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) return err(error?.message ?? 'Failed to update property');
-      return ok(mapProperty(row as Record<string, unknown>));
+      const res = await serverApi.query<any>({
+        table: 'properties',
+        action: 'update',
+        values: payload,
+        filters: [{ op: 'eq', column: 'id', value: id }],
+        single: true,
+      });
+      if (res.error) throw new Error(res.error.message);
+      return ok(mapProperty(res.data as Record<string, unknown>));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : 'Failed to update property');
     }
@@ -185,8 +165,12 @@ export const propertyService = {
   // Delete a property
   async deleteProperty(id: string): Promise<ApiResponse<void>> {
     try {
-      const { error } = await (supabase as any).from('properties').delete().eq('id', id);
-      if (error) return err(error?.message ?? 'Failed to delete property');
+      const res = await serverApi.query({
+        table: 'properties',
+        action: 'delete',
+        filters: [{ op: 'eq', column: 'id', value: id }],
+      });
+      if (res.error) throw new Error(res.error.message);
       return ok(undefined as void);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : 'Failed to delete property');
@@ -194,34 +178,27 @@ export const propertyService = {
   },
 
   // Get enabled modules/features for a property from the parent organization
-  async getPropertyFeatures(
-    propertyId: string
-  ): Promise<ApiResponse<{ module: string; enabled: boolean }[]>> {
+  async getPropertyFeatures(propertyId: string): Promise<ApiResponse<{ module: string; enabled: boolean }[]>> {
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session?.session?.user?.id;
-      if (!userId) return err('Not authenticated');
+      const propRes = await serverApi.query<any>({
+        table: 'properties',
+        action: 'select',
+        select: 'organization_id',
+        filters: [{ op: 'eq', column: 'id', value: propertyId }],
+        single: true,
+      });
+      if (propRes.error) throw new Error(propRes.error.message);
 
-      const { data: prop, error: propError } = await (supabase as any)
-        .from('properties')
-        .select('organization_id')
-        .eq('id', propertyId)
-        .single();
+      const orgRes = await serverApi.query<any>({
+        table: 'organizations',
+        action: 'select',
+        select: 'available_modules',
+        filters: [{ op: 'eq', column: 'id', value: propRes.data?.organization_id }],
+        single: true,
+      });
+      if (orgRes.error) throw new Error(orgRes.error.message);
 
-      if (propError) return err(propError?.message ?? 'Failed to fetch property features');
-
-      const { data: org, error: orgError } = await (supabase as any)
-        .from('organizations')
-        .select('available_modules')
-        .eq('id', (prop as Record<string, unknown>).organization_id)
-        .single();
-
-      if (orgError) return err(orgError?.message ?? 'Failed to fetch organization features');
-
-      const modules: { module: string; enabled: boolean }[] = (
-        ((org as Record<string, unknown>).available_modules ?? []) as string[]
-      ).map((m: string) => ({ module: m, enabled: true }));
-
+      const modules: { module: string; enabled: boolean }[] = ((orgRes.data?.available_modules ?? []) as string[]).map((m: string) => ({ module: m, enabled: true }));
       return ok(modules);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : 'Failed to fetch property features');
@@ -229,29 +206,26 @@ export const propertyService = {
   },
 
   // Update enabled modules for a property (stored on the organization)
-  async updatePropertyFeatures(
-    propertyId: string,
-    features: Record<string, boolean>
-  ): Promise<ApiResponse<void>> {
+  async updatePropertyFeatures(propertyId: string, features: Record<string, boolean>): Promise<ApiResponse<void>> {
     try {
-      const { data: prop, error: propError } = await (supabase as any)
-        .from('properties')
-        .select('organization_id')
-        .eq('id', propertyId)
-        .single();
+      const propRes = await serverApi.query<any>({
+        table: 'properties',
+        action: 'select',
+        select: 'organization_id',
+        filters: [{ op: 'eq', column: 'id', value: propertyId }],
+        single: true,
+      });
+      if (propRes.error) throw new Error(propRes.error.message);
 
-      if (propError) return err(propError?.message ?? 'Failed to fetch property');
+      const enabledModules = Object.entries(features).filter(([, enabled]) => enabled).map(([module]) => module);
 
-      const enabledModules = Object.entries(features)
-        .filter(([, enabled]) => enabled)
-        .map(([module]) => module);
-
-      const { error } = await (supabase as any)
-        .from('organizations')
-        .update({ available_modules: enabledModules })
-        .eq('id', (prop as Record<string, unknown>).organization_id);
-
-      if (error) return err(error?.message ?? 'Failed to update property features');
+      const res = await serverApi.query({
+        table: 'organizations',
+        action: 'update',
+        values: { available_modules: enabledModules },
+        filters: [{ op: 'eq', column: 'id', value: propRes.data?.organization_id }],
+      });
+      if (res.error) throw new Error(res.error.message);
       return ok(undefined as void);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : 'Failed to update property features');
@@ -259,64 +233,48 @@ export const propertyService = {
   },
 
   // Join a property using its invite code
-  async joinProperty(
-    code: string
-  ): Promise<ApiResponse<{ property: Property; organization: Organization }>> {
+  async joinProperty(code: string): Promise<ApiResponse<{ property: Property; organization: Organization }>> {
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session?.session?.user?.id;
-      if (!userId) return err('Not authenticated');
+      const propRes = await serverApi.query<any>({
+        table: 'properties',
+        action: 'select',
+        select: 'id, organization_id, name, type, address, city, state, zip, phone, email, status, total_units, occupied_units, amenities, code, created_at, updated_at',
+        filters: [{ op: 'eq', column: 'code', value: code }],
+        single: true,
+      });
+      if (propRes.error || !propRes.data) throw new Error('Invalid or expired property code');
 
-      const { data: prop, error: propError } = await (supabase as any)
-        .from('properties')
-        .select(
-          `
-          id, organization_id, name, type, address, city, state, zip,
-          phone, email, status, total_units, occupied_units, amenities,
-          code, created_at, updated_at
-          `
-        )
-        .eq('code', code)
-        .single();
+      const orgRes = await serverApi.query<any>({
+        table: 'organizations',
+        action: 'select',
+        select: 'id, name, slug, logo_url, address, phone, email, created_at, updated_at',
+        filters: [{ op: 'eq', column: 'id', value: propRes.data.organization_id }],
+        single: true,
+      });
+      if (orgRes.error) throw new Error(orgRes.error.message);
 
-      if (propError) return err('Invalid or expired property code');
-
-      const { data: org, error: orgError } = await (supabase as any)
-        .from('organizations')
-        .select('id, name, slug, logo_url, address, phone, email, created_at, updated_at')
-        .eq('id', (prop as Record<string, unknown>).organization_id)
-        .single();
-
-      if (orgError) return err(orgError?.message ?? 'Failed to fetch organization');
-
-      // Upsert membership so the user can access the property
-      const { error: memberError } = await (supabase as any)
-        .from('property_memberships')
-        .upsert(
-          { user_id: userId, property_id: (prop as Record<string, unknown>).id, role: 'member', is_active: true },
-          { onConflict: 'user_id,property_id' }
-        );
-
-      if (memberError) return err(memberError?.message ?? 'Failed to join property');
+      // Upsert membership via server
+      const memRes = await serverApi.query({
+        table: 'property_memberships',
+        action: 'upsert',
+        values: { property_id: propRes.data.id, role: 'member', is_active: true },
+        mutationOptions: { onConflict: 'user_id,property_id' },
+      });
+      if (memRes.error) throw new Error(memRes.error.message);
 
       return ok({
-        property: mapProperty(prop as Record<string, unknown>),
+        property: mapProperty(propRes.data as Record<string, unknown>),
         organization: {
-          id: (org as Record<string, unknown>).id as string,
-          name: (org as Record<string, unknown>).name as string,
-          slug: (org as Record<string, unknown>).slug as string,
-          logoUrl: (org as Record<string, unknown>).logo_url as string | undefined,
-          address: (org as Record<string, unknown>).address as string | undefined,
-          phone: (org as Record<string, unknown>).phone as string | undefined,
-          email: (org as Record<string, unknown>).email as string | undefined,
-          settings: {
-            timezone: 'UTC',
-            currency: 'USD',
-            dateFormat: 'YYYY-MM-DD',
-            features: [],
-          } as import('@/types').OrganizationSettings,
-          createdAt: (org as Record<string, unknown>).created_at as string,
-          updatedAt: (org as Record<string, unknown>).updated_at as string,
+          id: orgRes.data.id as string,
+          name: orgRes.data.name as string,
+          slug: orgRes.data.slug as string,
+          logoUrl: orgRes.data.logo_url as string | undefined,
+          address: orgRes.data.address as string | undefined,
+          phone: orgRes.data.phone as string | undefined,
+          email: orgRes.data.email as string | undefined,
+          settings: { timezone: 'UTC', currency: 'USD', dateFormat: 'YYYY-MM-DD', features: [] } as import('@/types').OrganizationSettings,
+          createdAt: orgRes.data.created_at as string,
+          updatedAt: orgRes.data.updated_at as string,
         },
       } as { property: Property; organization: Organization });
     } catch (e: unknown) {

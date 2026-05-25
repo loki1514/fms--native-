@@ -123,10 +123,12 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
       //   setActiveShiftId(null);
       // }
 
-      const { error: rsErr } = await (supabase.from('resolver_stats') as any)
-        .update({ is_checked_in: newStatus })
-        .eq('user_id', user.id)
-        .eq('property_id', propertyId);
+      const { error: rsErr } = await serverApi.query({
+        table: 'resolver_stats',
+        action: 'update',
+        values: { is_checked_in: newStatus },
+        filters: [{ op: 'eq', column: 'user_id', value: user.id }, { op: 'eq', column: 'property_id', value: propertyId }],
+      });
       if (rsErr) throw rsErr;
 
       setIsCheckedIn(newStatus);

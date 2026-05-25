@@ -49,19 +49,19 @@ export default function TenantBottomNav() {
     if (!propertyId) return;
     switch (id) {
       case 'home':
-        router.push(`/property/${propertyId}/tenant` as any);
+        router.navigate(`/property/${propertyId}/tenant` as any);
         break;
       case 'tickets':
-        router.push(`/property/${propertyId}/tenant/requests` as any);
+        router.navigate(`/property/${propertyId}/tenant/requests` as any);
         break;
       case 'cassandra':
-        router.push(`/cassandra?propertyId=${propertyId}` as any);
+        router.navigate(`/cassandra?propertyId=${propertyId}` as any);
         break;
       case 'rooms':
-        router.push(`/property/${propertyId}/tenant/rooms` as any);
+        router.navigate(`/property/${propertyId}/rooms` as any);
         break;
       case 'communities':
-        router.push(`/property/${propertyId}/tenant/communities` as any);
+        router.navigate(`/property/${propertyId}/tenant/communities` as any);
         break;
     }
   };

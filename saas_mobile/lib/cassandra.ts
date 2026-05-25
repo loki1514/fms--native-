@@ -24,7 +24,7 @@ import {
   clearToken,
 } from '@/services/cassandra/cassandraAuthService';
 
-const DEFAULT_URL = 'https://fms-dev-saas-one.vercel.app';
+const DEFAULT_URL = 'https://www.back2basiics.com';
 const API_URL = (process.env.EXPO_PUBLIC_VOICE_API_URL ?? process.env.EXPO_PUBLIC_CASSANDRA_API_URL ?? DEFAULT_URL).replace(/\/$/, '');
 
 // ─── Offline queue ────────────────────────────────────────────────────────────

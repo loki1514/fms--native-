@@ -133,7 +133,7 @@ interface TenantGlassHeaderProps {
 
 export function TenantGlassHeader({
   propertyName = 'Property',
-  userName = 'Tenant',
+  userName = 'Client',
   isSuperTenant,
 }: TenantGlassHeaderProps) {
   const { weather, loading } = useWeather();

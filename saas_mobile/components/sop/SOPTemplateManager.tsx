@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { serverApi } from '@/lib/serverApi';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ClipboardList, Plus, ArrowRight } from 'lucide-react-native';
@@ -21,11 +22,14 @@ export default function SOPTemplateManager({ propertyId: propId }: SOPTemplateMa
 
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-
   useEffect(() => {
     if (!pid) return;
-    supabase.from('sop_templates').select('id, title, category, frequency, is_active').eq('property_id', pid).eq('is_active', true).then(({ data, error }: any) => {
+    serverApi.query({
+      table: 'sop_templates',
+      action: 'select',
+      select: 'id, title, category, frequency, is_active',
+      filters: [{ op: 'eq', column: 'property_id', value: pid }, { op: 'eq', column: 'is_active', value: true }],
+    }).then(({ data, error }: any) => {
       if (!error) setTemplates(data || []);
       setLoading(false);
     });

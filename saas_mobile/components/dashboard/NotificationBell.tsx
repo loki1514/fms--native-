@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createClient } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '@/hooks/useAuth';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useTheme } from '@/context';
@@ -478,10 +479,10 @@ export default function NotificationBell({ style, iconColor, iconSize }: { style
     const fetch = async () => {
       if (!authUser?.id || !mounted) return;
       setIsLoading(true);
-      const { data, error } = await (supabase.from('notifications').select('*').eq('user_id', authUser.id).order('created_at', { ascending: false }).limit(50) as any);
+      const { data, error } = await serverApi.query({ table: 'notifications', action: 'select', filters: [{ op: 'eq', column: 'user_id', value: authUser.id }], orders: [{ column: 'created_at', ascending: false }], limit: 50 });
       if (mounted && !error && data) {
-        setNotifications(data);
-        setUnreadCount(data.filter((n: any) => !n.is_read).length);
+        setNotifications(data as Notification[]);
+        setUnreadCount((data as any[]).filter((n: any) => !n.is_read).length);
       }
       if (mounted) setIsLoading(false);
     };
@@ -506,7 +507,7 @@ export default function NotificationBell({ style, iconColor, iconSize }: { style
   }, [supabase, authUser?.id]);
 
   const markAsRead = async (id: string) => {
-    const { error } = await (supabase as any).from('notifications').update({ is_read: true }).eq('id', id);
+    const { error } = await serverApi.query({ table: 'notifications', action: 'update', values: { is_read: true }, filters: [{ op: 'eq', column: 'id', value: id }] });
     if (!error) {
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
       setUnreadCount((count) => Math.max(0, count - 1));
@@ -515,7 +516,7 @@ export default function NotificationBell({ style, iconColor, iconSize }: { style
 
   const markAllAsRead = async () => {
     if (!authUser?.id) return;
-    const { error } = await (supabase as any).from('notifications').update({ is_read: true }).eq('user_id', authUser.id).neq('is_read', true);
+    const { error } = await serverApi.query({ table: 'notifications', action: 'update', values: { is_read: true }, filters: [{ op: 'eq', column: 'user_id', value: authUser.id }, { op: 'not', column: 'is_read', operator: 'eq', value: true }] });
     if (!error) {
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
@@ -640,7 +641,7 @@ export default function NotificationBell({ style, iconColor, iconSize }: { style
           setIsLoading(true);
           const uid = authUser?.id;
           if (!uid) return;
-          supabase.from('notifications').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(50).then(({ data, error }: any) => {
+          serverApi.query({ table: 'notifications', action: 'select', filters: [{ op: 'eq', column: 'user_id', value: uid }], orders: [{ column: 'created_at', ascending: false }], limit: 50 }).then(({ data, error }: any) => {
             if (!error && data) {
               setNotifications(data);
               setUnreadCount(data.filter((n: any) => !n.is_read).length);
