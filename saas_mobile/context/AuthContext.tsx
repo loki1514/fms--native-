@@ -150,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           `
           )
           .eq('user_id', userId)
-          .eq('is_active', true)
+          .or('is_active.eq.true,is_active.is.null')
           .limit(1)
           .maybeSingle();
 
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           `
           )
           .eq('user_id', userId)
-          .eq('is_active', true);
+          .or('is_active.eq.true,is_active.is.null');
 
         const builtProperties: PropertyInfo[] = (propData ?? [])
           .map((p: any) => {

@@ -1,251 +1,206 @@
-import { supabase } from '@/utils/supabase';
-import { ApiResponse } from './api/client';
-import type { MeetingRoom, RoomBooking } from '@/types';
+import { serverApi } from '@/lib/serverApi';
 
-const mapRoomFromDb = (row: Record<string, unknown>): MeetingRoom => ({
-  id: row.id as string,
-  propertyId: row.property_id as string,
-  name: row.name as string,
-  location: row.location as string,
-  capacity: row.capacity as number,
-  size: row.size as number,
-  status: (row.status ?? 'available') as 'available' | 'maintenance' | 'inactive',
-  images: row.photo_url ? [row.photo_url as string] : [],
-  amenities: (row.amenities as string[]) || [],
-  createdAt: (row.created_at as string) || '',
-  updatedAt: (row.updated_at as string) || '',
-});
+// ---------------------------------------------------------------------------
+// Types (aligned with mobileApi.ts for drop-in replacement)
+// ---------------------------------------------------------------------------
 
-const mapBookingFromDb = (row: Record<string, unknown>): RoomBooking => ({
-  id: row.id as string,
-  roomId: row.room_id as string,
-  organizerId: row.user_id as string,
-  title: row.title as string,
-  attendees: (row.attendees as string[]) || [],
-  startTime: row.start_time as string,
-  endTime: row.end_time as string,
-  status: row.status as 'confirmed' | 'cancelled' | 'completed',
-  creditsUsed: row.credits_used as number,
-  notes: (row.notes as string | null) ?? undefined,
-  createdAt: row.created_at as string,
-});
+export interface MeetingRoom {
+  id: string;
+  property_id: string;
+  name: string;
+  photo_url?: string;
+  location?: string;
+  capacity: number;
+  size?: number;
+  amenities?: string[];
+  status: string;
+  created_by?: string;
+  created_at: string;
+}
 
-export const meetingRoomService = {
-  async getMeetingRooms(filters?: {
-    propertyId?: string;
-    search?: string;
-    status?: string;
-  }): Promise<ApiResponse<MeetingRoom[]>> {
-    try {
-      let query = (supabase
-        .from('meeting_rooms')
-        .select('*')
-        .order('name', { ascending: true }) as any);
+export interface MeetingRoomBooking {
+  id: string;
+  meeting_room_id: string;
+  property_id: string;
+  user_id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  company_id?: string;
+  organization_id?: string;
+  created_at: string;
+  meeting_room?: { name: string; photo_url?: string; location?: string };
+  tenant?: { full_name: string; email: string };
+}
 
-      if (filters?.propertyId) {
-        query = query.eq('property_id', filters.propertyId);
-      }
-      if (filters?.status) {
-        query = query.eq('status', filters.status);
-      }
-      if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,location.ilike.%${filters.search}%`);
-      }
+export interface MeetingRoomCredit {
+  id: string;
+  property_id: string;
+  user_id?: string;
+  company_id?: string;
+  assigned_by?: string;
+  monthly_hours: number;
+  remaining_hours: number;
+  last_reset_at: string;
+  next_reset_at: string;
+  created_at: string;
+  updated_at: string;
+}
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return { data: (data || []).map(mapRoomFromDb), error: null };
-    } catch (err) {
-      return { data: [], error: err as Error };
-    }
-  },
+// ---------------------------------------------------------------------------
+// Meeting Room Service — routes ALL data through saas_mobile_server
+// ---------------------------------------------------------------------------
 
-  async getMeetingRoom(id: string): Promise<ApiResponse<MeetingRoom>> {
-    try {
-      const { data, error }: any = await (supabase
-        .from('meeting_rooms')
-        .select('*')
-        .eq('id', id)
-        .single());
+export async function getMeetingRooms(propertyId: string, status?: string): Promise<{ rooms?: MeetingRoom[]; error?: string }> {
+  try {
+    const params = new URLSearchParams();
+    params.append('propertyId', propertyId);
+    if (status) params.append('status', status);
 
-      if (error) throw error;
-      return { data: data ? mapRoomFromDb(data) : null, error: null };
-    } catch (err) {
-      return { data: null, error: err as Error };
-    }
-  },
+    const res = await serverApi.get<any>(`/api/meeting-rooms?${params.toString()}`);
+    if (res.error) throw new Error(res.error.message ?? 'Failed to fetch rooms');
+    return { rooms: res.data?.rooms ?? [] };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
 
-  async createMeetingRoom(data: Partial<MeetingRoom>): Promise<ApiResponse<MeetingRoom>> {
-    try {
-      const payload: Record<string, unknown> = {
-        property_id: data.propertyId,
-        name: data.name,
-        location: data.location,
-        capacity: data.capacity,
-        size: data.size,
-        status: data.status,
-        amenities: data.amenities,
-      };
+export async function getMeetingRoomBookings(propertyId: string, status?: string): Promise<{ bookings?: MeetingRoomBooking[]; error?: string }> {
+  try {
+    const params = new URLSearchParams();
+    params.append('propertyId', propertyId);
+    if (status) params.append('status', status);
 
-      if (data.images && data.images.length > 0) {
-        payload.photo_url = data.images[0];
-      }
+    const res = await serverApi.get<any>(`/api/meeting-room-bookings?${params.toString()}`);
+    if (res.error) throw new Error(res.error.message ?? 'Failed to fetch bookings');
+    return { bookings: res.data?.bookings ?? [] };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
 
-      const { data: row, error }: any = await (supabase as any)
-        .from('meeting_rooms')
-        .insert(payload)
-        .select()
-        .single();
+export async function getMeetingRoomCredits(propertyId: string): Promise<{ credit?: MeetingRoomCredit | null; company?: any | null; error?: string }> {
+  try {
+    const res = await serverApi.get<any>(`/api/meeting-room-credits?propertyId=${propertyId}`);
+    if (res.error) throw new Error(res.error.message ?? 'Failed to fetch credits');
+    return { credit: res.data?.credit ?? null, company: res.data?.company ?? null };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
 
-      if (error) throw error;
-      return { data: row ? mapRoomFromDb(row) : null, error: null };
-    } catch (err) {
-      return { data: null, error: err as Error };
-    }
-  },
+export interface CreateBookingInput {
+  meetingRoomId: string;
+  propertyId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
 
-  async updateMeetingRoom(id: string, data: Partial<MeetingRoom>): Promise<ApiResponse<MeetingRoom>> {
-    try {
-      const payload: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
+export async function createMeetingRoomBooking(input: CreateBookingInput): Promise<{ success?: boolean; booking?: MeetingRoomBooking; error?: string }> {
+  try {
+    const res = await serverApi.post<any>('/api/meeting-room-bookings', input);
+    if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Failed to create booking');
+    return { success: true, booking: res.data?.booking as MeetingRoomBooking };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
 
-      if (data.propertyId !== undefined) payload.property_id = data.propertyId;
-      if (data.name !== undefined) payload.name = data.name;
-      if (data.location !== undefined) payload.location = data.location;
-      if (data.capacity !== undefined) payload.capacity = data.capacity;
-      if (data.size !== undefined) payload.size = data.size;
-      if (data.status !== undefined) payload.status = data.status;
-      if (data.amenities !== undefined) payload.amenities = data.amenities;
-      if (data.images !== undefined) payload.photo_url = data.images[0] ?? null;
+export async function cancelMeetingRoomBookingApi(bookingId: string): Promise<{ success?: boolean; error?: string }> {
+  try {
+    const res = await serverApi.patch<any>(`/api/meeting-room-bookings/${bookingId}`, { status: 'cancelled' });
+    if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Failed to cancel booking');
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
 
-      const { data: row, error }: any = await (supabase as any)
-        .from('meeting_rooms')
-        .update(payload)
-        .eq('id', id)
-        .select()
-        .single();
+export interface CreateMeetingRoomInput {
+  name: string;
+  propertyId: string;
+  location?: string;
+  capacity: number;
+  size?: number;
+  amenities?: string[];
+  photo_url?: string;
+  status?: string;
+}
 
-      if (error) throw error;
-      return { data: row ? mapRoomFromDb(row) : null, error: null };
-    } catch (err) {
-      return { data: null, error: err as Error };
-    }
-  },
+export async function createMeetingRoomApi(input: CreateMeetingRoomInput): Promise<{ success?: boolean; room?: MeetingRoom; error?: string }> {
+  try {
+    const res = await serverApi.post<any>('/api/meeting-rooms', input);
+    if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Failed to create room');
+    return { success: true, room: res.data?.room as MeetingRoom };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
 
-  async deleteMeetingRoom(id: string): Promise<ApiResponse<void>> {
-    try {
-      const { error } = await (supabase
-        .from('meeting_rooms')
-        .delete() as any)
-        .eq('id', id);
+export async function updateMeetingRoomApi(id: string, input: Partial<CreateMeetingRoomInput>): Promise<{ success?: boolean; room?: MeetingRoom; error?: string }> {
+  try {
+    const res = await serverApi.patch<any>(`/api/meeting-rooms/${id}`, input);
+    if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Failed to update room');
+    return { success: true, room: res.data?.room as MeetingRoom };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
 
-      if (error) throw error;
-      return { data: undefined, error: null };
-    } catch (err) {
-      return { data: undefined, error: err as Error };
-    }
-  },
+export async function deleteMeetingRoomApi(id: string): Promise<{ success?: boolean; error?: string }> {
+  try {
+    const res = await serverApi.delete<any>(`/api/meeting-rooms/${id}`);
+    if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Failed to deactivate room');
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
 
-  async getBookings(
-    roomId?: string,
-    filters?: { date?: string; userId?: string }
-  ): Promise<ApiResponse<RoomBooking[]>> {
-    try {
-      let query = (supabase
-        .from('meeting_room_bookings')
-        .select('*')
-        .order('start_time', { ascending: true }) as any);
+export async function uploadMeetingRoomPhoto(photoUri: string): Promise<{ success?: boolean; url?: string; error?: string }> {
+  try {
+    const filename = photoUri.split('/').pop() || 'photo.jpg';
+    const match = /\.(\w+)$/.exec(filename);
+    const ext = match ? match[1] : 'jpg';
+    const type = `image/${ext}`;
 
-      if (roomId) {
-        query = query.eq('room_id', roomId);
-      }
-      if (filters?.userId) {
-        query = query.eq('user_id', filters.userId);
-      }
-      if (filters?.date) {
-        const dayStart = `${filters.date}T00:00:00`;
-        const dayEnd = `${filters.date}T23:59:59`;
-        query = query.gte('start_time', dayStart).lte('start_time', dayEnd);
-      }
+    const fileRes = await fetch(photoUri);
+    const blob = await fileRes.blob();
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return { data: (data || []).map(mapBookingFromDb), error: null };
-    } catch (err) {
-      return { data: [], error: err as Error };
-    }
-  },
+    const res = await serverApi.upload('meeting-rooms', `${Date.now()}.${ext}`, blob, type);
+    if (res.error) throw new Error(res.error?.message ?? 'Upload failed');
 
-  async createBooking(data: Partial<RoomBooking>): Promise<ApiResponse<RoomBooking>> {
-    try {
-      const payload: Record<string, unknown> = {
-        room_id: data.roomId,
-        user_id: data.organizerId,
-        title: data.title,
-        attendees: data.attendees,
-        start_time: data.startTime,
-        end_time: data.endTime,
-        status: data.status ?? 'confirmed',
-        credits_used: data.creditsUsed,
-        notes: data.notes,
-      };
+    const urlRes = await serverApi.getPublicUrl('meeting-rooms', res.data!.path);
+    if (urlRes.error) throw new Error(urlRes.error?.message ?? 'Failed to get public URL');
 
-      const { data: row, error }: any = await (supabase as any)
-        .from('meeting_room_bookings')
-        .insert(payload)
-        .select()
-        .single();
+    return { success: true, url: urlRes.data?.publicUrl ?? '' };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
 
-      if (error) throw error;
-      return { data: row ? mapBookingFromDb(row) : null, error: null };
-    } catch (err) {
-      return { data: null, error: err as Error };
-    }
-  },
+// ---------------------------------------------------------------------------
+// Additional admin helpers
+// ---------------------------------------------------------------------------
 
-  async cancelBooking(id: string): Promise<ApiResponse<RoomBooking>> {
-    try {
-      const { data: existing, error: fetchError }: any = await (supabase
-        .from('meeting_room_bookings')
-        .select('*')
-        .eq('id', id)
-        .single());
+export async function updateMeetingRoomCreditsApi(payload: any): Promise<{ success?: boolean; credit?: any; error?: string }> {
+  try {
+    const res = await serverApi.post<any>('/api/meeting-room-credits', payload);
+    if (res.error) throw new Error(res.error?.message ?? 'Failed to update credits');
+    return { success: true, credit: res.data?.credit };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
 
-      if (fetchError) throw fetchError;
-
-      const { data: row, error }: any = await (supabase as any)
-        .from('meeting_room_bookings')
-        .update({ status: 'cancelled' })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return { data: row ? mapBookingFromDb(row) : null, error: null };
-    } catch (err) {
-      return { data: null, error: err as Error };
-    }
-  },
-
-  async checkAvailability(
-    roomId: string,
-    startTime: string,
-    endTime: string
-  ): Promise<ApiResponse<boolean>> {
-    try {
-      const { data, error }: any = await (supabase
-        .from('meeting_room_bookings')
-        .select('id')
-        .eq('room_id', roomId)
-        .eq('status', 'confirmed')
-        .lt('start_time', endTime)
-        .gt('end_time', startTime)) as any;
-
-      if (error) throw error;
-      return { data: (data || []).length === 0, error: null };
-    } catch (err) {
-      return { data: true, error: err as Error };
-    }
-  },
-};
+export async function getCompaniesWithCreditsApi(propertyId: string): Promise<{ companies?: any[]; error?: string }> {
+  try {
+    const res = await serverApi.get<any>(`/api/companies?propertyId=${propertyId}`);
+    if (res.error) throw new Error(res.error.message ?? 'Failed to fetch companies');
+    return { companies: res.data?.companies ?? [] };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}

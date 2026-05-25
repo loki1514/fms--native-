@@ -456,9 +456,24 @@ export async function checkPropertyAccess(
       if (orgError) console.error('[checkPropertyAccess] org_memberships error:', orgError);
       console.log('[checkPropertyAccess] Org membership:', orgMembership);
 
-      if (orgMembership && ['org_admin', 'org_super_admin', 'owner', 'super_tenant'].includes(orgMembership.role)) {
+      if (orgMembership && ['org_admin', 'org_super_admin', 'owner', 'admin'].includes(orgMembership.role)) {
         console.log('[checkPropertyAccess] Org-level access granted:', orgMembership.role);
         return { authorized: true, role: orgMembership.role };
+      }
+
+      // Super tenant: must have property in their portfolio
+      if (orgMembership?.role === 'super_tenant') {
+        const { data: stProp } = await supabase
+          .from('super_tenant_properties')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('property_id', propertyId)
+          .eq('organization_id', property.organization_id)
+          .maybeSingle();
+        if (stProp) {
+          console.log('[checkPropertyAccess] Super-tenant portfolio access granted');
+          return { authorized: true, role: 'super_tenant' };
+        }
       }
     }
 
@@ -469,7 +484,7 @@ export async function checkPropertyAccess(
       .select('role')
       .eq('user_id', user.id)
       .eq('property_id', propertyId)
-      .eq('is_active', true)
+      .or('is_active.eq.true,is_active.is.null')
       .maybeSingle() as { data: { role: string } | null; error: unknown };
     if (propMemError) console.error('[checkPropertyAccess] property_memberships error:', propMemError);
     console.log('[checkPropertyAccess] Property membership:', propMembership);
@@ -654,82 +669,7 @@ export interface SnagReportResponse {
 }
 
 export async function getExecutiveReport(propertyId: string): Promise<ExecutiveReportResponse> {
-  // Fetch all tickets directly via Supabase (mirrors ExecutiveSummaryPanel logic)
-  const supabase = createClient();
-
-  const { data: tickets, error: ticketsError } = await supabase
-    .from('tickets')
-    .select('id, category, status, created_at, resolved_at, issue_category:category_id(name)')
-    .eq('property_id', propertyId)
-    .eq('is_internal', false)
-    .order('created_at', { ascending: false });
-
-  if (ticketsError) return { error: ticketsError.message } as ExecutiveReportResponse;
-
-  const { data: property } = await supabase
-    .from('properties').select('id, name, code').eq('id', propertyId).single();
-
-  const normalised = (tickets || []).map((t: any) => ({
-    id: t.id,
-    category: t.issue_category?.name || t.category || 'Other',
-    status: t.status,
-    created_at: t.created_at,
-    resolved_at: t.resolved_at ?? null,
-  }));
-
-  const now = new Date();
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const currMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const fmtMonth = (d: Date) => d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-  const getStats = (arr: typeof normalised) => {
-    const total = arr.length;
-    const closed = arr.filter(t => t.status === 'resolved' || t.status === 'closed').length;
-    const open = total - closed;
-    const rate = total > 0 ? Math.round((closed / total) * 100) : 0;
-    return { total, closed, open, closureRate: rate };
-  };
-
-  const prevTickets = normalised.filter(t => {
-    const d = new Date(t.created_at);
-    return d.getMonth() === prevMonthStart.getMonth() && d.getFullYear() === prevMonthStart.getFullYear();
-  });
-  const currTickets = normalised.filter(t => {
-    const d = new Date(t.created_at);
-    return d.getMonth() === currMonthStart.getMonth() && d.getFullYear() === currMonthStart.getFullYear();
-  });
-
-  const prevStats = getStats(prevTickets);
-  const currStats = getStats(currTickets);
-
-  // Top categories
-  const cats: Record<string, number> = {};
-  normalised.forEach(t => { const c = t.category || 'Other'; cats[c] = (cats[c] || 0) + 1; });
-  const topCategories = Object.entries(cats).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 5);
-
-  // 30-day trends
-  const getDailyTrend = (arr: typeof normalised, start: Date, days: number) => {
-    const trend = new Array(days).fill(0);
-    arr.forEach(t => {
-      const d = new Date(t.created_at);
-      const diff = Math.floor((d.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-      if (diff >= 0 && diff < days) trend[diff]++;
-    });
-    return trend;
-  };
-
-  return {
-    property: property || { id: propertyId, name: 'Property', code: 'N/A' },
-    allTimeTotal: normalised.length,
-    prevMonth: { label: fmtMonth(prevMonthStart), ...prevStats },
-    currMonth: { label: fmtMonth(currMonthStart), ...currStats },
-    topCategories,
-    trends: {
-      prev: getDailyTrend(prevTickets, prevMonthStart, 30),
-      curr: getDailyTrend(currTickets, currMonthStart, 30),
-    },
-  };
+  return apiFetch<ExecutiveReportResponse>(`/api/reports/executive-summary?propertyId=${propertyId}`);
 }
 
 export async function getRequestsReport(propertyId: string, month?: string, startDate?: string, endDate?: string): Promise<RequestsReportResponse> {
@@ -1145,7 +1085,8 @@ export interface MeetingRoomCredit {
 
 export async function getMeetingRooms(propertyId: string, status?: string): Promise<{ rooms?: MeetingRoom[]; error?: string }> {
   try {
-    const res = await apiFetch<any>(`/api/meeting-rooms/available?propertyId=${propertyId}${status ? `&status=${status}` : ''}`);
+    const today = new Date().toISOString().split('T')[0];
+    const res = await apiFetch<any>(`/api/meeting-rooms/available?propertyId=${propertyId}&date=${today}${status ? `&status=${status}` : ''}`);
     return { rooms: res.rooms as MeetingRoom[] };
   } catch (err: any) {
     return { error: err.message };
@@ -1195,6 +1136,132 @@ export async function createMeetingRoomBooking(input: CreateBookingInput): Promi
     return { success: true, booking: res.booking as MeetingRoomBooking };
   } catch (err: any) {
     return { error: err.message };
+  }
+}
+
+export async function cancelMeetingRoomBookingApi(bookingId: string): Promise<{ success?: boolean; error?: string }> {
+  try {
+    const res = await apiFetch<any>(`/api/meeting-room-bookings/${bookingId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'cancelled' })
+    });
+    if (res.error) throw new Error(res.error);
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export interface CreateCompanyInput {
+  name: string;
+  property_id: string;
+  organization_id: string;
+  logo_url?: string;
+}
+
+export async function createCompanyApi(input: CreateCompanyInput): Promise<{ success?: boolean; company?: any; error?: string }> {
+  try {
+    const res = await apiFetch<any>('/api/companies', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+    return { success: true, company: res.company };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export async function manageCompanyMemberApi(companyId: string, userId: string, action: 'add' | 'remove'): Promise<{ success?: boolean; error?: string }> {
+  try {
+    const res = await apiFetch<any>(`/api/companies/${companyId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, action })
+    });
+    if (res.error) throw new Error(res.error);
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export interface CreateMeetingRoomInput {
+  name: string;
+  propertyId: string;
+  location?: string;
+  capacity: number;
+  size?: number;
+  amenities?: string[];
+  photo_url?: string;
+  status?: string;
+}
+
+export async function createMeetingRoomApi(input: CreateMeetingRoomInput): Promise<{ success?: boolean; room?: MeetingRoom; error?: string }> {
+  try {
+    const res = await apiFetch<any>('/api/meeting-rooms', {
+      method: 'POST',
+      body: JSON.stringify(input)
+    });
+    return { success: true, room: res.room as MeetingRoom };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export async function updateMeetingRoomApi(id: string, input: Partial<CreateMeetingRoomInput>): Promise<{ success?: boolean; room?: MeetingRoom; error?: string }> {
+  try {
+    const res = await apiFetch<any>(`/api/meeting-rooms/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input)
+    });
+    return { success: true, room: res.room as MeetingRoom };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export async function deleteMeetingRoomApi(id: string): Promise<{ success?: boolean; error?: string }> {
+  try {
+    const res = await apiFetch<any>(`/api/meeting-rooms/${id}`, {
+      method: 'DELETE',
+    });
+    if (res.error) throw new Error(res.error);
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+export async function uploadMeetingRoomPhoto(photoUri: string): Promise<{ success?: boolean; url?: string; error?: string }> {
+  const token = await getSupabaseToken();
+  const formData = new FormData();
+  const filename = photoUri.split('/').pop() || 'photo.jpg';
+  const match = /\.(\w+)$/.exec(filename);
+  const fileType = match ? `image/${match[1]}` : `image/jpeg`;
+
+  formData.append('file', {
+    uri: photoUri,
+    name: filename,
+    type: fileType,
+  } as any);
+
+  try {
+    const response = await fetch(`${WEB_API_BASE}/api/meeting-rooms/photos`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      return { success: false, error: body || response.statusText };
+    }
+
+    const json = await response.json();
+    return { success: true, url: json.url };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Network error' };
   }
 }
 

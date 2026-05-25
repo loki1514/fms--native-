@@ -22,10 +22,13 @@ import {
   getMeetingRoomBookings,
   getMeetingRoomCredits,
   createMeetingRoomBooking,
+  cancelMeetingRoomBookingApi,
+  deleteMeetingRoomApi,
   MeetingRoom,
   MeetingRoomBooking,
   MeetingRoomCredit,
-} from '@/utils/api/mobileApi';
+} from '@/services/meetingRoomService';
+import { useMeetingRoomStore } from '@/stores/meetingRoomStore';
 import {
   ChevronLeft,
   Settings2,
@@ -37,6 +40,8 @@ import {
   CheckCircle2,
   X,
   CreditCard,
+  Plus,
+  Trash2,
 } from 'lucide-react-native';
 import {
   BottomSheetModal,
@@ -54,14 +59,14 @@ interface RoomWithBookings extends MeetingRoom {
 
 const TIME_SLOTS = [
   { label: '09:00 AM', start: '09:00', end: '10:00' },
-  { label: '10:00 AM', start: '10:00', end: '11:00' },
-  { label: '11:00 AM', start: '11:00', end: '12:00' },
+  { label: '10:15 AM', start: '10:15', end: '11:15' },
+  { label: '11:30 AM', start: '11:30', end: '12:30' },
   { label: '12:00 PM', start: '12:00', end: '13:00' },
   { label: '01:00 PM', start: '13:00', end: '14:00' },
-  { label: '02:00 PM', start: '14:00', end: '15:00' },
   { label: '03:00 PM', start: '15:00', end: '16:00' },
-  { label: '04:00 PM', start: '16:00', end: '17:00' },
   { label: '05:00 PM', start: '17:00', end: '18:00' },
+  { label: '06:00 PM', start: '18:00', end: '19:00' },
+  { label: '07:00 PM', start: '19:00', end: '20:00' },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -140,15 +145,15 @@ function RoomCard({
             {room.name}
           </Text>
           <View style={styles.cardMetaRow}>
-            <View style={styles.cardMetaItem}>
+            <View style={[styles.cardMetaItem, { flex: 1, flexShrink: 1 }]}>
               <MapPin size={12} color="#708F96" />
-              <Text style={styles.cardMetaText} numberOfLines={1}>
+              <Text style={[styles.cardMetaText, { flexShrink: 1 }]} numberOfLines={2}>
                 {room.location || 'Main Building'}
               </Text>
             </View>
-            <View style={styles.cardMetaItem}>
+            <View style={[styles.cardMetaItem, { flexShrink: 0 }]}>
               <Users size={12} color="#708F96" />
-              <Text style={styles.cardMetaText}>{room.capacity} people</Text>
+              <Text style={[styles.cardMetaText, { flexShrink: 0 }]}>{room.capacity} people</Text>
             </View>
           </View>
 
@@ -183,6 +188,8 @@ function RoomDetailSheet({
   isAdmin,
   bottomSheetRef,
   onBook,
+  onEdit,
+  onDelete,
 }: {
   room: MeetingRoom | null;
   bookings: MeetingRoomBooking[];
@@ -190,6 +197,8 @@ function RoomDetailSheet({
   isAdmin: boolean;
   bottomSheetRef: React.RefObject<BottomSheetModal | null>;
   onBook: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const snapPoints = useMemo(() => ['65%', '85%'], []);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -258,18 +267,18 @@ function RoomDetailSheet({
             )}
             <Text style={styles.sheetName}>{room.name}</Text>
             <View style={styles.sheetMetaRow}>
-              <View style={styles.sheetMetaItem}>
+              <View style={[styles.sheetMetaItem, { flex: 1, flexShrink: 1 }]}>
                 <MapPin size={13} color="#708F96" />
-                <Text style={styles.sheetMetaText}>{room.location || 'Main Building'}</Text>
+                <Text style={[styles.sheetMetaText, { flexShrink: 1 }]} numberOfLines={2}>{room.location || 'Main Building'}</Text>
               </View>
-              <View style={styles.sheetMetaItem}>
+              <View style={[styles.sheetMetaItem, { flexShrink: 0 }]}>
                 <Users size={13} color="#708F96" />
-                <Text style={styles.sheetMetaText}>{room.capacity} people</Text>
+                <Text style={[styles.sheetMetaText, { flexShrink: 0 }]}>{room.capacity} people</Text>
               </View>
               {room.size ? (
-                <View style={styles.sheetMetaItem}>
+                <View style={[styles.sheetMetaItem, { flexShrink: 0 }]}>
                   <Armchair size={13} color="#708F96" />
-                  <Text style={styles.sheetMetaText}>{room.size} sqft</Text>
+                  <Text style={[styles.sheetMetaText, { flexShrink: 0 }]}>{room.size} sqft</Text>
                 </View>
               ) : null}
             </View>
@@ -366,21 +375,35 @@ function RoomDetailSheet({
           </View>
         )}
 
+        {/* Admin Actions */}
+        {isAdmin && (
+          <View style={styles.adminActionsRow}>
+            <TouchableOpacity style={styles.adminActionBtn} onPress={onEdit} activeOpacity={0.8}>
+              <Text style={styles.adminActionText}>Edit Room</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.adminActionBtn, styles.adminActionBtnDanger]} onPress={onDelete} activeOpacity={0.8}>
+              <Text style={[styles.adminActionText, styles.adminActionTextDanger]}>Deactivate</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Book Button */}
-        <TouchableOpacity
-          style={[styles.bookButton, (!selectedSlot || bookingLoading) && styles.bookButtonDisabled]}
-          onPress={handleBook}
-          disabled={!selectedSlot || bookingLoading}
-          activeOpacity={0.8}
-        >
-          {bookingLoading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.bookButtonText}>
-              {selectedSlot ? `Book for ${selectedSlot.label}` : 'Select a time slot'}
-            </Text>
-          )}
-        </TouchableOpacity>
+        {!isAdmin && (
+          <TouchableOpacity
+            style={[styles.bookButton, (!selectedSlot || bookingLoading) && styles.bookButtonDisabled]}
+            onPress={handleBook}
+            disabled={!selectedSlot || bookingLoading}
+            activeOpacity={0.8}
+          >
+            {bookingLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.bookButtonText}>
+                {selectedSlot ? `Book for ${selectedSlot.label}` : 'Select a time slot'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
       </BottomSheetScrollView>
     </BottomSheetModal>
   );
@@ -396,12 +419,11 @@ export default function RoomsScreen() {
   const insets = useSafeAreaInsets();
   const { membership, user } = useAuth();
 
-  const [loading, setLoading] = useState(true);
-  const [rooms, setRooms] = useState<MeetingRoom[]>([]);
-  const [bookings, setBookings] = useState<MeetingRoomBooking[]>([]);
-  const [credit, setCredit] = useState<MeetingRoomCredit | null>(null);
+  const { rooms, bookings, credit, hasLoadedInitialData, setRooms, setBookings, setCredit, setHasLoadedInitialData } = useMeetingRoomStore();
+  const [loading, setLoading] = useState(!hasLoadedInitialData);
   const [isAdmin, setIsAdmin] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<MeetingRoom | null>(null);
+  const [activeTab, setActiveTab] = useState<'rooms' | 'bookings'>('rooms');
 
   const roomSheetRef = useRef<BottomSheetModal>(null);
 
@@ -415,10 +437,10 @@ export default function RoomsScreen() {
   // Fetch data
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
-    setLoading(true);
+    if (!hasLoadedInitialData) setLoading(true);
     try {
       const [roomsRes, bookingsRes, creditsRes] = await Promise.all([
-        getMeetingRooms(propertyId, 'available'),
+        getMeetingRooms(propertyId),
         getMeetingRoomBookings(propertyId, 'confirmed'),
         isAdmin ? Promise.resolve({ credit: null }) : getMeetingRoomCredits(propertyId),
       ]);
@@ -428,13 +450,14 @@ export default function RoomsScreen() {
       if (!isAdmin && creditsRes.credit !== undefined) {
         setCredit(creditsRes.credit);
       }
+      setHasLoadedInitialData(true);
     } catch (e) {
       console.error('[Rooms] fetch error:', e);
       Alert.alert('Error', 'Failed to load meeting rooms.');
     } finally {
       setLoading(false);
     }
-  }, [propertyId, isAdmin]);
+  }, [propertyId, isAdmin, hasLoadedInitialData, setRooms, setBookings, setCredit, setHasLoadedInitialData]);
 
   useEffect(() => {
     fetchData();
@@ -443,6 +466,17 @@ export default function RoomsScreen() {
   function handleRoomPress(room: MeetingRoom) {
     setSelectedRoom(room);
     roomSheetRef.current?.present();
+  }
+
+  async function handleCancelBooking(bookingId: string) {
+    try {
+      const res = await cancelMeetingRoomBookingApi(bookingId);
+      if (res.error) throw new Error(res.error);
+      // Refresh data immediately after success
+      fetchData();
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Could not cancel booking.');
+    }
   }
 
   return (
@@ -462,18 +496,41 @@ export default function RoomsScreen() {
           <View style={styles.headerTitleWrap}>
             <Text style={styles.headerTitle}>Meeting Rooms</Text>
             <Text style={styles.headerSubtitle}>
-              {rooms.length} room{rooms.length !== 1 ? 's' : ''} available
+              {activeTab === 'rooms' ? `${rooms.length} room${rooms.length !== 1 ? 's' : ''} available` : `${bookings.length} booking${bookings.length !== 1 ? 's' : ''}`}
             </Text>
           </View>
           {isAdmin ? (
-            <TouchableOpacity style={styles.adminBtn} activeOpacity={0.7} onPress={() => router.push(`/property/${propertyId}/rooms/admin-credits`)}>
-              <Settings2 size={20} color="#708F96" />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={styles.adminBtn} activeOpacity={0.7} onPress={() => router.push(`/property/${propertyId}/rooms/add-room`)}>
+                <Plus size={20} color="#708F96" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.adminBtn} activeOpacity={0.7} onPress={() => router.push(`/property/${propertyId}/rooms/admin-credits`)}>
+                <Settings2 size={20} color="#708F96" />
+              </TouchableOpacity>
+            </View>
           ) : (
             <View style={{ width: 40 }} />
           )}
         </View>
       </SafeBlurView>
+
+      {/* Tabs for Admin */}
+      {isAdmin && (
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'rooms' && styles.tabActive]}
+            onPress={() => setActiveTab('rooms')}
+          >
+            <Text style={[styles.tabText, activeTab === 'rooms' && styles.tabTextActive]}>Rooms</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'bookings' && styles.tabActive]}
+            onPress={() => setActiveTab('bookings')}
+          >
+            <Text style={[styles.tabText, activeTab === 'bookings' && styles.tabTextActive]}>All Bookings</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Credit Banner (non-admin) */}
       {!isAdmin && credit && (
@@ -491,13 +548,13 @@ export default function RoomsScreen() {
         </View>
       )}
 
-      {/* Room List */}
+      {/* Content List */}
       {loading ? (
         <View style={styles.loadingState}>
           <ActivityIndicator size="large" color="#708F96" />
-          <Text style={styles.loadingText}>Loading meeting rooms...</Text>
+          <Text style={styles.loadingText}>Loading...</Text>
         </View>
-      ) : (
+      ) : activeTab === 'rooms' ? (
         <FlatList
           data={rooms}
           keyExtractor={(item) => item.id}
@@ -515,6 +572,56 @@ export default function RoomsScreen() {
             </View>
           }
         />
+      ) : (
+        <FlatList
+          data={bookings}
+          keyExtractor={(item) => item.id}
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 12) + 160 }]}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <SafeBlurView intensity={40} style={styles.bookingCard} tint="dark">
+              <LinearGradient
+                colors={['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.15)']}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={styles.cardContent}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardName}>{item.meeting_room?.name || 'Room'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <CalendarDays size={12} color="#708F96" />
+                      <Text style={styles.cardMetaText}>{item.booking_date} · {item.start_time} - {item.end_time}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                      <Users size={12} color="#708F96" />
+                      <Text style={styles.cardMetaText}>{item.tenant?.full_name || 'Tenant'}</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={[styles.amenityChip, { backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.3)', margin: 0 }]}>
+                      <Text style={[styles.amenityText, { color: '#10B981' }]}>{item.status || 'Confirmed'}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={{ padding: 8, backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' }}
+                      onPress={() => handleCancelBooking(item.id)}
+                    >
+                      <Trash2 size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </SafeBlurView>
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <SafeBlurView intensity={40} tint="dark" style={styles.emptyIconWrap}>
+                <CalendarDays size={32} color="#708F96" />
+              </SafeBlurView>
+              <Text style={styles.emptyTitle}>No bookings yet</Text>
+            </View>
+          }
+        />
       )}
 
       {/* Room Detail Sheet */}
@@ -525,6 +632,37 @@ export default function RoomsScreen() {
         isAdmin={isAdmin}
         bottomSheetRef={roomSheetRef}
         onBook={fetchData}
+        onEdit={() => {
+          roomSheetRef.current?.dismiss();
+          if (selectedRoom) {
+            router.push(`/property/${propertyId}/rooms/${selectedRoom.id}/edit`);
+          }
+        }}
+        onDelete={() => {
+          if (!selectedRoom) return;
+          Alert.alert(
+            'Deactivate Room',
+            `Are you sure you want to deactivate "${selectedRoom.name}"?`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Deactivate',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    const res = await deleteMeetingRoomApi(selectedRoom.id);
+                    if (res.error) throw new Error(res.error);
+                    roomSheetRef.current?.dismiss();
+                    fetchData();
+                    Alert.alert('Success', 'Room deactivated successfully.');
+                  } catch (err: any) {
+                    Alert.alert('Error', err.message || 'Failed to deactivate room.');
+                  }
+                },
+              },
+            ]
+          );
+        }}
       />
     </View>
   );
@@ -586,6 +724,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
   },
+  adminActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  adminActionBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+  },
+  adminActionBtnDanger: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderColor: 'rgba(239,68,68,0.3)',
+  },
+  adminActionText: {
+    fontSize: 14,
+    fontFamily: 'Urbanist-SemiBold',
+    color: '#FFFFFF',
+  },
+  adminActionTextDanger: {
+    color: '#EF4444',
+  },
   creditBanner: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -621,6 +786,32 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 16,
   },
+  tabBar: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabActive: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  tabText: {
+    fontFamily: 'Urbanist-SemiBold',
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+  },
+  tabTextActive: {
+    color: '#FFFFFF',
+    fontFamily: 'Poppins-Bold',
+  },
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -639,6 +830,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.65)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+  },
+  bookingCard: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(15,23,42,0.65)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 12,
   },
   cardImage: {
     width: '100%',
