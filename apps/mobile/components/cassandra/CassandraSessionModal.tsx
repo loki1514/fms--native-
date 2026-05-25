@@ -251,12 +251,27 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   propertyId,
   initialMode = 'text',
 }) => {
-  console.log('[CassandraSessionModal] render. visible:', visible, 'orgId:', orgId, 'propertyId:', propertyId);
   const { user, membership } = useAuth();
   // Sourced from useChatScopeProperties (not membership directly) so Super
-  // Tenants get the full /api/super-tenant list, not just the entries that
-  // happen to exist in property_memberships.
+  // Tenants and Org-level admins (who often have zero rows in
+  // property_memberships) still get the full list of accessible
+  // properties, and therefore see the scope toggle.
   const userProperties = useChatScopeProperties();
+
+  // Dev-only diagnostic. The PropertyScopeToggle self-hides when
+  // properties.length < 2. If the toggle isn't appearing for a user you
+  // think SHOULD see it, this log tells you exactly why: either the
+  // membership/role data is wrong, or the org-admin / super-tenant
+  // detection inside useChatScopeProperties isn't firing.
+  if (__DEV__ && visible) {
+    console.log(
+      '[CassandraSessionModal] toggle visibility check —',
+      'userProperties.length:', userProperties.length,
+      '| org_role:', membership?.org_role,
+      '| membership.properties.length:', membership?.properties?.length ?? 0,
+      '| visible:', visible,
+    );
+  }
   const insets = useSafeAreaInsets();
   const {
     voiceState,
@@ -266,6 +281,8 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
     setVoiceState,
     selectedPropertyId,
     setSelectedPropertyId,
+    thinkingStatus,
+    setThinkingStatus,
   } = useCassandraStore();
   const [inputText, setInputText] = useState('');
   const [inputMode, setInputMode] = useState<'text' | 'voice'>(initialMode);
@@ -365,12 +382,18 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
   }, [visible]);
 
   useEffect(() => {
-    if (visible && initialMode === 'voice' && voiceState === 'idle') {
+    // Only auto-start voice when:
+    //   1. modal is visible AND caller explicitly asked for voice mode
+    //   2. voice state is idle (not already in some other state)
+    //   3. Cassandra backend is reachable (isConnected). Without this guard
+    //      a flaky network kicks the user straight into the red "Something
+    //      went wrong. Tap to retry." error orb the moment the modal opens.
+    if (visible && initialMode === 'voice' && voiceState === 'idle' && isConnected) {
       setInputMode('voice');
       voice.startSession();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, initialMode]);
+  }, [visible, initialMode, isConnected]);
 
   const loadHistory = useCallback(async () => {
     if (!user?.id) return;
@@ -537,16 +560,27 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
       photoUrl: photoUrl ?? undefined,
       propertyId: selectedPropertyId,
       sessionId: currentSessionId ?? sessionId,
+      organizationId: orgId,
       signal: abortRef.current.signal,
+      onThinking: (status) => {
+        setThinkingStatus(status);
+      },
     };
 
     try {
+      let gotFirstToken = false;
       for await (const token of streamChat(message, chatOptions)) {
-        fullResponse += token;
+        if (!gotFirstToken) {
+          gotFirstToken = true;
+          setThinkingStatus(null); // Clear thinking bubble once real tokens arrive
+        }
+        fullResponse += (fullResponse ? ' ' : '') + token;
         setCurrentResponse(fullResponse);
       }
     } catch {
       // AbortError or unexpected failure — already handled via yielded messages
+    } finally {
+      setThinkingStatus(null); // Ensure thinking is cleared on error/abort
     }
 
     setCurrentResponse('');
@@ -639,7 +673,16 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
                     <Path d="M19 12H5M12 19l-7-7 7-7" />
                   </Svg>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Cassandra</Text>
+                {/* Title + always-visible property scope pill. The pill IS
+                    the scope picker — tap to open the property dropdown. */}
+                <View style={styles.headerCenter}>
+                  <Text style={styles.headerTitle}>Cassandra</Text>
+                  <PropertyScopeToggle
+                    properties={userProperties}
+                    value={selectedPropertyId}
+                    onChange={setSelectedPropertyId}
+                  />
+                </View>
                 <TouchableOpacity onPress={() => { loadHistory(); setView('history'); }} activeOpacity={0.7} style={styles.headerMenuBtn}>
                   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={Colors.textPrimary} strokeWidth="2" strokeLinecap="round">
                     <Path d="M3 12h18M3 6h18M3 18h18" />
@@ -669,6 +712,15 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
                   />
                   <Text style={styles.headerTitle}>Cassandra</Text>
                 </View>
+                {/* Always-visible property scope pill — the user can tap
+                    this at any time to pick which property Cassandra
+                    queries. The pill stays even for single-property
+                    users so the current scope is never ambiguous. */}
+                <PropertyScopeToggle
+                  properties={userProperties}
+                  value={selectedPropertyId}
+                  onChange={setSelectedPropertyId}
+                />
                 <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={styles.closeBtn}>
                   <CloseIcon />
                 </TouchableOpacity>
@@ -743,6 +795,14 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
                   }}
                 />
               ))}
+              {thinkingStatus && (
+                <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
+                  <View style={styles.thinkingBubble}>
+                    <ActivityIndicator size="small" color={Colors.violetLight} />
+                    <Text style={styles.thinkingText}>{thinkingStatus}</Text>
+                  </View>
+                </View>
+              )}
               {isTyping && (
                 <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
                   <View style={[styles.bubble, styles.bubbleBot]}>
@@ -830,15 +890,11 @@ export const CassandraSessionModal: React.FC<CassandraSessionModalProps> = ({
             </ScrollView>
           )}
 
-          {/* Property scope toggle — only renders for multi-property users.
-              Encodes: null = All Properties, string = specific, undefined =
-              JWT fallback (won't appear here since we render it only after
-              init effect picks null or a string for multi-property users). */}
-          <PropertyScopeToggle
-            properties={userProperties}
-            value={selectedPropertyId}
-            onChange={setSelectedPropertyId}
-          />
+          {/* (Property scope picker moved into the modal header — see
+              <PropertyScopeToggle/> in the header row above. It now lives
+              there as an always-visible pill so the user can switch
+              scope from any view — home, chat, or history — without
+              hunting for it above the input bar.) */}
 
           {/* Attached image preview */}
           {attachedImage && (
@@ -917,6 +973,13 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  headerCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: SPACING.sm,
   },
   statusDot: {
@@ -1315,6 +1378,25 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: '#F59E0B',
     fontWeight: '700',
+  },
+  /* ─── Thinking Bubble ─── */
+  thinkingBubble: {
+    maxWidth: '80%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: CassSpacing.sm,
+    backgroundColor: 'rgba(139,92,246,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(139,92,246,0.25)',
+    borderRadius: Radius.xl,
+    paddingHorizontal: CassSpacing.md,
+    paddingVertical: CassSpacing.sm,
+    borderTopLeftRadius: Radius.sm,
+  },
+  thinkingText: {
+    ...Typography.caption,
+    color: Colors.violetLight,
+    fontWeight: '500',
   },
 });
 

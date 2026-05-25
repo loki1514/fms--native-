@@ -198,9 +198,7 @@ export function ComplianceGauge({ value, total = 100 }: { value: number; total?:
         <Text style={styles.gaugePercentLabel}>{percentage}% COMPLETED</Text>
       </View>
       
-      <TouchableOpacity style={styles.askCassandraPill}>
-        <Text style={styles.askCassandraPillText}>ASK CASSANDRA</Text>
-      </TouchableOpacity>
+
     </View>
   );
 }

@@ -24,7 +24,6 @@ import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import SignOutModal from '@/components/ui/SignOutModal';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
-import SidekickFace from '@/components/dashboard/SidekickFace';
 import DetailModal, { type TileDetail } from '@/components/dashboard/DetailModal';
 import NeedsAttentionModal from '@/components/dashboard/NeedsAttentionModal';
 import NotificationModal from '@/components/notifications/NotificationModal';

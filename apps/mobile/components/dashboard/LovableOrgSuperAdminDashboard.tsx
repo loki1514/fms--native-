@@ -25,7 +25,6 @@ import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import SignOutModal from '@/components/ui/SignOutModal';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
-import SidekickFace from '@/components/dashboard/SidekickFace';
 import MobileFooter from '@/components/shared/MobileFooter';
 import useOrgData from '@/hooks/useOrgData';
 import { useCassandraStore } from '@/stores/cassandraStore';

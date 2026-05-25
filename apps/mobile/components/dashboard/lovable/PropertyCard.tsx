@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ImageBackground,
-  Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
@@ -23,7 +22,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import PulseDot from './PulseDot';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 
 interface PropertyCardProps {
   property: Property;
@@ -32,7 +31,7 @@ interface PropertyCardProps {
 }
 
 const PropertyCard = React.memo(({ property, index, onPress }: PropertyCardProps) => {
-  const pressScale = useSharedValue(1);
+  const [isPressed, setIsPressed] = React.useState(false);
   const gradient = getSkyGradient(property.name);
   const hasImage = !!property.image_url;
 
@@ -45,32 +44,29 @@ const PropertyCard = React.memo(({ property, index, onPress }: PropertyCardProps
   const statusText =
     open > 15 ? 'Critical' : open > 5 ? 'Watch' : 'Optimal';
   const statusColor =
-    health === 'good' ? STATUS_COLORS.optimal :
-    health === 'warning' ? STATUS_COLORS.warning :
-    STATUS_COLORS.critical;
+    health === 'good' ? STATUS_COLORS.optimal.bg :
+    health === 'warning' ? STATUS_COLORS.warning.bg :
+    STATUS_COLORS.critical.bg;
 
-  const onPressIn = () => {
-    pressScale.value = withSpring(0.975, { damping: 15, stiffness: 200 });
-  };
-  const onPressOut = () => {
-    pressScale.value = withSpring(1, { damping: 15, stiffness: 200 });
-  };
-
-  const pressStyle = useAnimatedStyle(() => ({
+  const pressAnimStyle = useAnimatedStyle(() => ({
     transform: [
-      { scale: pressScale.value },
-      { translateY: withSpring(pressScale.value < 1 ? -8 : 0, { damping: 15, stiffness: 200 }) }
+      { scale: withSpring(isPressed ? 0.975 : 1, { damping: 15, stiffness: 200 }) },
+      { translateY: withSpring(isPressed ? -8 : 0, { damping: 15, stiffness: 200 }) },
     ],
-  }));
+  }), [isPressed]);
 
   return (
     <Animated.View entering={ZoomIn.delay(index * 80).duration(500)}>
-      <AnimatedPressable
-        style={[styles.propertyCard, pressStyle]}
-        onPress={onPress}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-      >
+      <Animated.View style={[styles.propertyCard, pressAnimStyle]}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          onPress={onPress}
+          onPressIn={() => setIsPressed(true)}
+          onPressOut={() => setIsPressed(false)}
+          activeOpacity={1}
+        >
+          <View style={StyleSheet.absoluteFillObject} />
+        </TouchableOpacity>
         {hasImage ? (
           <ImageBackground
             source={{ uri: property.image_url! }}
@@ -96,7 +92,7 @@ const PropertyCard = React.memo(({ property, index, onPress }: PropertyCardProps
             <CardContent property={property} />
           </LinearGradient>
         )}
-      </AnimatedPressable>
+      </Animated.View>
     </Animated.View>
   );
 });
@@ -109,9 +105,9 @@ function CardContent({
   const open = property.openTickets;
   const resolved = property.resolvedTickets;
   const statusColor =
-    property.healthStatus === 'good' ? STATUS_COLORS.optimal :
-    property.healthStatus === 'warning' ? STATUS_COLORS.warning :
-    STATUS_COLORS.critical;
+    property.healthStatus === 'good' ? STATUS_COLORS.optimal.bg :
+    property.healthStatus === 'warning' ? STATUS_COLORS.warning.bg :
+    STATUS_COLORS.critical.bg;
   
   const statusText = property.healthStatus === 'good' ? 'Optimal' : property.healthStatus === 'warning' ? 'Watch' : 'Critical';
 

@@ -154,13 +154,7 @@ export function AppBottomNav({
       {/* Center Cassandra Orb */}
       <TouchableOpacity
         style={styles.navItemCenter}
-        onPress={() => {
-          if (onCreateRequestPress) {
-            onCreateRequestPress();
-          } else {
-            Alert.alert('New Request', 'Use the "+" button on the dashboard.');
-          }
-        }}
+        onPress={() => router.push(`/cassandra?propertyId=${propertyId}` as any)}
         activeOpacity={0.8}
       >
         <View style={styles.askPill}>

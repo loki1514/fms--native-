@@ -1989,43 +1989,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Ask Cassandra
-  askCassandraWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    zIndex: 40,
-    alignItems: 'center',
-  },
-  askCassandraBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.20)',
-    paddingLeft: 16,
-    paddingRight: 6,
-    paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  askCassandraLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 1,
-  },
-  askCassandraOrb: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+
 });

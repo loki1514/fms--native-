@@ -474,6 +474,7 @@ export default function LovableSuperAdminDashboard() {
                   property={p}
                   index={i}
                   onPress={() => {
+                    console.log('[SuperAdmin] Property tapped:', p.id, p.name);
                     setActiveProperty(p);
                     setScreen('property-detail');
                   }}
@@ -514,7 +515,7 @@ export default function LovableSuperAdminDashboard() {
         ) : null}
       </View>
 
-      <MobileFooter activeTab="dashboard" />
+      <MobileFooter activeTab="dashboard" propertyId={activeProperty?.id} />
 
       {/* Modals */}
       <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} propertyId={activeProperty?.id} initialMode="voice" />

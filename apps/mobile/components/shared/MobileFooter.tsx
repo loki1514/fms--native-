@@ -15,12 +15,14 @@ const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
 interface MobileFooterProps {
   activeTab?: 'dashboard' | 'tickets' | 'stock' | 'more';
   onMorePress?: () => void;
+  propertyId?: string;
 }
 
-export default function MobileFooter({ activeTab: propActiveTab, onMorePress }: MobileFooterProps) {
+export default function MobileFooter({ activeTab: propActiveTab, onMorePress, propertyId: propPropertyId }: MobileFooterProps) {
   const router = useRouter();
-  const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
+  const { propertyId: urlPropertyId } = useLocalSearchParams<{ propertyId: string }>();
   const pathname = usePathname();
+  const propertyId = propPropertyId ?? urlPropertyId;
   const insets = useSafeAreaInsets();
   const { membership } = useAuth();
   const [showCassandraChat, setShowCassandraChat] = useState(false);
@@ -47,12 +49,32 @@ export default function MobileFooter({ activeTab: propActiveTab, onMorePress }: 
     }
   };
 
+  const handleDashboardPress = () => {
+    if (propertyId) {
+      router.push(`/property/${propertyId}` as any);
+    } else if (pathname === '/super-admin') {
+      // Already on super-admin dashboard, do nothing
+      return;
+    } else {
+      router.push('/super-admin' as any);
+    }
+  };
+
+  const handleTicketsPress = () => {
+    if (propertyId) {
+      router.push(`/property/${propertyId}/tickets` as any);
+    } else {
+      // No property selected — can't show tickets
+      alert('Select a property to view tickets');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <SafeBlurView intensity={90} style={[styles.blur, { paddingBottom: Math.max(insets.bottom, 8) }]} tint="dark">
         <TouchableOpacity 
           style={styles.navItem} 
-          onPress={() => router.push(`/property/${propertyId}` as any)}
+          onPress={handleDashboardPress}
         >
           <Ionicons 
             name={activeTab === 'dashboard' ? 'grid' : 'grid-outline'} 
@@ -64,7 +86,7 @@ export default function MobileFooter({ activeTab: propActiveTab, onMorePress }: 
         
         <TouchableOpacity 
           style={styles.navItem} 
-          onPress={() => router.push(`/property/${propertyId}/tickets` as any)}
+          onPress={handleTicketsPress}
         >
           <Ionicons 
             name={activeTab === 'tickets' ? 'ticket' : 'ticket-outline'} 
@@ -75,13 +97,10 @@ export default function MobileFooter({ activeTab: propActiveTab, onMorePress }: 
         </TouchableOpacity>
 
         {/* Center Cassandra Orb */}
-        <TouchableOpacity 
-          style={[styles.navItem, styles.navItemCenter]} 
-          onPress={() => setShowCassandraChat(true)}
-        >
-          <SidekickFace size={44} state={faceState} compact />
+        <View style={[styles.navItem, styles.navItemCenter]}>
+          <SidekickFace size={44} state={faceState} compact onClick={() => setShowCassandraChat(true)} />
           <Text style={styles.navLabel}>Cassandra</Text>
-        </TouchableOpacity>
+        </View>
 
         {/* Visitors (tenant) or Stock (admin/staff) */}
         <TouchableOpacity 

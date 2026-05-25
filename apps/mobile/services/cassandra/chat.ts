@@ -24,8 +24,10 @@ export interface StreamChatOptions {
   photoUrl?: string;
   propertyId?: string | null;
   sessionId?: string;
+  organizationId?: string;
   signal?: AbortSignal;
   onMeta?: (meta: ChatStreamMeta) => void;  // called when headers are parsed
+  onThinking?: (text: string) => void;      // called when backend emits [THINKING]...
 }
 
 /**
@@ -43,7 +45,7 @@ export async function* streamChat(
   message: string,
   options: StreamChatOptions = {}
 ): AsyncGenerator<string> {
-  const { photoUrl, propertyId, sessionId, signal, onMeta } = options;
+  const { photoUrl, propertyId, sessionId, organizationId, signal, onMeta, onThinking } = options;
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const { data: { session } } = await supabase.auth.getSession();
@@ -53,13 +55,18 @@ export async function* streamChat(
   }
 
   // ── Build payload ─────────────────────────────────────────────────────────
+  // session_id is REQUIRED per backend spec (ties multi-turn memory together).
+  // If the caller forgot to generate one, we create a fallback so the backend
+  // always receives a thread identifier.
+  const effectiveSessionId = sessionId || `sess-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const body: Record<string, unknown> = {
     message,
-    ...(sessionId && { session_id: sessionId }),
+    session_id: effectiveSessionId,
     ...(photoUrl  && { photo_url: photoUrl }),
     // Send null explicitly to tell backend "query across all properties"
     // Omit entirely to let backend fall back to JWT property_id
     ...(propertyId !== undefined && { property_id: propertyId }),
+    ...(organizationId && { organization_id: organizationId }),
   };
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
@@ -126,6 +133,13 @@ export async function* streamChat(
 
         // OpenAI-style terminator — stop immediately
         if (data === "[DONE]") return;
+
+        // Backend thinking states — surfaced in UI so user knows Cassandra
+        // is working (e.g. "Looking up your tickets…").
+        if (data.startsWith("[THINKING]")) {
+          onThinking?.(data.replace("[THINKING]", "").trim());
+          continue;
+        }
 
         // Yield the plain text token to the caller
         if (data) yield data;

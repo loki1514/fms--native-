@@ -183,15 +183,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })
           .filter((p: PropertyInfo | null): p is PropertyInfo => p !== null);
 
-        console.log('[AuthContext] property memberships raw:', JSON.stringify(propData));
-        console.log('[AuthContext] builtProperties:', JSON.stringify(builtProperties));
-
         const membershipData: UserMembership = {
           org_id: ((orgData as any)?.organization)?.id ?? null,
           org_name: ((orgData as any)?.organization)?.name ?? null,
           org_role: (orgData as any)?.role ?? null,
           properties: builtProperties,
         };
+
+        console.log('[AuthContext] membershipData for', userId.slice(0,8), ':', JSON.stringify({
+          org_id: membershipData.org_id,
+          org_role: membershipData.org_role,
+          property_count: membershipData.properties.length,
+        }));
 
         await persistMembershipCache(userId, membershipData);
         setMembership(membershipData);

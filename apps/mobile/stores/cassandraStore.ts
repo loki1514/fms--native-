@@ -80,6 +80,12 @@ interface CassandraStore {
   selectedPropertyId: string | null | undefined;
   setSelectedPropertyId: (id: string | null | undefined) => void;
 
+  // ── Thinking status (backend reasoning states) ──────────────────────────
+  // Shows "Cassandra is thinking…" messages before tokens arrive.
+  // Set when SSE emits [THINKING]..., cleared when first token yields.
+  thinkingStatus: string | null;
+  setThinkingStatus: (text: string | null) => void;
+
   // ── Reset (on sign-out or component unmount) ──────────────────────────
   reset: () => void;
 }
@@ -101,6 +107,7 @@ const initialState = {
     { id: '5', text: 'Compare health across properties' },
   ] as SuggestedPrompt[],
   selectedPropertyId: undefined as string | null | undefined,
+  thinkingStatus: null as string | null,
 };
 
 export const useCassandraStore = create<CassandraStore>((set, _get) => ({
@@ -147,6 +154,9 @@ export const useCassandraStore = create<CassandraStore>((set, _get) => ({
 
   // ── Property scope ────────────────────────────────────────────────────
   setSelectedPropertyId: (id) => set({ selectedPropertyId: id }),
+
+  // ── Thinking status ───────────────────────────────────────────────────
+  setThinkingStatus: (text) => set({ thinkingStatus: text }),
 
   // ── Reset ───────────────────────────────────────────────────────────
   reset: () => {

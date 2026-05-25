@@ -10,9 +10,10 @@ export const PROPERTY_ADMIN_TEST_EMAIL = 'lohitexplores@gmail.com';
 export const BG = '#060912';
 
 export const STATUS_COLORS = {
-  optimal: '#1FC26E',
-  warning: '#C4A000',
-  critical: '#D9261C',
+  optimal: { bg: '#1FC26E', surface: 'rgba(31,194,110,0.15)' },
+  warning: { bg: '#C4A000', surface: 'rgba(196,160,0,0.15)' },
+  watch:    { bg: '#C4A000', surface: 'rgba(196,160,0,0.15)' },
+  critical: { bg: '#D9261C', surface: 'rgba(217,38,28,0.15)' },
 };
 
 export const GLASS_BG = 'rgba(255,255,255,0.06)';
