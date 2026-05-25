@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context";
 import { Colors } from "@/constants/Colors";
 import { supabase } from "@/utils/supabase/client";
+import { dieselService } from "@/services/dieselService";
 
 import { LoggersMenu } from "@/components/shared/LoggersMenu";
 import GeneratorConfigModal from "@/components/diesel/GeneratorConfigModal";
@@ -695,7 +696,7 @@ function LogReadingModal({
 
     setIsSubmitting(true);
     try {
-      const { error } = await (supabase.from("diesel_readings") as any).insert({
+      const res = await dieselService.submitReading({
         property_id: propertyId,
         generator_id: selectedGenId,
         reading_date: readingDate,
@@ -706,21 +707,10 @@ function LogReadingModal({
         opening_diesel_level: o.diesel,
         closing_diesel_level: cD,
         diesel_added_litres: added,
-        computed_consumed_litres: consumed ?? 0,
         notes: notes || null,
-        alert_status: "normal",
       });
 
-      if (error) throw error;
-
-      // Update generator carry-forward values
-      await (supabase.from("generators") as any)
-        .update({
-          initial_run_hours: cH,
-          initial_diesel_level: cD,
-          initial_kwh_reading: cK,
-        })
-        .eq("id", selectedGenId);
+      if (!res.success) throw new Error(String(res.error || 'Failed to save reading'));
 
       onClose();
       onSuccess();
@@ -1271,29 +1261,8 @@ export default function DieselScreen() {
               const reading = readings.find((r) => r.id === id);
               if (!reading) throw new Error("Reading not found");
 
-              const { error: deleteError } = await (supabase
-                .from("diesel_readings")
-                .delete()
-                .eq("id", id) as any);
-              if (deleteError) throw deleteError;
-
-              // Recalibrate generator carry-forward
-              const { data: remaining } = await (supabase
-                .from("diesel_readings")
-                .select("closing_hours, closing_diesel_level")
-                .eq("generator_id", reading.generator_id)
-                .eq("property_id", propertyId)
-                .order("reading_date", { ascending: false })
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle() as any);
-
-              await (supabase.from("generators") as any)
-                .update({
-                  initial_run_hours: remaining?.closing_hours ?? 0,
-                  initial_diesel_level: remaining?.closing_diesel_level ?? 0,
-                })
-                .eq("id", reading.generator_id);
+              const delRes = await dieselService.deleteReading(id, propertyId as string);
+              if (!delRes.success) throw new Error(String(delRes.error || 'Delete failed'));
 
               await fetchData();
               if (showHistoryModal) fetchHistoryReadings();
@@ -1337,23 +1306,15 @@ export default function DieselScreen() {
     if (!propertyId) return;
     setIsLoading(true);
     try {
-      // Fetch generators
-      const { data: gens } = await supabase
-        .from("generators")
-        .select("*")
-        .eq("property_id", propertyId)
-        .order("name");
-      setGenerators((gens as any) || []);
+      const [gensRes, readingsRes] = await Promise.all([
+        dieselService.fetchGenerators(propertyId),
+        dieselService.fetchReadings(propertyId),
+      ]);
 
-      // Fetch latest reading per generator
-      const { data: allReadings } = await supabase
-        .from("diesel_readings")
-        .select("*")
-        .eq("property_id", propertyId)
-        .order("reading_date", { ascending: false })
-        .order("created_at", { ascending: false });
+      const gensData = (gensRes.success ? gensRes.data : []) ?? [];
+      const readingsData: any[] = (readingsRes.success ? readingsRes.data : []) ?? [];
 
-      const readingsData: DieselReading[] = (allReadings as any) || [];
+      setGenerators(gensData as any);
 
       // Latest per generator
       const latest: Record<string, DieselReading> = {};
@@ -1490,12 +1451,13 @@ export default function DieselScreen() {
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <TouchableOpacity
             style={styles.headerCircularBtn}
-            onPress={() =>
-              router.push(("/property/" + propertyId + "/stock/scan") as any)
-            }
+            onPress={() => {
+              setEditingGenerator(undefined);
+              setShowGenConfigModal(true);
+            }}
             activeOpacity={0.7}
           >
-            <Ionicons name="apps-outline" size={18} color="#FFFFFF" />
+            <Ionicons name="add-outline" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerCircularBtn}

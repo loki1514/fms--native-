@@ -23,6 +23,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, useAuth } from "@/context";
 import { Colors } from "@/constants/Colors";
 import { supabase } from "@/utils/supabase/client";
+import { electricityService } from "@/services/electricityService";
+import { serverApi } from "@/lib/serverApi";
 
 import { LoggersMenu } from "@/components/shared/LoggersMenu";
 import SafeBlurView from "@/components/ui/SafeBlurView";
@@ -618,39 +620,15 @@ function LogReadingModal({
     }
     setIsSubmitting(true);
     try {
-      // Fetch active multiplier for this meter and reading date via RPC
-      const { data: multData }: any = await (supabase.rpc as any)(
-        "get_active_multiplier",
-        {
-          p_meter_id: selectedMeterId,
-          p_date: readingDate,
-        },
-      );
-
-      const rawUnits = c - opening;
-      const multiplierValue = multData?.[0]?.multiplier_value ?? 1;
-      const finalUnits = rawUnits * multiplierValue;
-
-      const { error } = await (
-        supabase.from("electricity_readings") as any
-      ).insert({
-        property_id: propertyId,
+      const res = await electricityService.submitReading(propertyId, {
         meter_id: selectedMeterId,
         reading_date: readingDate,
         opening_reading: opening,
         closing_reading: c,
-        final_units: finalUnits,
-        multiplier_id: multData?.[0]?.id || null,
-        multiplier_value_used: multiplierValue,
         notes: notes || null,
       });
 
-      if (error) throw error;
-
-      // Update meter last_reading
-      await (supabase.from("electricity_meters") as any)
-        .update({ last_reading: c })
-        .eq("id", selectedMeterId);
+      if (!res.success) throw new Error(String(res.error || 'Failed to save reading'));
 
       onClose();
       onSuccess();
@@ -1140,28 +1118,15 @@ function TariffModal({
     setError(null);
     try {
       const rateVal = parseFloat(rate);
-      const dayBefore = new Date(effectiveFrom);
-      dayBefore.setDate(dayBefore.getDate() - 1);
-      const dayBeforeStr = dayBefore.toISOString().split("T")[0];
-
-      // Close existing active tariff
-      await (supabase.from("grid_tariffs") as any)
-        .update({ effective_to: dayBeforeStr } as any)
-        .eq("property_id", propertyId)
-        .is("effective_to", null)
-        .lt("effective_from", effectiveFrom);
-
-      // Insert new tariff
-      const { error: insertErr } = await supabase.from("grid_tariffs").insert({
+      const res = await electricityService.createTariff({
         property_id: propertyId,
         rate_per_unit: rateVal,
         utility_provider: provider || null,
-        unit_type: "kVAh",
+        unit_type: 'kVAh',
         effective_from: effectiveFrom,
         created_by: authUser?.id,
-      } as any);
-
-      if (insertErr) throw insertErr;
+      });
+      if (!res.success) throw new Error(String(res.error || 'Failed to save tariff'));
 
       setRate("");
       setProvider("");
@@ -1186,22 +1151,8 @@ function TariffModal({
           onPress: async () => {
             setDeletingId(id);
             try {
-              // 1. Reset readings
-              await (supabase.from("electricity_readings") as any)
-                .update({
-                  tariff_id: null,
-                  tariff_rate_used: null,
-                  computed_cost: 0,
-                } as any)
-                .eq("tariff_id", id);
-
-              // 2. Delete tariff
-              const { error: delErr } = await supabase
-                .from("grid_tariffs")
-                .delete()
-                .eq("id", id);
-
-              if (delErr) throw delErr;
+              const delRes = await electricityService.deleteTariff(id, propertyId);
+              if (!delRes.success) throw new Error(String(delRes.error || 'Could not delete tariff'));
 
               await fetchTariffs();
               await onTariffChange();
@@ -1603,27 +1554,15 @@ function MeterConfigModal({
     setIsSubmitting(true);
     setError(null);
     try {
-      // Create meter
-      const { data: meter, error: meterErr } = (await supabase
-        .from("electricity_meters")
-        .insert({
-          property_id: propertyId,
-          name: name.trim(),
-          meter_number: meterNumber.trim() || null,
-          meter_type: meterType,
-          last_reading: parseFloat(lastReading) || 0,
-          status: "active",
-        } as any)
-        .select()
-        .single()) as any;
-      if (meterErr) throw meterErr;
-
-      // Create initial multiplier
       const multValue = computedMultiplier();
-      const { error: multErr } = await supabase
-        .from("meter_multipliers")
-        .insert({
-          meter_id: meter.id,
+      const res = await electricityService.createMeter({
+        property_id: propertyId,
+        name: name.trim(),
+        meter_number: meterNumber.trim() || null,
+        meter_type: meterType,
+        last_reading: parseFloat(lastReading) || 0,
+        status: 'active',
+        initial_multiplier: {
           ct_ratio_primary: parseFloat(ctPrimary) || 0,
           ct_ratio_secondary: parseFloat(ctSecondary) || 0,
           pt_ratio_primary: parseFloat(ptPrimary) || 0,
@@ -1632,14 +1571,14 @@ function MeterConfigModal({
           multiplier_value: multValue,
           effective_from: new Date().toISOString().split("T")[0],
           created_by: authUser?.id,
+        },
         } as any);
-      if (multErr)
+      if (!res.success)
         console.error(
-          "[MeterConfig] Multiplier insert failed:",
-          multErr.message,
+          "[MeterConfig] Meter creation failed:",
+          String(res.error || 'Unknown error'),
         );
-
-      await onSuccess();
+      else await onSuccess();
     } catch (e: any) {
       setError(e.message || "Failed to add meter");
     } finally {
@@ -1972,26 +1911,8 @@ export default function ElectricityScreen() {
               const reading = readings.find((r) => r.id === id);
               if (!reading) throw new Error("Reading not found");
 
-              const { error: deleteError } = await (supabase
-                .from("electricity_readings")
-                .delete()
-                .eq("id", id) as any);
-              if (deleteError) throw deleteError;
-
-              // Recalibrate meter last_reading
-              const { data: remaining } = await (supabase
-                .from("electricity_readings")
-                .select("closing_reading")
-                .eq("meter_id", reading.meter_id)
-                .eq("property_id", propertyId)
-                .order("reading_date", { ascending: false })
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle() as any);
-
-              await (supabase.from("electricity_meters") as any)
-                .update({ last_reading: remaining?.closing_reading ?? 0 })
-                .eq("id", reading.meter_id);
+              const delRes = await electricityService.deleteReading(id, reading.meter_id, propertyId as string);
+              if (!delRes.success) throw new Error(String(delRes.error || 'Could not delete reading'));
 
               await fetchData();
               if (showHistoryModal) fetchHistoryReadings();
@@ -2037,29 +1958,23 @@ export default function ElectricityScreen() {
     if (!propertyId) return;
     setIsLoading(true);
     try {
-      const [{ data: metersData }, { data: readingsData }] = await Promise.all([
-        supabase
-          .from("electricity_meters")
-          .select("*")
-          .eq("property_id", propertyId)
-          .is("deleted_at", null)
-          .order("name") as any,
-        supabase
-          .from("electricity_readings")
-          .select("*")
-          .eq("property_id", propertyId)
-          .order("reading_date", { ascending: false })
-          .order("created_at", { ascending: false }) as any,
+      const [metersRes, readingsRes, tariffsRes] = await Promise.all([
+        electricityService.fetchMeters(propertyId),
+        electricityService.fetchReadings(propertyId),
+        electricityService.fetchTariffs(propertyId),
       ]);
 
-      setMeters((metersData as any) || []);
-      setReadings((readingsData as any) || []);
+      const metersData = (metersRes.success ? metersRes.data : []) ?? [];
+      const readingsData = (readingsRes.success ? readingsRes.data : []) ?? [];
+      const tariffsData = (tariffsRes.success ? tariffsRes.data : []) ?? [];
+
+      setMeters(metersData as any);
+      setReadings(readingsData as any);
 
       // Fetch previous closings
-      const latestReadings: any[] = (readingsData as any) || [];
       const closings: Record<string, number> = {};
       const seen: Record<string, boolean> = {};
-      latestReadings.forEach((r: any) => {
+      readingsData.forEach((r: any) => {
         if (!seen[r.meter_id]) {
           seen[r.meter_id] = true;
           closings[r.meter_id] = r.closing_reading;
@@ -2067,37 +1982,15 @@ export default function ElectricityScreen() {
       });
       setPreviousClosings(closings);
 
-      // Fetch active tariff (non-blocking)
+      // Set active tariff
       const todayStr = new Date().toISOString().split("T")[0];
-      (async () => {
-        try {
-          const { data: rpcData } = await (supabase.rpc as any)(
-            "get_active_grid_tariff",
-            {
-              p_property_id: propertyId,
-              p_date: todayStr,
-            },
-          );
-          if (rpcData && (rpcData as any[]).length > 0) {
-            setActiveTariff((rpcData as any[])[0]);
-          } else {
-            const { data: allData } = await supabase
-              .from("grid_tariffs")
-              .select("*")
-              .eq("property_id", propertyId)
-              .order("effective_from", { ascending: false });
-            if (allData && allData.length > 0) {
-              const active =
-                allData.find(
-                  (t: any) => !t.effective_to && t.effective_from <= todayStr,
-                ) || allData[0];
-              setActiveTariff(active);
-            }
-          }
-        } catch (err) {
-          console.error("Tariff fetch error:", err);
-        }
-      })();
+      if (tariffsData.length > 0) {
+        const active =
+          tariffsData.find(
+            (t: any) => !t.effective_to && t.effective_from <= todayStr,
+          ) || tariffsData[0];
+        setActiveTariff(active as any);
+      }
     } catch (e) {
       console.error("Electricity fetch error:", e);
     } finally {
@@ -2131,10 +2024,10 @@ export default function ElectricityScreen() {
   });
 
   // Quick stats
-  const totalUnits = filteredReadings.reduce(
+const totalUnits = filteredReadings.reduce(
     (s, r) => s + (r.final_units ?? r.computed_units ?? 0),
-    0,
-  );
+    0
+);
   const tariffRate = activeTariff?.rate_per_unit ?? 0;
   const totalCost = totalUnits * tariffRate;
 
@@ -2216,7 +2109,7 @@ export default function ElectricityScreen() {
             onPress={() => setShowMeterModal(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="apps-outline" size={18} color="#FFFFFF" />
+            <Ionicons name="add-outline" size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerCircularBtn}
@@ -2602,28 +2495,27 @@ export default function ElectricityScreen() {
         onTariffChange={async () => {
           const todayStr = new Date().toISOString().split("T")[0];
           try {
-            const { data: rpcData } = await (supabase.rpc as any)(
-              "get_active_grid_tariff",
-              {
-                p_property_id: propertyId,
-                p_date: todayStr,
-              },
-            );
-            if (rpcData && (rpcData as any[]).length > 0) {
-              setActiveTariff((rpcData as any[])[0]);
+            const rpcRes = await serverApi.rpc("get_active_grid_tariff", {
+              p_property_id: propertyId,
+              p_date: todayStr,
+            });
+            if (rpcRes.data && (rpcRes.data as any[]).length > 0) {
+              setActiveTariff((rpcRes.data as any[])[0]);
               return;
             }
-            const { data: allData } = await supabase
-              .from("grid_tariffs")
-              .select("*")
-              .eq("property_id", propertyId)
-              .order("effective_from", { ascending: false });
-            if (allData && allData.length > 0) {
+            const allRes = await serverApi.query<any[]>({
+              table: "grid_tariffs",
+              action: "select",
+              select: "*",
+              filters: [{ op: "eq", column: "property_id", value: propertyId }],
+              orders: [{ column: "effective_from", ascending: false }],
+            });
+            if (allRes.data && allRes.data.length > 0) {
               const active =
-                allData.find(
+                allRes.data.find(
                   (t: any) => !t.effective_to && t.effective_from <= todayStr,
-                ) || allData[0];
-              setActiveTariff(active);
+                ) || allRes.data[0];
+              setActiveTariff(active as any);
             }
           } catch (e) {
             console.error("Error refreshing tariff:", e);
