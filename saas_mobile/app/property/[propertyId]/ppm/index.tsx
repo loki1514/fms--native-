@@ -716,15 +716,15 @@ export default function PPMScreen() {
     if (!selectedSchedule || !user) return;
     setIsSaving(true);
     try {
-      const res = await ppmService.updateSchedule(
-        {
-          id: selectedSchedule.id,
-          status: editStatus,
-          done_date: editStatus === "done" ? editDoneDate : undefined,
-          remark: editRemark,
-        },
-        user.id,
-      );
+      const res = await ppmService.updateSchedule({
+        id: selectedSchedule.id,
+        status: editStatus,
+        done_date: editStatus === "done" ? editDoneDate : undefined,
+        remark: editRemark,
+        vendor_name: selectedSchedule.vendor_name,
+        vendor_phone: selectedSchedule.vendor_phone,
+        vendor_contact_person: selectedSchedule.vendor_contact_person,
+      });
       if (res.success) {
         setShowDetail(false);
         await fetchSchedules();

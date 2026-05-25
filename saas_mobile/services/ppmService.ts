@@ -89,6 +89,10 @@ export interface PPMUpdatePayload {
   done_date?: string;
   remark?: string;
   verification_status?: string;
+  vendor_id?: string | null;
+  vendor_name?: string | null;
+  vendor_phone?: string | null;
+  vendor_contact_person?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,20 +240,24 @@ export const ppmService = {
   },
 
   // ── Update Schedule Status ────────────────────────────────────────────────
-  async updateSchedule(payload: PPMUpdatePayload, currentUserId: string): Promise<ApiResponse<PPMSchedule>> {
+  // Aligned with saas_one web app: PATCH /api/ppm/[id]
+  async updateSchedule(payload: PPMUpdatePayload): Promise<ApiResponse<PPMSchedule>> {
     try {
-      const res = await serverApi.post<any>('/api/ppm/status', {
-        scheduleId: payload.id,
-        status: payload.status,
-        done_date: payload.done_date,
-        remark: payload.remark,
-        verification_status: payload.verification_status,
-        updatedBy: currentUserId,
-      });
+      const body: any = {};
+      if (payload.status !== undefined) body.status = payload.status;
+      if (payload.done_date !== undefined) body.done_date = payload.done_date || null;
+      if (payload.remark !== undefined) body.remark = payload.remark || null;
+      if (payload.verification_status !== undefined) body.verification_status = payload.verification_status;
+      if (payload.vendor_id !== undefined) body.vendor_id = payload.vendor_id;
+      if (payload.vendor_name !== undefined) body.vendor_name = payload.vendor_name;
+      if (payload.vendor_phone !== undefined) body.vendor_phone = payload.vendor_phone;
+      if (payload.vendor_contact_person !== undefined) body.vendor_contact_person = payload.vendor_contact_person;
+
+      const res = await serverApi.patch<any>(`/api/ppm/${payload.id}`, body);
       if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Update failed');
       return { success: true, data: normalizeSchedule(res.data?.schedule ?? res.data), status: 200 };
     } catch (err: any) {
-      console.error('ppmService.updateSchedule:', err);
+      console.error('[PPM] updateSchedule error:', err);
       return { success: false, data: null as any, error: err.message, status: 500 };
     }
   },
@@ -295,95 +303,43 @@ export const ppmService = {
   },
 
   // ── Upload Attachment ─────────────────────────────────────────────────────
-  async uploadAttachment(propertyId: string, scheduleId: string, uri: string, type: 'photo' | 'certificate' | 'invoice'): Promise<ApiResponse<string>> {
+  // Aligned with saas_one: POST /api/ppm/[id]/attachments with FormData
+  async uploadAttachment(_propertyId: string, scheduleId: string, uri: string, type: 'photo' | 'certificate' | 'invoice'): Promise<ApiResponse<string>> {
     try {
+      // Map mobile type names to server attach_type values
+      const attachType = type === 'certificate' ? 'doc' : type;
+
       const response = await fetch(uri);
       const blob = await response.blob();
       const ext = uri.split('.').pop() || 'jpg';
-      const path = `${propertyId}/${scheduleId}/${type}-${Date.now()}.${ext}`;
+      const filename = `attachment_${Date.now()}.${ext}`;
 
-      const uploadRes = await serverApi.upload('ppm-attachments', path, blob, ext === 'webp' ? 'image/webp' : 'image/jpeg');
-      if (uploadRes.error) throw new Error(uploadRes.error?.message ?? 'Upload failed');
+      // Build FormData for the server endpoint
+      const formData = new FormData();
+      formData.append('file', { uri, name: filename, type: ext === 'webp' ? 'image/webp' : 'image/jpeg' } as any);
+      formData.append('attach_type', attachType);
 
-      const urlRes = await serverApi.getPublicUrl('ppm-attachments', path);
-      const publicUrl = urlRes.data?.publicUrl || '';
+      const res = await serverApi.post<any>(`/api/ppm/${scheduleId}/attachments`, formData as any);
+      if (res.error) throw new Error(res.error?.message ?? 'Upload failed');
 
-      const existingRes = await serverApi.get<any>(`/api/ppm?propertyId=${propertyId}`);
-      const schedules = existingRes.data?.schedules ?? [];
-      const existing = schedules.find((s: any) => s.id === scheduleId) ?? {};
-      const attachments = existing.attachments || {};
-      const updates: any = { attachments: { ...attachments } };
-
-      if (type === 'photo') {
-        updates.attachments.photos = [...(attachments.photos || []), publicUrl];
-        updates.completion_photos = [...(existing.completion_photos || []), publicUrl];
-      } else if (type === 'certificate') {
-        updates.attachments.certificate = publicUrl;
-        updates.completion_doc_url = publicUrl;
-      } else if (type === 'invoice') {
-        updates.attachments.invoice = publicUrl;
-        updates.invoice_url = publicUrl;
-      }
-
-      await serverApi.patch(`/api/ppm/${scheduleId}/attachments`, updates);
-
-      return { success: true, data: publicUrl, status: 200 };
+      return { success: true, data: res.data?.url || '', status: 200 };
     } catch (err: any) {
-      console.error('ppmService.uploadAttachment:', err);
+      console.error('[PPM] uploadAttachment error:', err);
       return { success: false, data: '', error: err.message, status: 500 };
     }
   },
 
   // ── Delete Attachment ─────────────────────────────────────────────────────
+  // Aligned with saas_one: DELETE /api/ppm/[id]/attachments?url=...&attach_type=...
   async deleteAttachment(scheduleId: string, url: string, type: 'photo' | 'certificate' | 'invoice'): Promise<ApiResponse<boolean>> {
     try {
-      const pathMatch = url.match(/ppm-attachments\/(.+)$/);
-      const path = pathMatch ? pathMatch[1] : null;
-      if (path) await serverApi.removeFile('ppm-attachments', path);
-
-      // Wait, deleteAttachment doesn't have propertyId, we might need to get it or fetch the specific schedule first.
-      // But we can just use the schedule endpoint via GET without propertyId or require it?
-      // Since it's a PATCH to an id, the backend checks auth and applies the change.
-      // To get the existing attachments, we should fetch the specific schedule.
-      // Actually we'll just get the existing by calling the API if possible.
-      // Since we don't have propertyId passed to deleteAttachment easily here without changing signature,
-      // and we just need existing attachments, let's let the backend handle the fetch and update!
-      // But wait, the logic requires fetching existing attachments to filter them out.
-      
-      const updates: any = {};
-      if (type === 'photo') {
-        // This is a bit tricky, the safest way is passing the URL to delete to the backend, 
-        // but since we must maintain the same signature, let's just use serverApi.query just for reading if we have to, 
-        // OR better yet, fetch the specific schedule through serverApi.query since it's just a select.
-      }
-      
-      const existingRes = await serverApi.query<any>({
-        table: 'ppm_schedules',
-        action: 'select',
-        select: 'attachments, completion_photos, completion_doc_url, invoice_url',
-        filters: [{ op: 'eq', column: 'id', value: scheduleId }],
-        single: true,
-      });
-      const existing = existingRes.data ?? {};
-      const attachments = existing.attachments || {};
-      const actualUpdates: any = { attachments: { ...attachments } };
-
-      if (type === 'photo') {
-        actualUpdates.attachments.photos = (attachments.photos || []).filter((u: string) => u !== url);
-        actualUpdates.completion_photos = (existing.completion_photos || []).filter((u: string) => u !== url);
-      } else if (type === 'certificate') {
-        actualUpdates.attachments.certificate = null;
-        actualUpdates.completion_doc_url = null;
-      } else if (type === 'invoice') {
-        actualUpdates.attachments.invoice = null;
-        actualUpdates.invoice_url = null;
-      }
-
-      await serverApi.patch(`/api/ppm/${scheduleId}/attachments`, actualUpdates);
-
+      const attachType = type === 'certificate' ? 'doc' : type;
+      const params = new URLSearchParams({ url, attach_type: attachType });
+      const res = await serverApi.delete<any>(`/api/ppm/${scheduleId}/attachments?${params.toString()}`);
+      if (res.error) throw new Error(res.error?.message ?? 'Delete failed');
       return { success: true, data: true, status: 200 };
     } catch (err: any) {
-      console.error('ppmService.deleteAttachment:', err);
+      console.error('[PPM] deleteAttachment error:', err);
       return { success: false, data: false, error: err.message, status: 500 };
     }
   },
