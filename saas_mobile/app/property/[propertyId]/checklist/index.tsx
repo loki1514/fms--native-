@@ -2231,10 +2231,7 @@ export default function ChecklistScreen() {
                             keyboardType={
                               itemType === "number" ? "numeric" : "default"
                             }
-                            onPress={() => {
-                              setActiveProperty(p);
-                              router.push(`/property/${p.id}`);
-                            }}
+                            value={state.value || ""}
                             onChangeText={(v) => handleItemValue(checkItem, v)}
                             editable={!runnerIsReadOnly}
                           />

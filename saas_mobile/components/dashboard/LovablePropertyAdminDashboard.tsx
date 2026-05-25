@@ -577,6 +577,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
 
       <PPMProgressCard
         propertyId={propertyId}
+        organizationId={orgId}
         done={ppmDone}
         total={ppmTotal}
         pending={ppmPending}
@@ -586,7 +587,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         onPress={() => router.push(`/property/${propertyId}/ppm`)}
       />
 
-      <PPMActivityTile propertyId={propertyId} delay={320} />
+      <PPMActivityTile propertyId={propertyId} organizationId={orgId} delay={320} />
 
       <GlassTile label="Energy Usage" icon="flash" delay={280} status={energyTrend > 10 ? 'watch' : 'optimal'} onPress={() => setShowTileDetail(tileDetails.energy)}>
         <View style={styles.tileTopRow}><View><Text style={styles.tileMetricMid}>{energyKwh} <Text style={styles.tileSuffix}>kWh</Text></Text><Text style={styles.tileSubtext}>Grid + DG consumption today</Text></View><View style={styles.trendChip}><Ionicons name={energyTrend > 0 ? 'trending-up' : 'trending-down'} size={12} color="#1FC26E" /><Text style={styles.trendChipText}>+{energyTrend}%</Text></View></View>

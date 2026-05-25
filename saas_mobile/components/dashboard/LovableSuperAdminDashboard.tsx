@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'expo-router';
 import { serverApi } from '@/lib/serverApi';
 import {
   View,
@@ -55,7 +54,7 @@ import {
 
 // ─── Main dashboard ────────────────────────────────────────────────────────────
 export default function LovableSuperAdminDashboard() {
-  const router = useRouter();
+  const { user, signOut, membership } = useAuth();
   const insets = useSafeAreaInsets();
   const { weather } = useWeather();
 
@@ -476,7 +475,8 @@ export default function LovableSuperAdminDashboard() {
                   property={p}
                   index={i}
                   onPress={() => {
-                    router.push({ pathname: '/property/[propertyId]', params: { propertyId: p.id } });
+                    setActiveProperty(p);
+                    setScreen('property-detail');
                   }}
                 />
               ))}

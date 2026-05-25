@@ -627,7 +627,7 @@ export default function PPMScreen() {
     if (!propertyId) return;
     try {
       const [schedulesRes, contractsRes] = await Promise.all([
-        ppmService.fetchSchedules(propertyId as string),
+        ppmService.fetchSchedules(propertyId as string, membership?.org_id ?? null),
         ppmService.fetchContracts(propertyId as string),
       ]);
 

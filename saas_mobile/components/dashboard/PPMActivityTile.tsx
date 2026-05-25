@@ -25,6 +25,7 @@ interface PPMSchedule {
 
 interface PPMActivityTileProps {
   propertyId: string;
+  organizationId?: string;
   delay?: number;
 }
 
@@ -52,6 +53,7 @@ const PERIOD_LABELS: Record<string, string> = {
 
 export const PPMActivityTile: React.FC<PPMActivityTileProps> = ({
   propertyId,
+  organizationId,
   delay = 400,
 }) => {
   const router = useRouter();
@@ -66,7 +68,7 @@ export const PPMActivityTile: React.FC<PPMActivityTileProps> = ({
   const fetchSchedules = async () => {
     setLoading(true);
     try {
-      const res = await ppmService.fetchSchedules(propertyId);
+      const res = await ppmService.fetchSchedules(propertyId, organizationId);
       if (res.success && res.data) {
         setSchedules(res.data.map((s: any) => ({
           id: s.id,

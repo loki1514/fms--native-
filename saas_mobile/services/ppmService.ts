@@ -157,14 +157,38 @@ function computeAMCStatus(endDate: string): AMCContract['status'] {
 
 export const ppmService = {
   // ── Fetch Schedules ───────────────────────────────────────────────────────
-  async fetchSchedules(propertyId: string): Promise<ApiResponse<PPMSchedule[]>> {
+  async fetchSchedules(propertyId: string, organizationId?: string | null): Promise<ApiResponse<PPMSchedule[]>> {
     try {
-      if (__DEV__) console.log('[PPM] fetchSchedules start, propertyId:', propertyId);
-      const res = await serverApi.get<any>(`/api/ppm?propertyId=${propertyId}`);
+      if (__DEV__) console.log('[PPM] fetchSchedules start, propertyId:', propertyId, 'orgId:', organizationId);
+      const params = new URLSearchParams({ propertyId });
+      if (organizationId) params.append('organizationId', organizationId);
+      const res = await serverApi.get<any>(`/api/ppm?${params.toString()}`);
       if (__DEV__) console.log('[PPM] fetchSchedules raw response:', JSON.stringify({ data: res.data, error: res.error }));
       if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch PPM');
       const schedules = (res.data?.schedules ?? []).map(normalizeSchedule).filter((s: PPMSchedule) => s.planned_date);
       if (__DEV__) console.log('[PPM] fetchSchedules parsed:', schedules.length, 'schedules');
+
+      // Fallback: if direct route returns empty and we have orgId, try querying via proxy
+      if (schedules.length === 0 && organizationId) {
+        if (__DEV__) console.log('[PPM] fetchSchedules fallback: querying via mobile-client/query');
+        const fallbackRes = await serverApi.query<any>({
+          table: 'ppm_schedules',
+          action: 'select',
+          select: '*, maintenance_vendors(id, company_name, contact_person, phone)',
+          filters: [
+            { op: 'eq', column: 'property_id', value: propertyId },
+            { op: 'eq', column: 'organization_id', value: organizationId },
+          ],
+          orders: [{ column: 'planned_date', ascending: true }],
+        });
+        if (__DEV__) console.log('[PPM] fetchSchedules fallback result:', JSON.stringify({ data: fallbackRes.data, error: fallbackRes.error }));
+        if (!fallbackRes.error && fallbackRes.data) {
+          const fallbackSchedules = (fallbackRes.data as any[]).map(normalizeSchedule).filter((s: PPMSchedule) => s.planned_date);
+          if (__DEV__) console.log('[PPM] fetchSchedules fallback parsed:', fallbackSchedules.length, 'schedules');
+          return { success: true, data: fallbackSchedules, status: 200 };
+        }
+      }
+
       return { success: true, data: schedules, status: 200 };
     } catch (err: any) {
       console.error('[PPM] fetchSchedules error:', err);

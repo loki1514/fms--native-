@@ -12,6 +12,7 @@ import { ppmService, PPMSchedule } from '@/services/ppmService';
 
 interface PPMProgressCardProps {
   propertyId: string;
+  organizationId?: string;
   done: number;
   total: number;
   pending: number;
@@ -26,6 +27,7 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 
 export const PPMProgressCard: React.FC<PPMProgressCardProps> = ({
   propertyId,
+  organizationId,
   done = 0,
   total = 0,
   pending = 0,
@@ -42,16 +44,16 @@ export const PPMProgressCard: React.FC<PPMProgressCardProps> = ({
       if (__DEV__) console.log('[PPMProgressCard] no propertyId');
       return;
     }
-    if (__DEV__) console.log('[PPMProgressCard] fetching schedules for', propertyId);
+    if (__DEV__) console.log('[PPMProgressCard] fetching schedules for', propertyId, 'org:', organizationId);
     let mounted = true;
-    ppmService.fetchSchedules(propertyId).then((res) => {
+    ppmService.fetchSchedules(propertyId, organizationId).then((res) => {
       if (!mounted) return;
       if (__DEV__) console.log('[PPMProgressCard] fetch result:', res.success, res.data?.length ?? 0, 'items');
       if (res.success && res.data) setSchedules(res.data);
       setLoading(false);
     });
     return () => { mounted = false; };
-  }, [propertyId]);
+  }, [propertyId, organizationId]);
 
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
