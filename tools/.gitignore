@@ -1,0 +1,9 @@
+# External tools — intentionally excluded from version control.
+# These are third-party toolkits (Claude Code extensions, AI agent frameworks,
+# browser automation helpers) used for local development only.
+# Do NOT commit anything inside tools/ to the main product repo.
+#
+# To share these across your team, each has its own upstream repo to clone.
+# See docs/planning/AGENTS.md for links.
+*
+!.gitignore

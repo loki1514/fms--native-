@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# SQLite runtime database (use migrations for schema, don't commit data)
+data/cassandra_chat.db
+data/*.db
+
+# Secrets
+.env
+.env.*

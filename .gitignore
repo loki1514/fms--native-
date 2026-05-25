@@ -1,13 +1,55 @@
-# Environment variables
+# ── Environment variables ─────────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
 
-# dependencies
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
 
-# macOS
-.DS_Store
+# ── External tools (see tools/.gitignore) ─────────────────────────────────────
+# These are third-party dev aids, NOT product code. They live in tools/ and are
+# fully gitignored so they never pollute PRs or CI.
+tools/agent-browser/
+tools/awesome-claude-code-subagents/
+tools/claude-mem/
+tools/impeccable/
+tools/superpowers/
 
-# Logs
+# ── Archive (see archive/.gitignore) ─────────────────────────────────────────
+archive/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ── Expo / React Native ───────────────────────────────────────────────────────
+.expo/
+dist/
+web-build/
+
+# ── Build artefacts ───────────────────────────────────────────────────────────
+build/
+*.orig.*
+
+# ── Native mobile ────────────────────────────────────────────────────────────
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# ── Database runtime files ────────────────────────────────────────────────────
+services/cassandra/data/*.db
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+*.pem
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
