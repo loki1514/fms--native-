@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,13 +15,19 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BottomSheetModal, BottomSheetFlatList } from '@gorhom/bottom-sheet';
 import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import {
   getCompaniesWithCreditsApi,
   updateMeetingRoomCreditsApi,
+} from '@/services/meetingRoomService';
+import {
+  fetchUsersList,
+  manageCompanyMemberApi,
 } from '@/utils/api/mobileApi';
+import { createClient } from '@/utils/supabase/client';
 import {
   ChevronLeft,
   Building2,
@@ -31,6 +37,8 @@ import {
   ChevronUp,
   Save,
   CheckCircle2,
+  Plus,
+  Trash2,
 } from 'lucide-react-native';
 
 export default function AdminCreditsScreen() {
@@ -47,6 +55,13 @@ export default function AdminCreditsScreen() {
   const [editHours, setEditHours] = useState<Record<string, string>>({});
   const [editRemainingHours, setEditRemainingHours] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  // Users state
+  const addMemberSheetRef = useRef<BottomSheetModal>(null);
+  const snapPoints = useMemo(() => ['60%', '90%'], []);
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
@@ -109,6 +124,69 @@ export default function AdminCreditsScreen() {
       Alert.alert('Error', e.message || 'Failed to save credits.');
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const loadUsers = async () => {
+    if (usersList.length > 0) return;
+    setIsUsersLoading(true);
+    try {
+      const res = await fetchUsersList(undefined, propertyId);
+      if (!res.users) {
+        setUsersList([]);
+        return;
+      }
+
+      // 1. Find all user_ids already assigned to ANY company in this property
+      const supabase = createClient();
+      const { data: companies } = await supabase
+        .from('companies')
+        .select('id')
+        .eq('property_id', propertyId);
+      const companyIds = (companies || []).map((c: any) => c.id);
+
+      let assignedUserIds = new Set<string>();
+      if (companyIds.length > 0) {
+        const { data: members } = await supabase
+          .from('company_members')
+          .select('user_id')
+          .in('company_id', companyIds);
+        assignedUserIds = new Set((members || []).map((m: any) => m.user_id));
+      }
+
+      // 2. Filter: client/tenant roles only AND not already in a company
+      const CLIENT_ROLES = new Set([
+        'tenant',
+        'vendor',
+        'food_vendor',
+        'maintenance_vendor',
+        'super_tenant',
+      ]);
+
+      const eligibleUsers = res.users.filter((u: any) => {
+        const role = (u.propertyRole || '').toLowerCase();
+        const isClientRole = CLIENT_ROLES.has(role);
+        const isNotAssigned = !assignedUserIds.has(u.id);
+        return isClientRole && isNotAssigned;
+      });
+
+      setUsersList(eligibleUsers);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsUsersLoading(false);
+    }
+  };
+
+  const handleManageMember = async (companyId: string, userId: string, action: 'add' | 'remove') => {
+    try {
+      const res = await manageCompanyMemberApi(companyId, userId, action);
+      if (res.error) throw new Error(res.error);
+      if (action === 'add') addMemberSheetRef.current?.dismiss();
+      fetchData(); // Refresh to get latest DB state
+      Alert.alert('Success', action === 'add' ? 'Member added successfully' : 'Member removed successfully');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || `Failed to ${action} member.`);
     }
   };
 
@@ -195,7 +273,18 @@ export default function AdminCreditsScreen() {
               </TouchableOpacity>
 
               <View style={styles.divider} />
-              <Text style={styles.sectionTitle}>Aligned Tenants</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Aligned Tenants</Text>
+                <TouchableOpacity 
+                  onPress={() => { 
+                    setSelectedCompanyId(item.id); 
+                    loadUsers(); 
+                    addMemberSheetRef.current?.present(); 
+                  }}
+                >
+                  <Text style={{ color: '#708F96', fontFamily: 'Urbanist-Bold', fontSize: 14 }}>+ Add Client</Text>
+                </TouchableOpacity>
+              </View>
               
               {members.length === 0 ? (
                 <Text style={styles.noMembersText}>No members assigned to this company.</Text>
@@ -214,6 +303,9 @@ export default function AdminCreditsScreen() {
                         <Text style={styles.memberName}>{m.user?.full_name || 'Unknown'}</Text>
                         <Text style={styles.memberEmail}>{m.user?.email || 'No email'}</Text>
                       </View>
+                      <TouchableOpacity onPress={() => handleManageMember(item.id, m.user?.id, 'remove')} style={{ padding: 4 }}>
+                        <Trash2 size={18} color="#EF4444" />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -241,7 +333,12 @@ export default function AdminCreditsScreen() {
           <Text style={styles.headerTitle}>Company Credits</Text>
           <Text style={styles.headerSubtitle}>Manage meeting room limits</Text>
         </View>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity 
+          style={styles.backBtn}
+          onPress={() => router.push(`/property/${propertyId}/rooms/add-company`)}
+        >
+          <Plus size={24} color="#FFFFFF" />
+        </TouchableOpacity>
       </SafeBlurView>
 
       {loading ? (
@@ -265,6 +362,50 @@ export default function AdminCreditsScreen() {
           }
         />
       )}
+
+      <BottomSheetModal
+        ref={addMemberSheetRef}
+        index={0}
+        snapPoints={snapPoints}
+        backgroundStyle={{ backgroundColor: '#1E293B' }}
+        handleIndicatorStyle={{ backgroundColor: '#94A3B8' }}
+      >
+        <View style={styles.sheetContent}>
+          <Text style={styles.sheetTitle}>Select User to Add</Text>
+          {isUsersLoading ? (
+            <ActivityIndicator size="large" color="#708F96" style={{ marginTop: 40 }} />
+          ) : (
+            <BottomSheetFlatList
+              data={usersList}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingBottom: 40 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.sheetUserItem}
+                  onPress={() => {
+                    if (selectedCompanyId) {
+                      handleManageMember(selectedCompanyId, item.id, 'add');
+                    }
+                  }}
+                >
+                  {item.user_photo_url ? (
+                    <Image source={{ uri: item.user_photo_url }} style={styles.sheetUserAvatar} />
+                  ) : (
+                    <View style={styles.sheetUserAvatarPlaceholder}>
+                      <Users size={16} color="#94A3B8" />
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sheetUserName}>{item.full_name}</Text>
+                    <Text style={styles.sheetUserEmail}>{item.email}</Text>
+                  </View>
+                  <Plus size={20} color="#708F96" />
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
+      </BottomSheetModal>
     </KeyboardAvoidingView>
   );
 }
@@ -329,4 +470,11 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyTitle: { fontSize: 18, fontFamily: 'Poppins-SemiBold', color: '#FFF', marginTop: 16 },
   emptySubtitle: { fontSize: 13, fontFamily: 'Urbanist-Medium', color: '#94A3B8', textAlign: 'center', marginTop: 8 },
+  sheetContent: { flex: 1, padding: 16 },
+  sheetTitle: { fontSize: 18, fontFamily: 'Poppins-Bold', color: '#FFF', marginBottom: 16 },
+  sheetUserItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', gap: 12 },
+  sheetUserAvatar: { width: 40, height: 40, borderRadius: 20 },
+  sheetUserAvatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  sheetUserName: { fontSize: 16, fontFamily: 'Urbanist-Bold', color: '#FFF' },
+  sheetUserEmail: { fontSize: 13, fontFamily: 'Urbanist-Medium', color: '#94A3B8' },
 });
