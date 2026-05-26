@@ -56,7 +56,7 @@ export default function PropertyIndex() {
   }
 
   if (isOrgSuperAdmin) {
-    return <Redirect href={`/property/${propertyId}/lovable-super-admin`} />;
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
 
   if (isPropertyAdmin) {

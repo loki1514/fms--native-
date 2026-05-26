@@ -79,7 +79,7 @@ export default function DashboardScreen() {
   }
 
   if (effectiveRole === 'org_admin') {
-    return <LovableOrgSuperAdminDashboard propertyId={pid} />;
+    return <LovablePropertyAdminDashboard propertyId={pid} />;
   }
 
   if (effectiveRole === 'security') {

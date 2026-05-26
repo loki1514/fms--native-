@@ -62,15 +62,8 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
   }
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
   if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== 'granted') {
-    console.log('[Push] Notification permission not granted');
+    console.log('[Push] Notification permission not granted, skipping automatic registration');
     return null;
   }
 

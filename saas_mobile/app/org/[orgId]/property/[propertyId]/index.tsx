@@ -53,11 +53,11 @@ export default function PropertyDetailPage() {
 
   // Redirect based on role
   if (isOrgSuperAdmin) {
-    return <Redirect href={`/property/${propertyId}/lovable-super-admin`} />;
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
 
   if (isPropertyAdmin) {
-    return <Redirect href={`/property/${propertyId}/lovable-admin`} />;
+    return <Redirect href={`/property/${propertyId}/dashboard`} />;
   }
 
   if (propRole === 'mst' || propRole === 'maintenance_staff' || propRole === 'staff') {

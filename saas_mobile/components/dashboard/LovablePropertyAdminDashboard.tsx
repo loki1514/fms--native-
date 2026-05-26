@@ -36,6 +36,7 @@ import PPMProgressCard from '@/components/dashboard/PPMProgressCard';
 import { ppmService } from '@/services/ppmService';
 import { useCassandraStore } from '@/stores/cassandraStore';
 import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
+import PropertySwitcherModal from '@/components/dashboard/PropertySwitcherModal';
 import {
   SPACING,
   TYPOGRAPHY,
@@ -86,6 +87,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showPropertySwitcher, setShowPropertySwitcher] = useState(false);
 
   const [ticketTimeFilter, setTicketTimeFilter] = useState<'today' | 'month' | 'all'>('all');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -229,6 +231,8 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   })();
 
   const orgId = membership?.org_id ?? '';
+  const orgRole = (membership?.org_role ?? '').toLowerCase();
+  const isOrgAdmin = ['org_super_admin', 'org_admin', 'owner'].includes(orgRole);
 
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
@@ -666,7 +670,17 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
               </View>
               <View style={[styles.nameContainer, { flex: 1 }]}>
                 <Text style={styles.greetingText} numberOfLines={1}>Hey, {user?.user_metadata?.full_name?.split(' ')[0] || 'Admin'}</Text>
-                <Text style={styles.headerSubtitle} numberOfLines={1}>{propertyName}</Text>
+                {isOrgAdmin ? (
+                  <TouchableOpacity 
+                    style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}
+                    onPress={(e) => { e.stopPropagation(); setShowPropertySwitcher(true); }}
+                  >
+                    <Text style={[styles.headerSubtitle, { marginTop: 0 }]} numberOfLines={1}>{propertyName}</Text>
+                    <Ionicons name="chevron-down" size={14} color="#FFF" style={{ marginLeft: 4 }} />
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.headerSubtitle} numberOfLines={1}>{propertyName}</Text>
+                )}
               </View>
             </TouchableOpacity>
           </View>
@@ -717,6 +731,14 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         visible={showPermissionOnboarding}
         onComplete={() => setShowPermissionOnboarding(false)}
       />
+      {isOrgAdmin && (
+        <PropertySwitcherModal
+          visible={showPropertySwitcher}
+          onClose={() => setShowPropertySwitcher(false)}
+          currentPropertyId={propertyId}
+          orgId={orgId}
+        />
+      )}
       
       <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
         <View style={{ flex: 1, flexDirection: 'row' }}>

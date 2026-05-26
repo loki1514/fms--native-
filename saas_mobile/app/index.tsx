@@ -28,7 +28,7 @@ export default function Index() {
 
   // Super Admin — master admin check
   if (user?.user_metadata?.is_master_admin) {
-    return <Redirect href="/master" />;
+    return <Redirect href="/super-admin/dashboard" />;
   }
 
   // User is authenticated — redirect to their first property's index (which has role-based routing)

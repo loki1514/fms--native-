@@ -240,7 +240,7 @@ export default function OrgPropertyDashboard() {
       .from('properties')
       .select('id, name, code, address, image_url')
       .eq('organization_id', orgId)
-      .order('created_at', { ascending: true });
+      .order('code', { ascending: true });
 
     if (error) console.error('[OrgPropertyDashboard] fetch error:', error.message);
 
