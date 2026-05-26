@@ -258,8 +258,8 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
     }
 
     // Fetch specialization from mst_skills (stores skill groups per user per property)
-    const { data: skills } = await (supabase
-      .from('mst_skills')
+    const { data: skills } = await ((supabase
+      .from('mst_skills') as any)
       .select('skill_group_code')
       .eq('user_id', user.id)
       .eq('property_id', propertyId)

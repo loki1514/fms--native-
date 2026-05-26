@@ -59,6 +59,7 @@ export const ticketService = {
         const statusValue = Array.isArray(filters.status) ? filters.status.join(',') : filters.status;
         params.append('status', statusValue);
       }
+      if (filters?.category) params.append('category', filters.category);
       if (options?.limit) params.append('limit', String(options.limit));
       if (options?.offset) params.append('offset', String(options.offset));
 

@@ -35,9 +35,9 @@ export type { LoginCredentials, SignupData, ResetPasswordData, UpdatePasswordDat
 export type { CreateTicketData, UpdateTicketData, TicketFilters } from './ticketService';
 export type { CreateUserData, UpdateUserData, UserFilters } from './userService';
 export type { DashboardStats } from '@/types';
-export type { DateFilter, VisitorLog, VisitorStats, HostResult, VmsCheckInPayload } from './vmsService';
+export type { DateFilter, VisitorLog, VisitorStats, HostResult } from './vmsService';
 export type { MeetingRoom, MeetingRoomBooking, MeetingRoomCredit } from './meetingRoomService';
-export type { PPMSchedule, AMCContract, AMCDocument, PPMStats, PPMUpdatePayload, MaintenanceVendor } from './ppmService';
+export type { PPMSchedule, AMCContract, PPMStats, PPMUpdatePayload, MaintenanceVendor } from './ppmService';
 export type { SOPTemplate, SOPChecklistItem, SOPCompletion, SOPCompletionItem, ChecklistFilters } from './checklistService';
 export type { ElectricityMeter, ElectricityReading, GridTariff, MeterMultiplier, ReadingPayload as ElectricityReadingPayload } from './electricityService';
 export type { Generator, DieselReading, DGTariff, ReadingPayload as DieselReadingPayload } from './dieselService';

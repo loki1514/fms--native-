@@ -146,12 +146,12 @@ export class VoiceEnrollmentService {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return { enrolled: false };
 
-      const { data, error } = await supabase
-        .from('user_voice_embeddings')
+      const { data, error } = await ((supabase
+        .from('user_voice_embeddings' as any) as any)
         .select('id')
         .eq('user_id', session.user.id)
         .eq('status', 'enrolled')
-        .maybeSingle();
+        .maybeSingle());
 
       if (error) return { enrolled: false };
       return { enrolled: !!data, embedding_id: (data as { id: string } | null)?.id };

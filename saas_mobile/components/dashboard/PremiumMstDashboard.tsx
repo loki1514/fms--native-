@@ -790,7 +790,7 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
         users:user_id(full_name, user_photo_url)
       `)
       .eq('property_id', propertyId)
-      .in('role', ['mst', 'maintenance_staff', 'staff']);
+      .in('role', ['mst', 'staff']);
 
     if (error || !staffData || staffData.length === 0) {
       setLeaderboard([]);

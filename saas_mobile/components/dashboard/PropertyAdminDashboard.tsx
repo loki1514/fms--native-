@@ -158,7 +158,10 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
     if (error) {
       console.error('Error fetching tickets:', error);
     } else {
-      const ticketData = data || [];
+      const ticketData = (data || []).map((ticket: any) => ({
+        ...ticket,
+        ticket_number: ticket.ticket_number ?? '',
+      }));
       setTickets(ticketData);
       
       // Calculate stats
@@ -188,7 +191,12 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
       if (error || !data) {
         setErrorMsg('Property not found.');
       } else {
-        setProperty(data);
+        setProperty({
+          ...data,
+          address: data.address ?? '',
+          organization_id: data.organization_id ?? '',
+          image_url: data.image_url ?? undefined,
+        });
       }
     } catch (err) {
       setErrorMsg('Network error. Please try again.');

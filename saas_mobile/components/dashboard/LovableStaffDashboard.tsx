@@ -503,8 +503,8 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
       if (shiftData) setIsCheckedIn(!!(shiftData as any).is_checked_in);
 
       // Fetch specialization
-      const { data: skills } = await (supabase
-        .from('mst_skills')
+      const { data: skills } = await ((supabase
+        .from('mst_skills') as any)
         .select('skill_group_code')
         .eq('user_id', user?.id as string)
         .eq('property_id', propertyId)

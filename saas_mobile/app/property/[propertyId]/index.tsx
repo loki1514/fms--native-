@@ -46,6 +46,8 @@ export default function PropertyIndex() {
 
   const isProcurement = propRole === 'procurement' || orgRole === 'procurement';
 
+  const isSecurity = propRole === 'security';
+
   // Lovable test dashboards — email-gated override
   const userEmail = user.email?.toLowerCase() ?? '';
   if (userEmail === 'srustikarta2022@gmail.com') {
@@ -74,6 +76,10 @@ export default function PropertyIndex() {
 
   if (isProcurement) {
     return <Redirect href={`/property/${propertyId}/procurement`} />;
+  }
+
+  if (isSecurity) {
+    return <Redirect href={`/property/${propertyId}/security`} />;
   }
 
   return <Redirect href={`/property/${propertyId}/dashboard`} />;

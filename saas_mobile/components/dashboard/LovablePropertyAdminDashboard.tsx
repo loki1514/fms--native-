@@ -233,6 +233,10 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const orgId = membership?.org_id ?? '';
   const orgRole = (membership?.org_role ?? '').toLowerCase();
   const isOrgAdmin = ['org_super_admin', 'org_admin', 'owner'].includes(orgRole);
+  const propertyRole = (membership?.properties?.find(p => p.id === propertyId)?.role ?? '').toLowerCase();
+  const isPropertyAdmin = ['property_admin', 'admin', 'manager', 'property_manager', 'facility_manager', 'spoc', 'administrator'].includes(propertyRole);
+  const hasMultipleProperties = (membership?.properties?.length ?? 0) > 1;
+  const canSwitchProperty = isOrgAdmin || (isPropertyAdmin && hasMultipleProperties);
 
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
@@ -670,7 +674,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
               </View>
               <View style={[styles.nameContainer, { flex: 1 }]}>
                 <Text style={styles.greetingText} numberOfLines={1}>Hey, {user?.user_metadata?.full_name?.split(' ')[0] || 'Admin'}</Text>
-                {isOrgAdmin ? (
+                {canSwitchProperty ? (
                   <TouchableOpacity 
                     style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}
                     onPress={(e) => { e.stopPropagation(); setShowPropertySwitcher(true); }}
@@ -713,7 +717,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         }}
       />
       <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="chat" />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="text" />
       <TicketCreateModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -731,7 +735,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         visible={showPermissionOnboarding}
         onComplete={() => setShowPermissionOnboarding(false)}
       />
-      {isOrgAdmin && (
+      {canSwitchProperty && (
         <PropertySwitcherModal
           visible={showPropertySwitcher}
           onClose={() => setShowPropertySwitcher(false)}

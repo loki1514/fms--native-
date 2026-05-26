@@ -169,7 +169,7 @@ export const electricityService = {
       limit: 1,
       single: true,
     });
-    const prev = prevRes.success && prevRes.data ? prevRes.data : null;
+    const prev = prevRes.success && prevRes.data ? (prevRes.data as unknown as GridTariff) : null;
     if (prev?.id) {
       await apiClient.put<any>('grid_tariffs', prev.id, { effective_to: null });
     }

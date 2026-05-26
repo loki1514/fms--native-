@@ -521,12 +521,40 @@ const styles = StyleSheet.create({
   roomContent: {
     padding: 16,
   },
+  roomHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  roomIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   roomName: {
     fontFamily: FONT_DISPLAY,
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 6,
+  },
+  roomLocation: {
+    fontSize: 13,
+    fontFamily: 'Urbanist-Medium',
+    color: '#94A3B8',
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontFamily: FONT_BODY,
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   cardMetaRow: {
     flexDirection: 'row',

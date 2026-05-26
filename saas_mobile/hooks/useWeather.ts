@@ -1,8 +1,8 @@
 /**
- * useWeather — Atmospheric weather hook
+ * useWeather - Atmospheric weather hook
  *
  * Returns:
- * - condition: clear-night | sunny | cloudy | rainy
+ * - condition: clear-night | sunny | cloudy | rainy | cosmic
  * - temperature: displayed temp string (e.g. "31°")
  * - locationName: city name from reverse geocoding
  * - label: human-readable label (e.g. "Sunny")
@@ -10,14 +10,14 @@
  *
  * Mode is derived from:
  * 1. Live Open-Meteo data (if location is enabled in settings)
- * 2. Fallback: Strictly "sunny" if location disabled or fetch fails
+ * 2. Fallback: strictly "sunny" if location disabled or fetch fails
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type WeatherCondition = 'clear-night' | 'sunny' | 'cloudy' | 'rainy';
+export type WeatherCondition = 'clear-night' | 'sunny' | 'cloudy' | 'rainy' | 'cosmic';
 
 export interface WeatherData {
   condition: WeatherCondition;
@@ -33,7 +33,7 @@ export interface WeatherData {
   isDaylight?: boolean;
 }
 
-// ─── Backward-compatible legacy exports ───
+// Backward-compatible legacy exports
 export type WeatherIconType = 'sun' | 'moon' | 'partly-cloudy' | 'cloudy' | 'rainy';
 export interface AuroraColors {
   primaryTop: string;
@@ -49,16 +49,12 @@ export interface AuroraColors {
 }
 export type WeatherPeriod = 'morning' | 'afternoon' | 'evening' | 'night';
 
-/* ─── Mode metadata ─── */
-const WEATHER_MODES: {
-  id: WeatherCondition;
-  label: string;
-  temp: string;
-}[] = [
+const WEATHER_MODES: Array<{ id: WeatherCondition; label: string; temp: string }> = [
   { id: 'clear-night', label: 'Clear Night', temp: '22°' },
-  { id: 'sunny',       label: 'Sunny',       temp: '31°' },
-  { id: 'cloudy',      label: 'Cloudy',      temp: '26°' },
-  { id: 'rainy',       label: 'Rainy',       temp: '19°' },
+  { id: 'sunny', label: 'Sunny', temp: '31°' },
+  { id: 'cloudy', label: 'Cloudy', temp: '26°' },
+  { id: 'rainy', label: 'Rainy', temp: '19°' },
+  { id: 'cosmic', label: 'Cosmic', temp: '18°' },
 ];
 
 function getGreeting(hour: number): string {
@@ -68,40 +64,40 @@ function getGreeting(hour: number): string {
   return 'Good Night';
 }
 
-/** Map Open-Meteo WMO code and is_day to our 4 modes */
-function mapMeteoCondition(weathercode: number, is_day: number): WeatherCondition {
-  // Rain/Snow/Thunderstorm (>= 51)
+function mapMeteoCondition(weathercode: number, isDay: number): WeatherCondition {
   if (weathercode >= 51) return 'rainy';
-  // Overcast, Fog (3, 45, 48)
   if (weathercode === 3 || weathercode === 45 || weathercode === 48) return 'cloudy';
-  // Partly cloudy (2)
-  if (weathercode === 2) return 'cloudy'; 
-  
-  // Clear or mainly clear (0, 1)
-  return is_day === 0 ? 'clear-night' : 'sunny';
+  if (weathercode === 2) return 'cloudy';
+  return isDay === 0 ? 'clear-night' : 'sunny';
 }
 
 function getConditionDescription(condition: WeatherCondition): string {
   switch (condition) {
-    case 'rainy': return 'Rain showers';
-    case 'cloudy': return 'Partly cloudy';
-    case 'clear-night': return 'Clear night';
-    case 'sunny': return 'Clear sky';
+    case 'rainy':
+      return 'Rain showers';
+    case 'cloudy':
+      return 'Partly cloudy';
+    case 'clear-night':
+      return 'Clear night';
+    case 'cosmic':
+      return 'Ambient mode';
+    case 'sunny':
+    default:
+      return 'Clear sky';
   }
 }
 
-async function fetchLiveWeather(lat: number, lng: number): Promise<{
-  condition: WeatherCondition;
-  temp: string;
-  description: string;
-} | null> {
+async function fetchLiveWeather(
+  lat: number,
+  lng: number
+): Promise<{ condition: WeatherCondition; temp: string; description: string } | null> {
   try {
     const response = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`
     );
     if (!response.ok) return null;
-    const data = await response.json();
 
+    const data = await response.json();
     const current = data.current_weather;
     if (!current) return null;
 
@@ -125,6 +121,7 @@ async function getLocationName(lat: number, lng: number): Promise<string | null>
       { headers: { 'User-Agent': 'FMS-Mobile-App/1.0' } }
     );
     if (!response.ok) return null;
+
     const data = await response.json();
     return data.address?.city ?? data.address?.town ?? data.address?.village ?? null;
   } catch {
@@ -139,15 +136,13 @@ export function useWeather() {
 
   const computeWeather = useCallback(async (lat: number | null, lng: number | null) => {
     const now = new Date();
-    const hour = now.getHours();
-    const greeting = getGreeting(hour);
+    const greeting = getGreeting(now.getHours());
 
-    let condition: WeatherCondition = 'sunny'; // Strict default
-    let temp = WEATHER_MODES.find(m => m.id === 'sunny')!.temp;
+    let condition: WeatherCondition = 'sunny';
+    let temp = WEATHER_MODES.find((mode) => mode.id === 'sunny')!.temp;
     let description = getConditionDescription('sunny');
     let locationName: string | null = null;
 
-    // Check user-selected dashboard background override
     const storedBg = await AsyncStorage.getItem('fms_dashboard_background');
     if (storedBg) {
       const bgToCondition: Record<string, WeatherCondition> = {
@@ -156,17 +151,18 @@ export function useWeather() {
         midnight: 'clear-night',
         cloudy: 'cloudy',
         raining: 'rainy',
+        cosmic: 'cosmic',
       };
+
       if (storedBg in bgToCondition) {
         condition = bgToCondition[storedBg];
-        const meta = WEATHER_MODES.find(m => m.id === condition);
+        const meta = WEATHER_MODES.find((mode) => mode.id === condition);
         if (meta) {
           temp = meta.temp;
           description = getConditionDescription(condition);
         }
       }
     } else if (lat !== null && lng !== null) {
-      // Fetch live weather only if no background override
       const live = await fetchLiveWeather(lat, lng);
       if (live) {
         condition = live.condition;
@@ -176,7 +172,7 @@ export function useWeather() {
       locationName = await getLocationName(lat, lng);
     }
 
-    const modeMeta = WEATHER_MODES.find((m) => m.id === condition) || WEATHER_MODES[1];
+    const modeMeta = WEATHER_MODES.find((mode) => mode.id === condition) ?? WEATHER_MODES[1];
 
     setWeather({
       condition,
@@ -193,16 +189,14 @@ export function useWeather() {
   const initWeather = useCallback(async () => {
     try {
       const locationEnabled = await AsyncStorage.getItem('fms_weather_location_enabled');
-      
       if (locationEnabled === 'false') {
-        // Location explicitly disabled, use default sunny
         await computeWeather(null, null);
         return;
       }
 
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        await computeWeather(null, null); // Fallback to sunny
+        await computeWeather(null, null);
         return;
       }
 
@@ -212,7 +206,7 @@ export function useWeather() {
       await computeWeather(loc.coords.latitude, loc.coords.longitude);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Location unavailable');
-      await computeWeather(null, null); // Fallback to sunny
+      await computeWeather(null, null);
     }
   }, [computeWeather]);
 
@@ -220,7 +214,6 @@ export function useWeather() {
     initWeather();
   }, [initWeather]);
 
-  // Refresh every 30 minutes
   useEffect(() => {
     if (!weather?.locationName) return;
     const interval = setInterval(initWeather, 30 * 60 * 1000);

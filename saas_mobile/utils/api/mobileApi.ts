@@ -580,6 +580,9 @@ export function getRoleDefaultPath(role: string, propertyId: string): string {
   if (['tenant', 'super_tenant'].includes(normalizedRole)) {
     return `/property/${propertyId}/tenant`;
   }
+  if (normalizedRole === 'security') {
+    return `/property/${propertyId}/security`;
+  }
   return `/property/${propertyId}/lovable-mst`; // Fallback to Lovable MST
 }
 

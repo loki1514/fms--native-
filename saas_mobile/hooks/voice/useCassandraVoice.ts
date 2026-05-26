@@ -77,7 +77,7 @@ function getFileSystem() {
 /** 16kHz mono PCM16 — Cassandra contract (lazy, native only) */
 function getRecordingOptions() {
   const av = getAudioModule();
-  if (!av) return {};
+  if (!av) return undefined;
   return {
     android: {
       extension: '.pcm',

@@ -38,7 +38,12 @@ export default function PropertySelectionView({ propertyIds, onSelect }: Propert
           .in('id', propertyIds);
 
         if (error) throw error;
-        setProperties(data || []);
+        setProperties(
+          (data || []).map((property: any) => ({
+            ...property,
+            address: property.address ?? undefined,
+          }))
+        );
       } catch (err) {
         console.error('Error fetching properties:', err);
       } finally {

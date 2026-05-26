@@ -109,7 +109,7 @@ export function TicketCreateModal({
         if (res && res.users) {
           setPropertyUsers(
             res.users
-              .map(u => ({ id: u.id, full_name: u.fullName || '', role: u.propertyRole }))
+              .map(u => ({ id: u.id, full_name: u.full_name || '', role: u.propertyRole }))
               .filter(u => u.id && u.full_name)
           );
         }

@@ -747,10 +747,146 @@ function CircularProgress({
 
 type SubView = "history" | "templates" | "runner" | "detail";
 type HistoryFilter = "all" | "due" | "upcoming" | "missed" | "completed";
+type DueStatusEntry = { due: boolean; label: string; status: DueStatus };
 type HistoryItem =
   | { type: "template"; data: SOPTemplate }
   | { type: "completion"; data: SOPCompletion }
   | { type: "missed_occurrence"; data: MissedOccurrence };
+
+const TemplateCard = ({
+  template,
+  ds,
+  lastDone,
+  inProgress,
+  onPress,
+  onStart,
+}: {
+  template: SOPTemplate;
+  ds: DueStatusEntry;
+  lastDone?: SOPCompletion;
+  inProgress?: SOPCompletion;
+  onPress: () => void;
+  onStart: () => void;
+}) => {
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+      <SafeBlurView intensity={40} style={[styles.historyCard, { marginBottom: 12 }]} tint="dark">
+        <View style={styles.historyCardRow}>
+          <View style={styles.historyCardContent}>
+            <Text style={styles.historyTitle}>{template.title}</Text>
+            <Text style={styles.historyMeta}>
+              {getFrequencyLabel(template.frequency)}
+              {template.start_time ? ` · ${fmt12h(template.start_time)}` : ""}
+            </Text>
+            {!!template.description && (
+              <Text style={[styles.historyMeta, { marginTop: 6 }]} numberOfLines={2}>
+                {template.description}
+              </Text>
+            )}
+            <Text style={[styles.historyMeta, { marginTop: 8 }]}>
+              Status: {(ds.status || (inProgress ? "due" : "upcoming") || "").toUpperCase() || "READY"}
+            </Text>
+            {!!lastDone?.completion_date && (
+              <Text style={styles.historyMeta}>
+                Last done {formatRelative(lastDone.completion_date)}
+              </Text>
+            )}
+            {!!ds.label && <Text style={styles.historyMeta}>{ds.label}</Text>}
+          </View>
+          <View style={styles.historyCardRight}>
+            <TouchableOpacity style={styles.startBtn} onPress={onStart}>
+              <Play size={14} color="#FFFFFF" />
+              <Text style={styles.startBtnText}>{inProgress ? "Resume" : "Start"}</Text>
+            </TouchableOpacity>
+            <ChevronRight size={18} color="rgba(255,255,255,0.55)" />
+          </View>
+        </View>
+      </SafeBlurView>
+    </TouchableOpacity>
+  );
+}
+
+const HistoryListCard = ({
+  item,
+  templates,
+  dueStatusMap,
+  onStart,
+  onView,
+}: {
+  item: HistoryItem;
+  templates: SOPTemplate[];
+  dueStatusMap: Record<string, DueStatusEntry>;
+  onStart: (template: SOPTemplate, inProgress?: SOPCompletion) => void;
+  onView: (comp: SOPCompletion) => void;
+}) => {
+  if (item.type === "template") {
+    const template = item.data;
+    const inProgress = template.completions.find((comp: SOPCompletion) => comp.status === "in_progress");
+    return (
+      <TemplateCard
+        template={template}
+        ds={dueStatusMap[template.id] ?? { due: false, label: "", status: "" }}
+        lastDone={template.completions
+          .filter((comp: SOPCompletion) => comp.status === "completed")
+          .sort(
+            (a: SOPCompletion, b: SOPCompletion) =>
+              new Date(b.completed_at || b.completion_date || 0).getTime() -
+              new Date(a.completed_at || a.completion_date || 0).getTime()
+          )[0]}
+        inProgress={inProgress}
+        onPress={() => {
+          if (inProgress) onView(inProgress);
+        }}
+        onStart={() => onStart(template, inProgress)}
+      />
+    );
+  }
+
+  if (item.type === "completion") {
+    const completion = item.data;
+    const template = templates.find((entry) => entry.id === completion.template_id);
+    return (
+      <TouchableOpacity onPress={() => onView(completion)} activeOpacity={0.85}>
+        <SafeBlurView intensity={40} style={[styles.historyCard, { marginBottom: 12 }]} tint="dark">
+          <View style={styles.historyCardRow}>
+            <View style={styles.historyCardContent}>
+              <Text style={styles.historyTitle}>{template?.title || "Checklist Completion"}</Text>
+              <Text style={styles.historyMeta}>
+                {completion.status.replace("_", " ").toUpperCase()}
+                {completion.completion_date ? ` · ${formatRelative(completion.completion_date)}` : ""}
+              </Text>
+              {!!completion.slot_time && (
+                <Text style={styles.historyMeta}>{fmt12h(completion.slot_time)}</Text>
+              )}
+            </View>
+            <View style={styles.historyCardRight}>
+              <Eye size={16} color="#FFFFFF" />
+            </View>
+          </View>
+        </SafeBlurView>
+      </TouchableOpacity>
+    );
+  }
+
+  const missed = item.data;
+  return (
+    <SafeBlurView intensity={40} style={[styles.historyCard, { marginBottom: 12 }]} tint="dark">
+      <View style={styles.historyCardRow}>
+        <View style={styles.historyCardContent}>
+          <Text style={styles.historyTitle}>{missed.template.title}</Text>
+          <Text style={styles.historyMeta}>Missed on {formatRelative(missed.date)}</Text>
+          <Text style={styles.historyMeta}>{missed.label}</Text>
+        </View>
+        <View style={styles.historyCardRight}>
+          <TouchableOpacity style={styles.startBtn} onPress={() => onStart(missed.template)}>
+            <RotateCcw size={14} color="#FFFFFF" />
+            <Text style={styles.startBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeBlurView>
+  );
+}
 
 export default function ChecklistScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
@@ -2969,7 +3105,6 @@ export default function ChecklistScreen() {
                   <TouchableOpacity
                     style={[
                       styles.toggleTab,
-                      view === "history" && styles.toggleTabActive,
                     ]}
                     onPress={() => setView("history")}
                   >

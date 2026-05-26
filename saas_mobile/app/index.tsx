@@ -31,20 +31,27 @@ export default function Index() {
     return <Redirect href="/super-admin/dashboard" />;
   }
 
-  // User is authenticated — redirect to their first property's index (which has role-based routing)
+  // User is authenticated — handle property selection based on membership
   if (membership && membership.properties && membership.properties.length > 0) {
     const firstProperty = membership.properties[0];
-    if (__DEV__) {
-      console.log('[Index] Redirecting to property:', firstProperty.id, firstProperty.name);
+    if (membership.properties.length === 1) {
+      // Single property: redirect directly
+      if (__DEV__) {
+        console.log('[Index] Redirecting to single property:', firstProperty.id, firstProperty.name);
+      }
+      return <Redirect href={`/property/${firstProperty.id}`} />;
+    } else {
+      // Multiple properties: navigate to property selection screen with list
+      if (__DEV__) {
+        console.log('[Index] Multiple properties detected, navigating to selection');
+      }
+      const propsParam = encodeURIComponent(JSON.stringify(membership.properties));
+      return <Redirect href={`/(auth)/property-selection?properties=${propsParam}`} />;
     }
-    return <Redirect href={`/property/${firstProperty.id}`} />;
   }
 
-  // User has no properties but already completed onboarding — send to property selection
-  if (user?.user_metadata?.onboarding_completed) {
-    return <Redirect href="/(auth)/property-selection" />;
-  }
+  // Onboarding check removed – onboarding will be presented only after account creation
 
-  // User is authenticated but has no property access — send to onboarding to complete setup
-  return <Redirect href="/onboarding" />;
+  // User is authenticated but has no property access — send to property selection screen
+  return <Redirect href="/(auth)/property-selection" />;
 }

@@ -372,8 +372,8 @@ function UserDetailSheet({
 
   async function loadSkills() {
     if (user.propertyRole === 'mst' || user.propertyRole === 'staff') {
-      const { data } = await supabase
-        .from('mst_skills')
+      const { data } = await (supabase
+        .from('mst_skills') as any)
         .select('skill_code')
         .eq('user_id', user.id)
         .eq('property_id', propertyId);
@@ -724,11 +724,11 @@ function InviteMemberSheet({
       const response = await createMemberUser({
         email: email.trim().toLowerCase(),
         password: password.trim() || undefined,
-        full_name: mode === 'create' ? fullName.trim() : undefined,
+        full_name: fullName.trim() || email.trim().split('@')[0] || 'User',
         phone: phone.trim() || undefined,
         organization_id: organizationId!,
         role: role,
-        property_id: propertyId,
+        property_id: propertyId ?? '',
         specialization: role === 'staff' ? (specialization || undefined) : undefined,
         skills: (role === 'staff' || role === 'mst') ? selectedSkills : undefined,
       });
