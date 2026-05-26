@@ -139,20 +139,10 @@ export const checklistService = {
 
   // ── Upload media ──────────────────────────────────────────────────────────
   async uploadMedia(formData: FormData) {
-    // Media upload uses multipart form — we use the generic storage proxy
-    const bucket = formData.get('bucket') as string || 'sop-photos';
-    const path = formData.get('path') as string;
-    const file = formData.get('file') as File;
-    if (!path || !file) throw new Error('Missing file or path');
-
-    const res = await serverApi.upload(bucket, path, file, file.type);
+    // Use the dedicated checklist media endpoint (sop-photos / sop-videos buckets)
+    const res = await serverApi.postForm<any>('/api/checklist/media', formData);
     if (res.error) throw new Error(res.error?.message ?? 'Failed to upload media');
-
-    // Get public URL for the uploaded file
-    const urlRes = await serverApi.getPublicUrl(bucket, res.data!.path);
-    if (urlRes.error) throw new Error(urlRes.error?.message ?? 'Failed to get public URL');
-
-    return { url: urlRes.data!.publicUrl };
+    return { url: res.data?.url };
   },
 
   // ── Delete media ──────────────────────────────────────────────────────────

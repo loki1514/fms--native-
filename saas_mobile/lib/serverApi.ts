@@ -131,6 +131,10 @@ export const serverApi = {
   post: <T>(endpoint: string, body: unknown) =>
     serverFetch<T>(endpoint, { method: 'POST', body: JSON.stringify(body) }),
 
+  // POST with FormData (multipart)
+  postForm: <T>(endpoint: string, formData: FormData) =>
+    serverFetch<T>(endpoint, { method: 'POST', body: formData }),
+
   // Generic PATCH
   patch: <T>(endpoint: string, body: unknown) =>
     serverFetch<T>(endpoint, { method: 'PATCH', body: JSON.stringify(body) }),
