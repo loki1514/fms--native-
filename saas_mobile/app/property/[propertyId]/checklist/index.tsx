@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
   Image,
@@ -68,6 +69,8 @@ import {
   Square,
   Loader2,
   Paperclip,
+  Maximize2,
+  Star,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
@@ -117,12 +120,13 @@ interface SOPCompletionItem {
   checked_by?: string;
   checklist_item_id: string;
   checked_by_user?: { full_name: string };
+  admin_rating?: number | null;
 }
 
 interface SOPCompletion {
   id: string;
   template_id: string;
-  status: "in_progress" | "completed" | "partial";
+  status: "in_progress" | "completed" | "partial" | "missed";
   completion_date?: string;
   slot_time?: string;
   completed_at?: string;
@@ -132,6 +136,7 @@ interface SOPCompletion {
   created_at: string;
   items: SOPCompletionItem[];
   user?: { id: string; full_name: string };
+  admin_rating?: number | null;
 }
 
 interface SOPTemplate {
@@ -294,7 +299,7 @@ function computeCurrentSlotStart(
   return `${String(h).padStart(2, "0")}:${String(mn).padStart(2, "0")}`;
 }
 
-type DueStatus = "due" | "missed" | "completed" | "upcoming" | "";
+type DueStatus = "due" | "missed" | "completed" | "upcoming" | "paused" | "";
 
 function computeDueStatus(
   frequency: Frequency | undefined | null,
@@ -746,12 +751,49 @@ function CircularProgress({
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 type SubView = "history" | "templates" | "runner" | "detail";
-type HistoryFilter = "all" | "due" | "upcoming" | "missed" | "completed";
+type HistoryFilter = "all" | "due" | "upcoming" | "missed" | "completed" | "paused";
 type DueStatusEntry = { due: boolean; label: string; status: DueStatus };
 type HistoryItem =
   | { type: "template"; data: SOPTemplate }
   | { type: "completion"; data: SOPCompletion }
   | { type: "missed_occurrence"; data: MissedOccurrence };
+
+// ─── Status Badge Component ────────────────────────────────────────────────────
+
+function StatusBadge({ status, label }: { status: DueStatus; label: string }) {
+  const colors: Record<string, { bg: string; text: string }> = {
+    due: { bg: "#3B82F620", text: "#3B82F6" },
+    missed: { bg: "#EF444420", text: "#EF4444" },
+    completed: { bg: "#10B98120", text: "#10B981" },
+    upcoming: { bg: "#F59E0B20", text: "#F59E0B" },
+    paused: { bg: "#6B728020", text: "#6B7280" },
+  };
+  const c = colors[status] || colors.upcoming;
+  return (
+    <View
+      style={{
+        alignSelf: "flex-start",
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6,
+        backgroundColor: c.bg,
+        marginTop: 6,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 9,
+          fontFamily: "Urbanist-ExtraBold",
+          letterSpacing: 0.5,
+          color: c.text,
+          textTransform: "uppercase",
+        }}
+      >
+        {(status || "UPCOMING").toUpperCase()}
+      </Text>
+    </View>
+  );
+}
 
 const TemplateCard = ({
   template,
@@ -768,6 +810,8 @@ const TemplateCard = ({
   onPress: () => void;
   onStart: () => void;
 }) => {
+  const isPaused = !template.is_running;
+  const displayStatus: DueStatus = isPaused ? "paused" : (ds.status || (inProgress ? "due" : "upcoming"));
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
       <SafeBlurView intensity={40} style={[styles.historyCard, { marginBottom: 12 }]} tint="dark">
@@ -779,24 +823,28 @@ const TemplateCard = ({
               {template.start_time ? ` · ${fmt12h(template.start_time)}` : ""}
             </Text>
             {!!template.description && (
-              <Text style={[styles.historyMeta, { marginTop: 6 }]} numberOfLines={2}>
+              <Text style={[styles.historyMeta, { marginTop: 4 }]} numberOfLines={2}>
                 {template.description}
               </Text>
             )}
-            <Text style={[styles.historyMeta, { marginTop: 8 }]}>
-              Status: {(ds.status || (inProgress ? "due" : "upcoming") || "").toUpperCase() || "READY"}
-            </Text>
+
+            <StatusBadge status={displayStatus} label={ds.label} />
+
             {!!lastDone?.completion_date && (
-              <Text style={styles.historyMeta}>
+              <Text style={[styles.historyMeta, { marginTop: 6 }]}>
                 Last done {formatRelative(lastDone.completion_date)}
               </Text>
             )}
-            {!!ds.label && <Text style={styles.historyMeta}>{ds.label}</Text>}
+            {!!ds.label && !isPaused && (
+              <Text style={[styles.historyMeta, { marginTop: 2 }]}>
+                {ds.label}
+              </Text>
+            )}
           </View>
           <View style={styles.historyCardRight}>
             <TouchableOpacity style={styles.startBtn} onPress={onStart}>
               <Play size={14} color="#FFFFFF" />
-              <Text style={styles.startBtnText}>{inProgress ? "Resume" : "Start"}</Text>
+              <Text style={styles.startBtnText}>{inProgress ? "Resume" : isPaused ? "Start" : "Start"}</Text>
             </TouchableOpacity>
             <ChevronRight size={18} color="rgba(255,255,255,0.55)" />
           </View>
@@ -858,6 +906,21 @@ const HistoryListCard = ({
               {!!completion.slot_time && (
                 <Text style={styles.historyMeta}>{fmt12h(completion.slot_time)}</Text>
               )}
+              {completion.admin_rating ? (
+                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 2 }}>
+                  {[1, 2, 3].map((star) => (
+                    <Star
+                      key={star}
+                      size={10}
+                      color={star <= completion.admin_rating! ? "#FBBF24" : "rgba(255,255,255,0.2)"}
+                      fill={star <= completion.admin_rating! ? "#FBBF24" : "none"}
+                    />
+                  ))}
+                  <Text style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", marginLeft: 4 }}>
+                    {completion.admin_rating === 1 ? "Needs Work" : completion.admin_rating === 2 ? "Acceptable" : "Excellent"}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <View style={styles.historyCardRight}>
               <Eye size={16} color="#FFFFFF" />
@@ -1010,7 +1073,7 @@ export default function ChecklistScreen() {
     > = {};
     for (const t of filteredTemplates) {
       if (!t.is_running) {
-        map[t.id] = { due: false, label: "", status: "" };
+        map[t.id] = { due: false, label: "Paused", status: "paused" };
         continue;
       }
       const lastDone = t.completions
@@ -1038,6 +1101,7 @@ export default function ChecklistScreen() {
     const {
       dueTemplates,
       upcomingTemplates,
+      pausedTemplates,
       missedOccurrences,
       todayCompletedCompletions,
     } = getHistoryGroups();
@@ -1047,18 +1111,23 @@ export default function ChecklistScreen() {
       due: dueTemplates.length,
       missed: missedOccurrences.length,
       upcoming: upcomingTemplates.length,
+      paused: pausedTemplates.length,
     };
   }, [filteredCompletions, liveNow, filteredTemplates]);
 
   function getHistoryGroups() {
     const dueTemplates: SOPTemplate[] = [];
     const upcomingTemplates: SOPTemplate[] = [];
+    const pausedTemplates: SOPTemplate[] = [];
     const missedOccurrences: MissedOccurrence[] = [];
     const todayCompletedCompletions: SOPCompletion[] = [];
     const allCompletedCompletions: SOPCompletion[] = [];
 
     for (const t of filteredTemplates) {
-      if (!t.is_running) continue;
+      if (!t.is_running) {
+        pausedTemplates.push(t);
+        continue;
+      }
       const lastDone = t.completions
         .filter((c) => c.status === "completed")
         .sort(
@@ -1140,6 +1209,7 @@ export default function ChecklistScreen() {
     return {
       dueTemplates,
       upcomingTemplates,
+      pausedTemplates,
       missedOccurrences,
       todayCompletedCompletions,
       allCompletedCompletions,
@@ -1150,6 +1220,7 @@ export default function ChecklistScreen() {
     const {
       dueTemplates,
       upcomingTemplates,
+      pausedTemplates,
       missedOccurrences,
       allCompletedCompletions,
     } = getHistoryGroups();
@@ -1170,14 +1241,20 @@ export default function ChecklistScreen() {
         type: "completion" as const,
         data: c,
       }));
+    if (historyFilter === "paused")
+      return pausedTemplates.map((t) => ({
+        type: "template" as const,
+        data: t,
+      }));
 
-    // All
+    // All: due first, then upcoming, then missed, then paused, then completed
     const items: HistoryItem[] = [];
     dueTemplates.forEach((t) => items.push({ type: "template", data: t }));
     upcomingTemplates.forEach((t) => items.push({ type: "template", data: t }));
     missedOccurrences.forEach((m) =>
       items.push({ type: "missed_occurrence", data: m }),
     );
+    pausedTemplates.forEach((t) => items.push({ type: "template", data: t }));
     allCompletedCompletions.forEach((c) =>
       items.push({ type: "completion", data: c }),
     );
@@ -2809,30 +2886,44 @@ export default function ChecklistScreen() {
                   : ""}
               </Text>
             </View>
-            <View
-              style={[
-                runnerStyles.statusBadge,
-                {
-                  backgroundColor:
-                    historyCompletion.status === "completed"
-                      ? (colors.success || "#10B981") + "30"
-                      : "#3B82F630",
-                },
-              ]}
-            >
-              <Text
+            <View style={{ alignItems: "flex-end", gap: 4 }}>
+              <View
                 style={[
-                  runnerStyles.statusBadgeText,
+                  runnerStyles.statusBadge,
                   {
-                    color:
+                    backgroundColor:
                       historyCompletion.status === "completed"
-                        ? colors.success
-                        : "#3B82F6",
+                        ? (colors.success || "#10B981") + "30"
+                        : "#3B82F630",
                   },
                 ]}
               >
-                {historyCompletion.status?.replace("_", " ").toUpperCase()}
-              </Text>
+                <Text
+                  style={[
+                    runnerStyles.statusBadgeText,
+                    {
+                      color:
+                        historyCompletion.status === "completed"
+                          ? colors.success
+                          : "#3B82F6",
+                    },
+                  ]}
+                >
+                  {historyCompletion.status?.replace("_", " ").toUpperCase()}
+                </Text>
+              </View>
+              {historyCompletion.admin_rating ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+                  {[1, 2, 3].map((star) => (
+                    <Star
+                      key={star}
+                      size={10}
+                      color={star <= historyCompletion.admin_rating! ? "#FBBF24" : "rgba(255,255,255,0.3)"}
+                      fill={star <= historyCompletion.admin_rating! ? "#FBBF24" : "none"}
+                    />
+                  ))}
+                </View>
+              ) : null}
             </View>
           </View>
         </View>
@@ -3023,6 +3114,14 @@ export default function ChecklistScreen() {
                     </Text>
                   </View>
                 )}
+                {compItem?.admin_rating && (
+                  <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 10, gap: 4 }}>
+                    <Star size={12} color="#FBBF24" fill="#FBBF24" />
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                      Admin Rating: {compItem.admin_rating === 1 ? "Needs Work" : compItem.admin_rating === 2 ? "Acceptable" : "Excellent"}
+                    </Text>
+                  </View>
+                )}
               </View>
             );
           }}
@@ -3051,7 +3150,7 @@ export default function ChecklistScreen() {
           }
           style={styles.navIconBtn}
         >
-          <Ionicons name="scan-outline" size={20} color="#FFFFFF" />
+          <Maximize2 size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -3068,6 +3167,7 @@ export default function ChecklistScreen() {
           data={filteredTemplates}
           keyExtractor={(item) => item.id}
           estimatedItemSize={120}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#4F93E4" />}
           ListHeaderComponent={
             <View style={{ marginBottom: 16 }}>
               <LinearGradient
@@ -3167,14 +3267,52 @@ export default function ChecklistScreen() {
               (c) => c.status === "in_progress",
             );
             return (
-              <TemplateCard
-                template={template}
-                ds={ds}
-                lastDone={lastDone}
-                inProgress={inProgress}
-                onPress={() => handleToggleExpand(template)}
-                onStart={() => handleStartChecklist(template, inProgress)}
-              />
+              <View style={{ marginBottom: 12 }}>
+                <SafeBlurView intensity={40} style={[styles.historyCard]} tint="dark">
+                  <View style={styles.historyCardRow}>
+                    <View style={styles.historyCardContent}>
+                      <Text style={styles.historyTitle}>{template.title}</Text>
+                      <Text style={styles.historyMeta}>
+                        {getFrequencyLabel(template.frequency)}
+                        {template.start_time ? ` · ${fmt12h(template.start_time)}` : ""}
+                      </Text>
+                      <StatusBadge status={!template.is_running ? "paused" : (ds?.status || "upcoming")} label={ds?.label || ""} />
+                    </View>
+                    <View style={styles.historyCardRight}>
+                      <TouchableOpacity
+                        style={[styles.startBtn, { marginBottom: 6 }]}
+                        onPress={() => handleStartChecklist(template, inProgress)}
+                      >
+                        <Play size={14} color="#FFFFFF" />
+                        <Text style={styles.startBtnText}>
+                          {inProgress ? "Resume" : "Start"}
+                        </Text>
+                      </TouchableOpacity>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => openEditTemplate(template)}
+                        >
+                          <Edit3 size={16} color="rgba(255,255,255,0.6)" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleToggleRunning(template)}
+                        >
+                          {template.is_running ? (
+                            <Pause size={16} color="rgba(255,255,255,0.6)" />
+                          ) : (
+                            <PlayCircle size={16} color="rgba(255,255,255,0.6)" />
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteTemplate(template)}
+                        >
+                          <Trash2 size={16} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </SafeBlurView>
+              </View>
             );
           }}
         />
@@ -3183,6 +3321,7 @@ export default function ChecklistScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
           data={filteredHistoryList}
+          refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#4F93E4" />}
           keyExtractor={(item, idx) =>
             item.type === "missed_occurrence"
               ? `missed-${idx}`
@@ -3257,6 +3396,7 @@ export default function ChecklistScreen() {
                     "upcoming",
                     "paused",
                     "completed",
+                    "missed",
                   ] as HistoryFilter[]
                 ).map((f) => (
                   <TouchableOpacity
