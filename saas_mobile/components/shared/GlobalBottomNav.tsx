@@ -135,7 +135,7 @@ export default function GlobalBottomNav() {
         visible={showChat}
         onClose={() => setShowChat(false)}
         orgId={orgId}
-        initialMode="voice"
+        initialMode="chat"
       />
 
       <GlobalNavigationDrawer

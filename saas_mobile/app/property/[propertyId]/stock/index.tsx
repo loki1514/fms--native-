@@ -19,7 +19,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context";
 import { useAuth } from "@/hooks/useAuth";
 import { Colors } from "@/constants/Colors";
-import { supabase } from "@/utils/supabase/client";
 import { stockService } from "@/services/stockService";
 import { LinearGradient } from "expo-linear-gradient";
 import { FlashList } from "@shopify/flash-list";
@@ -46,6 +45,8 @@ import {
   History,
   ArrowLeft,
   Scan,
+  RefreshCw,
+  Download,
 } from "lucide-react-native";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -65,6 +66,8 @@ interface StockItem {
   created_at: string;
   barcode?: string | null;
   location?: string | null;
+  qr_code_data?: string | null;
+  barcode_format?: string | null;
 }
 
 interface StockMovement {
@@ -76,8 +79,10 @@ interface StockMovement {
   quantity_after: number;
   notes: string | null;
   created_at: string;
-  stock_items: { name: string; item_code: string; unit?: string } | null;
-  users: { full_name: string } | null;
+  item_name?: string;
+  item_code?: string;
+  unit?: string;
+  user_name?: string;
 }
 
 // ─── Design Tokens (Craxinno Glass) ───────────────────────────────────────────
@@ -161,6 +166,16 @@ export default function StockScreen() {
   const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
   const [movementType, setMovementType] = useState<"add" | "remove">("add");
 
+  // Barcode state
+  const [barcodeInfo, setBarcodeInfo] = useState<{
+    barcode: string;
+    barcode_format: string | null;
+    qr_code_data: string | null;
+    item_name: string;
+    item_code: string;
+  } | null>(null);
+  const [isLoadingBarcode, setIsLoadingBarcode] = useState(false);
+
   // Add form state
   const [formName, setFormName] = useState("");
   const [formCode, setFormCode] = useState("");
@@ -210,16 +225,17 @@ export default function StockScreen() {
   const fetchItems = useCallback(async () => {
     if (!propertyId) return;
     try {
-      const { data, error } = await supabase
-        .from("stock_items")
-        .select("*")
-        .eq("property_id", propertyId)
-        .order("name");
-      if (error) throw error;
-      const fetched = (data || []) as StockItem[];
-      setItems(fetched);
-      const cats = [...new Set(fetched.map((i) => i.category).filter(Boolean))];
-      setCategories(cats as string[]);
+      const res = await stockService.getStockItems(propertyId, {
+        search: searchQuery || undefined,
+        category: selectedCategory || undefined,
+      });
+      if (res.success && res.data) {
+        setItems(res.data as StockItem[]);
+        const cats = [...new Set(res.data.map((i: any) => i.category).filter(Boolean))];
+        setCategories(cats as string[]);
+      } else {
+        console.error("[Stock] getStockItems error:", res.error);
+      }
     } catch (err) {
       console.error("Error fetching stock items:", err);
     }
@@ -228,16 +244,12 @@ export default function StockScreen() {
   const fetchMovements = useCallback(async () => {
     if (!propertyId) return;
     try {
-      const { data, error } = await supabase
-        .from("stock_movements")
-        .select(
-          "id, item_id, action, quantity_change, quantity_before, quantity_after, notes, created_at, stock_items:item_id(name, item_code, unit), users:user_id(full_name)",
-        )
-        .eq("property_id", propertyId)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      setMovements((data || []) as StockMovement[]);
+      const res = await stockService.getMovements(propertyId);
+      if (res.success && res.data) {
+        setMovements(res.data as StockMovement[]);
+      } else {
+        console.error("[Stock] getMovements error:", res.error);
+      }
     } catch (err) {
       console.error("Error fetching movements:", err);
     }
@@ -276,16 +288,17 @@ export default function StockScreen() {
     }
     setIsSaving(true);
     try {
-      const { data, error } = await stockService.createStockItem({
+      const res = await stockService.createItem({
         propertyId,
         name: formName.trim(),
-        sku: formCode.trim() || undefined,
+        item_code: formCode.trim() || undefined,
         category: formCategory.trim() || undefined,
         quantity: parseInt(formQuantity) || 0,
-        minQuantity: parseInt(formMinThreshold) || 10,
+        min_threshold: parseInt(formMinThreshold) || 10,
         unit: formUnit.trim() || undefined,
+        unit_price: parseFloat(formPrice) || undefined,
       });
-      if (error) throw error;
+      if (!res.success) throw new Error(res.error || "Failed to add item");
       setShowAddModal(false);
       resetForm();
       await fetchItems();
@@ -313,34 +326,29 @@ export default function StockScreen() {
     }
     setIsSubmittingMovement(true);
     try {
-      const { error } = await stockService.addStockMovement({
+      const qtyChange = movementType === "add" ? qty : -qty;
+      const qtyAfter = selectedItem.quantity + qtyChange;
+
+      const res = await stockService.recordMovement({
+        propertyId: propertyId as string,
         itemId: selectedItem.id,
-        type: movementType === "add" ? "intake" : "outflow",
-        quantity: qty,
-        notes: moveNotes.trim() || undefined,
+        action: movementType,
+        quantityChange: qtyChange,
+        quantityBefore: selectedItem.quantity,
+        quantityAfter: qtyAfter,
+        notes: moveNotes.trim() || `Stock ${movementType === "add" ? "In" : "Out"}`,
+        userId: user?.id || undefined,
       });
-      if (error) throw error;
+
+      if (!res.success) throw new Error(res.error || "Failed to record movement");
+
       setItems((prev) =>
         prev.map((i) =>
-          i.id === selectedItem.id
-            ? {
-                ...i,
-                quantity:
-                  movementType === "add" ? i.quantity + qty : i.quantity - qty,
-              }
-            : i,
+          i.id === selectedItem.id ? { ...i, quantity: qtyAfter } : i,
         ),
       );
       setSelectedItem((prev) =>
-        prev
-          ? {
-              ...prev,
-              quantity:
-                movementType === "add"
-                  ? prev.quantity + qty
-                  : prev.quantity - qty,
-            }
-          : null,
+        prev ? { ...prev, quantity: qtyAfter } : null,
       );
       setShowMovementModal(false);
       setMoveQty("");
@@ -369,6 +377,51 @@ export default function StockScreen() {
     setMovementType(type);
     setShowDetailSheet(false);
     setShowMovementModal(true);
+  };
+
+  const handleShowQR = async (item: StockItem) => {
+    setShowDetailSheet(false);
+    setShowQRModal(true);
+    setIsLoadingBarcode(true);
+    try {
+      const res = await stockService.getBarcode(item.id);
+      if (res.success && res.data) {
+        setBarcodeInfo(res.data);
+      } else {
+        setBarcodeInfo(null);
+      }
+    } catch (err) {
+      console.error("Error fetching barcode:", err);
+      setBarcodeInfo(null);
+    } finally {
+      setIsLoadingBarcode(false);
+    }
+  };
+
+  const handleRegenerateBarcode = async () => {
+    if (!selectedItem) return;
+    setIsLoadingBarcode(true);
+    try {
+      const res = await stockService.regenerateBarcode(selectedItem.id);
+      if (res.success && res.data) {
+        setBarcodeInfo(res.data);
+        // Update the item in the list with new barcode
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id === selectedItem.id
+              ? { ...i, barcode: res.data?.barcode, qr_code_data: res.data?.qr_code_data }
+              : i,
+          ),
+        );
+        Alert.alert("Success", "Barcode regenerated");
+      } else {
+        throw new Error(res.error || "Failed to regenerate barcode");
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to regenerate barcode");
+    } finally {
+      setIsLoadingBarcode(false);
+    }
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -848,7 +901,7 @@ export default function StockScreen() {
                     styles.qrBtn,
                     { borderColor: "rgba(255,255,255,0.10)" },
                   ]}
-                  onPress={() => setShowQRModal(true)}
+                  onPress={() => handleShowQR(selectedItem)}
                 >
                   <QrCode size={18} color={TOKENS.text.secondary} />
                   <Text
@@ -1063,24 +1116,72 @@ export default function StockScreen() {
                 <X size={20} color="rgba(255,255,255,0.50)" />
               </TouchableOpacity>
             </View>
-            {selectedItem && (
+            {isLoadingBarcode ? (
+              <View style={styles.qrContent}>
+                <ActivityIndicator color="#3B82F6" />
+                <Text style={[styles.qrCategory, { marginTop: 12 }]}>
+                  Loading barcode...
+                </Text>
+              </View>
+            ) : barcodeInfo ? (
               <View style={styles.qrContent}>
                 <View style={styles.qrPlaceholder}>
                   <QrCode size={64} color="rgba(255,255,255,0.20)" />
-                  <Text
-                    style={[styles.qrItemCode, { color: TOKENS.text.tertiary }]}
-                  >
-                    {selectedItem.item_code || selectedItem.id}
+                  <Text style={[styles.qrItemCode, { color: TOKENS.text.tertiary }]}>
+                    {barcodeInfo.barcode || selectedItem?.item_code || selectedItem?.id}
                   </Text>
                 </View>
                 <Text style={[styles.qrName, { color: TOKENS.text.primary }]}>
-                  {selectedItem.name}
+                  {barcodeInfo.item_name || selectedItem?.name}
                 </Text>
-                <Text
-                  style={[styles.qrCategory, { color: TOKENS.text.secondary }]}
-                >
-                  {selectedItem.category || "Uncategorized"}
+                <Text style={[styles.qrCategory, { color: TOKENS.text.secondary }]}>
+                  {selectedItem?.category || "Uncategorized"}
                 </Text>
+                {barcodeInfo.qr_code_data && (
+                  <Text
+                    style={[
+                      styles.qrCategory,
+                      {
+                        color: TOKENS.text.tertiary,
+                        fontSize: 10,
+                        marginTop: 8,
+                      },
+                    ]}
+                    numberOfLines={2}
+                  >
+                    {barcodeInfo.qr_code_data}
+                  </Text>
+                )}
+                <View style={styles.qrActions}>
+                  <TouchableOpacity
+                    style={[styles.qrActionBtn, { backgroundColor: "rgba(59,130,246,0.15)" }]}
+                    onPress={handleRegenerateBarcode}
+                    disabled={isLoadingBarcode}
+                  >
+                    <RefreshCw size={14} color="#60A5FA" />
+                    <Text style={[styles.qrActionText, { color: "#60A5FA" }]}>
+                      Regenerate
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.qrContent}>
+                <Text style={[styles.qrCategory, { color: TOKENS.text.secondary }]}>
+                  No barcode info available
+                </Text>
+                {selectedItem && (
+                  <TouchableOpacity
+                    style={[styles.qrActionBtn, { backgroundColor: "rgba(59,130,246,0.15)", marginTop: 16 }]}
+                    onPress={handleRegenerateBarcode}
+                    disabled={isLoadingBarcode}
+                  >
+                    <RefreshCw size={14} color="#60A5FA" />
+                    <Text style={[styles.qrActionText, { color: "#60A5FA" }]}>
+                      Generate Barcode
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -1659,5 +1760,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Urbanist-Regular",
     marginTop: 4,
+  },
+  qrActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+  },
+  qrActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  qrActionText: {
+    fontSize: 12,
+    fontFamily: "Urbanist-Bold",
   },
 });

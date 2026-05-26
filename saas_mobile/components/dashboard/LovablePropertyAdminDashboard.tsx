@@ -713,7 +713,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
         }}
       />
       <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="voice" />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="chat" />
       <TicketCreateModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}

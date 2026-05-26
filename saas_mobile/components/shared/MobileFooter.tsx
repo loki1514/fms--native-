@@ -121,7 +121,7 @@ export default function MobileFooter({ activeTab: propActiveTab, onMorePress }: 
         visible={showCassandraChat}
         onClose={() => setShowCassandraChat(false)}
         orgId={orgId}
-        initialMode="voice"
+        initialMode="chat"
       />
     </View>
   );

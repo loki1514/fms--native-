@@ -428,7 +428,7 @@ export default function LovableOrgSuperAdminDashboard({ propertyId }: Props) {
       <MobileFooter activeTab="dashboard" />
 
       <SignOutModal visible={showSignOut} onClose={() => setShowSignOut(false)} onSignOut={signOut} />
-      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} />
+      <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="chat" />
       
       {/* ─── Side Menu Drawer ─────────────────────────────────────────────── */}
       <Modal visible={showDrawer} transparent animationType="fade" onRequestClose={() => setShowDrawer(false)}>
