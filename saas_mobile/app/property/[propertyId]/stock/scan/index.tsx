@@ -10,8 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '@/utils/supabase/client';
-import { serverApi } from '@/lib/serverApi';
+import { stockService } from '@/services/stockService';
 import { useAuth } from '@/hooks/useAuth';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
@@ -60,17 +59,10 @@ export default function StockScanScreen() {
     if (!propertyId || !code) return;
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('stock_items')
-        .select('id, name, item_code, category, quantity, min_threshold, unit, location, barcode')
-        .eq('property_id', propertyId)
-        .or(`barcode.eq.${code},item_code.eq.${code}`)
-        .maybeSingle();
+      const res = await stockService.scanBarcode(code, propertyId);
 
-      if (error) throw error;
-
-      if (data) {
-        setItem(data as StockItem);
+      if (res.success && res.data?.item) {
+        setItem(res.data.item as StockItem);
         setState('found');
         setAction('add');
         setQuantity(1);
@@ -98,25 +90,25 @@ export default function StockScanScreen() {
 
     setIsSubmitting(true);
     try {
-      const qtyAfter = action === 'add' ? item.quantity + quantity : item.quantity - quantity;
-      const moveRes = await serverApi.query({
-        table: 'stock_movements',
-        action: 'insert',
-        values: {
-          property_id: propertyId,
-          item_id: item.id,
-          action,
-          quantity_change: action === 'add' ? quantity : -quantity,
-          quantity_before: item.quantity,
-          quantity_after: qtyAfter,
-          notes: notes.trim() || `Stock ${action === 'add' ? 'In' : 'Out'} via scanner`,
-          user_id: user?.id || null,
-        },
+      const qtyChange = action === 'add' ? quantity : -quantity;
+      const qtyAfter = item.quantity + qtyChange;
+
+      const res = await stockService.recordMovement({
+        propertyId: propertyId as string,
+        itemId: item.id,
+        action,
+        quantityChange: qtyChange,
+        quantityBefore: item.quantity,
+        quantityAfter: qtyAfter,
+        notes: notes.trim() || `Stock ${action === 'add' ? 'In' : 'Out'} via scanner`,
+        userId: user?.id || undefined,
       });
 
-      if (moveRes.error) throw new Error(moveRes.error.message);
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to record movement');
+      }
 
-      setNewQty(qtyAfter);
+      setNewQty(res.data?.quantityAfter ?? qtyAfter);
       setState('success');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to record movement');
