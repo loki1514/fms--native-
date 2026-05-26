@@ -32,7 +32,6 @@ import {
   Phone,
   Shield,
   Building2,
-  User,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -333,10 +332,9 @@ export default function ProfileScreen() {
         <GlassCard>
           <Text style={[s.sectionLabel, { color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }]}>ACCOUNT DETAILS</Text>
 
-          <InfoRow icon={<Mail size={18} color="#708F96" />} label="Email Address" value={profile?.email || 'Not set'} />
+          <InfoRow icon={<Mail size={18} color="#708F96" />} label="Email Address" value={profile?.email || user?.email || 'Not set'} />
           <InfoRow icon={<Shield size={18} color="#708F96" />} label="Role" value={getRoleDisplay()} />
           <InfoRow icon={<Building2 size={18} color="#708F96" />} label="Property" value={getPropertyName()} />
-          <InfoRow icon={<User size={18} color="#708F96" />} label="User ID" value={profile?.id?.slice(0, 8) + '...' || 'N/A'} />
         </GlassCard>
 
         <View style={{ height: 40 }} />
