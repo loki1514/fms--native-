@@ -18,8 +18,7 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { createClient } from '@/utils/supabase/client';
-import { serverApi } from '@/lib/serverApi';
+import { stockService } from '@/services/stockService';
 
 interface StockItem {
   id: string;
@@ -101,19 +100,11 @@ export default function StockScannerModal({
   // Fetch item by barcode
   const fetchItemByBarcode = useCallback(async (barcode: string): Promise<StockItem | null> => {
     try {
-      const { data, error: fetchErr } = await serverApi.query({
-        table: 'stock_items',
-        action: 'select',
-        select: 'id, name, item_code, category, quantity, unit, barcode, min_threshold, organization_id',
-        filters: [
-          { op: 'eq', column: 'property_id', value: propertyId },
-          { op: 'or', expression: `barcode.eq.${barcode},item_code.eq.${barcode}` },
-        ],
-        limit: 1,
-        maybeSingle: true,
-      });
-      if (fetchErr) throw new Error(fetchErr.message);
-      return data as StockItem | null;
+      const res = await stockService.scanBarcode(barcode, propertyId);
+      if (res.success && res.data?.item) {
+        return res.data.item as StockItem;
+      }
+      return null;
     } catch (err: any) {
       console.error('Fetch error:', err);
       return null;
@@ -262,51 +253,24 @@ export default function StockScannerModal({
     const errors: string[] = [];
 
     try {
-      // Build orgId fallback map once (property → organization_id)
-      const orgIdMap: Record<string, string | null> = {};
-      for (const item of queue) {
-        if (item.organization_id) {
-          orgIdMap[item.id] = item.organization_id;
-        }
-      }
-      // Fill missing org IDs from properties table
-      const missingOrgIds = queue.filter(q => !orgIdMap[q.id]);
-      if (missingOrgIds.length > 0) {
-        const { data: propData } = await serverApi.query({
-          table: 'properties',
-          action: 'select',
-          select: 'id, organization_id',
-          filters: [{ op: 'eq', column: 'id', value: propertyId }],
-          maybeSingle: true,
-        });
-        const fallbackOrgId = (propData as { organization_id: string } | null)?.organization_id || null;
-        missingOrgIds.forEach(q => { orgIdMap[q.id] = fallbackOrgId; });
-      }
-
       for (const item of queue) {
         try {
           const quantityBefore = item.quantity;
-          const quantityAfter = item.action === 'IN'
-            ? quantityBefore + item.qty
-            : quantityBefore - item.qty;
+          const quantityChange = item.action === 'IN' ? item.qty : -item.qty;
+          const quantityAfter = quantityBefore + quantityChange;
 
-          const insertPayload: any = {
-            property_id: propertyId,
-            organization_id: orgIdMap[item.id],
-            item_id: item.id,
+          const res = await stockService.recordMovement({
+            propertyId,
+            itemId: item.id,
             action: toDbAction(item.action),
-            quantity_change: item.action === 'IN' ? item.qty : -item.qty,
-            quantity_before: quantityBefore,
-            quantity_after: quantityAfter,
+            quantityChange,
+            quantityBefore,
+            quantityAfter,
             notes: item.notes.trim() || `Scanned via mobile (${item.scanMode.toUpperCase()})`,
-            user_id: userId || null,
-          };
+            userId: userId || undefined,
+          });
 
-          const insertRes = await serverApi.query({ table: 'stock_movements', action: 'insert', values: insertPayload });
-          if (insertRes.error) throw new Error(insertRes.error.message);
-
-          const updateRes = await serverApi.query({ table: 'stock_items', action: 'update', values: { quantity: quantityAfter }, filters: [{ op: 'eq', column: 'id', value: item.id }] });
-          if (updateRes.error) throw new Error(updateRes.error.message);
+          if (!res.success) throw new Error(res.error || 'Failed to record movement');
 
           // Update queued item's quantity so the UI stays in sync
           updateQueueItem(item.id, { quantity: quantityAfter });
@@ -336,7 +300,7 @@ export default function StockScannerModal({
     } finally {
       setIsSubmitting(false);
     }
-  }, [queue, propertyId, userId, supabase, updateQueueItem]);
+  }, [queue, propertyId, userId, updateQueueItem]);
 
   const handleClose = useCallback(() => {
     setQueue([]);
