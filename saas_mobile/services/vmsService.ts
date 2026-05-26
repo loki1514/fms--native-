@@ -9,6 +9,7 @@ import type { Visitor, VisitorStatus } from '@/types';
 export type DateFilter = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
 export interface VisitorLog {
+  id: string;
   visitor_id: string;
   name: string;
   mobile?: string;
@@ -30,47 +31,14 @@ export interface HostResult {
   role?: string;
 }
 
-function getDateBounds(filter: DateFilter, customDate?: string): { start: string; end: string } | null {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const day = now.getDate();
-
-  let start: Date;
-  let end: Date;
-
-  switch (filter) {
-    case 'today':
-      start = new Date(year, month, day, 0, 0, 0);
-      end = new Date(year, month, day, 23, 59, 59, 999);
-      break;
-    case 'yesterday':
-      start = new Date(year, month, day - 1, 0, 0, 0);
-      end = new Date(year, month, day - 1, 23, 59, 59, 999);
-      break;
-    case 'week':
-      start = new Date(year, month, day - 7, 0, 0, 0);
-      end = new Date(year, month, day, 23, 59, 59, 999);
-      break;
-    case 'month':
-      start = new Date(year, month, day - 30, 0, 0, 0);
-      end = new Date(year, month, day, 23, 59, 59, 999);
-      break;
-    case 'custom':
-      if (!customDate) return null;
-      const [cy, cm, cd] = customDate.split('-').map(Number);
-      start = new Date(cy, cm - 1, cd, 0, 0, 0);
-      end = new Date(cy, cm - 1, cd, 23, 59, 59, 999);
-      break;
-    default:
-      return null;
-  }
-
-  return { start: start.toISOString(), end: end.toISOString() };
+export interface VisitorStats {
+  total_today: number;
+  checked_in: number;
+  checked_out: number;
 }
 
 // ---------------------------------------------------------------------------
-// VMS Service — routes through saas_mobile_server
+// VMS Service — routes through saas_mobile_server (aligned with saas_one)
 // ---------------------------------------------------------------------------
 
 export const vmsService = {
@@ -83,52 +51,51 @@ export const vmsService = {
       status?: VisitorStatus | 'all';
       search?: string;
     }
-  ): Promise<ApiResponse<{ visitors: VisitorLog[]; stats: any; property: any }>> {
+  ): Promise<ApiResponse<{ visitors: VisitorLog[]; stats: VisitorStats }>> {
     try {
       const params = new URLSearchParams();
       params.append('propertyId', propertyId);
       if (options?.status && options.status !== 'all') params.append('status', options.status);
       if (options?.search) params.append('search', options.search);
 
-      const res = await serverApi.get<any>(`/api/visitors?${params.toString()}`);
-      if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch visitors');
-
-      // Apply date filtering client-side since server doesn't support date ranges
-      let visitors = res.data?.visitors ?? [];
-      if (options?.dateFilter && options.dateFilter !== 'custom') {
-        const bounds = getDateBounds(options.dateFilter);
-        if (bounds) {
-          visitors = visitors.filter((v: any) => {
-            const t = v.checkin_time || v.created_at;
-            return t && t >= bounds.start && t <= bounds.end;
-          });
-        }
-      } else if (options?.dateFilter === 'custom' && options.customDate) {
-        const bounds = getDateBounds('custom', options.customDate);
-        if (bounds) {
-          visitors = visitors.filter((v: any) => {
-            const t = v.checkin_time || v.created_at;
-            return t && t >= bounds.start && t <= bounds.end;
-          });
+      // Pass date filter to server for IST-bound server-side filtering
+      if (options?.dateFilter) {
+        if (options.dateFilter === 'custom' && options.customDate) {
+          params.append('date', options.customDate);
+        } else if (options.dateFilter !== 'custom') {
+          params.append('date', options.dateFilter);
         }
       }
 
-      const stats = {
-        total: visitors.length,
-        checked_in: visitors.filter((v: any) => v.status === 'checked_in').length,
-        checked_out: visitors.filter((v: any) => v.status === 'checked_out').length,
-        pending: visitors.filter((v: any) => v.status === 'pending').length,
-      };
+      const res = await serverApi.get<any>(`/api/visitors?${params.toString()}`);
+      if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch visitors');
 
-      return { success: true, data: { visitors, stats, property: res.data?.property }, status: 200 };
+      return {
+        success: true,
+        data: {
+          visitors: res.data?.visitors ?? [],
+          stats: res.data?.stats ?? { total_today: 0, checked_in: 0, checked_out: 0 },
+        },
+        status: 200,
+      };
     } catch (err: any) {
       return { success: false, data: null as any, error: err.message, status: 500 };
     }
   },
 
   // ── Fetch Visitor Stats ───────────────────────────────────────────────────
-  async fetchStats(propertyId: string): Promise<ApiResponse<any>> {
-    return this.fetchVisitors(propertyId);
+  async fetchStats(propertyId: string): Promise<ApiResponse<VisitorStats>> {
+    try {
+      const res = await serverApi.get<any>(`/api/visitors?propertyId=${propertyId}`);
+      if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch stats');
+      return {
+        success: true,
+        data: res.data?.stats ?? { total_today: 0, checked_in: 0, checked_out: 0 },
+        status: 200,
+      };
+    } catch (err: any) {
+      return { success: false, data: null as any, error: err.message, status: 500 };
+    }
   },
 
   // ── Check In ──────────────────────────────────────────────────────────────
@@ -165,7 +132,7 @@ export const vmsService = {
   // ── Check Out ─────────────────────────────────────────────────────────────
   async checkOut(visitorId: string, propertyId: string): Promise<ApiResponse<boolean>> {
     try {
-      const res = await serverApi.post<any>(`/api/visitors/${visitorId}/checkout`, { propertyId });
+      const res = await serverApi.patch<any>(`/api/visitors/${visitorId}/checkout?propertyId=${propertyId}`, {});
       if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Check-out failed');
       return { success: true, data: true, status: 200 };
     } catch (err: any) {
@@ -173,34 +140,39 @@ export const vmsService = {
     }
   },
 
+  // ── Force Check Out (admin) ───────────────────────────────────────────────
+  async forceCheckout(
+    visitorLogId: string,
+    propertyId: string,
+    reason?: string
+  ): Promise<ApiResponse<{ visitor: VisitorLog }>> {
+    try {
+      const res = await serverApi.post<any>(`/api/visitors/force-checkout?propertyId=${propertyId}`, {
+        visitor_log_id: visitorLogId,
+        reason,
+      });
+      if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Force checkout failed');
+      return { success: true, data: { visitor: res.data?.visitor }, status: 200 };
+    } catch (err: any) {
+      return { success: false, data: null as any, error: err.message, status: 500 };
+    }
+  },
+
   // ── Search Hosts ──────────────────────────────────────────────────────────
   async searchHosts(propertyId: string, query: string): Promise<ApiResponse<HostResult[]>> {
     try {
-      const res = await serverApi.query<HostResult[]>({
-        table: 'property_memberships',
-        action: 'select',
-        select: 'user_id, users:user_id(full_name, email, role)',
-        filters: [
-          { op: 'eq', column: 'property_id', value: propertyId },
-          { op: 'eq', column: 'is_active', value: true },
-        ],
-      });
+      const res = await serverApi.get<any>(
+        `/api/visitors/hosts?propertyId=${propertyId}&query=${encodeURIComponent(query)}`
+      );
       if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch hosts');
 
-      const hosts = (res.data || [])
-        .filter((m: any) => {
-          const fullName = m.users?.full_name || '';
-          const email = m.users?.email || '';
-          const q = query.toLowerCase();
-          return fullName.toLowerCase().includes(q) || email.toLowerCase().includes(q);
-        })
-        .map((m: any) => ({
-          id: m.user_id,
-          name: m.users?.full_name || '',
-          full_name: m.users?.full_name || '',
-          email: m.users?.email || '',
-          role: m.users?.role || '',
-        }));
+      const hosts = (res.data?.hosts || []).map((h: any) => ({
+        id: h.id,
+        name: h.full_name || h.name || 'Unknown',
+        full_name: h.full_name || h.name || 'Unknown',
+        email: h.email || '',
+        role: h.role || '',
+      }));
 
       return { success: true, data: hosts, status: 200 };
     } catch (err: any) {
@@ -209,13 +181,23 @@ export const vmsService = {
   },
 
   // ── Upload Photo ──────────────────────────────────────────────────────────
-  async uploadPhoto(uri: string, path: string): Promise<ApiResponse<string>> {
+  async uploadPhoto(
+    uri: string,
+    visitorId: string,
+    propertyId: string
+  ): Promise<ApiResponse<string>> {
     try {
-      // React Native file upload — pass the URI object that FormData can handle
-      const fileObj = { uri, name: path, type: 'image/jpeg' };
-      const res = await serverApi.upload('visitor-photos', path, fileObj as any, 'image/jpeg');
+      const formData = new FormData();
+      // React Native file object
+      formData.append('file', { uri, name: `${visitorId}.jpg`, type: 'image/jpeg' } as any);
+      formData.append('visitor_id', visitorId);
+
+      const res = await serverApi.post<any>(
+        `/api/visitors/photos?propertyId=${propertyId}`,
+        formData as any
+      );
       if (res.error) throw new Error(res.error?.message ?? 'Upload failed');
-      return { success: true, data: res.data?.path ?? '', status: 201 };
+      return { success: true, data: res.data?.url ?? '', status: 201 };
     } catch (err: any) {
       return { success: false, data: '', error: err.message, status: 500 };
     }

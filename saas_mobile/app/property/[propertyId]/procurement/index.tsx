@@ -31,9 +31,10 @@ import { useCapabilities } from '@/hooks/useCapabilities';
 import { useTheme } from '@/context';
 import {
   listPendingApprovals,
+  listMaterialRequests,
+  getProcurementCatalogItems,
   type MaterialRequest,
 } from '@/utils/api/mobileApi';
-import { supabase } from '@/utils/supabase/client';
 import MobileRequestList from '@/components/procurement/MobileRequestList';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -144,7 +145,7 @@ export default function ProcurementScreen() {
 
   // ── Stats ────────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const pending  = allRequests.filter(r => r.status === 'pending' || r.status === 'pending_approval').length;
+    const pending  = allRequests.filter(r => ['pending', 'pending_approval', 'pending_quotation'].includes(r.status)).length;
     const approved = allRequests.filter(r => r.status === 'approved').length;
     const total    = allRequests.length;
     return { pending, approved, total };
@@ -157,7 +158,7 @@ export default function ProcurementScreen() {
     try {
       const data = await listPendingApprovals(user.id, propertyId, orgId);
       setPendingRequests(
-        data.filter(r => r.status === 'pending_approval' || r.status === 'pending')
+        data.filter(r => ['pending_approval', 'pending', 'pending_quotation'].includes(r.status))
       );
     } catch (err) {
       console.error('[Procurement] approvals fetch:', err);
@@ -167,40 +168,28 @@ export default function ProcurementScreen() {
   const fetchAllRequests = useCallback(async () => {
     if (!propertyId) return;
     try {
-      const { data, error } = await supabase
-        .from('material_requests')
-        .select(`
-          id, ticket_id, property_id, organization_id, requested_by,
-          items, status, priority, total_amount, total_estimated_cost,
-          notes, approved_by, approved_at, rejected_by, rejected_at,
-          escalated_by, escalated_at, approval_level,
-          created_at, updated_at,
-          ticket:ticket_id(ticket_number, title),
-          requester:requested_by(full_name)
-        `)
-        .eq('property_id', propertyId)
-        .order('created_at', { ascending: false })
-        .limit(60);
-      if (!error && data) setAllRequests(data as MaterialRequest[]);
+      const data = await listMaterialRequests({
+        propertyId,
+        organizationId: membership?.org_id ?? undefined,
+      });
+      setAllRequests(data);
     } catch (err) {
       console.error('[Procurement] all requests fetch:', err);
     }
-  }, [propertyId]);
+  }, [propertyId, membership?.org_id]);
 
   const fetchCatalog = useCallback(async () => {
     if (!propertyId) return;
     try {
-      // Try stock_items table first (catalog items)
-      const { data, error } = await supabase
-        .from('stock_items')
-        .select('id, name, item_code, category, unit_price, unit, quantity')
-        .eq('property_id', propertyId)
-        .order('name');
-      if (!error && data) setCatalogItems(data);
+      const data = await getProcurementCatalogItems({
+        propertyId,
+        organizationId: membership?.org_id ?? undefined,
+      });
+      setCatalogItems(data);
     } catch (err) {
       console.error('[Procurement] catalog fetch:', err);
     }
-  }, [propertyId]);
+  }, [propertyId, membership?.org_id]);
 
   const fetchAll = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);

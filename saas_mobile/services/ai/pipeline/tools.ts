@@ -3,6 +3,7 @@
  */
 
 import { supabase } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const $ = supabase as unknown as any;
 
@@ -128,9 +129,9 @@ export async function listRoomsTool(
 
     let query = supabase
       .from('meeting_rooms')
-      .select('id, name, capacity, floor, credits_required')
+      .select('id, name, capacity, location, status')
       .eq('property_id', propertyId)
-      .eq('is_available', true);
+      .eq('status', 'active');
 
     if (capacity > 0) query = query.gte('capacity', capacity);
 

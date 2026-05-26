@@ -27,7 +27,8 @@ if (typeof window !== 'undefined') {
   const originalOnUnhandledRejection = window.onunhandledrejection;
   window.onunhandledrejection = (e: PromiseRejectionEvent) => {
     console.log('[UNHANDLED REJECTION]', e.reason);
-    if (originalOnUnhandledRejection) originalOnUnhandledRejection(e);
+    if (originalOnUnhandledRejection) return originalOnUnhandledRejection.call(window, e);
+    return undefined;
   };
 }
 

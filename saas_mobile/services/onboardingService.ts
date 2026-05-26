@@ -2,6 +2,15 @@
 import { serverApi } from '@/lib/serverApi';
 import type { ApiResponse } from '@/services/api/client';
 
+function toApiResponse<T>(res: Awaited<ReturnType<typeof serverApi.query<T>>>): ApiResponse<T> {
+  return {
+    data: res.data,
+    error: res.error?.message ?? null,
+    status: res.error ? 400 : 200,
+    success: !res.error,
+  };
+}
+
 export const onboardingService = {
   /** Get onboarding_completed flag for current user */
   async getOnboardingStatus(): Promise<ApiResponse<{ onboarding_completed: boolean }>> {
@@ -13,7 +22,7 @@ export const onboardingService = {
       maybeSingle: true,
     });
     // The server API is set up to map this route; if needed adjust path.
-    return res;
+    return toApiResponse(res);
   },
 
   /** Mark onboarding as completed for current user */
@@ -24,6 +33,6 @@ export const onboardingService = {
       values: { onboarding_completed: true },
       // Assuming server route for updating user profile exists
     });
-    return res;
+    return toApiResponse(res);
   },
 };

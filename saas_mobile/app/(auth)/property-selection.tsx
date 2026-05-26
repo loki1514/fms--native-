@@ -55,15 +55,18 @@ export default function PropertySelectionScreen() {
   // Parse properties from route params
   useEffect(() => {
     if (params.properties) {
-      try {
-        const parsed: PropertyItem[] = JSON.parse(params.properties);
-        setProperties(parsed);
-        if (parsed.length > 0) {
-          setSelectedId(parsed[0].id);
+        try {
+          const parsed: PropertyItem[] = JSON.parse(params.properties);
+          setProperties(parsed);
+          if (parsed.length === 1) {
+            setSelectedId(parsed[0].id);
+            router.replace(`/property/${parsed[0].id}`);
+          } else if (parsed.length > 0) {
+            setSelectedId(parsed[0].id);
+          }
+        } catch {
+          console.error('Failed to parse properties from route params');
         }
-      } catch {
-        console.error('Failed to parse properties from route params');
-      }
     }
   }, [params.properties]);
 
@@ -88,6 +91,14 @@ export default function PropertySelectionScreen() {
     };
 
     fetchNames();
+}, [properties]);
+
+  // Auto-redirect if properties are available
+  useEffect(() => {
+    if (properties.length > 0) {
+      const firstId = properties[0].id;
+      router.replace(`/property/${firstId}`);
+    }
   }, [properties]);
 
   const handleContinue = async () => {
@@ -112,120 +123,7 @@ export default function PropertySelectionScreen() {
     router.replace('/(auth)/login');
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={[styles.card, {
-          backgroundColor: theme.card,
-          borderColor: theme.border,
-        }]}>
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            <AutopilotLogo size={40} variant={colorScheme === 'dark' ? 'light' : 'dark'} />
-          </View>
-
-          {/* Heading */}
-          <Text style={[styles.title, { color: theme.text }]}>
-            Select a Property
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-            You have access to {properties.length}{' '}
-            {properties.length === 1 ? 'property' : 'properties'}.
-            Choose one to continue.
-          </Text>
-
-          {/* Property List */}
-          <View style={styles.listContainer}>
-            {properties.map((prop) => {
-              const isSelected = selectedId === prop.id;
-              const iconName = ROLE_ICONS[prop.role] || 'building';
-              const roleLabel = ROLE_LABELS[prop.role] || prop.role;
-
-              return (
-                <TouchableOpacity
-                  key={prop.id}
-                  style={[
-                    styles.propertyCard,
-                    {
-                      borderColor: isSelected ? theme.primary : theme.border,
-                      backgroundColor: isSelected ? theme.primaryLight : 'transparent',
-                    },
-                  ]}
-                  onPress={() => setSelectedId(prop.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[
-                    styles.propertyIcon,
-                    { backgroundColor: isSelected ? theme.primary : theme.surface },
-                  ]}>
-                    <Ionicons
-                      name={iconName as any}
-                      size={22}
-                      color={isSelected ? '#FFFFFF' : theme.textSecondary}
-                    />
-                  </View>
-                  <View style={styles.propertyInfo}>
-                    <Text style={[styles.propertyName, { color: theme.text }]}>
-                      {propertyNames[prop.id] || 'Loading...'}
-                    </Text>
-                    <Text style={[styles.propertyRole, { color: theme.textSecondary }]}>
-                      {roleLabel}
-                    </Text>
-                  </View>
-                  <View style={[
-                    styles.radioOuter,
-                    { borderColor: isSelected ? theme.primary : theme.border },
-                  ]}>
-                    {isSelected && (
-                      <View style={[styles.radioInner, { backgroundColor: theme.primary }]} />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Continue Button */}
-          <TouchableOpacity
-            style={[
-              styles.continueButton,
-              {
-                backgroundColor: theme.primary,
-                opacity: !selectedId || loading ? 0.6 : 1,
-              },
-            ]}
-            onPress={handleContinue}
-            disabled={!selectedId || loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <View style={styles.continueRow}>
-                <Text style={styles.continueText}>Continue</Text>
-                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Sign out */}
-          <TouchableOpacity
-            style={styles.signOutButton}
-            onPress={handleSignOut}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="log-out-outline" size={18} color={theme.textSecondary} />
-            <Text style={[styles.signOutText, { color: theme.textSecondary }]}>
-              Sign out and use a different account
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
-  );
+  return null;
 }
 
 const styles = StyleSheet.create({

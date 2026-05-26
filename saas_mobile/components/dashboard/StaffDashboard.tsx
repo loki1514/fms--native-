@@ -37,6 +37,7 @@ import { TicketShuffleStack } from '../shared/TicketShuffleStack';
 import FloatingMenu from '@/components/ui/FloatingMenu';
 import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
 import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
+import { serverApi } from '@/lib/serverApi';
 
 const DRAWER_WIDTH = 280;
 

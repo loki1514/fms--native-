@@ -6,6 +6,7 @@
  */
 import { createClient } from '@/utils/supabase/client';
 import { Platform } from 'react-native';
+import { serverApi } from '@/lib/serverApi';
 
 // ---------------------------------------------------------------------
 // Supabase client-with-token (used for server-side API calls)
@@ -745,6 +746,62 @@ export interface MaterialRequestListResponse {
   error?: string;
 }
 
+export async function listMaterialRequests(input: {
+  propertyId?: string;
+  organizationId?: string;
+  ticketId?: string;
+  approverId?: string;
+}): Promise<MaterialRequest[]> {
+  const params = new URLSearchParams();
+  if (input.propertyId) params.set('propertyId', input.propertyId);
+  if (input.organizationId) params.set('organizationId', input.organizationId);
+  if (input.ticketId) params.set('ticketId', input.ticketId);
+  if (input.approverId) params.set('approverId', input.approverId);
+
+  const res = await serverApi.get<MaterialRequest[]>(`/api/procurement/requests?${params.toString()}`);
+  if (res.error) {
+    throw new Error(res.error.message ?? 'Failed to load material requests');
+  }
+
+  return Array.isArray(res.data) ? res.data : [];
+}
+
+export async function getProcurementCatalogItems(input: {
+  propertyId?: string;
+  organizationId?: string;
+  search?: string;
+  category?: string;
+}): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (input.propertyId) params.set('propertyId', input.propertyId);
+  if (input.organizationId) params.set('organizationId', input.organizationId);
+  if (input.search) params.set('search', input.search);
+  if (input.category) params.set('category', input.category);
+
+  const res = await serverApi.get<{ items?: any[] }>(`/api/procurement/catalog?${params.toString()}`);
+  if (res.error) {
+    throw new Error(res.error.message ?? 'Failed to load procurement catalog');
+  }
+
+  return Array.isArray((res.data as any)?.items) ? (res.data as any).items : [];
+}
+
+export async function getProcurementUsers(input: {
+  propertyId?: string;
+  organizationId?: string;
+}): Promise<Array<{ id: string; full_name: string; email?: string; user_photo_url?: string; role?: string }>> {
+  const params = new URLSearchParams();
+  if (input.propertyId) params.set('propertyId', input.propertyId);
+  if (input.organizationId) params.set('organizationId', input.organizationId);
+
+  const res = await serverApi.get<any>(`/api/procurement/users?${params.toString()}`);
+  if (res.error) {
+    throw new Error(res.error.message ?? 'Failed to load procurement users');
+  }
+
+  return Array.isArray(res.data) ? res.data : [];
+}
+
 /**
  * List material requests pending approval for a specific approver.
  * Mirrors GET /api/procurement/requests?approverId=<id>&propertyId=<id>
@@ -754,20 +811,7 @@ export async function listPendingApprovals(
   propertyId?: string,
   organizationId?: string
 ): Promise<MaterialRequest[]> {
-  const params = new URLSearchParams();
-  params.set('approverId', approverId);
-  if (propertyId) params.set('propertyId', propertyId);
-  if (organizationId) params.set('organizationId', organizationId);
-
-  const data = await apiFetch<MaterialRequest[] | { error: string }>(
-    `/api/procurement/requests?${params.toString()}`
-  );
-
-  if (!Array.isArray(data)) {
-    throw new Error('Failed to load pending requests');
-  }
-
-  return data;
+  return listMaterialRequests({ approverId, propertyId, organizationId });
 }
 
 /**
@@ -779,10 +823,32 @@ export async function updateMaterialRequestStatus(
   status: 'approved' | 'rejected' | 'escalated',
   notes?: string
 ): Promise<MaterialRequest> {
-  return apiFetch<MaterialRequest>(`/api/procurement/requests/${requestId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status, notes }),
-  });
+  const res = await serverApi.patch<MaterialRequest>(`/api/procurement/requests/${requestId}`, { status, notes });
+  if (res.error || !res.data) {
+    throw new Error(res.error?.message ?? 'Failed to update material request');
+  }
+  return res.data;
+}
+
+export async function createTicketMaterialRequest(
+  ticketId: string,
+  payload: {
+    assignee_uid: string;
+    items: Array<{ name: string; qty?: string; quantity?: number; notes?: string; description?: string; unit_price?: number | null }>;
+  }
+): Promise<{ success?: boolean; material_request?: MaterialRequest; error?: string }> {
+  try {
+    const res = await serverApi.post<any>(`/api/tickets/${ticketId}/materials`, payload);
+    if (res.error) {
+      throw new Error(res.error.message ?? 'Failed to create material request');
+    }
+    return {
+      success: true,
+      material_request: res.data?.material_request as MaterialRequest | undefined,
+    };
+  } catch (err: any) {
+    return { success: false, error: err.message ?? 'Failed to create material request' };
+  }
 }
 
 /**
@@ -1309,4 +1375,3 @@ export async function deletePpmMediaApi(payload: any) {
 export async function getCompaniesWithCreditsApi(propertyId: string) {
   return apiFetch<any>(`/api/companies?propertyId=${propertyId}`);
 }
-

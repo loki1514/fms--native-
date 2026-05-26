@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/utils/supabase/client';
+import { serverApi } from '@/lib/serverApi';
 
 export interface RetrievalResult {
   recentTickets: TicketEntry[];

@@ -49,7 +49,9 @@ interface MobileRequestListProps {
 // ─── Status Configuration ──────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   pending:          { label: 'Pending',       color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
+  pending_quotation:{ label: 'Pending Quote', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
   pending_approval: { label: 'Needs Approval', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
+  quoted:           { label: 'Quoted',         color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' },
   approved:         { label: 'Approved',       color: '#10B981', bg: 'rgba(16,185,129,0.12)' },
   rejected:         { label: 'Rejected',       color: '#EF4444', bg: 'rgba(239,68,68,0.12)'  },
   escalated:        { label: 'Escalated',      color: '#8B5CF6', bg: 'rgba(139,92,246,0.12)' },
@@ -59,11 +61,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 };
 
 // ─── Status Progress Steps ─────────────────────────────────────────────────────
-const PROGRESS_STEPS = ['pending_approval', 'approved', 'ordered', 'delivered'];
+const PROGRESS_STEPS = ['pending_quotation', 'approved', 'ordered', 'delivered'];
 
 function getProgressIndex(status: string): number {
   const idx = PROGRESS_STEPS.indexOf(status);
-  if (status === 'pending') return 0;
+  if (status === 'pending' || status === 'pending_approval') return 0;
   return idx === -1 ? 0 : idx;
 }
 
@@ -147,7 +149,7 @@ function RequestCard({
   const [noteText, setNoteText] = useState('');
 
   const status = request.status;
-  const isPending = status === 'pending' || status === 'pending_approval';
+  const isPending = status === 'pending' || status === 'pending_approval' || status === 'pending_quotation';
 
   const handleAction = async (action: 'approved' | 'rejected' | 'escalated', notes?: string) => {
     setActionLoading(action);

@@ -26,7 +26,6 @@ import { toast } from '@/lib/toast';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { vmsService, DateFilter, VisitorLog } from '@/services/vmsService';
-import { serverApi } from '@/lib/serverApi';
 
 import { formatDateTime } from '@/lib/utils';
 import {
@@ -624,14 +623,6 @@ function CheckInForm({
     }
     setLoading(true);
     try {
-      let photoUrl: string | undefined;
-      if (photoUri) {
-        const uploadRes = await vmsService.uploadPhoto(photoUri, `temp-${Date.now()}.jpg`);
-        if (uploadRes.success && uploadRes.data) {
-          photoUrl = uploadRes.data;
-        }
-      }
-
       const res = await vmsService.checkIn({
         propertyId,
         name: name.trim(),
@@ -640,10 +631,16 @@ function CheckInForm({
         whom_to_meet: hostName.trim(),
         whom_to_meet_uid: hostUid || undefined,
         purpose: purpose,
-        photo_url: photoUrl,
       });
 
       if (res.success && res.data) {
+        // Upload photo after check-in so we have the visitorId
+        if (photoUri) {
+          const uploadRes = await vmsService.uploadPhoto(photoUri, res.data.visitorId, propertyId);
+          if (!uploadRes.success) {
+            console.warn('Photo upload failed:', uploadRes.error);
+          }
+        }
         toast.success(`Welcome ${name.trim()}! Visit logged.`);
         setName('');
         setMobile('');
@@ -1024,8 +1021,6 @@ export default function VisitorsScreen() {
   const isDark = theme === 'dark';
   const colors = Colors[theme];
   const insets = useSafeAreaInsets();
-  const [property, setProperty] = useState<any>(null);
-
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [visitors, setVisitors] = useState<VisitorLog[]>([]);
   const [stats, setStats] = useState({ total: 0, checked_in: 0, checked_out: 0 });
@@ -1047,21 +1042,19 @@ export default function VisitorsScreen() {
     if (!propertyId) return;
     setIsLoading(true);
     try {
-      const [visitorsRes, statsRes] = await Promise.all([
-        vmsService.fetchVisitors(propertyId, {
-          dateFilter,
-          status: statusFilter,
-          search: searchQuery,
-        }),
-        vmsService.fetchStats(propertyId),
-      ]);
+      const res = await vmsService.fetchVisitors(propertyId, {
+        dateFilter,
+        status: statusFilter,
+        search: searchQuery,
+      });
 
-      if (visitorsRes.success && visitorsRes.data) {
-        setVisitors(visitorsRes.data.visitors);
-      }
-
-      if (statsRes.success && statsRes.data) {
-        setStats(statsRes.data);
+      if (res.success && res.data) {
+        setVisitors(res.data.visitors);
+        setStats({
+          total: res.data.stats.total_today,
+          checked_in: res.data.stats.checked_in,
+          checked_out: res.data.stats.checked_out,
+        });
       }
     } catch (err) {
       console.error('Error fetching visitors:', err);
@@ -1072,11 +1065,6 @@ export default function VisitorsScreen() {
 
   useEffect(() => {
     fetchVisitors();
-
-    // Fetch property info for header
-    if (propertyId) {
-      serverApi.query({ table: 'properties', action: 'select', select: 'name', filters: [{ op: 'eq', column: 'id', value: propertyId }], single: true }).then(({ data }: any) => setProperty(data));
-    }
 
     // Auto-refresh every 30s
     const interval = setInterval(fetchVisitors, 30000);
@@ -1154,7 +1142,7 @@ export default function VisitorsScreen() {
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={{ fontSize: 18, fontFamily: 'Poppins-Bold', color: '#FFFFFF' }} numberOfLines={1} adjustsFontSizeToFit>
-              {property?.name || 'Visitors'}
+              Visitors
             </Text>
             <Text style={{ fontSize: 11, fontFamily: 'Urbanist-Medium', color: '#94A3B8' }}>
               Visitor Management System

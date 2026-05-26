@@ -80,8 +80,6 @@ export default function StockScannerModal({
   const scannedCodesRef = useRef<Set<string>>(new Set());
   const cameraRef = useRef<CameraView>(null);
 
-  const supabase = createClient();
-
   // Reset state when modal opens
   useEffect(() => {
     if (isOpen) {

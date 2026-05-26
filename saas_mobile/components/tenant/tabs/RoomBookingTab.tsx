@@ -3,15 +3,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Platform } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
-import { createClient } from '@/utils/supabase/client';
+import { getMeetingRooms } from '@/services/meetingRoomService';
 
 interface Room {
   id: string;
   name: string;
   capacity: number;
-  floor: number;
-  credits_required: number;
-  is_available: boolean;
+  location?: string | null;
+  status: string;
 }
 
 interface RoomBookingTabProps {
@@ -47,21 +46,12 @@ export function RoomBookingTab({ propertyId, userId, refreshing, onRefresh }: Ro
   const [selectedCapacity, setSelectedCapacity] = useState<number | null>(null);
 
   const fetchRooms = async () => {
-    const supabase = createClient();
-    let query = supabase
-      .from('meeting_rooms')
-      .select('id, name, capacity, floor, credits_required, is_available')
-      .eq('property_id', propertyId)
-      .eq('is_available', true)
-      .order('name');
-
-    if (selectedCapacity) {
-      query = query.gte('capacity', selectedCapacity);
-    }
-
-    const { data, error } = await query;
-    if (!error && data) {
-      setRooms(data);
+    const res = await getMeetingRooms(propertyId, 'active');
+    if (!res.error && res.rooms) {
+      const filtered = selectedCapacity
+        ? res.rooms.filter((room) => room.capacity >= selectedCapacity)
+        : res.rooms;
+      setRooms(filtered);
     }
     setLoading(false);
   };
@@ -117,7 +107,7 @@ export function RoomBookingTab({ propertyId, userId, refreshing, onRefresh }: Ro
                   <Svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2">
                     <Path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                   </Svg>
-                  <Text style={styles.roomMetaText}>Floor {item.floor}</Text>
+                  <Text style={styles.roomMetaText}>{item.location || 'General Area'}</Text>
                 </View>
                 <View style={styles.metaItem}>
                   <Svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2">
@@ -127,7 +117,7 @@ export function RoomBookingTab({ propertyId, userId, refreshing, onRefresh }: Ro
                   <Text style={styles.roomMetaText}>{item.capacity} people</Text>
                 </View>
                 <View style={styles.creditBadge}>
-                  <Text style={styles.roomCreditText}>{item.credits_required} cr/hr</Text>
+                  <Text style={styles.roomCreditText}>{item.status}</Text>
                 </View>
               </View>
             </View>

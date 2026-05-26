@@ -26,6 +26,7 @@ import { AppBottomNav, TabKey } from '../shared/AppBottomNav';
 import StockScannerModal from '../stock/StockScannerModal';
 import FloatingMenu from '@/components/ui/FloatingMenu';
 import NotificationBell from '@/components/dashboard/NotificationBell';
+import { serverApi } from '@/lib/serverApi';
 
 const DRAWER_WIDTH = 280;
 

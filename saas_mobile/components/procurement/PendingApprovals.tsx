@@ -44,7 +44,7 @@ export default function PendingApprovals() {
       const data = await listPendingApprovals(user.id, propertyId, orgId);
       // Only show pending_approval status items
       const pending = data.filter(
-        (r) => r.status === 'pending_approval' || r.status === 'pending'
+        (r) => r.status === 'pending_approval' || r.status === 'pending' || r.status === 'pending_quotation'
       );
       setRequests(pending);
     } catch (err: any) {

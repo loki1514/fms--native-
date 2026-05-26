@@ -17,6 +17,7 @@ export interface StockItem {
   unit: string | null;
   min_threshold: number;
   per_unit_cost: number;
+  unit_price: number;
   location: string | null;
   barcode: string | null;
   barcode_format: string | null;
@@ -63,21 +64,66 @@ export interface BarcodeDetails {
   item_code: string;
 }
 
+type LegacyGetStockFilters = {
+  propertyId?: string;
+  search?: string;
+  category?: string;
+  lowStockOnly?: boolean;
+  barcode?: string;
+};
+
+type LegacyMovementInput = {
+  propertyId: string;
+  itemId: string;
+  action: 'add' | 'remove' | 'adjust' | 'in' | 'out';
+  quantity?: number;
+  quantityChange?: number;
+  quantityBefore?: number;
+  quantityAfter?: number;
+  notes?: string;
+  userId?: string;
+};
+
+function normalizeStockItem(item: any): StockItem {
+  const unitPrice = Number(item?.unit_price ?? item?.per_unit_cost ?? 0);
+  return {
+    ...item,
+    per_unit_cost: unitPrice,
+    unit_price: unitPrice,
+  } as StockItem;
+}
+
+function normalizeMovement(movement: any): StockMovement & {
+  item_name?: string;
+  item_code?: string;
+  unit?: string;
+  user_name?: string;
+} {
+  return {
+    ...movement,
+    item_name: movement?.item_name ?? movement?.stock_items?.name ?? undefined,
+    item_code: movement?.item_code ?? movement?.stock_items?.item_code ?? undefined,
+    unit: movement?.unit ?? movement?.stock_items?.unit ?? undefined,
+    user_name: movement?.user_name ?? movement?.users?.full_name ?? undefined,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Stock Service — routes through saas_mobile_server
 // Aligned with saas_one web app stock module
 // ---------------------------------------------------------------------------
 
-export const stockService = {
+export const stockService: any = {
   // ── Get Stock Items ───────────────────────────────────────────────────────
-  async getStockItems(filters?: {
-    propertyId?: string;
-    search?: string;
-    category?: string;
-    lowStockOnly?: boolean;
-    barcode?: string;
-  }): Promise<ApiResponse<StockItem[]>> {
+  async getStockItems(
+    filtersOrPropertyId?: LegacyGetStockFilters | string,
+    maybeFilters?: Omit<LegacyGetStockFilters, 'propertyId'>
+  ): Promise<ApiResponse<StockItem[]>> {
     try {
+      const filters: LegacyGetStockFilters =
+        typeof filtersOrPropertyId === 'string'
+          ? { propertyId: filtersOrPropertyId, ...(maybeFilters ?? {}) }
+          : (filtersOrPropertyId ?? {});
       const params = new URLSearchParams();
       if (filters?.propertyId) params.append('propertyId', filters.propertyId);
       if (filters?.search) params.append('search', filters.search);
@@ -87,7 +133,7 @@ export const stockService = {
 
       const res = await serverApi.get<any>(`/api/stock/items?${params.toString()}`);
       if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch stock items');
-      return { success: true, data: res.data?.items ?? [] };
+      return { success: true, data: (res.data?.items ?? []).map(normalizeStockItem) };
     } catch (err: any) {
       console.error('[Stock] getStockItems error:', err);
       return { success: false, data: [], error: err.message };
@@ -100,7 +146,7 @@ export const stockService = {
       const params = propertyId ? `?propertyId=${propertyId}` : '';
       const res = await serverApi.get<any>(`/api/stock/items/${id}${params}`);
       if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch stock item');
-      return { success: true, data: res.data?.item ?? null };
+      return { success: true, data: res.data?.item ? normalizeStockItem(res.data.item) : null as any };
     } catch (err: any) {
       console.error('[Stock] getStockItem error:', err);
       return { success: false, data: null as any, error: err.message };
@@ -134,7 +180,7 @@ export const stockService = {
         location: data.location,
       });
       if (res.error) throw new Error(typeof res.error === 'string' ? res.error : res.error?.message ?? 'Failed to create stock item');
-      return { success: true, data: res.data?.item };
+      return { success: true, data: res.data?.item ? normalizeStockItem(res.data.item) : null as any };
     } catch (err: any) {
       console.error('[Stock] createStockItem error:', err);
       return { success: false, data: null as any, error: err.message };
@@ -158,7 +204,7 @@ export const stockService = {
 
       const res = await serverApi.patch<any>(`/api/stock/items/${id}`, payload);
       if (res.error) throw new Error(res.error?.message ?? 'Failed to update stock item');
-      return { success: true, data: res.data?.item };
+      return { success: true, data: res.data?.item ? normalizeStockItem(res.data.item) : null as any };
     } catch (err: any) {
       console.error('[Stock] updateStockItem error:', err);
       return { success: false, data: null as any, error: err.message };
@@ -202,7 +248,7 @@ export const stockService = {
 
       const res = await serverApi.get<any>(`/api/stock/movements?${params.toString()}`);
       if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch stock movements');
-      return { success: true, data: res.data?.movements ?? [] };
+      return { success: true, data: (res.data?.movements ?? []).map(normalizeMovement) };
     } catch (err: any) {
       console.error('[Stock] getStockMovements error:', err);
       return { success: false, data: [], error: err.message };
@@ -210,23 +256,25 @@ export const stockService = {
   },
 
   // ── Record Stock Movement ─────────────────────────────────────────────────
-  async recordMovement(data: {
-    propertyId: string;
-    itemId: string;
-    action: 'add' | 'remove' | 'adjust' | 'in' | 'out';
-    quantity: number;
-    notes?: string;
-  }): Promise<ApiResponse<{ movement: StockMovement; item: StockItem }>> {
+  async recordMovement(data: LegacyMovementInput): Promise<ApiResponse<{ movement: StockMovement; item: StockItem; quantityAfter?: number }>> {
     try {
+      const quantity = Math.abs(Number(data.quantity ?? data.quantityChange ?? 0));
       const res = await serverApi.post<any>('/api/stock/movements', {
         propertyId: data.propertyId,
         itemId: data.itemId,
         action: data.action,
-        quantity: data.quantity,
+        quantity,
         notes: data.notes,
       });
       if (res.error) throw new Error(res.error?.message ?? 'Failed to record movement');
-      return { success: true, data: res.data };
+      return {
+        success: true,
+        data: {
+          movement: normalizeMovement(res.data?.movement),
+          item: normalizeStockItem(res.data?.item),
+          quantityAfter: Number(res.data?.item?.quantity ?? data.quantityAfter ?? data.quantityBefore ?? 0),
+        },
+      };
     } catch (err: any) {
       console.error('[Stock] recordMovement error:', err);
       return { success: false, data: null as any, error: err.message };
@@ -262,7 +310,7 @@ export const stockService = {
     try {
       const res = await serverApi.get<any>(`/api/stock/items/by-barcode?code=${encodeURIComponent(barcode)}&propertyId=${propertyId}`);
       if (res.error) throw new Error(res.error?.message ?? 'Failed to fetch by barcode');
-      return { success: true, data: res.data?.item ?? null };
+      return { success: true, data: res.data?.item ? normalizeStockItem(res.data.item) : null as any };
     } catch (err: any) {
       console.error('[Stock] getStockByBarcode error:', err);
       return { success: false, data: null as any, error: err.message };
@@ -325,5 +373,31 @@ export const stockService = {
     }
   },
 };
+
+stockService.createItem = async (data: {
+  propertyId: string;
+  name: string;
+  item_code?: string;
+  description?: string;
+  category?: string;
+  quantity?: number;
+  unit?: string;
+  min_threshold?: number;
+  unit_price?: number;
+  location?: string;
+}) =>
+  stockService.createStockItem({
+    ...data,
+    per_unit_cost: data.unit_price,
+  });
+
+stockService.getMovements = async (propertyId: string, filters?: { itemId?: string; limit?: number }) =>
+  stockService.getStockMovements(propertyId, filters);
+
+stockService.getBarcode = async (itemId: string) =>
+  stockService.getBarcodeDetails(itemId);
+
+stockService.scanBarcode = async (barcode: string, propertyId: string) =>
+  stockService.getStockByBarcode(barcode, propertyId);
 
 export default stockService;

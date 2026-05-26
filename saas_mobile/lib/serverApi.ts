@@ -140,7 +140,11 @@ export const serverApi = {
     serverFetch<T>(endpoint, { method: 'PUT', body: JSON.stringify(body) }),
 
   // Generic DELETE
-  delete: <T>(endpoint: string) => serverFetch<T>(endpoint, { method: 'DELETE' }),
+  delete: <T>(endpoint: string, body?: unknown) =>
+    serverFetch<T>(endpoint, {
+      method: 'DELETE',
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    }),
 
   // --- Mobile-client generic proxy -----------------------------------------
 

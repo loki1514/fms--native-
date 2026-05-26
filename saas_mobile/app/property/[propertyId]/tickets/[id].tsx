@@ -36,7 +36,7 @@ import MediaActionsSheet from '@/components/shared/MediaActionsSheet';
 import ImagePreviewModal from '@/components/shared/ImagePreviewModal';
 import VideoPreviewModal from '@/components/shared/VideoPreviewModal';
 import { compressImage, getStoragePath, getStoragePathForSlot, readFileAsArrayBuffer } from '@/utils/mediaUtils';
-import { WEB_API_BASE } from '@/utils/api/mobileApi';
+import { WEB_API_BASE, createTicketMaterialRequest, getProcurementUsers } from '@/utils/api/mobileApi';
 import * as FileSystem from 'expo-file-system';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -390,68 +390,17 @@ export default function TicketDetailScreen() {
   };
 
   const fetchProcurementUsers = async () => {
-    let users: any[] = [];
-    
-    // Determine organization_id based on propertyId
-    let orgId = ticket?.organization_id;
-    if (!orgId && propertyId) {
-       console.log('[fetchProcurementUsers] Fetching orgId for property:', propertyId);
-       const propRes = await serverApi.query<{ organization_id: string }>({ table: 'properties', action: 'select', select: 'organization_id', filters: [{ op: 'eq', column: 'id', value: propertyId }], single: true });
-       if (propRes.error) console.error('[fetchProcurementUsers] Property fetch error:', propRes.error);
-       orgId = propRes.data?.organization_id;
+    try {
+      const users = await getProcurementUsers({
+        propertyId,
+        organizationId: ticket?.organization_id,
+      });
+      console.log('[fetchProcurementUsers] Success! Found users:', users.length);
+      setProcurementUsers(users);
+    } catch (err) {
+      console.error('[fetchProcurementUsers] Failed:', err);
+      setProcurementUsers([]);
     }
-
-    console.log('[fetchProcurementUsers] Final orgId:', orgId, 'propertyId:', propertyId);
-
-    if (orgId && orgId !== 'undefined' && orgId !== '') {
-      // 1. Fetch from organization_memberships FIRST
-      const { data: orgData, error: orgError } = await supabase
-        .from('organization_memberships')
-        .select(`role, user:users!user_id(id, full_name, user_photo_url)`)
-        .eq('organization_id', orgId)
-        .eq('is_active', true)
-        .eq('role', 'procurement');
-      
-      if (orgError) {
-        console.error('[fetchProcurementUsers] Org Membership Query Error:', orgError);
-      } else if (orgData) {
-        users = orgData
-          .map((m: any) => ({ 
-            id: m.user?.id, 
-            full_name: m.user?.full_name,
-            user_photo_url: m.user?.user_photo_url,
-            role: 'Procurement'
-          }))
-          .filter((u: any) => u.id && u.full_name);
-      }
-    }
-    
-    if (users.length === 0 && propertyId && propertyId !== 'undefined' && propertyId !== '') {
-      // 2. Fallback to property_memberships
-      const { data: propData, error: propError } = await supabase
-        .from('property_memberships')
-        .select(`role, user:users!user_id(id, full_name, user_photo_url)`)
-        .eq('property_id', propertyId)
-        .eq('is_active', true)
-        .eq('role', 'procurement');
-      
-      if (propError) {
-        console.error('[fetchProcurementUsers] Prop Membership Query Error:', propError);
-      } else if (propData) {
-        users = propData
-          .map((m: any) => ({ 
-            id: m.user?.id, 
-            full_name: m.user?.full_name,
-            user_photo_url: m.user?.user_photo_url,
-            role: 'Procurement'
-          }))
-          .filter((u: any) => u.id && u.full_name);
-      }
-    }
-    
-    console.log('[fetchProcurementUsers] Success! Found users:', users.length);
-
-    setProcurementUsers(users);
   };
 
 
@@ -523,33 +472,21 @@ export default function TicketDetailScreen() {
         commentText += `\nAssignee: @${procUser.full_name} (${procUser.role ?? 'Procurement'})`;
       }
       
-      // TODO: material_requests table does not exist in saas_one schema
-      // const { error: materialError } = await supabase
-      //   .from('material_requests')
-      //   .insert({
-      //     ticket_id: id,
-      //     property_id: propertyId,
-      //     requested_by: userId,
-      //     assignee_uid: selectedProcurementId,
-      //     items: validItems,
-      //     status: 'pending'
-      //   } as any);
+      const requestRes = await createTicketMaterialRequest(id, {
+        assignee_uid: selectedProcurementId,
+        items: validItems.map((item) => ({
+          name: item.name.trim(),
+          qty: item.qty,
+          notes: item.notes.trim() || undefined,
+        })),
+      });
 
-      // if (materialError) {
-      //   console.error('[handleAddMaterial] Error inserting into material_requests:', materialError);
-      //   Alert.alert('Warning', 'Stored structured request failed, but we will still log it to the ticket chat.');
-      // }
+      if (!requestRes.success) {
+        throw new Error(requestRes.error || 'Failed to create material request');
+      }
 
-      // Insert comment for chat visibility
-      const { data, error } = await supabase
-        .from('ticket_comments')
-        .insert({ ticket_id: id, comment: commentText, user_id: userId, is_internal: false } as any)
-        .select(`*, user:users(full_name, user_photo_url)`)
-        .single();
-        
-      if (error) throw error;
-      setComments(prev => [...prev, data as Comment]);
-      if (activeTab !== 'chat') useUnreadStore.getState().incrementTicketChat();
+      // Refresh comments/activity after server-side logging
+      await fetchTicket();
       
       // Reset state
       setMaterialItems([{ name: '', qty: '1', notes: '' }]);

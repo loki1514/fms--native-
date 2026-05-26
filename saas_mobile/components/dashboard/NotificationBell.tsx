@@ -542,7 +542,9 @@ export default function NotificationBell({ style, iconColor, iconSize }: { style
     try {
       const orgId = membership?.org_id ?? undefined;
       const requests = await listPendingApprovals(authUser.id, propertyId, orgId);
-      const pending = requests.filter((r) => r.status === 'pending_approval' || r.status === 'pending');
+      const pending = requests.filter((r) =>
+        r.status === 'pending_approval' || r.status === 'pending' || r.status === 'pending_quotation'
+      );
       setPendingRequests(pending);
 
       if (pending.length === 1) {
