@@ -366,6 +366,18 @@ export default function PropertyLayout() {
           const membershipRole = propMembership?.role ?? null;
           console.log('[PropertyLayout] Membership fallback — propMembership:', propMembership?.role ?? 'null', 'membershipRole:', membershipRole);
 
+          if (propertyId === 'all') {
+            const isPropAdminOrHigher = membership?.properties?.some(p => 
+              ['property_admin', 'admin', 'manager', 'property_manager', 'facility_manager', 'spoc', 'administrator'].includes((p.role || '').toLowerCase()) || 
+              ['org_super_admin', 'org_admin', 'owner'].includes((p.role || '').toLowerCase())
+            );
+            if (isPropAdminOrHigher) {
+              console.log('[PropertyLayout] Authorized via "all" fallback');
+              setAccessState({ authorized: true, role: 'property_admin', checking: false });
+              return;
+            }
+          }
+
           if (membershipRole && MOBILE_ROLES.includes(membershipRole)) {
             console.log('[PropertyLayout] Authorized via membership fallback — role:', membershipRole);
             setAccessState({ authorized: true, role: membershipRole, checking: false });
@@ -481,9 +493,13 @@ export default function PropertyLayout() {
   const membershipRole = propMembership?.role ?? null;
 
   // Determine final role: prefer checkPropertyAccess result, fallback to membership role
-  const role = accessState.authorized === true
+  let role = accessState.authorized === true
     ? (accessState.role ?? membershipRole ?? '')
     : (membershipRole ?? '');
+
+  if (propertyId === 'all' && accessState.authorized) {
+    role = 'property_admin';
+  }
 
   console.log('[PropertyLayout] Final role resolution:', {
     accessAuthorized: accessState.authorized,

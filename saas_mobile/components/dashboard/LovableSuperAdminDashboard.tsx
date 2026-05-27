@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'expo-router';
 import { serverApi } from '@/lib/serverApi';
 import {
   View,
@@ -54,7 +55,8 @@ import {
 
 // ─── Main dashboard ────────────────────────────────────────────────────────────
 export default function LovableSuperAdminDashboard() {
-  const { user, signOut, membership } = useAuth();
+  const router = useRouter();
+  const { user, signOut, membership, isMembershipLoading } = useAuth();
   const insets = useSafeAreaInsets();
   const { weather } = useWeather();
 
@@ -156,6 +158,27 @@ export default function LovableSuperAdminDashboard() {
       }
 
       const propIds = propData.map((p: any) => p.id);
+
+      // Set properties immediately to load them instantly
+      const initialMapped: Property[] = propData.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        address: p.address,
+        image_url: p.image_url,
+        openTickets: 0,
+        resolvedTickets: 0,
+        totalTickets: 0,
+        healthScore: 100,
+        healthStatus: 'good',
+        checklist: { completed: 0, total: 1, percent: 100 },
+        energy: { diesel: 0, electricity: 0, trend: 0 },
+        tickets: [],
+        status: 'optimal',
+      }));
+      
+      setProperties(initialMapped);
+      setIsLoading(false);
 
       // Parallel fetch: tickets (all time), SOPs, diesel, electricity, 30-day for trend
       const sevenDaysAgo = new Date();
@@ -318,8 +341,10 @@ export default function LovableSuperAdminDashboard() {
   }, [user, membership]);
 
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    if (!isMembershipLoading) {
+      fetchAll();
+    }
+  }, [fetchAll, isMembershipLoading]);
 
   const onRefresh = () => {
     setIsRefreshing(true);
@@ -327,12 +352,20 @@ export default function LovableSuperAdminDashboard() {
   };
 
   const filteredProperties = useMemo(() => {
-    if (!debouncedQuery) return properties;
-    const q = debouncedQuery.toLowerCase();
-    return properties.filter(
-      (p) =>
-        p.name?.toLowerCase().includes(q) || p.code?.toLowerCase().includes(q)
-    );
+    let result = properties;
+    if (debouncedQuery) {
+      const q = debouncedQuery.toLowerCase();
+      result = properties.filter(
+        (p) =>
+          p.name?.toLowerCase().includes(q) || p.code?.toLowerCase().includes(q)
+      );
+    }
+    // Sort logically by code (so PROP-002 comes before PROP-0010)
+    return [...result].sort((a, b) => {
+      const codeA = (a.code || '').toUpperCase();
+      const codeB = (b.code || '').toUpperCase();
+      return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+    });
   }, [properties, debouncedQuery]);
 
   // Access denied
@@ -358,7 +391,7 @@ export default function LovableSuperAdminDashboard() {
   }
 
   // Loading
-  if (isLoading) {
+  if (isLoading || isMembershipLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: BG, paddingTop: insets.top }]}>
         <StatusBar barStyle="light-content" />
@@ -475,8 +508,7 @@ export default function LovableSuperAdminDashboard() {
                   property={p}
                   index={i}
                   onPress={() => {
-                    setActiveProperty(p);
-                    setScreen('property-detail');
+                    router.push(`/property/${p.id}` as any);
                   }}
                 />
               ))}
@@ -515,15 +547,7 @@ export default function LovableSuperAdminDashboard() {
         ) : null}
       </View>
 
-      {/* Bottom nav */}
-      <BottomNav
-        active={screen === 'console' ? 'console' : screen === 'property-detail' ? 'detail' : screen === 'analytics' ? 'analytics' : 'properties'}
-        onProperties={() => setScreen('properties')}
-        onConsole={() => setScreen('console')}
-        onAnalytics={() => setScreen('analytics')}
-        onChat={() => setShowChat(true)}
-        insets={insets}
-      />
+
 
       {/* Modals */}
       <CassandraSessionModal visible={showChat} onClose={() => setShowChat(false)} orgId={orgId} initialMode="voice" />

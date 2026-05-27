@@ -40,6 +40,7 @@ import { createClient } from '@/utils/supabase/client';
 import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/mst/useGamification';
+import { useAsyncStorageCache } from '@/hooks/useAsyncStorageCache';
 
 // WeatherBackground removed — using static sunny gradient instead
 import SafeBlurView from '@/components/ui/SafeBlurView';
@@ -423,23 +424,41 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
 
   const supabase = useMemo(() => createClient(), []);
 
+  // AsyncStorage cache for instant dashboard load on app reopen
+  const { cachedData: staffCache, hasCache: hasStaffCache, saveCache: saveStaffCache } = useAsyncStorageCache<{
+    property: { name: string } | null;
+    tickets: Ticket[];
+    isCheckedIn: boolean;
+    userSkills: string[];
+    specialization: string | null;
+    ppmTotal: number;
+    ppmDone: number;
+    ppmPending: number;
+    ppmOverdue: number;
+    ppmPostponed: number;
+  }>({
+    key: 'staff-dashboard',
+    propertyId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!hasStaffCache);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [property, setProperty] = useState<{ name: string } | null>(null);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [isCheckedIn, setIsCheckedIn] = useState(false);
+  const [property, setProperty] = useState<{ name: string } | null>(staffCache?.property ?? null);
+  const [tickets, setTickets] = useState<Ticket[]>(staffCache?.tickets ?? []);
+  const [isCheckedIn, setIsCheckedIn] = useState(staffCache?.isCheckedIn ?? false);
   const [activeShiftId, setActiveShiftId] = useState<string | null>(null);
   const [isCheckingInOut, setIsCheckingInOut] = useState(false);
-  const [userSkills, setUserSkills] = useState<string[]>([]);
-  const [specialization, setSpecialization] = useState<string | null>(null);
+  const [userSkills, setUserSkills] = useState<string[]>(staffCache?.userSkills ?? []);
+  const [specialization, setSpecialization] = useState<string | null>(staffCache?.specialization ?? null);
 
   // PPM stats (local)
-  const [ppmTotal, setPpmTotal]   = useState(0);
-  const [ppmDone, setPpmDone]     = useState(0);
-  const [ppmPending, setPpmPending] = useState(0);
-  const [ppmOverdue, setPpmOverdue] = useState(0);
-  const [ppmPostponed, setPpmPostponed] = useState(0);
+  const [ppmTotal, setPpmTotal]   = useState(staffCache?.ppmTotal ?? 0);
+  const [ppmDone, setPpmDone]     = useState(staffCache?.ppmDone ?? 0);
+  const [ppmPending, setPpmPending] = useState(staffCache?.ppmPending ?? 0);
+  const [ppmOverdue, setPpmOverdue] = useState(staffCache?.ppmOverdue ?? 0);
+  const [ppmPostponed, setPpmPostponed] = useState(staffCache?.ppmPostponed ?? 0);
 
   const isTechnical = userSkills.includes('technical');
   const isSoftServices = userSkills.includes('soft_services') || userSkills.includes('housekeeping');
@@ -503,6 +522,8 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
       if (shiftData) setIsCheckedIn(!!(shiftData as any).is_checked_in);
 
       // Fetch specialization
+      let cachedUserSkills = userSkills;
+      let cachedSpecialization = specialization;
       const { data: skills } = await ((supabase
         .from('mst_skills') as any)
         .select('skill_group_code')
@@ -513,6 +534,8 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
       if (skills?.skill_group_code) {
         setUserSkills([skills.skill_group_code]);
         setSpecialization(skills.skill_group_code.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()));
+        cachedUserSkills = [skills.skill_group_code];
+        cachedSpecialization = skills.skill_group_code.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
       } else {
         const { data: resolverStats } = await (supabase
           .from('resolver_stats')
@@ -523,23 +546,45 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
 
         if (resolverStats?.skills && Array.isArray(resolverStats.skills)) {
           setUserSkills(resolverStats.skills);
+          cachedUserSkills = resolverStats.skills;
           if (resolverStats.skills.length > 0) {
             setSpecialization(resolverStats.skills[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()));
+            cachedSpecialization = resolverStats.skills[0].replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
           }
         }
       }
 
       // PPM stats
+      let cachedPpmTotal = 0, cachedPpmDone = 0, cachedPpmPending = 0, cachedPpmOverdue = 0, cachedPpmPostponed = 0;
       try {
         const ppmRes = await ppmService.fetchStats(propertyId);
         if (ppmRes.success && ppmRes.data) {
-          setPpmTotal(ppmRes.data.total ?? 0);
-          setPpmDone(ppmRes.data.done ?? 0);
-          setPpmPending(ppmRes.data.pending ?? 0);
-          setPpmOverdue(ppmRes.data.overdue ?? 0);
-          setPpmPostponed(ppmRes.data.postponed ?? 0);
+          cachedPpmTotal = ppmRes.data.total ?? 0;
+          cachedPpmDone = ppmRes.data.done ?? 0;
+          cachedPpmPending = ppmRes.data.pending ?? 0;
+          cachedPpmOverdue = ppmRes.data.overdue ?? 0;
+          cachedPpmPostponed = ppmRes.data.postponed ?? 0;
+          setPpmTotal(cachedPpmTotal);
+          setPpmDone(cachedPpmDone);
+          setPpmPending(cachedPpmPending);
+          setPpmOverdue(cachedPpmOverdue);
+          setPpmPostponed(cachedPpmPostponed);
         }
       } catch (_e) { /* ignore */ }
+
+      // Save to AsyncStorage cache so next app open is instant
+      saveStaffCache({
+        property: propData ?? property,
+        tickets: (ticketData as Ticket[]) ?? tickets,
+        isCheckedIn: !!(shiftData as any)?.is_checked_in,
+        userSkills: cachedUserSkills,
+        specialization: cachedSpecialization,
+        ppmTotal: cachedPpmTotal,
+        ppmDone: cachedPpmDone,
+        ppmPending: cachedPpmPending,
+        ppmOverdue: cachedPpmOverdue,
+        ppmPostponed: cachedPpmPostponed,
+      });
 
     } catch (err) {
       console.warn('[LovableStaffDashboard] fetch error:', err);

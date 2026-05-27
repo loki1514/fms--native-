@@ -206,7 +206,7 @@ const PropertyCardApple = React.memo(function PropertyCardApple({ property, orgI
   const [imgError, setImgError] = useState(false);
 
   const handlePress = useCallback(() => {
-    router.push(`/org/${orgId}/property/${property.id}`);
+    router.push(`/org/${orgId}/property/${property.id}` as any);
   }, [router, orgId, property.id]);
 
   // Compute badges once per property — not on every parent re-render

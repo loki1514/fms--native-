@@ -9,32 +9,24 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 // Browser: has window + localStorage
 const isBrowser = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 
-// React Native: lazy check to avoid Node.js / SSR crashes.
-// We must NOT import @react-native-async-storage/async-storage at module level
-// because its CommonJS build accesses `window` during initialization.
-function isReactNative() {
-  try {
-    if (typeof navigator !== 'undefined' && navigator.product === 'ReactNative') return true;
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { Platform } = require('react-native');
-    return Platform && Platform.OS && Platform.OS !== 'web';
-  } catch {
-    return false;
-  }
-}
-
-// Lazy-loaded AsyncStorage — only imported when running in React Native.
+// React Native: check at runtime. We import AsyncStorage statically
+// to avoid dynamic import failures in production APK builds.
 let _asyncStorage: any = null;
-async function getAsyncStorage() {
-  if (!_asyncStorage && isReactNative()) {
-    try {
-      const mod = await import('@react-native-async-storage/async-storage');
-      _asyncStorage = mod.default;
-    } catch {
-      // AsyncStorage not available
+let _asyncStorageInitialized = false;
+
+async function initAsyncStorage(): Promise<void> {
+  if (_asyncStorageInitialized) return;
+  _asyncStorageInitialized = true;
+
+  try {
+    // Static import is more reliable than dynamic import in RN production builds
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    if (AsyncStorage) {
+      _asyncStorage = AsyncStorage;
     }
+  } catch {
+    // Not in React Native or package not available
   }
-  return _asyncStorage;
 }
 
 // ─── Storage adapter (browser → localStorage, native → AsyncStorage, SSR → no-op)
@@ -42,8 +34,8 @@ async function getAsyncStorage() {
 const customStorage = {
   getItem: async (key: string): Promise<string | null> => {
     if (isBrowser) return window.localStorage.getItem(key);
-    const storage = await getAsyncStorage();
-    if (storage) return storage.getItem(key);
+    await initAsyncStorage();
+    if (_asyncStorage) return _asyncStorage.getItem(key);
     return null;
   },
   setItem: async (key: string, value: string): Promise<void> => {
@@ -51,16 +43,16 @@ const customStorage = {
       window.localStorage.setItem(key, value);
       return;
     }
-    const storage = await getAsyncStorage();
-    if (storage) await storage.setItem(key, value);
+    await initAsyncStorage();
+    if (_asyncStorage) await _asyncStorage.setItem(key, value);
   },
   removeItem: async (key: string): Promise<void> => {
     if (isBrowser) {
       window.localStorage.removeItem(key);
       return;
     }
-    const storage = await getAsyncStorage();
-    if (storage) await storage.removeItem(key);
+    await initAsyncStorage();
+    if (_asyncStorage) await _asyncStorage.removeItem(key);
   },
 };
 

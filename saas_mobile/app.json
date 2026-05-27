@@ -23,6 +23,7 @@
         "backgroundColor": "#708F96"
       },
       "package": "com.autopilot.app",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -80,7 +81,23 @@
           "enableBackgroundRemoteNotifications": true
         }
       ],
-      "@sentry/react-native"
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "my-org",
+          "project": "my-project"
+        }
+      ],
+      "@react-native-firebase/app",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "@react-native-firebase/messaging"
     ],
     "updates": {
       "enabled": false
@@ -92,7 +109,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "b65febb3-1c94-4ecd-9521-deb79e521c5e"
+        "projectId": "9b6a3c15-2467-4e45-8782-b4e5c33f443e"
       }
     }
   }

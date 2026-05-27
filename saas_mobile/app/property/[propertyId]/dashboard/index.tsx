@@ -7,11 +7,12 @@ import { useAuth } from '@/hooks/useAuth';
 
 // ─── Role-based Dashboard imports ─────────────────────────────────────────────
 import LovableMstDashboard from '@/components/dashboard/LovableMstDashboard';
-import LovableOrgSuperAdminDashboard from '@/components/dashboard/LovableOrgSuperAdminDashboard';
+
 import LovablePropertyAdminDashboard from '@/components/dashboard/LovablePropertyAdminDashboard';
 import SecurityDashboard from '@/components/dashboard/SecurityDashboard';
 import SoftServiceManagerDashboard from '@/components/dashboard/SoftServiceManagerDashboard';
 import LovableStaffDashboard from '@/components/dashboard/LovableStaffDashboard';
+import SkeletonLoader from '@/components/dashboard/lovable/SkeletonLoader';
 
 // ─── Role constants ────────────────────────────────────────────────────────────
 
@@ -36,7 +37,17 @@ export default function DashboardScreen() {
     if (MST_ROLES.includes(orgRole)) return 'mst';
     if (ORG_ADMIN_ROLES.includes(orgRole)) return 'org_admin';
 
-    // 2. Check property-level role
+    // 2. Handle "all" properties view
+    if (propertyId === 'all') {
+      const isPropAdminOrHigher = membership.properties.some(p => 
+        PROPERTY_ADMIN_ROLES.includes((p.role || '').toLowerCase()) || 
+        ORG_ADMIN_ROLES.includes((p.role || '').toLowerCase())
+      );
+      if (isPropAdminOrHigher) return 'property_admin';
+      return 'staff'; // Fallback if they somehow reached here without admin rights
+    }
+
+    // 3. Check property-level role
     const prop = membership.properties.find((p) => p.id === propertyId);
     const propRole = (prop?.role || '').toLowerCase();
 
@@ -54,11 +65,10 @@ export default function DashboardScreen() {
     return propRole || 'staff';
   }, [membership, propertyId]);
 
-  // Show spinner while membership loads
   if (isMembershipLoading || !membership) {
     return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#708F96" />
+      <View style={[styles.loader, { backgroundColor: '#121212' }]}>
+        <SkeletonLoader />
       </View>
     );
   }

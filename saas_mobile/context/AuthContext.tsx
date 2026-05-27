@@ -62,7 +62,7 @@ function enrichUser(u: User | null | undefined): AuthUser | null {
 // ---------------------------------------------------------------------------
 
 const MEMBERSHIP_CACHE_PREFIX = '@autopilot_membership:';
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — mobile apps should cache aggressively
 
 async function loadCachedMembership(
   userId: string
@@ -125,15 +125,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchMembership = useCallback(
     async (userId: string) => {
       if (fetchingRef.current) return;
+      fetchingRef.current = true;
 
       // Fast path: return cached data without a loading state flash
       const cached = await loadCachedMembership(userId);
       if (cached) {
         setMembership(cached);
-        return;
+        // Even with cache hit, we still fetch in background to refresh,
+        // but we don't block the UI.
       }
 
-      fetchingRef.current = true;
       setIsMembershipLoading(true);
 
       try {
@@ -163,14 +164,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             property:properties (
               id,
               name,
-              code
+              code,
+              image_url
             )
           `
           )
           .eq('user_id', userId)
           .or('is_active.eq.true,is_active.is.null');
 
-        const builtProperties: PropertyInfo[] = (propData ?? [])
+        let builtProperties: PropertyInfo[] = (propData ?? [])
           .map((p: any) => {
             const prop = p.property as any;
             if (!prop?.id) return null;
@@ -178,10 +180,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               id: prop.id as string,
               name: (prop.name as string) ?? '',
               code: (prop.code as string) ?? '',
-              role: (p.role as string) ?? 'member',
+              role: (p.role as string) ?? 'tenant',
+              image_url: (prop.image_url as string) ?? '',
             };
           })
           .filter((p: PropertyInfo | null): p is PropertyInfo => p !== null);
+
+        // Auto-inject all org properties if the user is an org admin
+        const fetchedOrgId = ((orgData as any)?.organization)?.id;
+        const fetchedOrgRole = (orgData as any)?.role;
+        const ORG_ADMIN_ROLES = ['org_super_admin', 'org_admin', 'owner'];
+        
+        if (fetchedOrgId && fetchedOrgRole && ORG_ADMIN_ROLES.includes(fetchedOrgRole)) {
+          const { data: orgPropsData } = await supabase
+            .from('properties')
+            .select('id, name, code, image_url')
+            .eq('organization_id', fetchedOrgId);
+            
+          if (orgPropsData) {
+            const existingIds = new Set(builtProperties.map(p => p.id));
+            const additionalProps = orgPropsData
+              .filter(p => !existingIds.has(p.id))
+              .map(p => ({
+                id: p.id,
+                name: p.name || '',
+                code: p.code || '',
+                role: fetchedOrgRole, // Inherit org role
+                image_url: p.image_url || null,
+              }));
+              
+            builtProperties = [...builtProperties, ...additionalProps];
+          }
+        }
 
         console.log('[AuthContext] property memberships raw:', JSON.stringify(propData));
         console.log('[AuthContext] builtProperties:', JSON.stringify(builtProperties));
@@ -197,6 +227,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setMembership(membershipData);
       } catch (err) {
         console.error('[AuthContext] fetchMembership error:', err);
+        // FALLBACK: if network fetch fails but we have stale cached data,
+        // keep using it rather than leaving membership null.
+        if (cached) {
+          console.log('[AuthContext] Using stale cached membership as fallback');
+          setMembership(cached);
+        }
       } finally {
         fetchingRef.current = false;
         setIsMembershipLoading(false);

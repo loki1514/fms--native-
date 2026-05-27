@@ -6,6 +6,7 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -34,19 +35,31 @@ export default function PropertySwitcherModal({
     return [...membership.properties].sort((a, b) => {
       const codeA = (a.code || '').toUpperCase();
       const codeB = (b.code || '').toUpperCase();
-      return codeA.localeCompare(codeB);
+      return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
     });
+  }, [membership]);
+
+  // Only show "All Properties" for org admins or property admins with multiple properties
+  const canViewAllProperties = React.useMemo(() => {
+    if (!membership) return false;
+    const orgRole = (membership.org_role || '').toLowerCase();
+    if (['org_super_admin', 'org_admin', 'owner'].includes(orgRole)) return true;
+    const hasAdminRole = membership.properties?.some(p =>
+      ['property_admin', 'admin', 'manager', 'property_manager', 'facility_manager', 'spoc', 'administrator'].includes((p.role || '').toLowerCase())
+    );
+    return hasAdminRole && (membership.properties?.length ?? 0) > 1;
   }, [membership]);
 
   const handleSelectProperty = (id: string) => {
     onClose();
     if (id === currentPropertyId) return;
-    router.replace(`/property/${id}/dashboard`);
+    router.replace(`/property/${id}/dashboard` as never);
   };
 
   const handleSelectAll = () => {
     onClose();
-    router.replace(`/org/${orgId}`);
+    if ('all' === currentPropertyId) return;
+    router.replace(`/property/all/dashboard` as never);
   };
 
   return (
@@ -67,23 +80,27 @@ export default function PropertySwitcherModal({
           </View>
 
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-            {/* All Properties Option */}
-            <TouchableOpacity
-              style={styles.item}
-              onPress={handleSelectAll}
-              activeOpacity={0.7}
-            >
-              <View style={styles.iconContainer}>
-                <Ionicons name="grid-outline" size={20} color="#3B82F6" />
-              </View>
-              <View style={styles.itemTextContainer}>
-                <Text style={styles.itemName}>All Properties (Overview)</Text>
-                <Text style={styles.itemSubtext}>Aggregated organization data</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
-            </TouchableOpacity>
+            {/* All Properties Option — only for admins */}
+            {canViewAllProperties && (
+              <>
+                <TouchableOpacity
+                  style={styles.item}
+                  onPress={handleSelectAll}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="grid-outline" size={20} color="#3B82F6" />
+                  </View>
+                  <View style={styles.itemTextContainer}>
+                    <Text style={styles.itemName}>All Properties (Overview)</Text>
+                    <Text style={styles.itemSubtext}>Aggregated organization data</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+                </TouchableOpacity>
 
-            <View style={styles.divider} />
+                <View style={styles.divider} />
+              </>
+            )}
 
             {/* Individual Properties */}
             {properties.map((p) => {
@@ -95,12 +112,16 @@ export default function PropertySwitcherModal({
                   onPress={() => handleSelectProperty(p.id)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.iconContainer, isActive && styles.iconContainerActive]}>
-                    <Ionicons
-                      name="business-outline"
-                      size={20}
-                      color={isActive ? '#000' : 'rgba(255,255,255,0.6)'}
-                    />
+                  <View style={[styles.iconContainer, isActive && styles.iconContainerActive, p.image_url ? { padding: 0, overflow: 'hidden', borderWidth: 0 } : {}]}>
+                    {p.image_url ? (
+                      <Image source={{ uri: p.image_url }} style={{ width: '100%', height: '100%', borderRadius: 10 }} />
+                    ) : (
+                      <Ionicons
+                        name="business-outline"
+                        size={20}
+                        color={isActive ? '#000' : 'rgba(255,255,255,0.6)'}
+                      />
+                    )}
                   </View>
                   <View style={styles.itemTextContainer}>
                     <Text style={[styles.itemName, isActive && styles.itemNameActive]}>

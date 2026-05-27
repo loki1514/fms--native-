@@ -1,0 +1,42 @@
+# Exclude other large projects in the repo root
+saas_development/
+saas_mobile_server/
+lovable direct/
+superpowers/
+claude-mem/
+awesome-claude-code-subagents/
+impeccable/
+lovable updated/
+.autopilot-preview/
+.autopilot-web-preview/
+.playwright-mcp/
+
+# Exclude standard build artifacts & dependencies everywhere
+node_modules/
+.expo/
+dist/
+web-build/
+.next/
+build/
+android/
+ios/
+
+# Exclude env & local files
+.env
+.env.local
+.env.*.local
+
+# Exclude system & temp files
+.DS_Store
+*.log
+*.tmp
+.idea/
+.vscode/
+*.swp
+*.swo
+coverage/
+
+# Exclude lock files (EAS installs deps itself)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

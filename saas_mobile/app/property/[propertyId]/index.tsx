@@ -6,9 +6,12 @@ import { useAuth } from '@/hooks/useAuth';
 // All roles now use the unified sidebar dashboard with capability-based module filtering.
 export default function PropertyIndex() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
-  const { user, membership, isLoading } = useAuth();
+  const { user, membership, isLoading, isMembershipLoading } = useAuth();
 
-  if (isLoading) {
+  // CRITICAL: Wait for BOTH auth and membership loading to finish before
+  // deciding where to redirect. Otherwise we flash login on every reopen
+  // when membership cache has expired.
+  if (isLoading || isMembershipLoading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#708F96" />
@@ -20,8 +23,17 @@ export default function PropertyIndex() {
     return <Redirect href="/" />;
   }
 
-  if (!membership || !user) {
+  if (!user) {
     return <Redirect href="/login" />;
+  }
+
+  if (!membership) {
+    // Auth loaded but membership failed — show loading instead of login
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color="#708F96" />
+      </View>
+    );
   }
 
   // Role-based dashboard routing

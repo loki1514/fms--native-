@@ -231,8 +231,27 @@ export default function LoginScreen() {
         return ai - bi;
       })[0];
 
-      router.replace(`/org/${best.organization_id}` as any);
-      return;
+      // Fetch org properties to pass to property selection
+      const { data: orgProps } = await supabase
+        .from('properties')
+        .select('id, name')
+        .eq('organization_id', best.organization_id);
+
+      if (orgProps && orgProps.length > 0) {
+        if (orgProps.length === 1) {
+          router.replace(`/property/${orgProps[0].id}` as any);
+        } else {
+          const propsParam = encodeURIComponent(JSON.stringify(orgProps.map((p: any) => ({
+            id: p.id,
+            role: best.role
+          }))));
+          router.replace(`/(auth)/property-selection?properties=${propsParam}`);
+        }
+        return;
+      } else {
+        router.replace('/(auth)/property-selection');
+        return;
+      }
     }
 
     const { data: propMemberships } = await supabase

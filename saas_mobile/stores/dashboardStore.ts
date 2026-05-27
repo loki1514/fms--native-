@@ -1,7 +1,10 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface DashboardState {
   tickets: any[];
+  ticketCounts: { total: number; open: number; closed: number };
   sopCount: number;
   sopTotal: number;
   energyKwh: number;
@@ -14,12 +17,15 @@ interface DashboardState {
   attentionItems: any[];
   ticketFunnel: any[];
   hasLoadedInitialData: boolean;
+  loadedPropertyId: string | null;
+  lastUpdatedAt: number | null;
   setDashboardData: (data: Partial<DashboardState>) => void;
   clearCache: () => void;
 }
 
-export const useDashboardStore = create<DashboardState>((set) => ({
+const initialState = {
   tickets: [],
+  ticketCounts: { total: 0, open: 0, closed: 0 },
   sopCount: 0,
   sopTotal: 0,
   energyKwh: 0,
@@ -32,6 +38,38 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   attentionItems: [],
   ticketFunnel: [],
   hasLoadedInitialData: false,
-  setDashboardData: (data) => set((state) => ({ ...state, ...data })),
-  clearCache: () => set({ hasLoadedInitialData: false }),
-}));
+  loadedPropertyId: null,
+  lastUpdatedAt: null,
+};
+
+export const useDashboardStore = create<DashboardState>()(
+  persist(
+    (set) => ({
+      ...initialState,
+      setDashboardData: (data) => set((state) => ({ ...state, ...data })),
+      clearCache: () => set({ ...initialState }),
+    }),
+    {
+      name: 'autopilot-dashboard-store',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        tickets: state.tickets,
+        ticketCounts: state.ticketCounts,
+        sopCount: state.sopCount,
+        sopTotal: state.sopTotal,
+        energyKwh: state.energyKwh,
+        energyTrend: state.energyTrend,
+        propertyName: state.propertyName,
+        vmsStats: state.vmsStats,
+        vendorStats: state.vendorStats,
+        dieselStats: state.dieselStats,
+        healthScore: state.healthScore,
+        attentionItems: state.attentionItems,
+        ticketFunnel: state.ticketFunnel,
+        hasLoadedInitialData: state.hasLoadedInitialData,
+        loadedPropertyId: state.loadedPropertyId,
+        lastUpdatedAt: state.lastUpdatedAt,
+      }),
+    }
+  )
+);

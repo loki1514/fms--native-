@@ -14,6 +14,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/utils/supabase/client';
 import { Colors } from '@/constants/Colors';
+import { useDashboardStore } from '@/stores/dashboardStore';
 import { AutopilotLogo } from '@/components/ui/AutopilotLogo';
 
 interface PropertyItem {
@@ -60,7 +61,10 @@ export default function PropertySelectionScreen() {
           setProperties(parsed);
           if (parsed.length === 1) {
             setSelectedId(parsed[0].id);
-            router.replace(`/property/${parsed[0].id}`);
+            // Clear any cached dashboard data for the previous property
+            const { clearCache } = useDashboardStore.getState();
+            clearCache();
+            router.push(`/property/${parsed[0].id}`);
           } else if (parsed.length > 0) {
             setSelectedId(parsed[0].id);
           }
@@ -93,13 +97,13 @@ export default function PropertySelectionScreen() {
     fetchNames();
 }, [properties]);
 
-  // Auto-redirect if properties are available
-  useEffect(() => {
-    if (properties.length > 0) {
-      const firstId = properties[0].id;
-      router.replace(`/property/${firstId}`);
-    }
-  }, [properties]);
+  // Auto-redirect removed to allow explicit selection by the user
+  // useEffect(() => {
+  //   if (properties.length > 0) {
+  //     const firstId = properties[0].id;
+  //     router.replace(`/property/${firstId}`);
+  //   }
+  // }, [properties]);
 
   const handleContinue = async () => {
     if (!selectedId) return;
@@ -109,8 +113,12 @@ export default function PropertySelectionScreen() {
       const prop = properties.find((p) => p.id === selectedId);
       if (!prop) return;
 
+      // Clear any cached dashboard data for the previous property
+      const { clearCache } = useDashboardStore.getState();
+      clearCache();
+
       // Redirect to property root — role-based dashboard selection happens there
-      router.replace(`/property/${selectedId}`);
+      router.push(`/property/${selectedId}`);
     } catch (err) {
       console.error('Property selection error:', err);
     } finally {
@@ -123,7 +131,111 @@ export default function PropertySelectionScreen() {
     router.replace('/(auth)/login');
   };
 
-  return null;
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.logoContainer}>
+            <AutopilotLogo width={160} height={40} />
+          </View>
+          <Text style={[styles.title, { color: theme.text }]}>
+            Select a Property
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            You have access to {properties.length}{' '}
+            {properties.length === 1 ? 'property' : 'properties'}.
+            Choose one to continue.
+          </Text>
+
+          {/* Property List */}
+          <View style={styles.listContainer}>
+            {properties.map((prop) => {
+              const isSelected = selectedId === prop.id;
+              const iconName = ROLE_ICONS[prop.role] || 'business';
+              const roleLabel = ROLE_LABELS[prop.role] || prop.role;
+
+              return (
+                <TouchableOpacity
+                  key={prop.id}
+                  style={[
+                    styles.propertyCard,
+                    {
+                      borderColor: isSelected ? theme.primary : theme.border,
+                      backgroundColor: isSelected ? `${theme.primary}15` : 'transparent',
+                    },
+                  ]}
+                  onPress={() => setSelectedId(prop.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[
+                    styles.propertyIcon,
+                    { backgroundColor: isSelected ? theme.primary : theme.surface },
+                  ]}>
+                    <Ionicons
+                      name={iconName as any}
+                      size={22}
+                      color={isSelected ? '#FFFFFF' : theme.textSecondary}
+                    />
+                  </View>
+                  <View style={styles.propertyInfo}>
+                    <Text style={[styles.propertyName, { color: theme.text }]}>
+                      {propertyNames[prop.id] || 'Loading...'}
+                    </Text>
+                    <Text style={[styles.propertyRole, { color: theme.textSecondary }]}>
+                      {roleLabel}
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.radioOuter,
+                    { borderColor: isSelected ? theme.primary : theme.border },
+                  ]}>
+                    {isSelected && (
+                      <View style={[styles.radioInner, { backgroundColor: theme.primary }]} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Continue Button */}
+          <TouchableOpacity
+            style={[
+              styles.continueButton,
+              {
+                backgroundColor: theme.primary,
+                opacity: !selectedId || loading ? 0.6 : 1,
+              },
+            ]}
+            onPress={handleContinue}
+            disabled={!selectedId || loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <View style={styles.continueRow}>
+                <Text style={styles.continueText}>Continue</Text>
+                <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Sign out */}
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={18} color={theme.textSecondary} />
+            <Text style={[styles.signOutText, { color: theme.textSecondary }]}>
+              Sign out and use a different account
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

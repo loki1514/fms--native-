@@ -5,6 +5,7 @@ import { Platform, AppState, AppStateStatus } from 'react-native';
 import Constants from 'expo-constants';
 import { createClient } from '@/utils/supabase/client';
 import { useAuth } from './useAuth';
+import messaging from '@react-native-firebase/messaging';
 
 // ------------------------------------------------------------------
 // Foreground notification banner state (shared across app)
@@ -63,13 +64,30 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   if (existingStatus !== 'granted') {
-    console.log('[Push] Notification permission not granted, skipping automatic registration');
-    return null;
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('[Push] Notification permission not granted, skipping automatic registration');
+      return null;
+    }
   }
 
-  const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: 'autopilot-mobile',
-  });
+  let token: string | null = null;
+  try {
+    const authStatus = await messaging().requestPermission();
+    const enabled =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+    if (enabled) {
+      token = await messaging().getToken();
+    } else {
+      console.log('[Push] Firebase messaging not authorized');
+      return null;
+    }
+  } catch (error) {
+    console.error('[Push] Failed to get native FCM token:', error);
+    return null;
+  }
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
@@ -88,7 +106,7 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
     });
   }
 
-  return tokenData.data;
+  return token;
 }
 
 async function storePushToken(
@@ -188,7 +206,18 @@ export function usePushNotifications() {
   // Register on mount / login
   useEffect(() => {
     register();
-  }, [register]);
+
+    // Listen to token refreshes from Firebase
+    const unsubscribe = messaging().onTokenRefresh((newToken) => {
+      console.log('[Push] Token refreshed via Firebase:', newToken);
+      if (user?.id) {
+        storePushToken(supabase, user.id, newToken);
+        tokenRef.current = newToken;
+      }
+    });
+
+    return () => unsubscribe();
+  }, [register, user?.id, supabase]);
 
   // Re-register when app comes to foreground (handles token refresh)
   useEffect(() => {

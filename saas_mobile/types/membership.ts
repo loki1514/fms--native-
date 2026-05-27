@@ -3,6 +3,7 @@ export interface PropertyInfo {
   name: string;
   code: string;
   role: string;
+  image_url?: string | null;
 }
 
 export interface UserMembership {
