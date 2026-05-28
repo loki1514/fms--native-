@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -54,9 +55,11 @@ export default function ExecutiveSummaryScreen() {
     setRefreshing(false);
   };
 
-  useEffect(() => { load(); }, [propertyId]);
+  const { refetch } = useDashboardFetch(['reports-executive', propertyId], load, {
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const onRefresh = () => { setRefreshing(true); load(); };
+  const onRefresh = () => { setRefreshing(true); refetch().then(() => setRefreshing(false)); };
 
   const bg = isDark ? '#151B2B' : '#F8FAFC';
 

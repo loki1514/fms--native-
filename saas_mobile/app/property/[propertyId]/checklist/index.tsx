@@ -75,6 +75,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import Svg, { Circle as SvgCircle } from "react-native-svg";
+import { useDashboardFetch } from "@/hooks/useDashboardFetch";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -1337,13 +1338,17 @@ export default function ChecklistScreen() {
     [fetchTemplates, fetchPropertyMembers],
   );
 
-  useEffect(() => {
-    if (propertyId) fetchAll();
-  }, [propertyId, fetchAll]);
+  const { refetch } = useDashboardFetch(["checklist", propertyId], fetchAll, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
-  const handleRefresh = () => fetchAll(true);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  };
 
   const handleCancelRunner = () => {
     realtimeChannel.current = null;

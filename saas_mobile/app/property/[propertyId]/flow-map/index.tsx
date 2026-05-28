@@ -18,6 +18,7 @@ import { createClient } from '@/utils/supabase/client';
 import { useTheme } from '@/context';
 import TicketCard from '@/components/shared/TicketCard';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 
 const supabase = createClient();
@@ -111,7 +112,9 @@ export default function LiveFlowMap() {
     setIsLoading(false);
   };
 
-  useEffect(() => { fetchFlowData(); }, [propertyId]);
+  const { refetch } = useDashboardFetch(['flow-map', propertyId], fetchFlowData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const activeStages = useMemo(() => {
     return STAGES.filter(s => s.key !== 'resolved' || validationEnabled);
@@ -119,9 +122,9 @@ export default function LiveFlowMap() {
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await fetchFlowData();
+    await refetch();
     setIsRefreshing(false);
-  }, [propertyId]);
+  }, [refetch]);
 
   const groupedTickets = useMemo(() => {
     const groups: Record<string, Ticket[]> = { assigned: [], in_progress: [], resolved: [], completed: [] };

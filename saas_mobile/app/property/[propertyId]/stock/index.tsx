@@ -48,6 +48,7 @@ import {
   RefreshCw,
   Download,
 } from "lucide-react-native";
+import { useDashboardFetch } from "@/hooks/useDashboardFetch";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -269,12 +270,16 @@ export default function StockScreen() {
     [fetchItems, fetchMovements],
   );
 
-  useEffect(() => {
-    if (propertyId) fetchAll();
-  }, [propertyId, fetchAll]);
+  const { refetch } = useDashboardFetch(["stock", propertyId], fetchAll, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   // ── Handlers ────────────────────────────────────────────────────────────────
-  const handleRefresh = () => fetchAll(true);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  };
 
   const handleItemPress = (item: StockItem) => {
     setSelectedItem(item);

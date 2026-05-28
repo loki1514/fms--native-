@@ -12,6 +12,8 @@ import { useColorScheme, View, Text, StyleSheet, Platform } from 'react-native';
 import AutopilotSplash from '@/components/splash/AutopilotSplash';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import NotificationBanner from '@/components/notifications/NotificationBanner';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { queryClient, mmkvPersister } from '@/utils/queryClient';
 
 // Initialize Sentry crash reporting before anything else
 initSentry();
@@ -132,17 +134,22 @@ function RootLayoutInner() {
 
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <ThemeProvider>
-            <AuthProvider>
-              <BottomSheetModalProvider>
-                <AppContent colorScheme={colorScheme} />
-              </BottomSheetModalProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: mmkvPersister }}
+      >
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <SafeAreaProvider>
+            <ThemeProvider>
+              <AuthProvider>
+                <BottomSheetModalProvider>
+                  <AppContent colorScheme={colorScheme} />
+                </BottomSheetModalProvider>
+              </AuthProvider>
+            </ThemeProvider>
+          </SafeAreaProvider>
+        </GestureHandlerRootView>
+      </PersistQueryClientProvider>
     </ErrorBoundary>
   );
 }

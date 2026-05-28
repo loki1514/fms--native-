@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '@/utils/supabase/client';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import Loader from '../ui/Loader';
 
 interface Property {
@@ -28,35 +29,36 @@ export default function PropertySelectionView({ propertyIds, onSelect }: Propert
   const [isLoading, setIsLoading] = useState(true);
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    const fetchProperties = async () => {
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('properties')
-          .select('*')
-          .in('id', propertyIds);
+  const fetchProperties = useCallback(async () => {
+    if (propertyIds.length === 0) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('*')
+        .in('id', propertyIds);
 
-        if (error) throw error;
-        setProperties(
-          (data || []).map((property: any) => ({
-            ...property,
-            address: property.address ?? undefined,
-          }))
-        );
-      } catch (err) {
-        console.error('Error fetching properties:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (propertyIds.length > 0) {
-      fetchProperties();
-    } else {
+      if (error) throw error;
+      setProperties(
+        (data || []).map((property: any) => ({
+          ...property,
+          address: property.address ?? undefined,
+        }))
+      );
+    } catch (err) {
+      console.error('Error fetching properties:', err);
+    } finally {
       setIsLoading(false);
     }
   }, [propertyIds, supabase]);
+
+  useDashboardFetch(['property-selection', propertyIds.join(',')], fetchProperties, {
+    staleTime: 1000 * 60 * 5,
+    enabled: propertyIds.length > 0,
+  });
 
   if (isLoading) {
     return (

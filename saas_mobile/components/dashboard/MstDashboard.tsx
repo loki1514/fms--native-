@@ -43,6 +43,7 @@ import { createClient } from '../../utils/supabase/client';
 import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '@/context';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import TicketCard from '../shared/TicketCard';
 import SignOutModal from '../ui/SignOutModal';
 import { TicketCreateModal } from '../tickets/TicketCreateModal';
@@ -202,14 +203,19 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    if (propertyId) {
-      fetchPropertyDetails();
-      fetchTickets();
-      fetchUserRole();
-      fetchShiftStatus();
-    }
+  const fetchData = useCallback(async () => {
+    if (!propertyId) return;
+    await Promise.all([
+      fetchPropertyDetails(),
+      fetchTickets(),
+      fetchUserRole(),
+      fetchShiftStatus(),
+    ]);
   }, [propertyId, user?.id]);
+
+  const { refetch } = useDashboardFetch(['mst-dashboard-legacy', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   // Sync tab from URL
   const { tab } = useLocalSearchParams<{ tab: string }>();
@@ -389,9 +395,9 @@ export default function MstDashboard({ propertyId }: MstDashboardProps) {
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchPropertyDetails(), fetchTickets()]);
+    await refetch();
     setIsRefreshing(false);
-  }, [propertyId, user?.id]);
+  }, [refetch]);
 
   const handleUpdateTicket = async () => {
     if (!editingTicket || !editTitle.trim()) return;

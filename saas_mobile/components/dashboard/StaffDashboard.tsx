@@ -38,6 +38,7 @@ import FloatingMenu from '@/components/ui/FloatingMenu';
 import PermissionOnboarding, { hasRequestedPermissions } from '@/components/onboarding/PermissionOnboarding';
 import Svg, { Circle, Defs, Pattern, Rect } from 'react-native-svg';
 import { serverApi } from '@/lib/serverApi';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 const DRAWER_WIDTH = 280;
 
@@ -148,17 +149,24 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
   // Skill-group color for the dashboard accent
   const skillColor = isTechnical ? '#3B82F6' : isSoftServices ? '#8B5CF6' : '#708F96';
 
-  useEffect(() => {
+  const { refetch } = useDashboardFetch(['staff-legacy', propertyId], async () => {
     if (propertyId) {
-      fetchPropertyDetails();
-      fetchTickets();
-      fetchUserRoleAndSkills();
-      fetchShiftStatus();
+      await Promise.all([
+        fetchPropertyDetails(),
+        fetchTickets(),
+        fetchUserRoleAndSkills(),
+        fetchShiftStatus(),
+      ]);
     }
+  }, {
+    staleTime: 1000 * 60 * 5,
+  });
+
+  useEffect(() => {
     hasRequestedPermissions().then(requested => {
       if (!requested) setShowPermissionOnboarding(true);
     });
-  }, [propertyId, user?.id]);
+  }, []);
 
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   useEffect(() => {
@@ -330,9 +338,9 @@ export default function StaffDashboard({ propertyId }: { propertyId: string }) {
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchPropertyDetails(), fetchTickets()]);
+    await refetch();
     setIsRefreshing(false);
-  }, [propertyId, user?.id]);
+  }, [refetch]);
 
   const handleUpdateTicket = async () => {
     if (!editingTicket || !editTitle.trim()) return;

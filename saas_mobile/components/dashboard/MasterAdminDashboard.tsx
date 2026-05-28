@@ -23,6 +23,7 @@ import { useAuth } from '../../hooks/useAuth';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import WeatherBadge from '@/components/dashboard/WeatherBadge';
 import { useWeather } from '@/hooks/useWeather';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import { useTheme } from '@/context';
 import SignOutModal from '../ui/SignOutModal';
 import Skeleton from '../ui/Skeleton';
@@ -86,10 +87,6 @@ export default function MasterAdminDashboard() {
 
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => {
-    checkMasterAdmin();
-  }, [user]);
-
   const checkMasterAdmin = async () => {
     if (!user) return;
 
@@ -151,11 +148,15 @@ export default function MasterAdminDashboard() {
     }
   };
 
+  const { refetch } = useDashboardFetch(['master-admin', user?.id ?? 'none'], checkMasterAdmin, {
+    staleTime: 1000 * 60 * 5,
+  });
+
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await fetchData();
+    await refetch();
     setIsRefreshing(false);
-  }, []);
+  }, [refetch]);
 
   const handleCreateOrg = async () => {
     if (!newOrgName.trim() || !newOrgCode.trim()) return;

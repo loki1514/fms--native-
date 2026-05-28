@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/utils/supabase/client';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import { readFileAsArrayBuffer } from '@/utils/mediaUtils';
 import * as ImagePicker from 'expo-image-picker';
 import Toast from '../ui/Toast';
@@ -39,11 +40,7 @@ export default function SettingsView({ onUpdate }: SettingsViewProps) {
   const [userRoles, setUserRoles] = useState<RoleInfo[]>([]);
   const [vendorInfo, setVendorInfo] = useState<{ id: string; shop_name: string } | null>(null);
 
-  useEffect(() => {
-    if (user) fetchProfile();
-  }, [user]);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       const { data: userData, error } = await (supabase as any)
         .from('users').select('*').eq('id', user?.id ?? '').single();
@@ -80,7 +77,12 @@ export default function SettingsView({ onUpdate }: SettingsViewProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user, supabase]);
+
+  const { refetch } = useDashboardFetch(['settings-view', user?.id ?? 'none'], fetchProfile, {
+    staleTime: 1000 * 60 * 5,
+    enabled: !!user,
+  });
 
   const handlePickAvatar = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({

@@ -34,6 +34,7 @@ import ParticleOrb from '@/components/dashboard/ParticleOrb';
 import { useWeather } from '@/hooks/useWeather';
 import { useTheme } from '@/context';
 import { AuroraBackground } from '@/components/shared/AuroraBackground';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const fontSans = Platform.OS === 'ios' ? 'System' : 'sans-serif';
@@ -383,13 +384,13 @@ export default function ApplePropertyDashboard() {
     setIsRefreshing(false);
   }, [propertyId]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { refetch } = useDashboardFetch(['apple-dashboard', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setIsRefreshing(true);
-    fetchData();
+    await refetch();
   };
 
   const now = new Date();

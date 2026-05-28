@@ -41,6 +41,7 @@ import * as FileSystem from 'expo-file-system';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 interface Ticket {
   id: string;
@@ -370,9 +371,9 @@ export default function TicketDetailScreen() {
     }
   }, [propertyId, id, supabase, authUser]);
 
-  useEffect(() => {
-    fetchTicket();
-  }, [fetchTicket]);
+  const { refetch } = useDashboardFetch(['ticket-detail', id], fetchTicket, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const fetchMSTs = async () => {
     if (!propertyId) return;

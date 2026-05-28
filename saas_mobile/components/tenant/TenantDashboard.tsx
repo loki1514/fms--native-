@@ -24,6 +24,7 @@ import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal'
 import NotificationModal from '@/components/notifications/NotificationModal';
 import TenantBottomNav from '@/components/tenant/TenantBottomNav';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import DashboardBackground from '@/components/dashboard/DashboardBackground';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import { TicketCreateModal } from '../tickets/TicketCreateModal';
 import { AutopilotLogo } from '@/components/ui/AutopilotLogo';
@@ -128,7 +129,7 @@ export default function TenantDashboard({ propertyId, isSuperTenant }: TenantDas
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
+      <DashboardBackground />
       {weather && <WeatherBackground condition={weather.condition} />}
 
       <ScrollView

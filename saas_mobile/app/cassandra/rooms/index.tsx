@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import { listRooms } from '@/services/cassandra/cassandraRoomService';
 import { CassandraRoomListItem } from '@/types/cassandra-room';
 import { Colors, Gradients, Typography, Spacing, Radius } from '@/constants/cassandra-theme';
@@ -203,11 +204,11 @@ function RoomsListContent() {
     }
   }, [propertyId]);
 
-  useEffect(() => {
-    fetchRooms(1);
-  }, [fetchRooms]);
+  const { refetch } = useDashboardFetch(['cassandra-rooms', propertyId], () => fetchRooms(1), {
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const handleRefresh = () => fetchRooms(1, true);
+  const handleRefresh = () => refetch();
 
   const handleLoadMore = () => {
     if (!isLoadingMore && hasMore) {

@@ -33,6 +33,7 @@ import {
   X
 } from 'lucide-react-native';
 import { format } from 'date-fns';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 interface Vendor {
   id: string;
@@ -116,9 +117,9 @@ export default function VendorRevenueScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchVendors();
-  }, [fetchVendors]);
+  const { refetch } = useDashboardFetch(['vendor', propertyId], fetchVendors, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -183,7 +184,7 @@ export default function VendorRevenueScreen() {
       <FlatList
         data={vendors}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => fetchVendors(true)} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => refetch()} tintColor={colors.primary} />}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyState}>

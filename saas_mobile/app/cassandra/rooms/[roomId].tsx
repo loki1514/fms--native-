@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import { getRoomFull, endRoom } from '@/services/cassandra/cassandraRoomService';
 import {
   CassandraRoomFull,
@@ -266,7 +267,9 @@ function RoomDetailContent() {
     }
   }, [roomId]);
 
-  useEffect(() => { fetchRoom(); }, [fetchRoom]);
+  const { refetch } = useDashboardFetch(['cassandra-room', roomId], fetchRoom, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const handleEndSession = async () => {
     if (!propertyId || !roomId) return;
@@ -283,7 +286,11 @@ function RoomDetailContent() {
     }
   };
 
-  const handleRefresh = () => fetchRoom(true);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  };
 
   const isLive = room?.status === 'active' || room?.status === 'waiting';
   const isEnded = room?.status === 'ended';

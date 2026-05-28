@@ -26,6 +26,7 @@ import { AuroraBackground } from '@/components/shared/AuroraBackground';
 import TicketCard from '../shared/TicketCard';
 import SignOutModal from '../ui/SignOutModal';
 import Skeleton from '../ui/Skeleton';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 // Types
 type Tab = 'overview' | 'requests' | 'users' | 'visitors' | 'diesel' | 'electricity' | 'settings' | 'profile';
@@ -136,12 +137,13 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
     [membership]
   );
 
-  useEffect(() => {
+  const { refetch } = useDashboardFetch(['property-admin-legacy', propertyId], async () => {
     if (propertyId) {
-      fetchPropertyDetails();
-      fetchTickets();
+      await Promise.all([fetchPropertyDetails(), fetchTickets()]);
     }
-  }, [propertyId]);
+  }, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const fetchTickets = async () => {
     if (!propertyId) return;
@@ -207,9 +209,9 @@ export default function PropertyAdminDashboard({ propertyId }: PropertyAdminDash
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchPropertyDetails(), fetchTickets()]);
+    await refetch();
     setIsRefreshing(false);
-  }, [propertyId]);
+  }, [refetch]);
 
   const filteredTickets = useMemo(() => {
     let result = tickets;

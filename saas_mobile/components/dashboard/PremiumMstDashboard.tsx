@@ -55,6 +55,7 @@ import { TenantStatsCard } from '@/components/tenant/TenantStatsCard';
 import { TenantTicketCard } from '@/components/tenant/TenantTicketCard';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/context';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import FloatingMenu from '@/components/ui/FloatingMenu';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -696,14 +697,19 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch data
-  useEffect(() => {
-    if (propertyId) {
-      fetchProperty();
-      fetchTickets();
-      fetchStats();
-      fetchLeaderboard();
-    }
+  const fetchData = useCallback(async () => {
+    if (!propertyId) return;
+    await Promise.all([
+      fetchProperty(),
+      fetchTickets(),
+      fetchStats(),
+      fetchLeaderboard(),
+    ]);
   }, [propertyId, user?.id]);
+
+  const { refetch } = useDashboardFetch(['mst-dashboard-premium', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const fetchProperty = async () => {
     const { data } = await supabase
@@ -831,9 +837,9 @@ export default function PremiumMstDashboard({ propertyId }: MstDashboardProps) {
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchProperty(), fetchTickets(), fetchStats(), fetchLeaderboard()]);
+    await refetch();
     setIsRefreshing(false);
-  }, [propertyId]);
+  }, [refetch]);
 
   const filteredTickets = useMemo(() => {
     if (!searchQuery) return tickets;

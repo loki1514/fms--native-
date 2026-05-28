@@ -49,6 +49,7 @@ import {
   BottomSheetScrollView,
 } from '@gorhom/bottom-sheet';
 import { format, addDays, isSameDay, parseISO } from 'date-fns';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -472,9 +473,9 @@ export default function RoomsScreen() {
     }
   }, [propertyId, isAdmin, hasLoadedInitialData, setRooms, setBookings, setCredit, setHasLoadedInitialData]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { refetch } = useDashboardFetch(['rooms', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   function handleRoomPress(room: MeetingRoom) {
     setSelectedRoom(room);

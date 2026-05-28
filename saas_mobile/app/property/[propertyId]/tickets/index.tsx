@@ -27,6 +27,7 @@ import SafeBlurView from '@/components/ui/SafeBlurView';
 import { RotatingBorder } from '@/components/shared/RotatingBorder';
 import { TicketCreateModal } from '@/components/tickets/TicketCreateModal';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 
 
@@ -208,8 +209,11 @@ export default function TicketsScreen() {
     }
   }, [propertyId, buildQuery]);
 
+  const { refetch } = useDashboardFetch(['tickets', propertyId], fetchTickets, {
+    staleTime: 1000 * 60 * 5,
+  });
+
   useEffect(() => {
-    fetchTickets(true);
     if (!isNeedsAttentionMode) fetchStatusCounts();
   }, [statusFilter, dateRange, isNeedsAttentionMode]);
 
@@ -335,7 +339,7 @@ export default function TicketsScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchTickets(true);
+    refetch();
   };
 
 

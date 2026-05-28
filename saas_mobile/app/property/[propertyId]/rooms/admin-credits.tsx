@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import {
   View,
   Text,
@@ -93,9 +94,9 @@ export default function AdminCreditsScreen() {
     }
   }, [propertyId]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { refetch } = useDashboardFetch(['rooms-admin-credits', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const handleSave = async (companyId: string) => {
     setSavingId(companyId);

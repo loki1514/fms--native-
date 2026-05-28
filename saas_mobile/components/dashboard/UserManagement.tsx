@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '@/utils/supabase/client';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 interface OrgUser {
   id: string;
@@ -27,7 +28,13 @@ export default function UserManagement({ orgId }: { orgId: string }) {
   const [searchQuery, setSearchQuery] = useState('');
   const supabase = useMemo(() => createClient(), []);
 
-  useEffect(() => { fetchOrgUsers(); }, [orgId]);
+  const fetchOrgUsersWrapper = useCallback(async () => {
+    await fetchOrgUsers();
+  }, [orgId]);
+
+  const { refetch } = useDashboardFetch(['org-users', orgId], fetchOrgUsersWrapper, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const fetchOrgUsers = async () => {
     setIsLoading(true);

@@ -23,6 +23,7 @@ import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '@/hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import DashboardBackground from '@/components/dashboard/DashboardBackground';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import SignOutModal from '@/components/ui/SignOutModal';
 import CassandraSessionModal from '@/components/cassandra/CassandraSessionModal';
@@ -58,11 +59,12 @@ const BG = '#121212';
 
 type TabKey = 'overview' | 'tickets';
 
+import { useDashboardStore } from '@/stores/dashboardStore';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
+
 interface Props {
   propertyId: string;
 }
-
-import { useDashboardStore } from '@/stores/dashboardStore';
 
 export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   const { user, signOut, membership } = useAuth();
@@ -412,21 +414,27 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
     }
   }, [propertyId, membership]);
 
+  // React Query wrapper: prevents re-fetching on every mount if data is fresh
+  const { refetch } = useDashboardFetch(['dashboard', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
   useEffect(() => {
     if (loadedPropertyId !== propertyId) {
       clearCache();
       setIsLoading(true);
     }
-    fetchData();
+    // fetchData is called by useDashboardFetch on mount (if stale)
     // Show permission onboarding on first visit
     hasRequestedPermissions().then(requested => {
       if (!requested) setShowPermissionOnboarding(true);
     });
-  }, [fetchData]);
+  }, [propertyId, loadedPropertyId]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setIsRefreshing(true);
-    fetchData();
+    await refetch();
+    setIsRefreshing(false);
   };
 
   // Stats
@@ -726,7 +734,7 @@ export default function LovablePropertyAdminDashboard({ propertyId }: Props) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
+      <DashboardBackground />
       {weather && <WeatherBackground condition={weather.condition} />}
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="rgba(255,255,255,0.6)" />} contentContainerStyle={{ paddingBottom: insets.bottom + 140 }}>
         <Animated.View entering={FadeInUp.duration(500)} style={[styles.header, { paddingTop: insets.top + 16 }]}>

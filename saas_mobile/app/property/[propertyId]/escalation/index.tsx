@@ -41,6 +41,7 @@ import {
   Timer,
   User,
 } from 'lucide-react-native';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,7 +143,9 @@ export default function EscalationScreen() {
     finally { setIsLoading(false); setIsRefreshing(false); }
   }, [propertyId]);
 
-  useEffect(() => { if (propertyId) fetchAll(); }, [propertyId, fetchAll]);
+  const { refetch } = useDashboardFetch(['escalation', propertyId], fetchAll, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const handleHierarchyPress = (hierarchy: EscalationHierarchy) => {
     setSelectedHierarchy(hierarchy);
@@ -473,7 +476,7 @@ export default function EscalationScreen() {
       <FlatList
         data={hierarchies}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => fetchAll(true)} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => refetch()} tintColor={colors.primary} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={

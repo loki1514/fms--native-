@@ -50,6 +50,7 @@ import {
   ChevronDown,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1063,17 +1064,13 @@ export default function VisitorsScreen() {
     }
   }, [propertyId, statusFilter, searchQuery, dateFilter]);
 
-  useEffect(() => {
-    fetchVisitors();
-
-    // Auto-refresh every 30s
-    const interval = setInterval(fetchVisitors, 30000);
-    return () => clearInterval(interval);
-  }, [fetchVisitors, propertyId]);
+  const { refetch } = useDashboardFetch(['visitors', propertyId], fetchVisitors, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchVisitors();
+    await refetch();
     setIsRefreshing(false);
   };
 

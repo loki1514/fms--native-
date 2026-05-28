@@ -16,6 +16,7 @@ import { useTheme } from '@/context';
 import { Colors } from '@/constants/Colors';
 import { supabase } from '@/utils/supabase/client';
 import { serverApi } from '@/lib/serverApi';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import { LinearGradient } from 'expo-linear-gradient';
 import SafeBlurView from '@/components/ui/SafeBlurView';
 import {
@@ -364,12 +365,14 @@ export default function DieselAnalyticsScreen() {
     }
   }, [propertyId, isCustomRange, dateFrom, dateTo]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const { refetch } = useDashboardFetch(['diesel-analytics', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
-    fetchData().finally(() => setIsRefreshing(false));
-  }, [fetchData]);
+    refetch().finally(() => setIsRefreshing(false));
+  }, [refetch]);
 
   // Derived Metrics
   const metrics = useMemo(() => {

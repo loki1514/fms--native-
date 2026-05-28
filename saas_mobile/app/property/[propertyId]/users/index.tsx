@@ -51,6 +51,7 @@ import {
   Wrench,
   Star,
 } from 'lucide-react-native';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1093,11 +1094,9 @@ export default function UsersScreen() {
     }
   }, [propertyId]);
 
-  useEffect(() => {
-    if (propertyId) {
-      fetchUsers();
-    }
-  }, [propertyId]);
+  const { refetch } = useDashboardFetch(['users', propertyId], fetchUsers, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   async function fetchUsers() {
     if (!propertyId) return;
@@ -1143,7 +1142,7 @@ export default function UsersScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await fetchUsers();
+    await refetch();
     setRefreshing(false);
   }
 

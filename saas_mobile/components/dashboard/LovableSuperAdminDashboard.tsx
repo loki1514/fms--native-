@@ -18,6 +18,7 @@ import Animated from 'react-native-reanimated';
 import { createClient } from '@/utils/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 // Modular Lovable Components
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
@@ -340,15 +341,14 @@ export default function LovableSuperAdminDashboard() {
     }
   }, [user, membership]);
 
-  useEffect(() => {
-    if (!isMembershipLoading) {
-      fetchAll();
-    }
-  }, [fetchAll, isMembershipLoading]);
+  const { refetch } = useDashboardFetch(['super-admin', user?.id ?? 'none'], fetchAll, {
+    staleTime: 1000 * 60 * 5,
+    enabled: !isMembershipLoading,
+  });
 
   const onRefresh = () => {
     setIsRefreshing(true);
-    fetchAll();
+    refetch();
   };
 
   const filteredProperties = useMemo(() => {

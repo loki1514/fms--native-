@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
   TouchableOpacity, ActivityIndicator,
@@ -98,9 +99,11 @@ export default function RequestsReportScreen() {
     setRefreshing(false);
   }, [propertyId]);
 
-  useEffect(() => { load(selectedMonth); }, [selectedMonth, load]);
+  const { refetch } = useDashboardFetch(['reports-requests', propertyId, selectedMonth], () => load(selectedMonth), {
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const onRefresh = () => { setRefreshing(true); load(selectedMonth); };
+  const onRefresh = () => { setRefreshing(true); refetch().then(() => setRefreshing(false)); };
 
   const prevMonth = () => { if (monthIdx < MONTHS.length - 1) setMonthIdx(m => m + 1); };
   const nextMonth = () => { if (monthIdx > 0) setMonthIdx(m => m - 1); };

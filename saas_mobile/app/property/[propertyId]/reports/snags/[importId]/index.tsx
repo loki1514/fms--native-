@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
   ActivityIndicator,
@@ -73,9 +74,11 @@ export default function SnagReportDetailScreen() {
     setRefreshing(false);
   };
 
-  useEffect(() => { load(); }, [importId]);
+  const { refetch } = useDashboardFetch(['reports-snag-detail', importId], load, {
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const onRefresh = () => { setRefreshing(true); load(); };
+  const onRefresh = () => { setRefreshing(true); refetch().then(() => setRefreshing(false)); };
 
   const bg = isDark ? '#151B2B' : '#F8FAFC';
   const cardBg = isDark ? '#1E2535' : '#FFFFFF';

@@ -20,6 +20,7 @@ import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useWeather } from '@/hooks/useWeather';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import TenantBottomNav from '@/components/tenant/TenantBottomNav';
 import SafeBlurView from '@/components/ui/SafeBlurView';
@@ -108,9 +109,9 @@ export default function TenantRoomsPage() {
     }
   }, [propertyId, user?.id]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { refetch } = useDashboardFetch(['tenant-rooms', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const handleBookRoom = async () => {
     if (!selectedRoom || !bookingTitle || !bookingDate || !bookingStartTime || !bookingEndTime) {
@@ -323,7 +324,7 @@ export default function TenantRoomsPage() {
         <FlatList
           data={rooms}
           keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={fetchData} tintColor="rgba(255,255,255,0.6)" />}
+          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor="rgba(255,255,255,0.6)" />}
           contentContainerStyle={{ paddingHorizontal: SPACING.xl, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
           renderItem={renderRoomCard}
@@ -338,7 +339,7 @@ export default function TenantRoomsPage() {
         <FlatList
           data={bookings}
           keyExtractor={(item) => item.id}
-          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={fetchData} tintColor="rgba(255,255,255,0.6)" />}
+          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor="rgba(255,255,255,0.6)" />}
           contentContainerStyle={{ paddingHorizontal: SPACING.xl, paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
           renderItem={renderBookingCard}

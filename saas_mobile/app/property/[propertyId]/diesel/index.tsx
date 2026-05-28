@@ -38,6 +38,7 @@ import {
   Trash2,
   Zap,
 } from "lucide-react-native";
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1338,14 +1339,14 @@ export default function DieselScreen() {
     }
   }, [propertyId]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { refetch } = useDashboardFetch(['diesel', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
-    fetchData().finally(() => setIsRefreshing(false));
-  }, [fetchData]);
+    refetch().finally(() => setIsRefreshing(false));
+  }, [refetch]);
 
   const handleOpenSheet = () => {
     setShowSheet(true);

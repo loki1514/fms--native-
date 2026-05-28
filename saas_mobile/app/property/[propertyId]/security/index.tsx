@@ -35,6 +35,7 @@ import {
   MapPin,
   Phone,
 } from 'lucide-react-native';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -264,12 +265,15 @@ export default function SecurityDashboardScreen() {
     [fetchDashboardData]
   );
 
-  useEffect(() => {
-    load();
-    // Auto-refresh every 30s
-    const interval = setInterval(() => fetchDashboardData(), 30000);
-    return () => clearInterval(interval);
-  }, [load, fetchDashboardData]);
+  const { refetch } = useDashboardFetch(['security', propertyId], load, {
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  };
 
   const handleSOS = () => {
     Alert.alert(
@@ -288,7 +292,7 @@ export default function SecurityDashboardScreen() {
     );
   };
 
-  if (isLoading) {
+  if (isLoading && !isRefreshing) {
     return (
       <View style={[styles.container, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
         <LinearGradient colors={['#0B1B2A', '#0F2D3D', '#113B4D']} style={StyleSheet.absoluteFillObject} />
@@ -307,7 +311,7 @@ export default function SecurityDashboardScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => load(true)} tintColor="#708F96" />}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#708F96" />}
       >
         {/* ── Header ── */}
         <Animated.View entering={FadeInUp.duration(400)} style={styles.header}>

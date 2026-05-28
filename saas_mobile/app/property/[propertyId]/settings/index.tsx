@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import { Colors, DASHBOARD_BACKGROUNDS, type DashboardBgKey } from '@/constants/Colors';
 import { createClient } from '@/utils/supabase/client';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -148,10 +149,13 @@ export default function SettingsScreen() {
     }
   }, []);
 
+  const { refetch } = useDashboardFetch(['settings', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
+
   useEffect(() => {
-    fetchData();
     refreshPermissions();
-  }, [fetchData, refreshPermissions]);
+  }, [refreshPermissions]);
 
   const requestCamera = async () => {
     if (Platform.OS === 'web') return;

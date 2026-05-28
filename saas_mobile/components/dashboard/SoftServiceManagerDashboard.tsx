@@ -27,6 +27,7 @@ import StockScannerModal from '../stock/StockScannerModal';
 import FloatingMenu from '@/components/ui/FloatingMenu';
 import NotificationBell from '@/components/dashboard/NotificationBell';
 import { serverApi } from '@/lib/serverApi';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 const DRAWER_WIDTH = 280;
 
@@ -62,11 +63,11 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
     }
   }, [tab]);
 
-  useEffect(() => {
-    fetchUserRole();
-    fetchData();
-    fetchShiftStatus();
-  }, [user?.id, propertyId]);
+  const { refetch } = useDashboardFetch(['soft-service-legacy', propertyId], async () => {
+    await Promise.all([fetchUserRole(), fetchData(), fetchShiftStatus()]);
+  }, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   // ─── Shift / Check-in ───────────────────────────────────────────────────
   const fetchShiftStatus = async () => {
@@ -208,7 +209,7 @@ export default function SoftServiceManagerDashboard({ propertyId }: { propertyId
 
   const onRefresh = async () => {
     setIsRefreshing(true);
-    await fetchData();
+    await refetch();
     setIsRefreshing(false);
   };
 

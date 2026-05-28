@@ -36,6 +36,7 @@ import {
   type MaterialRequest,
 } from '@/utils/api/mobileApi';
 import MobileRequestList from '@/components/procurement/MobileRequestList';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -199,9 +200,15 @@ export default function ProcurementScreen() {
     setRefreshing(false);
   }, [fetchApprovals, fetchAllRequests, fetchCatalog]);
 
-  useEffect(() => {
-    if (propertyId) fetchAll();
-  }, [propertyId, fetchAll]);
+  const { refetch } = useDashboardFetch(['procurement', propertyId], fetchAll, {
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
 
   // ── Handle request updated (remove from pending) ──────────────────────────
   const handleRequestUpdated = useCallback((id: string) => {
@@ -262,7 +269,7 @@ export default function ProcurementScreen() {
           <Text style={sMain.headerTitle}>Procurement</Text>
           <Text style={sMain.headerSub}>Material Requests & Orders</Text>
         </View>
-        <TouchableOpacity style={sMain.backBtn} onPress={() => fetchAll(true)} activeOpacity={0.75}>
+        <TouchableOpacity style={sMain.backBtn} onPress={handleRefresh} activeOpacity={0.75}>
           <RefreshCw size={16} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
       </Animated.View>
@@ -344,7 +351,7 @@ export default function ProcurementScreen() {
       )}
 
       {/* ── Content ── */}
-      {loading ? (
+      {loading && !refreshing ? (
         <View style={sMain.loadingWrap}>
           <ActivityIndicator size="large" color={T.accent} />
           <Text style={sMain.loadingText}>Loading procurement data…</Text>
@@ -357,7 +364,7 @@ export default function ProcurementScreen() {
               contentContainerStyle={sMain.listContent}
               showsVerticalScrollIndicator={false}
               refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={() => fetchAll(true)} tintColor={T.accent} />
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={T.accent} />
               }
             >
               {pendingRequests.length === 0 ? (
@@ -384,7 +391,7 @@ export default function ProcurementScreen() {
               contentContainerStyle={sMain.listContent}
               showsVerticalScrollIndicator={false}
               refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={() => fetchAll(true)} tintColor={T.accent} />
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={T.accent} />
               }
             >
               <MobileRequestList
@@ -403,7 +410,7 @@ export default function ProcurementScreen() {
               contentContainerStyle={sMain.listContent}
               showsVerticalScrollIndicator={false}
               refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={() => fetchAll(true)} tintColor={T.accent} />
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={T.accent} />
               }
             >
               {filteredCatalog.length === 0 ? (

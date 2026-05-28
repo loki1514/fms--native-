@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { createClient } from '@/utils/supabase/client';
 import { serverApi } from '@/lib/serverApi';
 import { SPACING, CARD_SURFACES } from '@/constants/designSystem';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 interface AnalyticsUser {
   user_id: string;
@@ -87,20 +88,22 @@ export default function AnalyticsTab() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await serverApi.rpc('get_usage_metrics');
-        if (res.error) throw new Error(res.error.message);
-        setData(res.data as AnalyticsData);
-      } catch (err) {
-        console.error('Error fetching analytics:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await serverApi.rpc('get_usage_metrics');
+      if (res.error) throw new Error(res.error.message);
+      setData(res.data as AnalyticsData);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  const { refetch } = useDashboardFetch(['analytics-tab', 'global'], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const formatDuration = (mins: number) => {
     if (mins < 60) return `${mins}m`;

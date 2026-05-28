@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWeather } from '@/hooks/useWeather';
-import WeatherBackground from '@/components/dashboard/WeatherBackground';
+import DashboardBackground from '@/components/dashboard/DashboardBackground';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -41,6 +41,7 @@ import { serverApi } from '@/lib/serverApi';
 import { useAuth } from '@/hooks/useAuth';
 import { useGamification } from '@/hooks/mst/useGamification';
 import { useAsyncStorageCache } from '@/hooks/useAsyncStorageCache';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 // WeatherBackground removed — using static sunny gradient instead
 import SafeBlurView from '@/components/ui/SafeBlurView';
@@ -594,16 +595,22 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
     }
   }, [propertyId, user?.id]);
 
+  // React Query wrapper: prevents re-fetching on every mount if data is fresh
+  const { refetch } = useDashboardFetch(['dashboard-staff', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
   useEffect(() => {
-    fetchData();
+    // fetchData is called by useDashboardFetch on mount (if stale)
     hasRequestedPermissions().then(requested => {
       if (!requested) setShowPermissionOnboarding(true);
     });
-  }, [fetchData]);
+  }, [propertyId]);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setIsRefreshing(true);
-    fetchData();
+    await refetch();
+    setIsRefreshing(false);
   };
 
   // ── Shift toggle ──
@@ -1005,7 +1012,7 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <StatusBar barStyle="light-content" />
-        <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
+        <DashboardBackground />
         {weather && <WeatherBackground condition={weather.condition} />}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#8B5CF6" />
@@ -1018,7 +1025,7 @@ export default function LovableStaffDashboard({ propertyId }: Props) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#1a1a1a', '#121212', '#0a0a0a']} style={StyleSheet.absoluteFillObject} />
+      <DashboardBackground />
       {weather && <WeatherBackground condition={weather.condition} />}
 
       <ScrollView

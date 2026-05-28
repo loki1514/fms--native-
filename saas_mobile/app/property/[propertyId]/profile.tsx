@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '@/context';
 import { useAuth } from '@/hooks/useAuth';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 import { Colors } from '@/constants/Colors';
 import { createClient } from '@/utils/supabase/client';
 import { readFileAsArrayBuffer, compressImage } from '@/utils/mediaUtils';
@@ -90,15 +91,15 @@ export default function ProfileScreen() {
     }
   }, [user, supabase]);
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  const { refetch } = useDashboardFetch(['profile', user?.id ?? 'none'], fetchProfile, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await fetchProfile();
+    await refetch();
     setIsRefreshing(false);
-  }, [fetchProfile]);
+  }, [refetch]);
 
   // ─── Save profile ──────────────────────────────────────────────────────────
   const handleSave = async () => {

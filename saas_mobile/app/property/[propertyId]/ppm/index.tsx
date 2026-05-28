@@ -51,6 +51,7 @@ import {
   Upload,
   DownloadCloud,
 } from "lucide-react-native";
+import { useDashboardFetch } from "@/hooks/useDashboardFetch";
 
 // ─── Types (saas_one schema) ─────────────────────────────────────────────────
 
@@ -666,9 +667,9 @@ export default function PPMScreen() {
     [fetchSchedules],
   );
 
-  useEffect(() => {
-    if (propertyId) fetchAll();
-  }, [propertyId, fetchAll]);
+  const { refetch } = useDashboardFetch(["ppm", propertyId], fetchAll, {
+    staleTime: 1000 * 60 * 5,
+  });
 
   useEffect(() => {
     if (hasPositionedCalendarRef.current || schedules.length === 0) return;
@@ -700,7 +701,11 @@ export default function PPMScreen() {
   }, [calMonth, calYear, schedules]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleRefresh = () => fetchAll(true);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setIsRefreshing(false);
+  };
 
   const openDetail = (schedule: PPMSchedule) => {
     setSelectedSchedule(schedule);

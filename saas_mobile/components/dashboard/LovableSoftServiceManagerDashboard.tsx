@@ -32,6 +32,7 @@ import PPMActivityTile from '@/components/dashboard/PPMActivityTile';
 import { ppmService } from '@/services/ppmService';
 import WeatherBackground from '@/components/dashboard/WeatherBackground';
 import { useWeather } from '@/hooks/useWeather';
+import { useDashboardFetch } from '@/hooks/useDashboardFetch';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -323,14 +324,17 @@ export default function LovableSoftServiceManagerDashboard({ propertyId }: { pro
     }
   }, [propertyId, user?.id]);
 
+  const { refetch } = useDashboardFetch(['soft-service', propertyId], fetchData, {
+    staleTime: 1000 * 60 * 5,
+  });
+
   useEffect(() => {
-    fetchData();
     hasRequestedPermissions().then(requested => {
       if (!requested) setShowPermOnboard(true);
     });
-  }, [fetchData]);
+  }, []);
 
-  const onRefresh = () => { setIsRefreshing(true); fetchData(); };
+  const onRefresh = async () => { setIsRefreshing(true); await refetch(); };
 
   const toggleShift = async () => {
     if (!user?.id || isTogglingShift) return;

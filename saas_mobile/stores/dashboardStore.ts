@@ -19,6 +19,8 @@ interface DashboardState {
   hasLoadedInitialData: boolean;
   loadedPropertyId: string | null;
   lastUpdatedAt: number | null;
+  backgroundImage: string;
+  setBackgroundImage: (url: string) => void;
   setDashboardData: (data: Partial<DashboardState>) => void;
   clearCache: () => void;
 }
@@ -40,12 +42,14 @@ const initialState = {
   hasLoadedInitialData: false,
   loadedPropertyId: null,
   lastUpdatedAt: null,
+  backgroundImage: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1200&auto=format&fit=crop', // Night sky default
 };
 
 export const useDashboardStore = create<DashboardState>()(
   persist(
     (set) => ({
       ...initialState,
+      setBackgroundImage: (url) => set((state) => ({ ...state, backgroundImage: url })),
       setDashboardData: (data) => set((state) => ({ ...state, ...data })),
       clearCache: () => set({ ...initialState }),
     }),
@@ -69,6 +73,7 @@ export const useDashboardStore = create<DashboardState>()(
         hasLoadedInitialData: state.hasLoadedInitialData,
         loadedPropertyId: state.loadedPropertyId,
         lastUpdatedAt: state.lastUpdatedAt,
+        backgroundImage: state.backgroundImage,
       }),
     }
   )
